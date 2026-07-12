@@ -191,7 +191,7 @@
     flex: 1;
     min-width: 0;
   }
-  /* 짧은 값만 들어가는 그룹(나레이션·대사·속마음·레이아웃)은
+  /* 짧은 값만 들어가는 그룹(나레이션·대사·강조·레이아웃)은
      컨트롤을 행 폭의 절반만 차지하게 하고, 오른쪽 끝에 붙여 정렬함 */
   .halfControls .row > label ~ input:not([type="checkbox"]):not([type="range"]),
   .halfControls .row > label ~ select,
@@ -1459,7 +1459,7 @@
     margin-right: 3px;
   }
   /* ---------- 미리보기 선택 서식 도구막대 ---------- */
-  #selToolbar {
+  #selToolbar, #blockToolbar {
     display: none;
     position: fixed;
     z-index: 60;
@@ -1469,7 +1469,7 @@
     border-radius: 8px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.28);
   }
-  #selToolbar button {
+  #selToolbar button, #blockToolbar button {
     width: 30px;
     height: 28px;
     border: none;
@@ -1480,6 +1480,9 @@
     line-height: 1;
   }
   #selToolbar button:hover { background: rgba(255,255,255,0.18); }
+  #blockToolbar button { width: auto; min-width: 44px; padding: 0 9px; font-size: 12px; }
+  #blockToolbar button:hover { background: rgba(255,255,255,0.18); }
+  #blockToolbar button[data-block-action="delete"]:hover { background:#a83b3b; }
   /* 이미 서식이 적용된 부분을 선택하면 해당 버튼이 주황색으로 켜짐 (다시 누르면 해제) */
   #selToolbar button.active { background: var(--accent); color: #fff; }
   #selToolbar button.active:hover { background: var(--accent-hover); }
@@ -2073,20 +2076,20 @@
     <div class="group-title">대표 이미지</div>
     <p class="group-desc">로그 첫 화면에 표시할 이미지와 위치를 정합니다.</p>
     <div class="row">
-      <label><input type="checkbox" id="imgOn"> 대표 이미지 표시</label>
+      <label><input type="checkbox" id="imgOn" checked> 대표 이미지 표시</label>
     </div>
     <div class="row">
-      <input type="url" id="imgUrl" placeholder="이미지 URL 붙여넣기" value="">
+      <input type="url" id="imgUrl" placeholder="이미지 URL 붙여넣기" value="https://mosaic-log.github.io/Top_image.png">
     </div>
     <div class="row">
       <label>이미지 높이</label>
-      <input type="range" id="imgHeight" min="200" max="600" step="10" value="320">
-      <span class="rangeval" id="imgHeightVal">320</span>
+      <input type="range" id="imgHeight" min="200" max="600" step="10" value="300">
+      <span class="rangeval" id="imgHeightVal">300</span>
     </div>
     <div class="row">
       <label>세로 위치</label>
-      <input type="range" id="ypos" min="0" max="100" value="50">
-      <span class="rangeval" id="yposVal">50</span>
+      <input type="range" id="ypos" min="0" max="100" value="0">
+      <span class="rangeval" id="yposVal">0</span>
     </div>
   </div>
 
@@ -2094,7 +2097,7 @@
     <div class="group-title">표제</div>
     <p class="group-desc">제목과 부제를 구성합니다. 빈 항목은 결과에서 생략됩니다.</p>
     <div class="row">
-      <label><input type="checkbox" id="logTitleOn" checked> 표제 표시</label>
+      <label><input type="checkbox" id="logTitleOn"> 표제 표시</label>
     </div>
     <div class="row">
       <label><input type="checkbox" id="titleMinimal"> 미니멀</label>
@@ -2105,7 +2108,7 @@
     </div>
     <div class="row titleFieldRow">
       <label>제목</label>
-      <input type="text" id="logTitle" value="5.5초의 침묵" placeholder="예: 5.5초의 침묵">
+      <input type="text" id="logTitle" value="수백 개의 파랑" placeholder="예: 수백 개의 파랑">
     </div>
     <div class="row subtitleRow titleFieldRow">
       <label>부제</label>
@@ -2197,17 +2200,17 @@
       <summary>카드·드래그 도움말</summary>
       <p class="hint">카드 1개 = 아카라이브 둥근 박스 1개. 대표 이미지는 첫 카드 위, 꼬리말은 마지막 카드 아래.</p>
       <p class="hint"><b>드래그 이동:</b> 미리보기의 이미지·구분선·장면 전환을 끌어 위치 변경. 되돌리기 가능. (접기 블록 제외)</p>
+      <p class="hint"><b>길게 누르기:</b> 미리보기의 구분선·장면 전환을 길게 누르면 서로 변경하거나 삭제할 수 있음.</p>
     </details>
     <details class="syntaxHelp">
       <summary>입력 문법 안내 (펼치기)</summary>
       <p class="hint"><b>대사:</b> 줄 전체를 <code>"…"</code>로 감싸면 대사 박스. 맨 앞 <code>&gt;&gt;</code>는 {{char}}, <code>&lt;&lt;</code>는 {{user}} 색.</p>
-      <p class="hint"><b>속마음:</b> 단락 전체를 <code>**…**</code>로 감싸기.</p>
-      <p class="hint"><b>기울임:</b> 문장 중간의 <code>*이 부분*</code></p>
+      <p class="hint"><b>강조:</b> 문장 전체나 일부를 <code>*이 부분*</code>처럼 감싸면 강조 색상의 이탤릭으로 표시.</p>
       <p class="hint"><b>굵게:</b> <code>__이 부분__</code> · 겹쳐 쓰기 <code>__*둘 다*__</code></p>
-      <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 기울임 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
+      <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
-      <p class="hint"><b>미리보기 선택:</b> 글자를 드래그하면 도구막대가 뜸. 굵게/기울임 적용 및 해제 (적용된 상태는 주황색 표시).</p>
-      <p class="hint"><b>구분선:</b> <code>[HR]</code> 얇은 선 · <code>[HR2]</code> 장면 전환 장식(✦ ✦ ✦). 앞뒤 여백 자동 확대.</p>
+      <p class="hint"><b>미리보기 선택:</b> 글자를 드래그하면 도구막대가 뜸. 굵게/강조 적용 및 해제 (적용된 상태는 주황색 표시).</p>
+      <p class="hint"><b>구분선:</b> <code>[HR]</code> 얇은 선 · <code>[HR2]</code> 장면 전환 장식(✦ ✦ ✦). 미리보기에서 길게 누르면 변경·삭제 가능.</p>
       <p class="hint"><b>카드 접기:</b> 카드 헤더의 <b>접기 카드</b> 체크. <b>✦ 제목 ✦</b> 표지로 표시, 클릭 시 펼침. 대표 이미지·표제는 항상 노출.</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code>. 제목 생략 가능. 닫지 않으면 카드 끝까지 접힘.</p>
       <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> — 같거나 큰 소제목이 나올 때까지 자동으로 접힘.</p>
@@ -2263,13 +2266,13 @@
     </div>
     <div class="row">
       <label>크기</label>
-      <input type="range" id="narrSize" value="13.5" step="0.5" min="9" max="24">
-      <span class="rangeval" id="narrSizeVal">13.5</span>
+      <input type="range" id="narrSize" value="14" step="0.5" min="9" max="24">
+      <span class="rangeval" id="narrSizeVal">14</span>
     </div>
     <div class="row">
       <label>줄간격</label>
-      <input type="range" id="narrLine" value="1.95" step="0.05" min="1" max="3">
-      <span class="rangeval" id="narrLineVal">1.95</span>
+      <input type="range" id="narrLine" value="1.7" step="0.05" min="1" max="3">
+      <span class="rangeval" id="narrLineVal">1.7</span>
     </div>
 
   </div>
@@ -2282,7 +2285,7 @@
       <select id="dlgStyle">
         <option value="box">옵션1 — 인용 박스</option>
         <option value="quote">옵션2 — 인용</option>
-        <option value="softlight">옵션3 — 글자 강조</option>
+        <option value="softlight" selected>옵션3 — 글자 강조</option>
         <option value="highlight">옵션4 — 배경 강조</option>
       </select>
     </div>
@@ -2301,8 +2304,8 @@
     </div>
     <div class="row">
       <label>줄간격</label>
-      <input type="range" id="dlgLine" value="1.65" step="0.05" min="1" max="3">
-      <span class="rangeval" id="dlgLineVal">1.65</span>
+      <input type="range" id="dlgLine" value="1.7" step="0.05" min="1" max="3">
+      <span class="rangeval" id="dlgLineVal">1.7</span>
     </div>
     <details class="helpFold">
       <summary>도움말</summary>
@@ -2323,11 +2326,11 @@
       <div id="speakerNames" style="display:none;">
         <div class="row">
           <label>{{char}} 이름</label>
-          <input type="text" id="charName" placeholder="예: 렌델">
+          <input type="text" id="charName" placeholder="캐릭터">
         </div>
         <div class="row">
           <label>{{user}} 이름</label>
-          <input type="text" id="userName" placeholder="예: 마샤">
+          <input type="text" id="userName" placeholder="유저">
         </div>
       </div>
       <details class="helpFold">
@@ -2364,7 +2367,7 @@
         <label><input type="checkbox" id="narrIndent"> 첫 줄 들여쓰기</label>
       </div>
       <div class="row">
-        <label><input type="checkbox" id="narrJustify"> 나레이션·속마음 양쪽 정렬</label>
+        <label><input type="checkbox" id="narrJustify"> 나레이션 양쪽 정렬</label>
       </div>
       <div class="row">
         <label><input type="checkbox" id="headingCenter"> 소제목 가운데 정렬</label>
@@ -2373,7 +2376,7 @@
     <details class="helpFold">
       <summary>도움말</summary>
       <p class="hint"><b>읽기 폭:</b> 카드 최대 폭. 좁힐수록 한 줄이 짧아져 읽기 편함. 모바일에는 영향 없음.</p>
-      <p class="hint"><b>첫 줄 들여쓰기:</b> 나레이션·속마음에만 적용. 대사·소제목·가운데 정렬·인용 제외.</p>
+      <p class="hint"><b>첫 줄 들여쓰기:</b> 나레이션에 적용. 대사·소제목·가운데 정렬·인용 제외.</p>
       <p class="hint"><b>여백 밀도:</b> 문단·대사 박스·구분선 여백을 함께 조절. 연속 대사 구간은 자동으로 좁아짐.</p>
       <p class="hint"><b>카드 배경색:</b> 어떤 색을 골라도 대사 박스·구분선·테두리·소제목 색이 자동 파생됨. 글자색만 대비되게 지정.</p>
       <p class="hint">모든 설정은 디자인 프리셋에 함께 저장됨.</p>
@@ -2425,10 +2428,10 @@
       </div>
     </div>
     <div class="row">
-        <label>**속마음**</label>
+        <label>*강조*</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="thoughtColorHex" value="#888888" maxlength="7">
-        <input type="color" id="thoughtColor" value="#858585">
+        <input type="text" class="hexLabel" id="emphasisColorHex" value="#888888" maxlength="7">
+        <input type="color" id="emphasisColor" value="#858585">
       </div>
     </div>
     <div class="row">
@@ -2555,7 +2558,7 @@
     <div class="editorToolbar fmtBar" data-scope="fs" id="fsToolbar">
       <span class="tbGroup">
         <button type="button" class="fmtBtn" data-tfmt="bold" title="선택 부분 굵게 (__…__)  ·  Ctrl+B"><b>B</b></button>
-        <button type="button" class="fmtBtn" data-tfmt="italic" title="선택 부분 기울임 (*…*)  ·  Ctrl+I"><i>I</i></button>
+        <button type="button" class="fmtBtn" data-tfmt="emphasis" title="선택 부분 강조 (*…*)  ·  Ctrl+I"><i>I</i></button>
         <button type="button" class="fmtBtn" data-tfmt="center" title="이 줄 가운데 정렬 ([C])  ·  Ctrl+E">C</button>
       </span>
       <span class="tbSep"></span>
@@ -2599,9 +2602,8 @@
       <span><code>&gt;&gt;</code> {{char}}</span>
       <span><code>&lt;&lt;</code> {{user}}</span>
       <span><code>[이름]</code> 다른 인물</span>
-      <span><code>**속마음**</code></span>
       <span><code>__굵게__</code></span>
-      <span><code>*기울임*</code></span>
+      <span><code>*강조*</code></span>
       <span><code># 소제목</code></span>
       <span><code>#&gt; 소제목 접기</code></span>
       <span><code>&gt; 인용</code></span>
@@ -2616,8 +2618,13 @@
 
 <div id="selToolbar">
   <button type="button" data-fmt="bold" title="굵게 (__...__)"><b>B</b></button>
-  <button type="button" data-fmt="italic" title="기울임 (*...*)"><i>I</i></button>
+  <button type="button" data-fmt="emphasis" title="강조 (*...*)"><i>I</i></button>
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
+</div>
+
+<div id="blockToolbar">
+  <button type="button" data-block-action="toggle">변경</button>
+  <button type="button" data-block-action="delete">삭제</button>
 </div>
 
 <div id="undoToast" role="status" aria-live="polite">
@@ -2646,7 +2653,7 @@ async function loadSelectedWebFont(selectId){
   if(!document.fonts || !document.fonts.load) return;
   const key = document.getElementById(selectId).value;
   try {
-    await document.fonts.load(`16px ${fontStack(key)}`, '가나다라마바사아자차 대사와 나레이션');
+    await document.fonts.load(`16px ${fontStack(key)}`, '가나다라마바사 대사와 나레이션');
     renderPreview();
   } catch(e){ /* 로컬 글꼴이나 네트워크 미연결 시 기존 대체 글꼴 유지 */ }
 }
@@ -2658,6 +2665,14 @@ function escapeHTML(s){
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// HTML 본문 텍스트용 이스케이프. 따옴표는 글자로 안전하므로 보존해 대사 파싱과 함께 쓸 수 있게 함.
+function escapeTextHTML(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function escapeAttr(s){
@@ -2678,12 +2693,13 @@ function normalizeQuotes(text){
     .replace(/[\u2018\u2019\u2032]/g, "'");
 }
 
-// 인라인 서식: __...__ -> 굵게, *...* -> 기울임.
-// **...**는 줄 전체를 감쌀 때 속마음 문단으로 별도 처리한다.
-function processInline(text){
-  return escapeHTML(text)
+// 인라인 서식: __...__ -> 굵게, *...* -> 강조(기울임 + 강조색).
+function processInline(text, emphasisColor){
+  const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#858585';
+  const em = content => `<em style='color:${color};'>${content}</em>`;
+  return escapeTextHTML(text)
     .replace(/__(.+?)__/g, '<strong>$1</strong>')
-    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
+    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, content) => em(content));
 }
 
 // 배경색 밝기에 따라 읽기 좋은 글자색(흰/검)을 자동 선택 (옵션4 배경 강조용)
@@ -2794,7 +2810,7 @@ function buildParagraph(rawLine, settings, opts){
   if(imgMatch){
     let src = imgMatch[1];
     if(src.startsWith('//')) src = 'https:' + src;
-    const caption = imgMatch[2] ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(imgMatch[2].trim())}</p>` : '';
+    const caption = imgMatch[2] ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(imgMatch[2].trim(), settings.emphasisColor)}</p>` : '';
     // 카드의 첫 요소면 위 마진을 없앰 (카드 안쪽 여백과 겹쳐 위쪽만 넓어 보이는 것 방지).
     // 아카라이브가 <img>를 <p>로 감싸며 붙이는 기본 여백도 line-height/font-size 0으로 눌러줌.
     const imgMt = opts.isFirst ? 0 : Math.round(22 * sm);
@@ -2805,7 +2821,7 @@ function buildParagraph(rawLine, settings, opts){
   const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
   if(headingMatch){
     const level = headingMatch[1].length;
-    const text = processInline(headingMatch[2].trim());
+    const text = processInline(headingMatch[2].trim(), settings.emphasisColor);
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight, border: level === 1 ? `border-bottom:1px solid ${pal.headingBorder}; padding-bottom:8px; ` : '' };
     const marginBottom = Math.round((opts.extraBottom ? 36 : 14) * sm);
@@ -2814,7 +2830,7 @@ function buildParagraph(rawLine, settings, opts){
     return `    <p style="margin:${marginTop}px 0 ${marginBottom}px 0; ${align}${HEADING.border}color:${pal.heading[level]}; font-size:${HEADING.size}px; font-weight:${HEADING.weight}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${text}</p>\n`;
   }
 
-  // 가운데 정렬: [C] 접두어 (나레이션/속마음에 적용)
+  // 가운데 정렬: [C] 접두어 (나레이션에 적용)
   let forceCenter = false;
   if(/^\[C\]\s*/i.test(line)){
     forceCenter = true;
@@ -2832,7 +2848,7 @@ function buildParagraph(rawLine, settings, opts){
     const qMb = opts.extraBottom ? Math.round(36*sm) : Math.round(28*sm);
     const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : Math.round(28*sm));
     const center = forceCenter ? 'text-align:center; ' : '';
-    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${pal.boxBg}; border-radius:8px; ${center}color:${settings.narrColor}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(qInner)}</div>\n`;
+    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${pal.boxBg}; border-radius:8px; ${center}color:${settings.narrColor}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(qInner, settings.emphasisColor)}</div>\n`;
   }
 
   let overrideColor = null;
@@ -2847,10 +2863,8 @@ function buildParagraph(rawLine, settings, opts){
   line = sp.line;
 
   // 줄 전체가 정확히 "..." 로 감싸져 있으면 대사.
-  // 줄 전체가 정확히 **...** 로 감싸져 있으면 속마음 단락.
-  // 문장 중간의 *...* 는 나레이션 안의 기울임으로 처리됨.
+  // *...* 강조는 문장 안과 독립 문장 모두 같은 기울임·강조색으로 처리됨.
   const isDialogue = /^"[^"]*"$/.test(line);
-  const isThought = !isDialogue && /^\*\*[\s\S]*\*\*$/.test(line) && line.length >= 4;
 
   // [HR]/[HR2] 바로 앞/뒤 문단은 여백을 더 띄워서 단락 구분을 더 직관적으로 보여줌
   const HR_GAP = Math.round(36 * sm);
@@ -2889,7 +2903,7 @@ function buildParagraph(rawLine, settings, opts){
         : (who === 'user'
             ? ((settings.userName || '').trim() || '{{user}}')
             : ((settings.charName || '').trim() || '{{char}}'));
-      label = `    <p style="margin:${mt}px 0 5px 0; font-size:11px; font-weight:700; letter-spacing:0.5px; color:${color}; font-family:${fontStack(settings.dlgFont)};">${processInline(name)}</p>\n`;
+      label = `    <p style="margin:${mt}px 0 5px 0; font-size:11px; font-weight:700; letter-spacing:0.5px; color:${color}; font-family:${fontStack(settings.dlgFont)};">${processInline(name, settings.emphasisColor)}</p>\n`;
       mtEff = 0;
     }
 
@@ -2899,25 +2913,20 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : color;
       const txtColor = soft ? color : textColorFor(color);
-      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(line)}</span></p>\n`;
+      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(line, settings.emphasisColor)}</span></p>\n`;
     }
 
     // 옵션2: 한 줄일 때 특히 가볍게 보이도록 바의 위아래 여백을 옵션1보다 짧게 제한
     if(settings.dlgStyle === 'quote'){
-      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="display:block; border-left:3px solid ${color}; padding:5px 16px;">${processInline(line)}</span></p>\n`;
+      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="display:block; border-left:3px solid ${color}; padding:5px 16px;">${processInline(line, settings.emphasisColor)}</span></p>\n`;
     }
 
     // 옵션1(기본): 배경이 있는 인용 박스
-    return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${processInline(line)}</p>\n`;
-  } else if(isThought){
-    const content = line.slice(2, -2).trim();
-    const mb = opts.extraBottom ? HR_GAP : Math.round(22 * sm);
-    const indentT = (settings.narrIndent && !forceCenter) ? 'text-indent:1em; ' : '';
-    const alignT = forceCenter ? 'text-align:center; ' : justify;
-    return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentT}${alignT}color:${settings.thoughtColor}; font-size:${settings.narrSize}px; font-weight:400; font-style:italic; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${processInline(content)}</p>\n`;
+    return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${processInline(line, settings.emphasisColor)}</p>\n`;
   } else {
     const mb = opts.extraBottom ? HR_GAP : Math.round(16 * sm);
-    let content = line;
+    // 먼저 사용자 글자를 안전한 HTML로 만들고 강조 마커를 처리한 뒤, 생성된 대사 span을 합친다.
+    let content = processInline(line, settings.emphasisColor);
 
     // 옵션3·4에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
     // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
@@ -2953,7 +2962,7 @@ function buildParagraph(rawLine, settings, opts){
 
     const alignN = forceCenter ? 'text-align:center; ' : justify;
     const indentN = (settings.narrIndent && !forceCenter) ? 'text-indent:1em; ' : '';
-    return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentN}${alignN}color:${settings.narrColor}; font-size:${settings.narrSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${processInline(content)}</p>\n`;
+    return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentN}${alignN}color:${settings.narrColor}; font-size:${settings.narrSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
   }
 }
 
@@ -2973,7 +2982,7 @@ function getSettings(){
     dlgLine: document.getElementById('dlgLine').value,
     charColor: document.getElementById('charColor').value,
     userColor: document.getElementById('userColor').value,
-    thoughtColor: document.getElementById('thoughtColor').value,
+    emphasisColor: document.getElementById('emphasisColor').value,
     showSpeaker: document.getElementById('showSpeaker').checked,
     extraChars: parseExtraChars(),
     charName: document.getElementById('charName').value,
@@ -3018,7 +3027,7 @@ function buildImageBlock(settings){
 function buildFold(title, innerHTML, settings){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(20*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>${processInline(title)}</summary><div style="border-top:1px solid ${pal.divider}; padding:16px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(20*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:16px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -3028,7 +3037,7 @@ function buildHeadingFold(level, title, innerHTML, settings){
   const sm = spacingMult(settings);
   const spec = headingSpec(level);
   const align = settings.headingCenter ? 'text-align:center; ' : '';
-  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(24*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>${processInline(title)}</summary><div style="border-top:1px solid ${pal.divider}; padding:18px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(24*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:18px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -3135,9 +3144,9 @@ function buildTitleBlock(settings, hasImg){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
   let inner = '';
-  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processInline(num)}</p>`;
-  if(title) inner += `<p style="margin:0; font-size:21px; font-weight:800; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${processInline(title)}</p>`;
-  if(sub)   inner += `<p style="margin:${title ? 8 : 0}px 0 0 0; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processInline(sub)}</p>`;
+  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processInline(num, settings.emphasisColor)}</p>`;
+  if(title) inner += `<p style="margin:0; font-size:21px; font-weight:800; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${processInline(title, settings.emphasisColor)}</p>`;
+  if(sub)   inner += `<p style="margin:${title ? 8 : 0}px 0 0 0; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processInline(sub, settings.emphasisColor)}</p>`;
   // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
   const topEdge = hasImg
@@ -3158,7 +3167,7 @@ function buildFooter(settings){
   const full = author ? `조각로그 ©${author}` : '조각로그';
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  return `    <div style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${processInline(full)}</div>\n`;
+  return `    <div style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${processInline(full, settings.emphasisColor)}</div>\n`;
 }
 
 function buildCard(settings){
@@ -3212,7 +3221,7 @@ function buildCard(settings){
       // 닫혀 있으면 제목만 담긴 카드처럼 보이고, 네이티브 삼각형(▸/▾)이 상태를 알려줌.
       // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
-      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${processInline(card.foldTitle)}<span style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
+      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${processInline(card.foldTitle, settings.emphasisColor)}<span style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
   <div style="box-sizing:border-box; border-top:1px solid ${pal.divider}; padding:clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px);">
 ${bodyHTML}${footer}  </div>
 </details>`;
@@ -3235,18 +3244,26 @@ function generateHTML(){
 let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
 
 // ---------- 미리보기에서 선택해 서식 적용 ----------
-// 미리보기 글자를 드래그하면 작은 도구막대가 뜨고, 굵게/기울임을 본문에 바로 적용함.
+// 미리보기 글자를 드래그하면 작은 도구막대가 뜨고, 굵게/강조를 본문에 바로 적용함.
 // 이미 서식이 걸린 부분을 고르면 해당 버튼이 켜지고, 다시 누르면 서식이 해제된다.
 // 최상위 문단(접기 블록 밖)만 대상으로 하며, 선택한 글자를 원본 줄에서 찾아 마커로 감싼다.
-const FMT_WRAP = { bold: '__', italic: '*' };
-const FMT_TAG = { bold: 'STRONG', italic: 'EM' };
-const FMT_RE = { bold: /__(.+?)__/g, italic: /(?<!\*)\*([^*\n]+?)\*(?!\*)/g };
+const FMT_WRAP = { bold: '__', emphasis: '*' };
+const FMT_TAG = { bold: 'STRONG', emphasis: 'EM' };
+const FMT_RE = {
+  bold: /__(.+?)__/g,
+  emphasis: /(?<!\*)\*([^*\n]+?)\*(?!\*)/g
+};
 const CENTER_RE = /^(>\s?)?\[C\]\s*/i;   // 줄 맨 앞 또는 인용 뒤의 [C]
 let selCtx = null;
+let blockCtx = null;
 
 // 문자열에서 인라인 마커를 걷어내 순수 글자만 남김 (비교용)
 function stripMarkers(s){
   return s.replace(/__|\*/g, '');
+}
+
+function formatMatchContent(fmt, match){
+  return match[1];
 }
 
 function hideSelToolbar(){
@@ -3255,6 +3272,61 @@ function hideSelToolbar(){
   bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   selCtx = null;
 }
+
+function hideBlockToolbar(){
+  const bar = document.getElementById('blockToolbar');
+  bar.style.display = 'none';
+  blockCtx = null;
+}
+
+function showBlockToolbar(ctx){
+  hideSelToolbar();
+  blockCtx = ctx;
+  const bar = document.getElementById('blockToolbar');
+  const r = ctx.block.getBoundingClientRect();
+  bar.style.display = 'flex';
+  const bw = bar.offsetWidth || 100;
+  const above = r.top - bar.offsetHeight - 8;
+  bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
+  bar.style.top = Math.max(8, above > 8 ? above : r.bottom + 8) + 'px';
+}
+
+function editSeparatorText(text, raw, type, action){
+  const lines = text.split('\n');
+  if(lines[raw] === undefined) return null;
+  let message;
+  if(action === 'toggle'){
+    const next = type === 'hr' ? '[HR2]' : '[HR]';
+    lines[raw] = next;
+    message = type === 'hr' ? '구분선을 장면 전환으로 변경.' : '장면 전환을 구분선으로 변경.';
+  }else{
+    lines.splice(raw, 1);
+    message = type === 'hr' ? '구분선 삭제.' : '장면 전환 삭제.';
+  }
+  return {
+    text: lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, ''),
+    message
+  };
+}
+
+function finishBlockToolbarAction(action){
+  if(!blockCtx) return;
+  const { ta, raw, type } = blockCtx;
+  const result = editSeparatorText(ta.value, raw, type, action);
+  if(!result){ hideBlockToolbar(); return; }
+  snapshotCards();
+  ta.value = result.text;
+  hideBlockToolbar();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(result.message);
+}
+
+document.querySelectorAll('#blockToolbar button').forEach(btn => {
+  btn.addEventListener('mousedown', e => e.preventDefault());
+  btn.addEventListener('click', () => finishBlockToolbarAction(btn.dataset.blockAction));
+});
 
 // 선택 영역을 감싸고 있는 서식 태그(<strong>/<em>)를 블록 안에서 찾음
 function activeFormatEl(node, tagName, block){
@@ -3308,7 +3380,7 @@ function findBlockSource(node){
       const plain = stripMarkers(entry.text)
         .replace(/^#{1,4}>?\s*/, '').replace(/^>{1,2}\s*/, '')
         .replace(/^<<\s*/, '').replace(/^\[C\]\s*/i, '')
-        .replace(/^\[[^\]]{1,24}\]\s*/, '').replace(/^\*\*|\*\*$/g, '')
+        .replace(/^\[[^\]]{1,24}\]\s*/, '')
         .replace(/\s+/g, ' ').trim();
       if(!plain) return;
       const score = visible.includes(plain) ? plain.length : (plain.includes(visible) ? visible.length : 0);
@@ -3444,8 +3516,9 @@ document.getElementById('preview').addEventListener('mouseup', () => {
 });
 
 document.addEventListener('mousedown', (e) => {
-  if(e.target.closest && e.target.closest('#selToolbar')) return;
+  if(e.target.closest && (e.target.closest('#selToolbar') || e.target.closest('#blockToolbar'))) return;
   hideSelToolbar();
+  hideBlockToolbar();
 });
 
 document.querySelectorAll('#selToolbar button').forEach(btn => {
@@ -3476,7 +3549,7 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       saveDraft();
       showUndoToast(label);
     };
-    const name = { bold: '굵게', italic: '기울임', center: '가운데 정렬' }[fmt];
+    const name = { bold: '굵게', emphasis: '강조', center: '가운데 정렬' }[fmt];
 
     // 가운데 정렬: 줄 단위로 [C] 붙이기/떼기 (인용 `> ` 뒤에 삽입)
     if(fmt === 'center'){
@@ -3496,10 +3569,10 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       const re = new RegExp(FMT_RE[fmt].source, 'g');
       let m, found = null;
       while((m = re.exec(line)) !== null){
-        if(stripMarkers(m[1]) === stripMarkers(targetPlain)){ found = m; break; }
+        if(stripMarkers(formatMatchContent(fmt, m)) === stripMarkers(targetPlain)){ found = m; break; }
       }
       if(!found) return fail(`${name} 서식을 찾지 못함. 본문에서 직접 삭제.`);
-      const newLine = line.slice(0, found.index) + found[1] + line.slice(found.index + found[0].length);
+      const newLine = line.slice(0, found.index) + formatMatchContent(fmt, found) + line.slice(found.index + found[0].length);
       return finish(newLine, `${name} 서식 해제.`);
     }
 
@@ -3584,6 +3657,7 @@ function moveLineInText(text, srcRaw, destRaw){
 function renderPreview(overrides){
   const settings = Object.assign(getSettings(), overrides || {});
   const preview = document.getElementById('preview');
+  hideBlockToolbar();
   // 다시 그리면 <details>가 전부 닫히므로, 펼쳐둔 상태를 기억했다가 복원함
   // (타이핑·프리셋 호버 등으로 리렌더될 때 읽던 접기가 닫히지 않게)
   const openStates = Array.from(preview.querySelectorAll('details')).map(d => d.open);
@@ -3594,6 +3668,63 @@ function renderPreview(overrides){
   });
   enableBlockDrag(preview);
   if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
+}
+
+// 구분선은 짧게 끌면 이동하고, 제자리에서 길게 누르면 변경·삭제 메뉴를 연다.
+function bindSeparatorInteraction(target, dragCtx, menuCtx){
+  const HOLD_MS = 520;
+  const MOVE_PX = 7;
+
+  target.addEventListener('mousedown', e => {
+    if(e.button !== 0) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    let timer = null;
+    const cleanup = () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    const onMove = ev => {
+      if(Math.hypot(ev.clientX - sx, ev.clientY - sy) < MOVE_PX) return;
+      cleanup();
+      startBlockDrag(dragCtx);
+    };
+    const onUp = () => cleanup();
+    timer = setTimeout(() => {
+      cleanup();
+      showBlockToolbar(menuCtx);
+    }, HOLD_MS);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 터치에서는 움직이면 스크롤로 보고 취소하고, 움직이지 않을 때만 길게 누르기를 인식한다.
+  target.addEventListener('touchstart', e => {
+    if(!e.touches.length) return;
+    const first = e.touches[0];
+    const sx = first.clientX, sy = first.clientY;
+    let timer = null;
+    const cleanup = () => {
+      clearTimeout(timer);
+      target.removeEventListener('touchmove', onMove);
+      target.removeEventListener('touchend', cleanup);
+      target.removeEventListener('touchcancel', cleanup);
+    };
+    const onMove = ev => {
+      if(!ev.touches.length) return;
+      const t = ev.touches[0];
+      if(Math.hypot(t.clientX - sx, t.clientY - sy) >= MOVE_PX) cleanup();
+    };
+    timer = setTimeout(() => {
+      cleanup();
+      showBlockToolbar(menuCtx);
+    }, HOLD_MS);
+    target.addEventListener('touchmove', onMove, { passive: true });
+    target.addEventListener('touchend', cleanup);
+    target.addEventListener('touchcancel', cleanup);
+  }, { passive: true });
+  target.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 // 미리보기의 이미지·구분선·장면 전환을 드래그해 문단 사이로 옮기면 본문의 해당 줄도 함께 이동함.
@@ -3644,9 +3775,11 @@ function enableBlockDrag(preview){
       if(isImg && !block.querySelector('img')) return;
 
       const label = isImg ? '이미지' : (isHr ? '구분선' : '장면 전환');
+      const dragCtx = { block, blocks, map, ta, srcIndex: i, label };
+      const menuCtx = { block, ta, raw: info.startRaw, type: isHr ? 'hr' : 'hr2' };
       const startDrag = (e) => {
         e.preventDefault();
-        startBlockDrag({ block, blocks, map, ta, srcIndex: i, label });
+        startBlockDrag(dragCtx);
       };
 
       if(isHr){
@@ -3654,9 +3787,13 @@ function enableBlockDrag(preview){
         block.style.position = 'relative';
         const hit = document.createElement('div');
         hit.style.cssText = 'position:absolute; left:0; right:0; top:-11px; height:24px; cursor:grab;';
-        hit.title = '드래그로 구분선 이동';
-        hit.addEventListener('mousedown', startDrag);
+        hit.title = '드래그로 이동 · 길게 눌러 변경/삭제';
+        bindSeparatorInteraction(hit, dragCtx, menuCtx);
         block.appendChild(hit);
+      } else if(isHr2){
+        block.style.cursor = 'grab';
+        block.title = '드래그로 이동 · 길게 눌러 변경/삭제';
+        bindSeparatorInteraction(block, dragCtx, menuCtx);
       } else {
         block.style.cursor = 'grab';
         block.title = `드래그로 ${label} 이동`;
@@ -3813,7 +3950,7 @@ function render(){
 }
 
 function updateHexLabels(){
-  ['narrColor','charColor','userColor','thoughtColor','bgColor'].forEach(id => {
+  ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
     document.getElementById(id + 'Hex').value = document.getElementById(id).value;
   });
 }
@@ -3829,7 +3966,7 @@ function normalizeHex(raw){
 }
 
 // 컬러피커 <-> 헥스코드 입력창 양방향 연동
-['narrColor','charColor','userColor','thoughtColor','bgColor'].forEach(id => {
+['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
   const colorInput = document.getElementById(id);
   const hexInput = document.getElementById(id + 'Hex');
 
@@ -3886,7 +4023,7 @@ document.getElementById('imgUrl').addEventListener('change', () => {
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
 const WORK_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
-const STYLE_FIELDS = ['narrFont','narrSize','narrLine','narrColor','dlgStyle','dlgFont','dlgSize','dlgLine','charColor','userColor','thoughtColor','spacingMode','cardWidth','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
+const STYLE_FIELDS = ['narrFont','narrSize','narrLine','narrColor','dlgStyle','dlgFont','dlgSize','dlgLine','charColor','userColor','emphasisColor','spacingMode','cardWidth','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn']);
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
@@ -3946,19 +4083,22 @@ function syncCoverControlState(){
 });
 
 // ---------- 카드별 본문 입력 ----------
-const EXAMPLE_BODY = `나는 살짝 웃으며 대답했다.
+const EXAMPLE_BODY = `<<"이리야."
 
->>"고마워요. 다음에 또 올게요."
+대답이 없었다.
 
-그는 분명 '다음에 또 올게요'라는 말을 들었다. 그 말을 듣는 데 0.5초, 이해하는 데 2초, *믿기로 결정하는 데 3초*가 걸렸다. 도합 5.5초 동안 그는 아무 말도 하지 못했다. 그 짧은 침묵 속에서 그의 머릿속은 복잡하게 움직였다.
+이리의 눈동자는 하늘에 박혀 있었고, 눈꺼풀은 깜빡이는 것조차 잊은 듯 움직이지 않았다. 동공이 빛에 반응하며 천천히 줄어들었다가 구름이 해를 가리자 다시 풀어졌다. 그 작은 변화조차 이리에게는 경이로움이었다. 그의 목구멍에서 낮은 소리가 흘러나왔다. 말이 아니었다. 개가 낯선 것을 마주했을 때 내는, 가슴 깊은 곳에서 울리는 작은 울음소리.
 
-**다음에 또 온다는 건 약속일까, 그냥 인사치레일까. 인사치레라면 '고마워요'로 끝났어야 했다. '다음에 또 올게요'는 인사치레가 아니다.**
+이리의 눈에는 눈물이 맺혀 있었다.
 
-**그럼 약속인가.**
+흐르지는 않았다. 속눈썹에 걸린 채로 아침 햇살을 받아 작은 프리즘처럼 빛나고 있었다. 슬픔의 눈물이 아니었다. 두려움도, 고통도 아니었다. 그저 너무 많은 것이 한꺼번에 밀려들어왔을 때, 몸이 감당하지 못해 흘러넘치는 수분. 개였을 때는 볼 수 없었던 색깔들. 인간의 눈이 포착하는 스펙트럼의 넓이. 하늘의 파랑은 단일한 색이 아니라 수백 개의 파랑이 겹쳐진 층위였다. 이리는 그 모든 것을 동시에 보고 있었다.
 
-그가 내놓은 대답은 결국 아무 단어도 포함하지 않은 입을 열었다가 다물었다가 다시 연 어정쩡한 숨소리뿐이었다. 그리고 그다음에 나온 말은:
+"하늘."
 
-<<"...진짜?"`;
+단 한 단어. 발음은 여전히 서툴렀다. 하지만 그 목소리에는 말로 다 담지 못한 모든 것이 실려 있었다.
+
+
+*이렇게 생긴 거였어? 이렇게 넓은 거였어? 이렇게 많은 색이 있었어? 나 여태까지 이걸 모르고 살았어?*`;
 
 let activeTa = null; // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
 
@@ -4167,13 +4307,13 @@ function createCardEditor(value){
   const fmtGroup = document.createElement('div');
   fmtGroup.className = 'cardFmtBar';
   [['bold',`선택 부분 굵게 (__…__)  ·  ${MOD_KEY}+B`],
-   ['italic',`선택 부분 기울임 (*…*)  ·  ${MOD_KEY}+I`],
+   ['emphasis',`선택 부분 강조 (*…*)  ·  ${MOD_KEY}+I`],
    ['center',`이 줄 가운데 정렬 ([C])  ·  ${MOD_KEY}+E`]].forEach(([f, tip]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'fmtBtn';
     btn.title = tip;
-    btn.innerHTML = f === 'bold' ? '<b>B</b>' : (f === 'italic' ? '<i>I</i>' : 'C');
+    btn.innerHTML = f === 'bold' ? '<b>B</b>' : (f === 'emphasis' ? '<i>I</i>' : 'C');
     btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
     btn.addEventListener('click', () => applyTextareaFormat(ta, f));
     fmtGroup.appendChild(btn);
@@ -4324,7 +4464,7 @@ function insertIntoBody(prefix, suffix, placeholder){
 }
 
 // ---------- 입력창 서식 도구막대 (B / I / C) ----------
-// 선택한 글자를 마커로 감싸거나(굵게·기울임), 커서가 놓인 줄을 가운데 정렬한다.
+// 선택한 글자를 마커로 감싸거나(굵게·강조), 커서가 놓인 줄을 가운데 정렬한다.
 function applyTextareaFormat(ta, fmt){
   if(!ta) return;
   const val = ta.value;
@@ -4350,18 +4490,27 @@ function applyTextareaFormat(ta, fmt){
     if(s === e) return;   // 선택 없으면 아무 것도 하지 않음
     const wrap = FMT_WRAP[fmt];
     const sel = val.slice(s, e);
-    const esc = wrap.replace(/[*]/g, '\\$&');
-    const inner = new RegExp('^' + esc + '([\\s\\S]+)' + esc + '$');
-    const m = sel.match(inner);
-    if(m){
-      // 선택 안에 마커가 포함된 경우 → 해제
-      ta.value = val.slice(0, s) + m[1] + val.slice(e);
-      ta.setSelectionRange(s, s + m[1].length);
-    } else if(val.slice(Math.max(0, s - wrap.length), s) === wrap && val.slice(e, e + wrap.length) === wrap){
-      // 선택 바깥을 마커가 감싸고 있는 경우 → 해제
-      ta.value = val.slice(0, s - wrap.length) + sel + val.slice(e + wrap.length);
-      ta.setSelectionRange(s - wrap.length, s - wrap.length + sel.length);
-    } else {
+    const wraps = [wrap];
+    let removed = false;
+    for(const candidate of wraps){
+      const escaped = candidate.replace(/[*]/g, '\\$&');
+      const inner = new RegExp('^' + escaped + '([\\s\\S]+)' + escaped + '$');
+      const m = sel.match(inner);
+      if(m){
+        ta.value = val.slice(0, s) + m[1] + val.slice(e);
+        ta.setSelectionRange(s, s + m[1].length);
+        removed = true;
+        break;
+      }
+      if(val.slice(Math.max(0, s - candidate.length), s) === candidate
+         && val.slice(e, e + candidate.length) === candidate){
+        ta.value = val.slice(0, s - candidate.length) + sel + val.slice(e + candidate.length);
+        ta.setSelectionRange(s - candidate.length, s - candidate.length + sel.length);
+        removed = true;
+        break;
+      }
+    }
+    if(!removed){
       ta.value = val.slice(0, s) + wrap + sel + wrap + val.slice(e);
       ta.setSelectionRange(s + wrap.length, s + wrap.length + sel.length);
     }
@@ -5011,9 +5160,9 @@ const JOSA_INDEX = { '은': 0, '는': 0, '이': 1, '가': 1, '을': 2, '를': 2,
 const JOSA_FORMS = [['은','는'], ['이','가'], ['을','를'], ['과','와']];   // [받침 있음, 없음]
 
 // text 안의 from 을 to 로 바꾸면서, 바로 뒤에 붙은 조사(은/는·이/가·을/를·과/와)를
-// 새 이름의 받침에 맞춰 변환한다. 예: 렌델이 → 캐릭터가, 렌델은 → 캐릭터는.
-// 받침 이름의 '이' 접미 결합(렌델이가/이는/이를/이와)도 처리: 렌델이가 → 캐릭터가.
-// 조사 뒤가 한글이면(예: "렌델이다") 조사로 보지 않고 이름만 바꾼다 — "캐릭터이다"로 무해하게 남음.
+// 새 이름의 받침 유무에 맞춰 조사를 자연스럽게 변환한다.
+// 받침 있는 이름의 '이' 접미 결합(이가/이는/이를/이와)도 함께 처리한다.
+// 조사 뒤가 한글이면 조사로 보지 않고 이름만 바꿔 원문을 안전하게 보존한다.
 function renameWithJosa(text, from, to){
   const combos = hasBatchim(from) === true ? '이가|이는|이를|이와|' : '';
   const re = new RegExp(escRe(from) + '(?:(' + combos + '은|는|이|가|을|를|과|와)(?=$|[^가-힣]))?', 'g');
@@ -5315,9 +5464,9 @@ document.getElementById('newLogBtn').addEventListener('click', () => {
   snapshotCards();
   // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
   ['imgUrl','logNumber','subChar','subUser','logSubtitle'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('logTitle').value = '5.5초의 침묵';
+  document.getElementById('logTitle').value = '';
   document.getElementById('imgOn').checked = false;
-  document.getElementById('logTitleOn').checked = true;
+  document.getElementById('logTitleOn').checked = false;
   syncCoverControlState();
   document.getElementById('cardEditors').innerHTML = '';
   activeTa = null;
@@ -5330,8 +5479,8 @@ document.getElementById('newLogBtn').addEventListener('click', () => {
 
 document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   const ok = confirm(
-    '현재 작업을 처음 상태로 되돌릴까요?\n\n' +
-    '초기화: 본문, 표지, 이미지, 이름, 디자인과 현재 테마\n' +
+    '현재 작업을 모두 비울까요?\n\n' +
+    '초기화: 본문, 표제, 이미지, 이름, 디자인과 현재 테마\n' +
     '유지: 보관함, 내 프리셋, 내보낸 파일\n\n' +
     '초기화 후 상단 되돌리기로 복구할 수 있습니다.'
   );
@@ -5339,22 +5488,22 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   clearTimeout(styleCommitTimer);
   snapshotCards();
 
-  // 현재 작업 데이터만 기본값으로 되돌림. SLOT_KEY·PRESET_KEY는 건드리지 않는다.
+  // 현재 작업 데이터만 빈 작업 상태로 되돌림. SLOT_KEY·PRESET_KEY는 건드리지 않는다.
   const fieldDefaults = {
-    imgUrl: '', imgHeight: '320', ypos: '50',
+    imgUrl: '', imgHeight: '300', ypos: '0',
     charName: '', userName: '', extraChars: '[]', footerAuthor: '',
-    logNumber: '', logTitle: '5.5초의 침묵', subChar: '', subUser: '', logSubtitle: ''
+    logNumber: '', logTitle: '', subChar: '', subUser: '', logSubtitle: ''
   };
   Object.entries(fieldDefaults).forEach(([id, value]) => {
     document.getElementById(id).value = value;
   });
   document.getElementById('imgOn').checked = false;
   document.getElementById('footerOn').checked = true;
-  document.getElementById('logTitleOn').checked = true;
+  document.getElementById('logTitleOn').checked = false;
   document.getElementById('titleMinimal').checked = false;
   syncCoverControlState();
-  document.getElementById('imgHeightVal').textContent = '320';
-  document.getElementById('yposVal').textContent = '50';
+  document.getElementById('imgHeightVal').textContent = '300';
+  document.getElementById('yposVal').textContent = '0';
 
   document.getElementById('cardEditors').innerHTML = '';
   activeTa = null;
@@ -5390,15 +5539,15 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   showUndoToast('현재 작업 전체 초기화.');
 
   const status = document.getElementById('slotImportStatus');
-  status.textContent = '현재 작업을 기본값으로 초기화했습니다.';
+  status.textContent = '현재 작업을 모두 비웠습니다.';
   setTimeout(() => { status.textContent = ''; }, 3000);
   if(activeTa) activeTa.focus();
 });
 
 // ---------- 본문 입력창 서식 단축키 ----------
 // 카드 입력창·전체 화면 입력창에 커서가 있을 때만 동작
-// Ctrl/⌘+B 굵게 · Ctrl/⌘+I 기울임 · Ctrl/⌘+E 가운데 정렬
-const FMT_SHORTCUT = { b: 'bold', i: 'italic', e: 'center' };
+// Ctrl/⌘+B 굵게 · Ctrl/⌘+I 강조 · Ctrl/⌘+E 가운데 정렬
+const FMT_SHORTCUT = { b: 'bold', i: 'emphasis', e: 'center' };
 document.addEventListener('keydown', (e) => {
   if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
   const fmt = FMT_SHORTCUT[e.key.toLowerCase()];
@@ -5550,8 +5699,8 @@ function updateCounter(){
   }).length;
   const longNote = longCount > 0 ? ` · 긴 문단 ${longCount}개 (나눠 쓰면 읽기 편해)` : '';
 
-  // 대사/서술/속마음 구성비 (마커·소제목·구분선·이미지 등 비텍스트 줄은 제외)
-  let dlgC = 0, thoughtC = 0, narrC = 0;
+  // 대사/서술/강조 구성비 (강조 글자는 서술에서 빼 중복 없이 합계 100%로 계산)
+  let dlgC = 0, emphasisC = 0, narrC = 0;
   paraList.forEach(l => {
     const u = l.toUpperCase();
     if(u === '[HR]' || u === '[HR2]' || /^#{1,4}>?\s/.test(l) || /^\[IMG\s/i.test(l)
@@ -5561,17 +5710,22 @@ function updateCounter(){
     if(cm) body = body.slice(cm[0].length).trim();
     if(body.startsWith('>>') || body.startsWith('<<')) body = body.slice(2).trim();
     if(/^"[^"]*"$/.test(body)){
-      dlgC += body.slice(1, -1).replace(/\s/g, '').length;
-    }else if(/^\*\*[\s\S]*\*\*$/.test(body)){
-      thoughtC += body.slice(2, -2).replace(/\s/g, '').length;
+      dlgC += stripMarkers(body.slice(1, -1)).replace(/\s/g, '').length;
     }else{
-      narrC += stripMarkers(body).replace(/\s/g, '').length;
+      const plainLength = stripMarkers(body).replace(/\s/g, '').length;
+      const re = new RegExp(FMT_RE.emphasis.source, 'g');
+      let match, emphasized = 0;
+      while((match = re.exec(body)) !== null){
+        emphasized += stripMarkers(formatMatchContent('emphasis', match)).replace(/\s/g, '').length;
+      }
+      emphasisC += emphasized;
+      narrC += Math.max(0, plainLength - emphasized);
     }
   });
-  const totalC = dlgC + thoughtC + narrC;
+  const totalC = dlgC + emphasisC + narrC;
   const pct = (v) => Math.round(v / totalC * 100);
   const ratioNote = totalC > 0
-    ? ` · 대사 ${pct(dlgC)}% / 서술 ${pct(narrC)}% / 속마음 ${pct(thoughtC)}%`
+    ? ` · 대사 ${pct(dlgC)}% / 서술 ${pct(narrC)}% / 강조 ${pct(emphasisC)}%`
     : '';
 
   const cardNote = bodies.length > 1 ? ` · 카드 ${bodies.length}장` : '';
@@ -5596,8 +5750,29 @@ document.getElementById('clearBodyBtn').addEventListener('click', () => {
 // 본문/이미지 관련 입력을 이 브라우저(localStorage)에 자동 저장해서,
 // 창을 닫거나 새로고침해도 작업 내용이 유지되게 함.
 const DRAFT_KEY = 'logGenDraft_v1';
+const DRAFT_SCHEMA_VERSION = 2;
 const DRAFT_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
 let draftSaveTimer = null;
+
+// 예전 기본 예시가 자동 저장된 브라우저에서는 새 기본 화면이 영원히 가려졌다.
+// 실제 작성 초안은 보존하고, 제목과 본문이 폐기된 예시와 일치하는 경우만 새 기본값으로 교체한다.
+function isRetiredDefaultDraft(d){
+  if(!d || d.logTitle !== '5.5초의 침묵') return false;
+  let bodies = [];
+  if(Array.isArray(d.cards)){
+    bodies = d.cards.map(card => typeof card === 'string' ? card : (card && card.body) || '');
+  }else if(Array.isArray(d.cardBodies)){
+    bodies = d.cardBodies;
+  }else if(typeof d.bodyInput === 'string'){
+    bodies = [d.bodyInput];
+  }
+  if(bodies.length !== 1) return false;
+  const body = String(bodies[0]);
+  return body.includes('나는 살짝 웃으며 대답했다.')
+    && body.includes('고마워요. 다음에 또 올게요.')
+    && body.includes('그럼 약속인가.')
+    && body.includes('...진짜?');
+}
 
 function scheduleDraftSave(){
   clearTimeout(draftSaveTimer);
@@ -5618,6 +5793,7 @@ function saveDraft(){
     d.imgOn = document.getElementById('imgOn').checked;
     d.footerOn = document.getElementById('footerOn').checked;
     d.style = currentStyleValues();
+    d.schemaVersion = DRAFT_SCHEMA_VERSION;
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
     const status = document.getElementById('draftStatus');
     if(status) status.textContent = '자동 저장됨';
@@ -5635,6 +5811,10 @@ function restoreDraft(){
     const raw = localStorage.getItem(DRAFT_KEY);
     if(!raw) return;
     const d = JSON.parse(raw);
+    if(isRetiredDefaultDraft(d)){
+      localStorage.removeItem(DRAFT_KEY);
+      return;
+    }
     DRAFT_FIELDS.forEach(id => {
       if(d[id] !== undefined) document.getElementById(id).value = d[id];
     });
@@ -5775,22 +5955,22 @@ document.getElementById('codeFsCopyBtn').addEventListener('click', () => {
 // ---------- 프리셋 ----------
 const PRESET_KEY = 'logGenPresets_v2';
 const DEFAULT_STYLE = {
-  narrFont: 'pretendard', narrSize: '13.5', narrLine: '1.95', narrColor: '#555555',
-  dlgStyle: 'box', dlgFont: 'pretendard', dlgSize: '14', dlgLine: '1.65',
-  charColor: '#222222', userColor: '#707070', thoughtColor: '#858585',
+  narrFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
+  dlgStyle: 'softlight', dlgFont: 'pretendard', dlgSize: '14', dlgLine: '1.7',
+  charColor: '#222222', userColor: '#707070', emphasisColor: '#858585',
   spacingMode: 'normal', cardWidth: '750', bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, showSpeaker: false
 };
 
 // 가독성을 검증하며 고른 추천 색 조합 (배경 + 글자색 4종)
 const COLOR_COMBOS = [
-  { name: '모노 클래식', v: { bgColor:'#ffffff', narrColor:'#555555', charColor:'#222222', userColor:'#707070', thoughtColor:'#858585' } },
-  { name: '세피아 문고', v: { bgColor:'#faf6ef', narrColor:'#5c5245', charColor:'#7a4a2a', userColor:'#44603a', thoughtColor:'#8f8577' } },
-  { name: '로즈 페이퍼', v: { bgColor:'#fdf3f4', narrColor:'#6b5a5d', charColor:'#a03c52', userColor:'#4a5d7a', thoughtColor:'#a08a8f' } },
-  { name: '포레스트',   v: { bgColor:'#f3f6f1', narrColor:'#4f5a4c', charColor:'#2e5e3f', userColor:'#7a5230', thoughtColor:'#86917f' } },
-  { name: '라벤더',     v: { bgColor:'#f6f4fa', narrColor:'#5a5566', charColor:'#5b4a8a', userColor:'#8a4a6b', thoughtColor:'#908aa0' } },
-  { name: '신문지',     v: { bgColor:'#f4f2ec', narrColor:'#3a3a3a', charColor:'#111111', userColor:'#6b1f1f', thoughtColor:'#787265' } },
-  { name: '미드나잇',   v: { bgColor:'#16181f', narrColor:'#b8bcc8', charColor:'#9db4e8', userColor:'#d9a679', thoughtColor:'#7f8494' } },
-  { name: '잉크 & 골드', v: { bgColor:'#1b1a19', narrColor:'#c9c2b6', charColor:'#d4af6a', userColor:'#9db4e8', thoughtColor:'#8f887c' } },
+  { name: '모노 클래식', v: { bgColor:'#ffffff', narrColor:'#555555', charColor:'#222222', userColor:'#707070', emphasisColor:'#858585' } },
+  { name: '세피아 문고', v: { bgColor:'#faf6ef', narrColor:'#5c5245', charColor:'#7a4a2a', userColor:'#44603a', emphasisColor:'#8f8577' } },
+  { name: '로즈 페이퍼', v: { bgColor:'#fdf3f4', narrColor:'#6b5a5d', charColor:'#a03c52', userColor:'#4a5d7a', emphasisColor:'#a08a8f' } },
+  { name: '포레스트',   v: { bgColor:'#f3f6f1', narrColor:'#4f5a4c', charColor:'#2e5e3f', userColor:'#7a5230', emphasisColor:'#86917f' } },
+  { name: '라벤더',     v: { bgColor:'#f6f4fa', narrColor:'#5a5566', charColor:'#5b4a8a', userColor:'#8a4a6b', emphasisColor:'#908aa0' } },
+  { name: '신문지',     v: { bgColor:'#f4f2ec', narrColor:'#3a3a3a', charColor:'#111111', userColor:'#6b1f1f', emphasisColor:'#787265' } },
+  { name: '미드나잇',   v: { bgColor:'#16181f', narrColor:'#b8bcc8', charColor:'#9db4e8', userColor:'#d9a679', emphasisColor:'#7f8494' } },
+  { name: '잉크 & 골드', v: { bgColor:'#1b1a19', narrColor:'#c9c2b6', charColor:'#d4af6a', userColor:'#9db4e8', emphasisColor:'#8f887c' } },
 ];
 
 let currentComboName = null;
@@ -5826,11 +6006,11 @@ function renderComboList(){
       <div class="comboPalette" aria-hidden="true">
         <span style="background:${v.bgColor}"></span>
         <span style="background:${v.narrColor}"></span>
-        <span style="background:${v.thoughtColor}"></span>
+        <span style="background:${v.emphasisColor}"></span>
         <span style="background:${v.charColor}"></span>
         <span style="background:${v.userColor}"></span>
       </div>
-      <div class="comboPreview" style="color:${v.narrColor}">서술 · <span style="color:${v.charColor}">대사</span> · <em style="color:${v.thoughtColor}">속마음</em></div>
+      <div class="comboPreview" style="color:${v.narrColor}">서술 · <span style="color:${v.charColor}">대사</span> · <em style="color:${v.emphasisColor}">강조</em></div>
     `;
     chip.addEventListener('click', () => {
       const nextDialogueStyle = presetDialogueStyle(`recommended:${combo.name}`);
@@ -6293,13 +6473,13 @@ function sanitizeImportedPreset(preset){
   return found ? { name: preset.name.trim(), values: clean } : null;
 }
 
-// 색 조합 스와치: 배경/나레이션/{{char}}/{{user}}/속마음을 글자가 든 큰 칩으로 한눈에 보여줌
+// 색 조합 스와치: 배경/나레이션/강조/{{char}}/{{user}}를 글자가 든 큰 칩으로 한눈에 보여줌
 function buildSwatchRow(v){
   const bg = v.bgColor || '#ffffff';
   const dots = [
     { c: bg,                        t: '배' },
     { c: v.narrColor    || '#ccc',  t: '나' },
-    { c: v.thoughtColor || '#ccc',  t: '속' },
+    { c: v.emphasisColor || '#ccc',  t: '강' },
     { c: v.charColor    || '#ccc',  t: '캐' },
     { c: v.userColor    || '#ccc',  t: '유' },
   ];
@@ -6348,7 +6528,7 @@ function renderPresetList(){
     const preview = document.createElement('div');
     preview.className = 'presetPreview';
     preview.style.color = v.narrColor || '#666666';
-    preview.innerHTML = `서술 · <span style="color:${v.charColor || '#222222'}">대사</span> · <em style="color:${v.thoughtColor || '#858585'}">속마음</em>`;
+    preview.innerHTML = `서술 · <span style="color:${v.charColor || '#222222'}">대사</span> · <em style="color:${v.emphasisColor || '#858585'}">강조</em>`;
 
     // 카드 클릭 = 적용 (이름 편집 중이거나 버튼 클릭은 제외)
     card.addEventListener('click', (e) => {
