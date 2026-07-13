@@ -2,17 +2,18 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>조각로그</title>
 <!-- 미설치 환경에서도 디자인 탭에서 서체를 비교할 수 있도록 웹폰트를 불러옵니다. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
   :root {
     --ink: #242320;
     --ink-soft: #68655f;
-    --ink-faint: #98948c;
+    --ink-faint: #716d66;
     --line: #e4e0d9;
     --line-strong: #d3cec6;
     --bg-app: #f3f1ed;
@@ -200,7 +201,7 @@
     width: 50%;
     margin-left: auto;
   }
-  /* 표제 입력은 실제 출력 순서대로 길게 정렬: 봇 × 유저 · 자유 부제 */
+  /* 표제 입력은 실제 출력 순서대로 길게 정렬: 캐릭터 × 유저 · 자유 부제 */
   #tabCover .titleControls .titleFieldRow > label ~ input:not([type="checkbox"]),
   #tabCover .titleControls .titleFieldRow > label ~ .subtitleLine {
     flex: 1;
@@ -381,9 +382,6 @@
   /* 닫힌 details의 자식에 display를 지정하면 기본 숨김이 풀리므로 명시적으로 숨김 */
   details.helpFold:not([open]) > *:not(summary),
   details.syntaxHelp:not([open]) > *:not(summary) { display: none; }
-  #presetManage { margin-top: 10px; }
-  #presetManage .presetRow { margin-bottom: 7px; }
-
   /* ---------- 버튼 공통 ---------- */
   button {
     font-family: inherit;
@@ -505,60 +503,6 @@
     box-sizing: border-box;
   }
 
-  /* ---------- 프리셋 ---------- */
-  #presetList {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  .presetCard {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 12px;
-    border: 1.5px solid var(--line);
-    border-radius: 10px;
-    cursor: pointer;
-    background: var(--bg-panel);
-    transition: border-color .12s ease, background .12s ease;
-  }
-  .presetCard:hover { border-color: var(--ink-faint); }
-  .presetCard.active {
-    border-color: var(--accent);
-    background: var(--bg-field);
-  }
-  .presetCard .pname {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--ink-soft);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .presetCard.active .pname { color: var(--ink); }
-
-  /* 색 스와치 행: 글자(배/나/캐/유/속)가 든 큰 칩 5개 */
-  .swRow {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  .swDot {
-    width: 24px;
-    height: 24px;
-    border-radius: 7px;
-    border: 1px solid rgba(0,0,0,0.14);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-  }
-
   .presetRow {
     display: flex;
     gap: 6px;
@@ -668,7 +612,7 @@
     background: #37352f;
   }
 
-  #deletePresetBtn, #resetDefaultsBtn {
+  #resetDefaultsBtn {
     margin-top: 6px;
     width: 100%;
     padding: 8px;
@@ -678,7 +622,7 @@
     color: var(--ink-faint);
     border-radius: var(--radius);
   }
-  #deletePresetBtn:hover, #resetDefaultsBtn:hover {
+  #resetDefaultsBtn:hover {
     border-color: var(--line-strong);
     color: var(--ink-soft);
     background: var(--bg-field);
@@ -896,7 +840,7 @@
   .cardEditorHead .collapseCtl.isCollapsed::after { display: block; }
   .cardEditorHead .headLeft { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 
-  /* ---------- 프리셋 / 커스텀 ---------- */
+  /* ---------- 추천 프리셋 / 내 프리셋 ---------- */
   #comboList {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1483,7 +1427,7 @@
   #blockToolbar button { width: auto; min-width: 44px; padding: 0 9px; font-size: 12px; }
   #blockToolbar button:hover { background: rgba(255,255,255,0.18); }
   #blockToolbar button[data-block-action="delete"]:hover { background:#a83b3b; }
-  /* 이미 서식이 적용된 부분을 선택하면 해당 버튼이 주황색으로 켜짐 (다시 누르면 해제) */
+  /* 이미 서식이 적용된 부분을 선택하면 해당 버튼이 선택 상태로 켜짐 (다시 누르면 해제) */
   #selToolbar button.active { background: var(--accent); color: #fff; }
   #selToolbar button.active:hover { background: var(--accent-hover); }
 
@@ -1555,34 +1499,10 @@
   #tabTheme .comboCard { padding: 9px 10px 10px; border-width: 1px; border-radius: 8px; }
 
   /* 테마 탭: 색상 스와치가 HEX보다 먼저 읽히는 색 중심 편집 UI */
-  .themeColorGrid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-  #tabTheme #charList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-  #tabTheme .themeColorGrid .row, #tabTheme #charList .row {
-    display: block;
-    min-width: 0;
-    margin: 0;
-    padding: 10px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    background: #fff;
-  }
-  #tabTheme .themeColorGrid .row > label, #tabTheme #charList .row > label {
-    display: block;
-    width: auto;
-    margin: 0 0 8px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 650;
-  }
-  #tabTheme .themeEditorGroup .themeColorGrid .row > .colorField,
-  #tabTheme .themeEditorGroup #charList .row > .colorField { width: 100%; flex: none; margin: 0; gap: 7px; }
-  #tabTheme .themeColorGrid .hexLabel, #tabTheme #charList .hexLabel { order: 2; height: 34px; background: var(--bg-field); }
   #tabTheme .themeColorGrid input[type="color"], #tabTheme #charList input[type="color"] {
-    order: 1;
+    /* DOM에서는 HEX 입력 뒤에 있지만 화면에서는 컬러칩을 먼저 배치한다.
+       grid 첫 열(28px)과 순서를 맞추지 않으면 HEX가 좁은 열에 들어가 겹친다. */
+    order: -1;
     width: 38px;
     height: 38px;
     padding: 0;
@@ -1595,7 +1515,7 @@
     cursor: pointer;
   }
   #tabTheme input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-  #tabTheme input[type="color"]::-webkit-color-swatch,
+  #tabTheme input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0,0,0,.14); border-radius: 8px; }
   #tabTheme input[type="color"]::-moz-color-swatch { border: 1px solid rgba(0,0,0,.14); border-radius: 8px; }
   #tabTheme .comboCard,
   #tabTheme .themeColorGrid .row,
@@ -1608,10 +1528,6 @@
   .comboPalette { display: flex; gap: 4px; margin: 7px 0 5px; }
   .comboPalette span { flex: 1; height: 13px; border: 1px solid rgba(0,0,0,0.1); border-radius: 999px; }
   .comboPreview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; line-height: 1.4; }
-
-  @container sidebar (max-width: 430px) {
-    .themeColorGrid, #tabTheme #charList { grid-template-columns: 1fr; }
-  }
 
   /* 테마 탭: 선택 → 편집 → 저장이 하나의 시각 언어로 이어지는 구성 */
   #tabTheme .themeSavedGroup #presetList {
@@ -1783,23 +1699,6 @@
   }
   #tabTheme .themeSavedGroup .presetRow { margin-top: 12px !important; }
 
-  /* ---------- 모바일 레이아웃 ---------- */
-  @media (max-width: 680px) {
-    body { flex-direction: column; }
-    #sidebar {
-      width: 100%;
-      height: auto;
-      position: static;
-      overflow-y: visible;          /* 세로 배치: 사이드바 자체 스크롤 해제 (페이지가 스크롤 주체) */
-      overscroll-behavior: auto;    /* contain이 남으면 스크롤이 페이지로 안 넘어가 전체 스크롤이 죽음 */
-      border-right: none;
-      border-bottom: 1px solid var(--line);
-      padding: 18px 16px 28px 16px;
-    }
-    #previewArea { padding: 24px 12px 60px 12px; }
-    #sidebarResizer { display: none; }   /* 세로 배치에서는 폭 조절 불필요 */
-  }
-
   /* ---------- 사이드바 폭 조절 손잡이 ---------- */
   #sidebarResizer {
     flex: none;
@@ -1964,6 +1863,7 @@
       height: auto;
       position: static;
       overflow: visible;
+      overscroll-behavior: auto;
       padding: 0 16px 28px;
       border-right: none;
       border-bottom: 1px solid var(--line);
@@ -2062,15 +1962,15 @@
       </span>
     </div>
 
-    <div class="tabBar">
-      <button type="button" class="tabBtn active" data-tab="tabCover">표지</button>
-      <button type="button" class="tabBtn" data-tab="tabBody">본문</button>
-      <button type="button" class="tabBtn" data-tab="tabDesign">디자인</button>
-      <button type="button" class="tabBtn" data-tab="tabTheme">테마</button>
+    <div class="tabBar" role="tablist" aria-label="설정">
+      <button type="button" id="tabBtnCover" class="tabBtn active" data-tab="tabCover" role="tab" aria-controls="tabCover" aria-selected="true" tabindex="0">표지</button>
+      <button type="button" id="tabBtnBody" class="tabBtn" data-tab="tabBody" role="tab" aria-controls="tabBody" aria-selected="false" tabindex="-1">본문</button>
+      <button type="button" id="tabBtnDesign" class="tabBtn" data-tab="tabDesign" role="tab" aria-controls="tabDesign" aria-selected="false" tabindex="-1">디자인</button>
+      <button type="button" id="tabBtnTheme" class="tabBtn" data-tab="tabTheme" role="tab" aria-controls="tabTheme" aria-selected="false" tabindex="-1">테마</button>
     </div>
   </div>
 
-<div class="tabPanel active" id="tabCover">
+<div class="tabPanel active" id="tabCover" role="tabpanel" aria-labelledby="tabBtnCover">
 
   <div class="group halfControls imageControls settingsForm">
     <div class="group-title">대표 이미지</div>
@@ -2079,15 +1979,15 @@
       <label><input type="checkbox" id="imgOn" checked> 대표 이미지 표시</label>
     </div>
     <div class="row">
-      <input type="url" id="imgUrl" placeholder="이미지 URL 붙여넣기" value="https://mosaic-log.github.io/Top_image.png">
+      <input type="url" id="imgUrl" maxlength="8192" aria-label="대표 이미지 URL" placeholder="이미지 URL 붙여넣기" value="https://mosaic-log.github.io/Top_image.png">
     </div>
     <div class="row">
-      <label>이미지 높이</label>
+      <label for="imgHeight">이미지 높이</label>
       <input type="range" id="imgHeight" min="200" max="600" step="10" value="300">
       <span class="rangeval" id="imgHeightVal">300</span>
     </div>
     <div class="row">
-      <label>세로 위치</label>
+      <label for="ypos">세로 위치</label>
       <input type="range" id="ypos" min="0" max="100" value="0">
       <span class="rangeval" id="yposVal">0</span>
     </div>
@@ -2103,21 +2003,21 @@
       <label><input type="checkbox" id="titleMinimal"> 미니멀</label>
     </div>
     <div class="row titleFieldRow">
-      <label>메모</label>
+      <label for="logNumber">메모</label>
       <input type="text" class="miniInput" id="logNumber" placeholder="예: 모델 - 프롬프트">
     </div>
     <div class="row titleFieldRow">
-      <label>제목</label>
+      <label for="logTitle">제목</label>
       <input type="text" id="logTitle" value="수백 개의 파랑" placeholder="예: 수백 개의 파랑">
     </div>
     <div class="row subtitleRow titleFieldRow">
-      <label>부제</label>
-      <span class="subtitleLine">
-        <input type="text" id="subChar" placeholder="캐릭터">
+      <label id="subtitleLabel">부제</label>
+      <span class="subtitleLine" role="group" aria-labelledby="subtitleLabel">
+        <input type="text" id="subChar" aria-label="캐릭터" placeholder="캐릭터">
         <span class="subtitleSep">×</span>
-        <input type="text" id="subUser" placeholder="유저">
+        <input type="text" id="subUser" aria-label="유저" placeholder="유저">
         <span class="subtitleSep subtitleDot">·</span>
-        <input type="text" id="logSubtitle" placeholder="예: Log #1">
+        <input type="text" id="logSubtitle" aria-label="자유 부제" placeholder="예: Log #1">
       </span>
     </div>
     <details class="helpFold">
@@ -2136,7 +2036,7 @@
         <label><input type="checkbox" id="footerOn" checked> 꼬리말 표시</label>
       </div>
       <div class="row">
-        <label>작성자</label>
+        <label for="footerAuthor">작성자</label>
         <input type="text" class="miniInput" id="footerAuthor" placeholder="이름">
       </div>
     </div>
@@ -2150,29 +2050,29 @@
         <button type="button" class="btnQuiet" id="newLogBtn">＋ 새 로그</button>
       </div>
       <div class="presetRow archiveSaveRow">
-        <input type="text" id="slotName" placeholder="이름 (비우면 로그 제목 사용)">
-        <button class="secondary btnSecondary" id="saveSlotBtn">저장</button>
+        <input type="text" id="slotName" maxlength="100" aria-label="보관함 이름" placeholder="이름 (비우면 로그 제목 사용)">
+        <button type="button" class="secondary btnSecondary" id="saveSlotBtn">저장</button>
       </div>
       <div id="slotList"></div>
       <div class="presetRow archiveFileRow">
-        <button class="secondary btnSecondary" id="exportSlotsBtn" style="flex:1;">내보내기</button>
-        <button class="secondary btnSecondary" id="importSlotsBtn" style="flex:1;">불러오기</button>
+        <button type="button" class="secondary btnSecondary" id="exportSlotsBtn" style="flex:1;">내보내기</button>
+        <button type="button" class="secondary btnSecondary" id="importSlotsBtn" style="flex:1;">불러오기</button>
         <input type="file" id="importSlotsFile" accept="application/json" style="display:none;">
       </div>
       <div id="slotImportStatus" class="hint" aria-live="polite"></div>
       <div class="archiveResetRow">
-        <button type="button" class="btnDanger" id="resetCurrentWorkBtn" title="본문·표지·디자인·테마를 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
+        <button type="button" class="btnDanger" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
       </div>
       <details class="helpFold">
         <summary>보관함 사용법</summary>
-        <p class="hint"><b>저장</b> 슬롯에 보관 · <b>슬롯 클릭</b> 전환(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업과 디자인을 기본값으로 복원(보관함·내 프리셋 유지) · <b>내보내기</b> 보관함 전체 백업(동명은 덮어씀)</p>
+        <p class="hint"><b>저장</b> 슬롯에 보관 · <b>슬롯 클릭</b> 전환(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>내보내기</b> 보관함 전체 백업</p>
       </details>
     </div>
   </details>
 
 </div><!-- /tabCover -->
 
-<div class="tabPanel" id="tabBody">
+<div class="tabPanel" id="tabBody" role="tabpanel" aria-labelledby="tabBtnBody">
 
   <div class="group">
     <div class="group-title">본문 입력</div>
@@ -2209,13 +2109,13 @@
       <p class="hint"><b>굵게:</b> <code>__이 부분__</code> · 겹쳐 쓰기 <code>__*둘 다*__</code></p>
       <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
-      <p class="hint"><b>미리보기 선택:</b> 글자를 드래그하면 도구막대가 뜸. 굵게/강조 적용 및 해제 (적용된 상태는 주황색 표시).</p>
+      <p class="hint"><b>미리보기 선택:</b> 글자를 드래그하면 도구막대가 뜸. 굵게/강조 적용 및 해제 (적용된 기능은 선택 상태로 표시).</p>
       <p class="hint"><b>구분선:</b> <code>[HR]</code> 얇은 선 · <code>[HR2]</code> 장면 전환 장식(✦ ✦ ✦). 미리보기에서 길게 누르면 변경·삭제 가능.</p>
       <p class="hint"><b>카드 접기:</b> 카드 헤더의 <b>접기 카드</b> 체크. <b>✦ 제목 ✦</b> 표지로 표시, 클릭 시 펼침. 대표 이미지·표제는 항상 노출.</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code>. 제목 생략 가능. 닫지 않으면 카드 끝까지 접힘.</p>
       <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> — 같거나 큰 소제목이 나올 때까지 자동으로 접힘.</p>
       <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 캡션은 <code>[IMG 주소 | 캡션]</code></p>
-      <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> — 이름은 <b>테마 &gt; 커스텀</b>에 자동 등록.</p>
+      <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> — 이름은 <b>테마 &gt; 현재 테마</b>에 자동 등록.</p>
       <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> (꺾쇠+공백). 편지·문자·시스템 메시지용. <code>&gt;&gt;</code>와 구분됨.</p>
       <p class="hint"><b>가운데 정렬:</b> 줄 맨 앞 <code>[C] </code></p>
       <p class="hint"><b>소제목:</b> 맨 앞 <code>#</code> 개수로 크기 결정 (<code>#</code> 가장 큼 → <code>####</code> 가장 작음).</p>
@@ -2229,9 +2129,9 @@
       <p class="group-desc">이름과 뒤따르는 조사를 모든 카드에서 함께 바꿉니다.</p>
       <div class="nameReplaceRow">
         <div class="nameFieldGroup">
-          <input type="text" id="nameFrom" placeholder="현재 이름">
+          <input type="text" id="nameFrom" aria-label="현재 이름" placeholder="현재 이름">
           <span class="arrowSep">→</span>
-          <input type="text" id="nameTo" placeholder="새 이름">
+          <input type="text" id="nameTo" aria-label="새 이름" placeholder="새 이름">
         </div>
         <div class="nameActionGroup">
           <button type="button" id="nameFindBtn">찾기</button>
@@ -2249,7 +2149,7 @@
 
 </div><!-- /tabBody -->
 
-<div class="tabPanel" id="tabDesign">
+<div class="tabPanel" id="tabDesign" role="tabpanel" aria-labelledby="tabBtnDesign">
 
 
 
@@ -2257,20 +2157,20 @@
     <div class="group-title">나레이션</div>
     <p class="group-desc">서술 문단의 글꼴과 읽기 리듬을 설정합니다.</p>
     <div class="row">
-      <label>폰트</label>
+      <label for="narrFont">폰트</label>
       <select id="narrFont">
         <option value="pretendard">프리텐다드</option>
         <option value="notoSans">Noto Sans KR</option>
-        <option value="eulyoo">을유1945</option>
+        <option value="notoSerif">Noto Serif KR</option>
       </select>
     </div>
     <div class="row">
-      <label>크기</label>
+      <label for="narrSize">크기</label>
       <input type="range" id="narrSize" value="14" step="0.5" min="9" max="24">
       <span class="rangeval" id="narrSizeVal">14</span>
     </div>
     <div class="row">
-      <label>줄간격</label>
+      <label for="narrLine">줄간격</label>
       <input type="range" id="narrLine" value="1.7" step="0.05" min="1" max="3">
       <span class="rangeval" id="narrLineVal">1.7</span>
     </div>
@@ -2281,7 +2181,7 @@
     <div class="group-title">대사</div>
     <p class="group-desc">대사 표현 방식과 기본 글꼴을 설정합니다.</p>
     <div class="row">
-      <label>표현 방식</label>
+      <label for="dlgStyle">표현 방식</label>
       <select id="dlgStyle">
         <option value="box">옵션1 — 인용 박스</option>
         <option value="quote">옵션2 — 인용</option>
@@ -2290,20 +2190,20 @@
       </select>
     </div>
     <div class="row">
-      <label>폰트</label>
+      <label for="dlgFont">폰트</label>
       <select id="dlgFont">
         <option value="pretendard">프리텐다드</option>
         <option value="notoSans">Noto Sans KR</option>
-        <option value="eulyoo">을유1945</option>
+        <option value="notoSerif">Noto Serif KR</option>
       </select>
     </div>
     <div class="row">
-      <label>크기</label>
+      <label for="dlgSize">크기</label>
       <input type="range" id="dlgSize" value="14" step="0.5" min="9" max="24">
       <span class="rangeval" id="dlgSizeVal">14</span>
     </div>
     <div class="row">
-      <label>줄간격</label>
+      <label for="dlgLine">줄간격</label>
       <input type="range" id="dlgLine" value="1.7" step="0.05" min="1" max="3">
       <span class="rangeval" id="dlgLineVal">1.7</span>
     </div>
@@ -2325,11 +2225,11 @@
       </div>
       <div id="speakerNames" style="display:none;">
         <div class="row">
-          <label>{{char}} 이름</label>
+          <label for="charName">{{char}} 이름</label>
           <input type="text" id="charName" placeholder="캐릭터">
         </div>
         <div class="row">
-          <label>{{user}} 이름</label>
+          <label for="userName">{{user}} 이름</label>
           <input type="text" id="userName" placeholder="유저">
         </div>
       </div>
@@ -2345,7 +2245,7 @@
     <div class="group-title">레이아웃</div>
     <p class="group-desc">읽기 폭, 문단 정렬과 전체 여백 밀도를 조절합니다.</p>
     <div class="row">
-      <label>여백 밀도</label>
+      <label for="spacingMode">여백 밀도</label>
       <select id="spacingMode">
         <option value="compact">촘촘</option>
         <option value="normal" selected>기본</option>
@@ -2353,7 +2253,7 @@
       </select>
     </div>
     <div class="row">
-      <label>읽기 폭</label>
+      <label for="cardWidth">읽기 폭</label>
       <select id="cardWidth">
         <option value="750" selected>넓게 (750px)</option>
         <option value="680">보통 (680px)</option>
@@ -2385,7 +2285,7 @@
 
 </div><!-- /tabDesign -->
 
-<div class="tabPanel" id="tabTheme">
+<div class="tabPanel" id="tabTheme" role="tabpanel" aria-labelledby="tabBtnTheme">
 
   <details class="group foldGroup" id="comboGroup">
     <summary class="group-title foldHead">추천 프리셋<span class="foldArrow" aria-hidden="true"></span></summary>
@@ -2408,44 +2308,44 @@
       <div class="group-title">현재 테마</div>
       <div class="themeHeadMeta">
         <div id="themeCurrentStatus">직접 편집 중</div>
-        <button class="secondary btnQuiet" id="resetDefaultsBtn">테마 초기화</button>
+        <button type="button" class="secondary btnQuiet" id="resetDefaultsBtn">테마 초기화</button>
       </div>
     </div>
     <p class="group-desc">현재 적용된 색상을 역할별로 세밀하게 조정합니다.</p>
     <div class="themeColorGrid">
     <div class="row">
-      <label>카드 배경</label>
+      <label for="bgColorHex">카드 배경</label>
       <div class="colorField">
         <input type="text" class="hexLabel" id="bgColorHex" value="#ffffff" maxlength="7">
-        <input type="color" id="bgColor" value="#ffffff">
+        <input type="color" id="bgColor" aria-label="카드 배경 색상 선택" value="#ffffff">
       </div>
     </div>
     <div class="row">
-      <label>나레이션</label>
+      <label for="narrColorHex">나레이션</label>
       <div class="colorField">
         <input type="text" class="hexLabel" id="narrColorHex" value="#666666" maxlength="7">
-        <input type="color" id="narrColor" value="#555555">
+        <input type="color" id="narrColor" aria-label="나레이션 색상 선택" value="#555555">
       </div>
     </div>
     <div class="row">
-        <label>*강조*</label>
+        <label for="emphasisColorHex">*강조*</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="emphasisColorHex" value="#888888" maxlength="7">
-        <input type="color" id="emphasisColor" value="#858585">
+        <input type="text" class="hexLabel" id="emphasisColorHex" value="#747474" maxlength="7">
+        <input type="color" id="emphasisColor" aria-label="강조 색상 선택" value="#747474">
       </div>
     </div>
     <div class="row">
-      <label>{{char}} 대사</label>
+      <label for="charColorHex">{{char}} 대사</label>
       <div class="colorField">
         <input type="text" class="hexLabel" id="charColorHex" value="#1a2a52" maxlength="7">
-        <input type="color" id="charColor" value="#222222">
+        <input type="color" id="charColor" aria-label="캐릭터 대사 색상 선택" value="#222222">
       </div>
     </div>
     <div class="row">
-      <label>{{user}} 대사</label>
+      <label for="userColorHex">{{user}} 대사</label>
       <div class="colorField">
         <input type="text" class="hexLabel" id="userColorHex" value="#7a4a2a" maxlength="7">
-        <input type="color" id="userColor" value="#707070">
+        <input type="color" id="userColor" aria-label="유저 대사 색상 선택" value="#707070">
       </div>
     </div>
     </div>
@@ -2455,10 +2355,10 @@
 
     <div class="themeSaveLabel">프리셋으로 저장</div>
     <div class="presetRow">
-      <input type="text" id="presetName" placeholder="새 이름으로 저장">
+      <input type="text" id="presetName" maxlength="80" aria-label="새 프리셋 이름" placeholder="새 이름으로 저장">
     </div>
     <div class="themeSaveActions">
-      <button class="secondary btnSecondary" id="savePresetBtn" disabled>새 프리셋으로 저장</button>
+      <button type="button" class="secondary btnSecondary" id="savePresetBtn" disabled>새 프리셋으로 저장</button>
       <button type="button" class="secondary btnSecondary" id="overwritePresetBtn">변경사항 저장</button>
     </div>
     <div id="presetStatus" class="hint" aria-live="polite"></div>
@@ -2469,8 +2369,8 @@
     <div class="foldBody">
       <p class="group-desc">저장한 테마를 파일로 백업하거나 불러옵니다.</p>
       <div class="presetRow">
-        <button class="secondary btnSecondary" id="exportPresetBtn" style="flex:1;">내보내기</button>
-        <button class="secondary btnSecondary" id="importPresetBtn" style="flex:1;">불러오기</button>
+        <button type="button" class="secondary btnSecondary" id="exportPresetBtn" style="flex:1;">내보내기</button>
+        <button type="button" class="secondary btnSecondary" id="importPresetBtn" style="flex:1;">불러오기</button>
         <input type="file" id="importPresetFile" accept="application/json" style="display:none;">
       </div>
       <div id="importStatus" class="hint" aria-live="polite"></div>
@@ -2482,21 +2382,21 @@
 
 
   <div class="stickyActions">
-    <button class="btnPrimary" id="copyBtn">HTML 복사하기</button>
+    <button type="button" class="btnPrimary" id="copyBtn">HTML 복사하기</button>
     <div id="copyStatus" aria-live="polite"></div>
-    <button class="btnSecondary" id="downloadBtn">HTML 파일로 저장</button>
+    <button type="button" class="btnSecondary" id="downloadBtn">HTML 파일로 저장</button>
     <details class="helpFold outputAdvanced" id="outputAdvanced">
       <summary>코드 직접 보기</summary>
       <div id="codeWrap" class="open">
         <button type="button" id="codeFsBtn" title="코드를 전체 화면으로 보기">⛶ 전체 화면</button>
-        <textarea id="codeBox" readonly spellcheck="false"></textarea>
+        <textarea id="codeBox" aria-label="생성된 HTML 코드" readonly spellcheck="false"></textarea>
       </div>
     </details>
     <div id="errorBar" role="alert" aria-live="assertive"></div>
   </div>
 </div>
 
-<div id="sidebarResizer" title="드래그해서 왼쪽 영역 폭을 조절해 (더블클릭하면 기본값)"></div>
+<div id="sidebarResizer" role="separator" tabindex="0" aria-label="설정 영역 너비 조절" aria-orientation="vertical" title="드래그해서 왼쪽 영역 폭을 조절해 (더블클릭하면 기본값)"></div>
 
 <div id="previewArea">
   <div id="previewWrap">
@@ -2504,14 +2404,14 @@
       <span id="previewLabel">미리보기 <span class="previewMeta">실제 결과</span></span>
       <span class="previewTools">
         <span class="widthToggle">
-          <button type="button" id="widthDesktopBtn" class="active">데스크톱 750</button>
-          <button type="button" id="widthMobileBtn">모바일 380</button>
+          <button type="button" id="widthDesktopBtn" class="active" aria-pressed="true">데스크톱 750</button>
+          <button type="button" id="widthMobileBtn" aria-pressed="false">모바일 380</button>
         </span>
       </span>
     </div>
     <div id="pvSearchBox">
       <div class="pvSearchMain">
-        <input type="text" id="pvFindInput" placeholder="미리보기 검색">
+        <input type="text" id="pvFindInput" aria-label="미리보기 검색" placeholder="미리보기 검색">
         <span class="pvNavGroup">
           <button type="button" class="pvIconBtn" id="pvFindPrevBtn" title="이전 결과 (Shift+Enter)">↑</button>
           <button type="button" class="pvIconBtn" id="pvFindNextBtn" title="다음 결과 (Enter)">↓</button>
@@ -2519,7 +2419,7 @@
         <span id="pvFindCount"></span>
       </div>
       <div id="pvReplaceRow">
-        <input type="text" id="pvReplInput" placeholder="바꿀 텍스트">
+        <input type="text" id="pvReplInput" aria-label="미리보기 바꿀 텍스트" placeholder="바꿀 텍스트">
         <span class="pvReplaceActions">
           <button type="button" class="pvActBtn" id="pvReplBtn" title="현재 항목 대치">대치</button>
           <button type="button" class="pvActBtn" id="pvReplAllBtn" title="모든 카드에서 대치">전체 대치</button>
@@ -2531,27 +2431,27 @@
   </div>
 </div>
 
-<div id="codeOverlay">
-  <div id="codePanel">
+<div id="codeOverlay" aria-hidden="true">
+  <div id="codePanel" role="dialog" aria-modal="true" aria-labelledby="codeDialogTitle">
     <div id="codeHead">
-      <span class="cTitle">HTML 코드</span>
+      <span class="cTitle" id="codeDialogTitle">HTML 코드</span>
       <div class="cActions">
         <span id="codeFsStatus" class="hint" style="margin:0 6px 0 0; align-self:center;"></span>
         <button type="button" id="codeFsCopyBtn">복사</button>
         <button type="button" id="codeFsCloseBtn">✕ 닫기</button>
       </div>
     </div>
-    <textarea id="codeFsArea" readonly spellcheck="false"></textarea>
+    <textarea id="codeFsArea" aria-label="전체 화면 HTML 코드" readonly spellcheck="false"></textarea>
   </div>
 </div>
 
-<div id="fsOverlay">
-  <div id="fsPanel">
+<div id="fsOverlay" aria-hidden="true">
+  <div id="fsPanel" role="dialog" aria-modal="true" aria-labelledby="fsTitle">
     <div id="fsHead">
       <span id="fsTitle">카드 1</span>
       <div id="fsFoldGroup">
         <label id="fsFoldLabel"><input type="checkbox" id="fsFoldChk"> 접기 카드</label>
-        <input type="text" id="fsFoldTitle" style="display:none;" placeholder="접기 제목 (독자가 클릭해서 펼치는 헤더에 표시)">
+        <input type="text" id="fsFoldTitle" maxlength="200" aria-label="접기 카드 제목" style="display:none;" placeholder="접기 제목 (독자가 클릭해서 펼치는 헤더에 표시)">
       </div>
       <button type="button" id="fsCloseBtn" title="닫기 (Esc)">✕ 닫기</button>
     </div>
@@ -2581,12 +2481,12 @@
       </span>
     </div>
     <div class="editorToolbar" id="fsSearchBar" aria-hidden="true">
-      <input type="text" id="fsFindInput" placeholder="검색">
+      <input type="text" id="fsFindInput" aria-label="카드 본문 검색" placeholder="검색">
       <span class="fsNavGroup">
         <button type="button" id="fsFindPrevBtn" title="이전 결과 (Shift+Enter)">↑</button>
         <button type="button" id="fsFindNextBtn" title="다음 결과 (Enter)">↓</button>
       </span>
-      <input type="text" id="fsReplInput" placeholder="바꿀 텍스트">
+      <input type="text" id="fsReplInput" aria-label="카드 본문 바꿀 텍스트" placeholder="바꿀 텍스트">
       <span class="fsReplaceActions">
         <button type="button" id="fsReplBtn" title="현재 항목 대치">대치</button>
         <button type="button" id="fsReplAllBtn" title="이 카드에서 전부 대치">전체 대치</button>
@@ -2595,7 +2495,7 @@
     </div>
     <div id="fsTextareaWrap">
       <div id="fsHl" aria-hidden="true"></div>
-      <textarea id="fsTextarea" spellcheck="false"></textarea>
+      <textarea id="fsTextarea" aria-label="전체 화면 카드 본문" spellcheck="false"></textarea>
     </div>
     <div id="fsCheat">
       <span><code>"대사"</code> 대사</span>
@@ -2616,13 +2516,13 @@
   </div>
 </div>
 
-<div id="selToolbar">
+<div id="selToolbar" role="toolbar" aria-label="선택한 글자 서식">
   <button type="button" data-fmt="bold" title="굵게 (__...__)"><b>B</b></button>
   <button type="button" data-fmt="emphasis" title="강조 (*...*)"><i>I</i></button>
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
 </div>
 
-<div id="blockToolbar">
+<div id="blockToolbar" role="toolbar" aria-label="구분선 편집">
   <button type="button" data-block-action="toggle">변경</button>
   <button type="button" data-block-action="delete">삭제</button>
 </div>
@@ -2640,11 +2540,11 @@ const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
 
 function fontStack(key){
   const stacks = {
-    eulyoo: "'을유1945','Eulyoo1945','Noto Serif KR','Nanum Myeongjo',AppleMyungjo,Batang,serif",
+    notoSerif: "'Noto Serif KR','Nanum Myeongjo',AppleMyungjo,Batang,serif",
     notoSans: "'Noto Sans KR','Nanum Gothic','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif",
     pretendard: "'Pretendard Variable',Pretendard,'Noto Sans KR','Nanum Gothic','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif"
   };
-  return stacks[key] || stacks.eulyoo;
+  return stacks[key] || stacks.pretendard;
 }
 
 // 웹폰트는 선택되는 순간 한글 글리프까지 명시적으로 불러온 뒤 미리보기를 다시 그린다.
@@ -2685,7 +2585,7 @@ function escapeCssUrl(s){
   return cssSafe.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 둥근(스마트) 따옴표를 곧은 따옴표로 통일 — 봇 출력에 섞여 오는 \u201C\u201D \u2018\u2019 때문에
+// 둥근(스마트) 따옴표를 곧은 따옴표로 통일 — AI 출력에 섞여 오는 \u201C\u201D \u2018\u2019 때문에
 // 대사 인식이 실패하는 것을 방지 (파싱 시 자동 적용되므로 원문은 그대로 둬도 됨)
 function normalizeQuotes(text){
   return text
@@ -2693,9 +2593,14 @@ function normalizeQuotes(text){
     .replace(/[\u2018\u2019\u2032]/g, "'");
 }
 
+function safeHexColor(value, fallback){
+  const normalized = typeof value === 'string' ? normalizeHex(value) : null;
+  return normalized || fallback || '#555555';
+}
+
 // 인라인 서식: __...__ -> 굵게, *...* -> 강조(기울임 + 강조색).
 function processInline(text, emphasisColor){
-  const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#858585';
+  const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
   const em = content => `<em style='color:${color};'>${content}</em>`;
   return escapeTextHTML(text)
     .replace(/__(.+?)__/g, '<strong>$1</strong>')
@@ -2797,12 +2702,12 @@ function buildParagraph(rawLine, settings, opts){
   if(upper === '[HR]'){
     // 아카라이브가 <hr>의 인라인 스타일은 지워버리지만 div 스타일은 유지하는 게 확인됐으므로
     // 구분선을 div로 생성 (1px 높이 + 배경색 = 얇은 선)
-    return `    <div style="height:1px; background-color:${pal.divider}; margin:${Math.round(26*sm)}px 0;"></div>\n`;
+    return `    <div data-mosaic-generated="true" style="height:1px; background-color:${pal.divider}; margin:${Math.round(26*sm)}px 0;"></div>\n`;
   }
 
   if(upper === '[HR2]'){
     // 장면 전환용 장식 구분선 (✦ ✦ ✦) — [HR]보다 무게감 있는 전환에 사용
-    return `    <div style="text-align:center; color:${pal.ornament}; font-size:12px; letter-spacing:10px; margin:${Math.round(34*sm)}px 0;">✦ ✦ ✦</div>\n`;
+    return `    <div data-mosaic-generated="true" style="text-align:center; color:${pal.ornament}; font-size:12px; letter-spacing:10px; margin:${Math.round(34*sm)}px 0;">✦ ✦ ✦</div>\n`;
   }
 
   // 본문 중간 이미지: [IMG 주소] 또는 [IMG 주소 | 캡션]
@@ -2811,10 +2716,11 @@ function buildParagraph(rawLine, settings, opts){
     let src = imgMatch[1];
     if(src.startsWith('//')) src = 'https:' + src;
     const caption = imgMatch[2] ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(imgMatch[2].trim(), settings.emphasisColor)}</p>` : '';
+    const alt = imgMatch[2] ? stripMarkers(imgMatch[2].trim()) : '';
     // 카드의 첫 요소면 위 마진을 없앰 (카드 안쪽 여백과 겹쳐 위쪽만 넓어 보이는 것 방지).
     // 아카라이브가 <img>를 <p>로 감싸며 붙이는 기본 여백도 line-height/font-size 0으로 눌러줌.
     const imgMt = opts.isFirst ? 0 : Math.round(22 * sm);
-    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0;"><img src="${escapeAttr(src)}" class="fr-fic fr-dii" style="width:100%; height:auto; display:block; border-radius:10px; margin:0;">${caption}</div>\n`;
+    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dii" style="width:100%; height:auto; display:block; border-radius:10px; margin:0;">${caption}</div>\n`;
   }
 
   // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
@@ -2852,9 +2758,9 @@ function buildParagraph(rawLine, settings, opts){
   }
 
   let overrideColor = null;
-  const colorTagMatch = line.match(/^\{(#?[0-9A-Fa-f]{3,8})\}\s*/);
+  const colorTagMatch = line.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
   if(colorTagMatch){
-    overrideColor = colorTagMatch[1].startsWith('#') ? colorTagMatch[1] : '#' + colorTagMatch[1];
+    overrideColor = safeHexColor(colorTagMatch[1], null);
     line = line.slice(colorTagMatch[0].length).trim();
   }
 
@@ -2876,7 +2782,7 @@ function buildParagraph(rawLine, settings, opts){
     if(overrideColor){
       color = overrideColor;
     } else if(speaker && typeof speaker === 'object'){
-      color = speaker.color;              // 등록된 추가 인물
+      color = safeHexColor(speaker.color, settings.charColor); // 등록된 추가 인물
     } else if(speaker === 'user'){
       color = settings.userColor;
     } else {
@@ -2903,9 +2809,13 @@ function buildParagraph(rawLine, settings, opts){
         : (who === 'user'
             ? ((settings.userName || '').trim() || '{{user}}')
             : ((settings.charName || '').trim() || '{{char}}'));
-      label = `    <p style="margin:${mt}px 0 5px 0; font-size:11px; font-weight:700; letter-spacing:0.5px; color:${color}; font-family:${fontStack(settings.dlgFont)};">${processInline(name, settings.emphasisColor)}</p>\n`;
+      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; font-size:11px; font-weight:700; letter-spacing:0.5px; color:${color}; font-family:${fontStack(settings.dlgFont)};">${processInline(name, settings.emphasisColor)}</p>\n`;
       mtEff = 0;
     }
+
+    const wrapDialogue = (html) => label
+      ? `    <div style="display:flow-root; margin:0; padding:0;">\n${label}${html}    </div>\n`
+      : html;
 
     if(settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'){
       // 옵션3: 배경은 카드에서 파생된 연한 색, 글자는 화자 색
@@ -2913,16 +2823,16 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : color;
       const txtColor = soft ? color : textColorFor(color);
-      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(line, settings.emphasisColor)}</span></p>\n`;
+      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(line, settings.emphasisColor)}</span></p>\n`);
     }
 
     // 옵션2: 한 줄일 때 특히 가볍게 보이도록 바의 위아래 여백을 옵션1보다 짧게 제한
     if(settings.dlgStyle === 'quote'){
-      return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="display:block; border-left:3px solid ${color}; padding:5px 16px;">${processInline(line, settings.emphasisColor)}</span></p>\n`;
+      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="display:block; border-left:3px solid ${color}; padding:5px 16px;">${processInline(line, settings.emphasisColor)}</span></p>\n`);
     }
 
-    // 옵션1(기본): 배경이 있는 인용 박스
-    return label + `    <p style="margin:${mtEff}px 0 ${mb}px 0; padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${processInline(line, settings.emphasisColor)}</p>\n`;
+    // 옵션1: 배경이 있는 인용 박스
+    return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${processInline(line, settings.emphasisColor)}</p>\n`);
   } else {
     const mb = opts.extraBottom ? HR_GAP : Math.round(16 * sm);
     // 먼저 사용자 글자를 안전한 HTML로 만들고 강조 마커를 처리한 뒤, 생성된 대사 span을 합친다.
@@ -2935,14 +2845,14 @@ function buildParagraph(rawLine, settings, opts){
     if(/"[^"]*"/.test(content)){
       // 기본 화자 색 (줄 맨 앞 마커 / {#색} / {{char}})
       const baseColor = overrideColor
-        || (speaker && typeof speaker === 'object' ? speaker.color
+        || (speaker && typeof speaker === 'object' ? safeHexColor(speaker.color, settings.charColor)
             : (speaker === 'user' ? settings.userColor : settings.charColor));
       if(settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'){
         const soft = settings.dlgStyle === 'softlight';
-        content = content.replace(/(>>|<<|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g, (m, mark, personName, q) => {
+        content = content.replace(/(&gt;&gt;|&lt;&lt;|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g, (m, mark, personName, q) => {
           let who;
-          if(mark === '<<') who = settings.userColor;
-          else if(mark === '>>') who = settings.charColor;
+          if(mark === '&lt;&lt;') who = settings.userColor;
+          else if(mark === '&gt;&gt;') who = settings.charColor;
           else if(personName){
             const p = findChar(settings, personName);
             if(!p) return m;                 // 등록되지 않은 이름이면 원문 그대로 둠
@@ -2955,7 +2865,7 @@ function buildParagraph(rawLine, settings, opts){
         });
       } else {
         // 옵션1·2: 인라인 화자 마커가 출력에 남지 않게 제거 (등록된 인물 이름만)
-        content = content.replace(/(>>|<<)\s*(?=")/g, '');
+        content = content.replace(/(?:&gt;&gt;|&lt;&lt;)\s*(?=")/g, '');
         content = content.replace(/\[([^\[\]\n]{1,24})\]\s*(?=")/g, (m, name) => findChar(settings, name) ? '' : m);
       }
     }
@@ -3013,8 +2923,8 @@ function buildImageBlock(settings){
   // 위 모서리만 둥글고 아래 테두리는 없음 -> 바로 아래 첫 카드의 위 테두리와 만나 얇은 경계선 하나만 남음.
   // border를 개별 속성(left/right/top)으로 지정해 아카라이브가 축약형을 재해석해도 이중선이 생기지 않게 함.
   const pal = tonePalette(settings);
-  const H = parseFloat(settings.imgHeight) || 320;
-  const ypos = (settings.ypos === undefined || settings.ypos === null) ? 50 : settings.ypos;
+  const H = parseFloat(settings.imgHeight) || 300;
+  const ypos = (settings.ypos === undefined || settings.ypos === null) ? 0 : settings.ypos;
   const W = parseInt(settings.cardWidth) || 750;
   return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:50% ${ypos}%; background-size:cover; border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; border-top:1px solid ${pal.cardBorder}; border-radius:16px 16px 0 0;"></div>
 `;
@@ -3027,7 +2937,7 @@ function buildImageBlock(settings){
 function buildFold(title, innerHTML, settings){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(20*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:16px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(20*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:16px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -3037,14 +2947,14 @@ function buildHeadingFold(level, title, innerHTML, settings){
   const sm = spacingMult(settings);
   const spec = headingSpec(level);
   const align = settings.headingCenter ? 'text-align:center; ' : '';
-  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(24*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:18px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="border:1px solid ${pal.divider}; border-radius:12px; margin:${Math.round(24*sm)}px 0;"><summary style="cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>${processInline(title, settings.emphasisColor)}</summary><div style="border-top:1px solid ${pal.divider}; padding:18px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
 // 접두어({#색}, >>, <<)를 벗겨낸 뒤 줄 전체가 "..." 대사인지 판별 (연속 대사 간격용)
 function isPureDialogueLine(line, settings){
   let l = normalizeQuotes(line.trim());
-  const cm = l.match(/^\{(#?[0-9A-Fa-f]{3,8})\}\s*/);
+  const cm = l.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
   if(cm) l = l.slice(cm[0].length).trim();
   if(l.startsWith('>>') || l.startsWith('<<')) l = l.slice(2).trim();
   else {
@@ -3134,7 +3044,7 @@ function buildTitleBlock(settings, hasImg){
   if(!settings.logTitleOn) return '';
   const num = (settings.logNumber || '').trim();
   const title = (settings.logTitle || '').trim();
-  // 부제 = [봇 × 유저] · [자유 부제] — 한쪽만 있으면 그것만, 둘 다 있으면 · 로 연결
+  // 부제 = [캐릭터 × 유저] · [자유 부제] — 한쪽만 있으면 그것만, 둘 다 있으면 · 로 연결
   const sc = (settings.subChar || '').trim();
   const su = (settings.subUser || '').trim();
   const free = (settings.logSubtitle || '').trim();
@@ -3167,7 +3077,7 @@ function buildFooter(settings){
   const full = author ? `조각로그 ©${author}` : '조각로그';
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  return `    <div style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${processInline(full, settings.emphasisColor)}</div>\n`;
+  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${processInline(full, settings.emphasisColor)}</div>\n`;
 }
 
 function buildCard(settings){
@@ -3183,14 +3093,11 @@ function buildCard(settings){
     .filter(c => c.lines.length > 0); // 내용이 빈 카드는 출력에서 제외
   if(cardList.length === 0) cardList = [{ lines: [], folded: false, foldTitle: '' }];
 
-  // 배경 이미지는 <img>가 아니라서 아카라이브가 썸네일로 인식하지 못함.
-  // 옵션이 켜져 있으면(기본값) 검증된 참고 템플릿과 동일하게 맨 앞에 크기 0짜리
-  // 숨김 <img>를 넣어 썸네일 인식용으로만 씀 (보이는 레이아웃에는 영향 없음).
   // 배경 이미지는 아카라이브가 썸네일로 인식하지 못하므로, 대표 이미지가 있으면
   // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
   let recognitionImg = '';
   if(settings.imgOn && settings.imgUrl){
-    recognitionImg = `<p><img style="width: 0px; height: 0px;" src="${escapeAttr(settings.imgUrl)}" class="fr-fic fr-dii"></p>\n`;
+    recognitionImg = `<p style="margin:0; height:0; line-height:0; overflow:hidden;"><img style="width:0; height:0;" src="${escapeAttr(settings.imgUrl)}" alt="" aria-hidden="true" class="fr-fic fr-dii"></p>\n`;
   }
 
   // 대표 이미지와 표제 밴드는 모든 카드 '위'에 항상 표시 — 카드를 접어도 보이고, 첫 카드와 한 몸처럼 연결됨
@@ -3221,7 +3128,7 @@ function buildCard(settings){
       // 닫혀 있으면 제목만 담긴 카드처럼 보이고, 네이티브 삼각형(▸/▾)이 상태를 알려줌.
       // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
-      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${processInline(card.foldTitle, settings.emphasisColor)}<span style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
+      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${processInline(card.foldTitle, settings.emphasisColor)}<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
   <div style="box-sizing:border-box; border-top:1px solid ${pal.divider}; padding:clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px);">
 ${bodyHTML}${footer}  </div>
 </details>`;
@@ -3266,6 +3173,165 @@ function formatMatchContent(fmt, match){
   return match[1];
 }
 
+// buildParagraph/assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
+// 원문 인덱스를 유지한 채 기록하고, 제목·인용문 안의 화자처럼 보이는 글자는 그대로 둔다.
+function sourceProjectionMeta(line){
+  const normalized = normalizeQuotes(String(line));
+  const hidden = [];
+  const hide = (start, end) => {
+    if(end > start) hidden.push([Math.max(0, start), Math.min(normalized.length, end)]);
+  };
+  const leading = normalized.match(/^\s*/);
+  let offset = leading ? leading[0].length : 0;
+  hide(0, offset);
+  const trailing = normalized.match(/\s*$/);
+  if(trailing) hide(normalized.length - trailing[0].length, normalized.length);
+  let rest = normalized.slice(offset);
+
+  // 출력 텍스트가 없는 구조 문법.
+  if(/^\[HR2?\]\s*$/i.test(rest) || /^\[\/접기\]\s*$/.test(rest)){
+    hide(offset, normalized.length);
+    return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+  }
+
+  // 수동 접기 제목: 대괄호와 '접기'만 숨기고 사용자가 쓴 제목은 보이게 둔다.
+  const fold = rest.match(/^\[접기(?:\s+(.+?))?\]\s*$/);
+  if(fold){
+    if(!fold[1]){
+      hide(offset, normalized.length);
+      return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+    }
+    const titleAt = rest.indexOf(fold[1]);
+    hide(offset, offset + titleAt);
+    hide(offset + titleAt + fold[1].length, normalized.length);
+    return { normalized, hidden, start: offset + titleAt, maskInlineSpeakers:false };
+  }
+
+  // 본문 이미지에서는 캡션만 화면에 보인다.
+  const image = rest.match(/^\[IMG\s+(\S+?)(?:\s*\|\s*(.+?))?\s*\]\s*$/i);
+  if(image){
+    if(!image[2]){
+      hide(offset, normalized.length);
+      return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+    }
+    const captionAt = rest.indexOf(image[2]);
+    hide(offset, offset + captionAt);
+    hide(offset + captionAt + image[2].length, normalized.length);
+    return { normalized, hidden, start: offset + captionAt, maskInlineSpeakers:false };
+  }
+
+  // 일반 소제목과 소제목 접기는 접두어 뒤 제목을 그대로 출력한다.
+  const heading = rest.match(/^(#{1,4})>?\s+(.+)$/);
+  if(heading){
+    const textAt = rest.indexOf(heading[2]);
+    hide(offset, offset + textAt);
+    return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
+  }
+
+  // 가운데 정렬은 인용보다 먼저 처리된다.
+  const centered = rest.match(/^\[C\]\s*/i);
+  if(centered){
+    hide(offset, offset + centered[0].length);
+    offset += centered[0].length;
+    rest = normalized.slice(offset);
+  }
+
+  // 인용 안에서는 선택적인 [C]까지만 문법이고, 이후 문자는 모두 실제 본문이다.
+  const quote = rest.match(/^>(?!>)\s*/);
+  if(quote){
+    hide(offset, offset + quote[0].length);
+    offset += quote[0].length;
+    rest = normalized.slice(offset);
+    const innerCenter = rest.match(/^\[C\]\s*/i);
+    if(innerCenter){
+      hide(offset, offset + innerCenter[0].length);
+      offset += innerCenter[0].length;
+    }
+    return { normalized, hidden, start: offset, maskInlineSpeakers:false };
+  }
+
+  // 일반 문단/대사에서만 색상·화자 접두어를 소비한다.
+  const color = rest.match(/^\{#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\}\s*/);
+  if(color){
+    hide(offset, offset + color[0].length);
+    offset += color[0].length;
+    rest = normalized.slice(offset);
+  }
+  const fixedSpeaker = rest.match(/^(?:>>|<<)\s*/);
+  if(fixedSpeaker){
+    hide(offset, offset + fixedSpeaker[0].length);
+    offset += fixedSpeaker[0].length;
+  } else {
+    const named = rest.match(/^\[([^\[\]\n]{1,24})\]\s*(?=["“‘'])/);
+    if(named && findChar(getSettings(), named[1])){
+      hide(offset, offset + named[0].length);
+      offset += named[0].length;
+    }
+  }
+  return { normalized, hidden, start: offset, maskInlineSpeakers:true };
+}
+
+function sourceContentStart(line){
+  return sourceProjectionMeta(line).start;
+}
+
+function lineSearchProjection(line){
+  const meta = sourceProjectionMeta(line);
+  const normalized = meta.normalized;
+  const chars = normalized.split('');
+  const mask = (start, end) => {
+    for(let i = Math.max(0, start); i < Math.min(chars.length, end); i++) chars[i] = '\u0000';
+  };
+  meta.hidden.forEach(range => mask(range[0], range[1]));
+
+  let m;
+  // 일반 문단 중간의 화자 마커만 화면에서 사라진다. 제목·인용문에서는 글자 그대로다.
+  if(meta.maskInlineSpeakers){
+    const settings = getSettings();
+    const speakerRe = /(>>|<<|\[([^\[\]\n]{1,24})\])\s*(?=["“‘'])/g;
+    while((m = speakerRe.exec(normalized)) !== null){
+      const known = m[1] === '>>' || m[1] === '<<' || !!findChar(settings, m[2]);
+      if(known) mask(m.index, m.index + m[0].length);
+    }
+  }
+
+  // 인라인 서식 기호는 보이지 않지만 내용의 원문 인덱스는 그대로 유지한다.
+  const bold = /__(.+?)__/g;
+  while((m = bold.exec(normalized)) !== null){
+    mask(m.index, m.index + 2);
+    mask(m.index + m[0].length - 2, m.index + m[0].length);
+  }
+  const emphasis = /(?<!\*)\*([^*\n]+?)\*(?!\*)/g;
+  while((m = emphasis.exec(normalized)) !== null){
+    mask(m.index, m.index + 1);
+    mask(m.index + m[0].length - 1, m.index + m[0].length);
+  }
+  return chars.join('');
+}
+
+function findAllSourceOccurrences(line, text, caseInsensitive){
+  if(!text) return [];
+  const normalizedLine = lineSearchProjection(line);
+  const normalizedText = normalizeQuotes(text);
+  const hay = caseInsensitive ? normalizedLine.toLowerCase() : normalizedLine;
+  const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
+  const matches = [];
+  let from = sourceContentStart(line);
+  let idx = hay.indexOf(needle, from);
+  while(idx !== -1){
+    matches.push(idx);
+    from = idx + Math.max(1, needle.length);
+    idx = hay.indexOf(needle, from);
+  }
+  return matches;
+}
+
+function findSourceOccurrence(line, text, occurrence, caseInsensitive){
+  const matches = findAllSourceOccurrences(line, text, caseInsensitive);
+  if(!Array.isArray(matches)) return -1;
+  return matches[Math.max(0, occurrence || 0)] ?? -1;
+}
+
 function hideSelToolbar(){
   const bar = document.getElementById('selToolbar');
   bar.style.display = 'none';
@@ -3288,23 +3354,25 @@ function showBlockToolbar(ctx){
   const bw = bar.offsetWidth || 100;
   const above = r.top - bar.offsetHeight - 8;
   bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
-  bar.style.top = Math.max(8, above > 8 ? above : r.bottom + 8) + 'px';
+  bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, above > 8 ? above : r.bottom + 8)) + 'px';
 }
 
 function editSeparatorText(text, raw, type, action){
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
+  const token = lines[raw].match(/^(\s*)\[HR2?\](\s*)$/i);
+  if(!token) return null;
   let message;
   if(action === 'toggle'){
     const next = type === 'hr' ? '[HR2]' : '[HR]';
-    lines[raw] = next;
+    lines[raw] = token[1] + next + token[2];
     message = type === 'hr' ? '구분선을 장면 전환으로 변경.' : '장면 전환을 구분선으로 변경.';
-  }else{
+  }else if(action === 'delete'){
     lines.splice(raw, 1);
     message = type === 'hr' ? '구분선 삭제.' : '장면 전환 삭제.';
-  }
+  }else return null;
   return {
-    text: lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, ''),
+    text: lines.join('\n'),
     message
   };
 }
@@ -3338,8 +3406,7 @@ function activeFormatEl(node, tagName, block){
   return null;
 }
 
-// 미리보기의 블록 → 원본 줄 정보를 찾아줌 (드래그 이동과 같은 매핑을 사용)
-function findBlockSource(node){
+function previewCardContexts(){
   const preview = document.getElementById('preview');
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
   const nonEmpty = editors.filter(ed => ed.querySelector('textarea').value.split('\n').some(l => l.trim() !== ''));
@@ -3350,46 +3417,56 @@ function findBlockSource(node){
     const inner = el.firstElementChild;
     return !!(inner && inner.tagName === 'DIV');
   });
+  return cardEls.map((cardEl, index) => ({
+    cardEl,
+    ta: nonEmpty[index] ? nonEmpty[index].querySelector('textarea') : null
+  })).filter(ctx => ctx.ta);
+}
 
-  for(let ci = 0; ci < cardEls.length; ci++){
-    const cardEl = cardEls[ci];
-    if(!cardEl.contains(node)) continue;
-    const editor = nonEmpty[ci];
-    if(!editor) return null;
-    const ta = editor.querySelector('textarea');
-    const entries = [];
-    ta.value.split('\n').forEach((l, raw) => { if(l.trim() !== '') entries.push({ raw, text: l.trim() }); });
-    const map = topLevelMap(entries);
-    const bodyDiv = cardEl.tagName === 'DETAILS' ? cardEl.querySelector(':scope > div') : cardEl.firstElementChild;
-    if(!bodyDiv) return null;
-    let blocks = Array.from(bodyDiv.children);
-    if(blocks.length === map.length + 1) blocks = blocks.slice(0, -1);
-    // 꼬리말·접기 등 출력 구조가 추가되어 개수가 달라도 선택된 실제 블록을 기준으로 계속 찾는다.
-    // 예전에는 여기서 null을 반환해 미리보기→본문 동기화가 통째로 끊겼다.
-    const selectedBlock = blocks.find(b => b.contains(node));
-    if(!selectedBlock) return null;
-    for(let i = 0; i < blocks.length; i++){
-      if(blocks[i].contains(node) && map[i] && map[i].kind === 'line'){
-        return { ta, block: blocks[i], raw: map[i].startRaw };
-      }
+// 미리보기에서 실제 본문 글자를 가진 최소 블록만 수집한다.
+// 바깥 카드·접기 컨테이너와 화자 이름표·꼬리말·장식은 원문 줄과 대응하지 않는다.
+function previewSourceBlocks(cardEl){
+  const cardSummary = cardEl.tagName === 'DETAILS' && cardEl.firstElementChild
+    && cardEl.firstElementChild.tagName === 'SUMMARY' ? cardEl.firstElementChild : null;
+  return Array.from(cardEl.querySelectorAll('p, summary, div')).filter(el => {
+    if(el === cardSummary) return false;
+    if(el.matches('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.tagName === 'DIV' && el.querySelector('p, summary, div')) return false;
+    return el.textContent.trim() !== '';
+  });
+}
+
+// 원문 줄 가운데 화면에 실제로 글자가 생기는 줄만 출력 순서 그대로 모은다.
+// 제목 없는 수동 접기는 기본 제목이 생성되므로 정렬용 항목은 남기되 직접 편집은 막는다.
+function sourceDisplayEntries(ta){
+  const result = [];
+  ta.value.split('\n').forEach((line, raw) => {
+    const trimmed = line.trim();
+    if(!trimmed) return;
+    if(/^\[접기\]\s*$/.test(trimmed)){
+      result.push({ raw, editable:false });
+      return;
     }
-    // 구조 수가 다를 때는 블록의 보이는 글자와 원본 줄을 비교해 가장 가까운 줄로 복구한다.
-    const visible = selectedBlock.textContent.replace(/\s+/g, ' ').trim();
-    let best = null;
-    entries.forEach(entry => {
-      const plain = stripMarkers(entry.text)
-        .replace(/^#{1,4}>?\s*/, '').replace(/^>{1,2}\s*/, '')
-        .replace(/^<<\s*/, '').replace(/^\[C\]\s*/i, '')
-        .replace(/^\[[^\]]{1,24}\]\s*/, '')
-        .replace(/\s+/g, ' ').trim();
-      if(!plain) return;
-      const score = visible.includes(plain) ? plain.length : (plain.includes(visible) ? visible.length : 0);
-      if(!best || score > best.score) best = { raw: entry.raw, score };
-    });
-    if(best) return { ta, block: selectedBlock, raw: best.raw };
-    return null;
-  }
-  return null;
+    const projection = lineSearchProjection(line).replace(/\u0000/g, '').trim();
+    if(projection) result.push({ raw, editable:true });
+  });
+  return result;
+}
+
+// 미리보기 최소 글자 블록과 원문 줄은 렌더 순서가 같다.
+// 이 순서 매핑은 접기 내부·접기 제목까지 포함해 최상위 블록만 보던 누락을 피한다.
+function findBlockSource(node){
+  const originEl = node && node.nodeType === 1 ? node : node && node.parentElement;
+  if(!originEl || originEl.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return null;
+  const ctx = previewCardContexts().find(item => item.cardEl.contains(node));
+  if(!ctx) return null;
+  const blocks = previewSourceBlocks(ctx.cardEl);
+  const block = blocks.find(item => item.contains(node));
+  if(!block) return null;
+  const entry = sourceDisplayEntries(ctx.ta)[blocks.indexOf(block)];
+  if(!entry || !entry.editable) return null;
+  return { ta:ctx.ta, block, raw:entry.raw };
 }
 
 // 미리보기에서 고른 부분을 본문 입력창에서도 선택해 보여줌 (미리보기 선택은 그대로 유지)
@@ -3418,9 +3495,6 @@ function caretOffsetTop(ta, index){
 }
 
 function revealInEditor(ta, raw, text, occurrence){
-  // 세로 배치(모바일)에서는 본문으로 튀어오르면 미리보기 선택이 화면 밖으로 밀려나므로 건너뜀
-  if(isStackedLayout()) return;
-
   // 본문 탭으로 전환 (전체 화면 편집 중이면 그대로 둠)
   const fsOpen = document.getElementById('fsOverlay').style.display === 'block';
   if(!fsOpen){
@@ -3434,12 +3508,7 @@ function revealInEditor(ta, raw, text, occurrence){
   const lines = target.value.split('\n');
   const line = lines[raw];
   if(line === undefined) return;
-  let idx = -1, from = 0;
-  for(let n = 0; n <= occurrence; n++){
-    idx = line.indexOf(text, from);
-    if(idx === -1) break;
-    from = idx + text.length;
-  }
+  const idx = findSourceOccurrence(line, text, occurrence, false);
   const lineStart = lines.slice(0, raw).reduce((a, l) => a + l.length + 1, 0);
   const start = idx === -1 ? lineStart : lineStart + idx;
   const end = idx === -1 ? lineStart + line.length : start + text.length;
@@ -3482,12 +3551,20 @@ document.getElementById('preview').addEventListener('mouseup', () => {
     const text = sel.toString();
     if(!text.trim()){ hideSelToolbar(); return; }
     const range = sel.getRangeAt(0);
+    const endEl = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+    if(endEl && endEl.closest('[data-mosaic-speaker-label="true"]')){ hideSelToolbar(); return; }
     const src = findBlockSource(range.startContainer);
     if(!src || !src.block.contains(range.endContainer)){ hideSelToolbar(); return; }
 
     // 블록 안에서 선택 앞쪽 글자 수를 세어, 같은 글자가 여러 번 나올 때 몇 번째인지 판별
+    let occurrenceRoot = src.block;
+    if(src.block.querySelector(':scope > [data-mosaic-speaker-label="true"]')){
+      let child = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      while(child && child.parentElement !== src.block) child = child.parentElement;
+      if(child && child.parentElement === src.block && child.contains(range.endContainer)) occurrenceRoot = child;
+    }
     const pre = range.cloneRange();
-    pre.selectNodeContents(src.block);
+    pre.selectNodeContents(occurrenceRoot);
     pre.setEnd(range.startContainer, range.startOffset);
     const occurrence = pre.toString().split(text).length - 1;
 
@@ -3510,8 +3587,10 @@ document.getElementById('preview').addEventListener('mouseup', () => {
     const r = range.getBoundingClientRect();
     bar.style.display = 'flex';
     const bw = bar.offsetWidth || 100;
-    bar.style.left = Math.max(8, r.left + r.width / 2 - bw / 2) + 'px';
-    bar.style.top = Math.max(8, r.top - bar.offsetHeight - 8) + 'px';
+    bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
+    const above = r.top - bar.offsetHeight - 8;
+    const vertical = above > 8 ? above : r.bottom + 8;
+    bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, vertical)) + 'px';
   }, 0);
 });
 
@@ -3568,8 +3647,13 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       const targetPlain = active[fmt];
       const re = new RegExp(FMT_RE[fmt].source, 'g');
       let m, found = null;
+      const selectedAt = findSourceOccurrence(line, text, occurrence, false);
       while((m = re.exec(line)) !== null){
-        if(stripMarkers(formatMatchContent(fmt, m)) === stripMarkers(targetPlain)){ found = m; break; }
+        const containsSelection = selectedAt >= m.index && selectedAt + text.length <= m.index + m[0].length;
+        if(containsSelection && stripMarkers(formatMatchContent(fmt, m)) === stripMarkers(targetPlain)){
+          found = m;
+          break;
+        }
       }
       if(!found) return fail(`${name} 서식을 찾지 못함. 본문에서 직접 삭제.`);
       const newLine = line.slice(0, found.index) + formatMatchContent(fmt, found) + line.slice(found.index + found[0].length);
@@ -3577,12 +3661,7 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
     }
 
     // 원본 줄에서 같은 글자의 occurrence번째 위치를 찾음 (마커가 섞여 있으면 실패할 수 있음)
-    let idx = -1, from = 0;
-    for(let n = 0; n <= occurrence; n++){
-      idx = line.indexOf(text, from);
-      if(idx === -1) break;
-      from = idx + text.length;
-    }
+    const idx = findSourceOccurrence(line, text, occurrence, false);
     if(idx === -1) return fail('서식 기호가 섞여 자동 적용 불가. 본문에서 직접 감쌀 것.');
 
     finish(line.slice(0, idx) + wrap + text + wrap + line.slice(idx + text.length), `${name} 서식 적용.`);
@@ -3641,27 +3720,34 @@ function topLevelMap(entries){
 function moveLineInText(text, srcRaw, destRaw){
   let lines = text.split('\n');
   const moved = lines[srcRaw];
+  if(moved === undefined) return text;
   lines.splice(srcRaw, 1);
   let dest = destRaw;
   if(dest === null || dest === undefined){
-    lines.push('', moved);
+    if(lines.length && lines[lines.length - 1].trim() !== '') lines.push('');
+    lines.push(moved);
   } else {
     if(dest > srcRaw) dest -= 1;   // 앞쪽을 뺐으니 목적지가 한 칸 당겨짐
-    lines.splice(dest, 0, moved, '');
+    dest = Math.max(0, Math.min(lines.length, dest));
+    const insert = [];
+    if(dest > 0 && lines[dest - 1].trim() !== '') insert.push('');
+    insert.push(moved);
+    if(dest < lines.length && lines[dest].trim() !== '') insert.push('');
+    lines.splice(dest, 0, ...insert);
   }
-  // 빈 줄 정리 (문단 구분은 빈 줄 하나로)
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return lines.join('\n');
 }
 
 // 미리보기만 다시 그림 (overrides: 프리셋 호버 미리보기용 임시 스타일 값)
-function renderPreview(overrides){
-  const settings = Object.assign(getSettings(), overrides || {});
+function renderPreview(overrides, prebuiltHTML){
   const preview = document.getElementById('preview');
   hideBlockToolbar();
   // 다시 그리면 <details>가 전부 닫히므로, 펼쳐둔 상태를 기억했다가 복원함
   // (타이핑·프리셋 호버 등으로 리렌더될 때 읽던 접기가 닫히지 않게)
   const openStates = Array.from(preview.querySelectorAll('details')).map(d => d.open);
-  preview.innerHTML = buildCard(settings);
+  preview.innerHTML = prebuiltHTML !== undefined
+    ? prebuiltHTML
+    : buildCard(Object.assign(getSettings(), overrides || {}));
   const details = preview.querySelectorAll('details');
   openStates.forEach((wasOpen, i) => {
     if(details[i] && wasOpen) details[i].open = true;
@@ -3935,8 +4021,9 @@ function render(){
     syncingChars = true;
     try { syncCharList(); } finally { syncingChars = false; }
   }
-  document.getElementById('codeBox').value = generateHTML();
-  renderPreview();
+  const html = generateHTML();
+  document.getElementById('codeBox').value = html;
+  renderPreview(null, html);
 
   // 렌더가 끝난 뒤, 편집 중인 부분으로 스크롤
   if(pendingPreviewFocus){
@@ -4023,6 +4110,14 @@ document.getElementById('imgUrl').addEventListener('change', () => {
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
 const WORK_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
+const WORK_FIELD_DEFAULTS = Object.freeze({
+  imgUrl:'', imgHeight:'300', ypos:'0',
+  charName:'', userName:'', extraChars:'[]', footerAuthor:'',
+  logNumber:'', logTitle:'', subChar:'', subUser:'', logSubtitle:''
+});
+const WORK_BOOLEAN_DEFAULTS = Object.freeze({
+  logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true
+});
 const STYLE_FIELDS = ['narrFont','narrSize','narrLine','narrColor','dlgStyle','dlgFont','dlgSize','dlgLine','charColor','userColor','emphasisColor','spacingMode','cardWidth','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn']);
 const PREVIEW_FOCUS_MAP = {
@@ -4123,6 +4218,8 @@ function renumberCards(){
   editors.forEach((ed, i) => {
     const folded = ed.querySelector('.cardFoldChk') && ed.querySelector('.cardFoldChk').checked;
     ed.querySelector('.cardNum').textContent = '카드 ' + (i + 1) + (folded ? ' · 접힘' : '');
+    const ta = ed.querySelector('textarea');
+    if(ta) ta.setAttribute('aria-label', `카드 ${i + 1} 본문`);
     // 카드가 1장뿐이면 삭제 버튼 숨김
     ed.querySelector('.delCardBtn').style.display = editors.length > 1 ? '' : 'none';
   });
@@ -4152,6 +4249,7 @@ function createCardEditor(value){
   fsBtn.className = 'miniCtl fsBtn';
   fsBtn.textContent = '⛶';
   fsBtn.title = '이 카드를 전체 화면으로 크게 편집';
+  fsBtn.setAttribute('aria-label', '카드 전체 화면 편집');
   // 헤더 왼쪽에는 카드 접기와 카드 번호만 둔다.
   left.appendChild(collapseBtn);
   left.appendChild(num);
@@ -4160,8 +4258,10 @@ function createCardEditor(value){
   right.className = 'headRight';
   const upBtn = document.createElement('button');
   upBtn.type = 'button'; upBtn.className = 'miniCtl'; upBtn.textContent = '↑'; upBtn.title = '카드를 위로';
+  upBtn.setAttribute('aria-label', '카드를 위로 이동');
   const downBtn = document.createElement('button');
   downBtn.type = 'button'; downBtn.className = 'miniCtl'; downBtn.textContent = '↓'; downBtn.title = '카드를 아래로';
+  downBtn.setAttribute('aria-label', '카드를 아래로 이동');
   const foldLabel = document.createElement('label');
   foldLabel.className = 'foldChk';
   const foldChk = document.createElement('input');
@@ -4190,7 +4290,9 @@ function createCardEditor(value){
   const foldTitleInput = document.createElement('input');
   foldTitleInput.type = 'text';
   foldTitleInput.className = 'foldTitleInput';
+  foldTitleInput.maxLength = 200;
   foldTitleInput.placeholder = '접기 제목';
+  foldTitleInput.setAttribute('aria-label', '접기 카드 제목');
   foldTitleInput.value = data.foldTitle || '';
   foldTitleInput.style.display = foldChk.checked ? '' : 'none';
 
@@ -4384,15 +4486,13 @@ function collectSlotWork(){
 function applyWork(data){
   const fields = data.fields || {};
   WORK_FIELDS.forEach(id => {
-    if(fields[id] !== undefined) document.getElementById(id).value = fields[id];
+    document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
   });
-  if(fields.logTitleOn !== undefined) document.getElementById('logTitleOn').checked = !!fields.logTitleOn;
-  if(fields.titleMinimal !== undefined) document.getElementById('titleMinimal').checked = !!fields.titleMinimal;
-  if(fields.imgOn !== undefined) document.getElementById('imgOn').checked = !!fields.imgOn;
-  if(fields.footerOn !== undefined) document.getElementById('footerOn').checked = !!fields.footerOn;
+  Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
+    document.getElementById(id).checked = fields[id] !== undefined ? !!fields[id] : fallback;
+  });
   if(data.style && typeof data.style === 'object') applyStyleValues(data.style);
   syncCoverControlState();
-  syncCharList();
   document.getElementById('yposVal').textContent = document.getElementById('ypos').value;
   document.getElementById('imgHeightVal').textContent = document.getElementById('imgHeight').value;
   document.getElementById('cardEditors').innerHTML = '';
@@ -4400,8 +4500,10 @@ function applyWork(data){
   const cards = (data.cards && data.cards.length) ? data.cards : [{ body:'', folded:false, foldTitle:'' }];
   cards.forEach(c => addCard(c, false));
   activeTa = cardTextareas()[0] || null;
+  charRowsKey = null;
   subtitleSync.resync();   // 복원된 화자 이름 기준으로 부제 따라가기 재정렬
   subtitleSync.fillSpeaker(true); // 구버전 슬롯의 표지 이름을 숨은 화자 이름에도 보존
+  syncCharList();
   render();
   updateCounter();
   saveDraft();
@@ -4430,7 +4532,7 @@ document.getElementById('undoBtn').addEventListener('click', () => {
 
 // ---------- 본문 삽입 툴바 ----------
 // 커서 위치(또는 선택 영역)에 텍스트를 넣고 편집 상태를 자연스럽게 유지
-function insertIntoBody(prefix, suffix, placeholder){
+function insertIntoBody(prefix, suffix, placeholder, label){
   // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
   const ta = activeTa || cardTextareas()[0];
   if(!ta) return;
@@ -4440,6 +4542,7 @@ function insertIntoBody(prefix, suffix, placeholder){
   const after = ta.value.slice(end);
   const selected = ta.value.slice(start, end);
   const middle = selected || placeholder || '';
+  snapshotCards();
 
   // 앞뒤로 빈 줄이 없으면 자동으로 넣어서 문단 규칙(엔터 구분)이 안 깨지게 함
   const needNlBefore = before.length > 0 && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
@@ -4447,7 +4550,6 @@ function insertIntoBody(prefix, suffix, placeholder){
 
   const inserted = needNlBefore + prefix + middle + suffix + needNlAfter;
   ta.value = before + inserted + after;
-  syncMirror(ta);   // 전체 화면 편집 중이면 실제 카드 입력창에도 반영
 
   // 커서 위치: 선택이 있었으면 블록 뒤로, 없었으면 placeholder를 선택 상태로
   if(selected){
@@ -4457,18 +4559,24 @@ function insertIntoBody(prefix, suffix, placeholder){
     const selStart = before.length + needNlBefore.length + prefix.length;
     ta.setSelectionRange(selStart, selStart + placeholder.length);
   }
+  syncMirror(ta);   // 전체 화면 편집 중이면 실제 카드 입력창에도 선택 위치까지 반영
   ta.focus();
   render();
   updateCounter();
   saveDraft();
+  showUndoToast(label || '본문 요소 삽입.');
 }
 
 // ---------- 입력창 서식 도구막대 (B / I / C) ----------
 // 선택한 글자를 마커로 감싸거나(굵게·강조), 커서가 놓인 줄을 가운데 정렬한다.
 function applyTextareaFormat(ta, fmt){
   if(!ta) return;
+  if(fmt !== 'center' && !FMT_WRAP[fmt]) return;
   const val = ta.value;
   const s = ta.selectionStart, e = ta.selectionEnd;
+  if(fmt !== 'center' && s === e) return;
+  snapshotCards();
+  let resultLabel = '';
 
   if(fmt === 'center'){
     // 커서가 있는 줄 전체에 [C] 토글 (인용 `> ` 뒤에 삽입)
@@ -4479,15 +4587,16 @@ function applyTextareaFormat(ta, fmt){
     let newLine;
     if(CENTER_RE.test(line)){
       newLine = line.replace(CENTER_RE, (m, q) => (q || ''));
+      resultLabel = '가운데 정렬 해제.';
     } else {
       const qm = line.match(/^>(?!>)\s?/);
       newLine = qm ? qm[0] + '[C] ' + line.slice(qm[0].length) : '[C] ' + line;
+      resultLabel = '가운데 정렬 적용.';
     }
     ta.value = val.slice(0, lineStart) + newLine + val.slice(lineEnd);
     const delta = newLine.length - line.length;
     ta.setSelectionRange(Math.max(lineStart, s + delta), Math.max(lineStart, e + delta));
   } else {
-    if(s === e) return;   // 선택 없으면 아무 것도 하지 않음
     const wrap = FMT_WRAP[fmt];
     const sel = val.slice(s, e);
     const wraps = [wrap];
@@ -4500,6 +4609,7 @@ function applyTextareaFormat(ta, fmt){
         ta.value = val.slice(0, s) + m[1] + val.slice(e);
         ta.setSelectionRange(s, s + m[1].length);
         removed = true;
+        resultLabel = fmt === 'bold' ? '굵게 해제.' : '강조 해제.';
         break;
       }
       if(val.slice(Math.max(0, s - candidate.length), s) === candidate
@@ -4507,12 +4617,14 @@ function applyTextareaFormat(ta, fmt){
         ta.value = val.slice(0, s - candidate.length) + sel + val.slice(e + candidate.length);
         ta.setSelectionRange(s - candidate.length, s - candidate.length + sel.length);
         removed = true;
+        resultLabel = fmt === 'bold' ? '굵게 해제.' : '강조 해제.';
         break;
       }
     }
     if(!removed){
       ta.value = val.slice(0, s) + wrap + sel + wrap + val.slice(e);
       ta.setSelectionRange(s + wrap.length, s + wrap.length + sel.length);
+      resultLabel = fmt === 'bold' ? '굵게 적용.' : '강조 적용.';
     }
   }
 
@@ -4521,6 +4633,7 @@ function applyTextareaFormat(ta, fmt){
   render();
   updateCounter();
   saveDraft();
+  showUndoToast(resultLabel || '본문 서식 변경.');
 }
 
 // 전체 화면 편집기의 서식 바 (입력창 바로 위)
@@ -4536,8 +4649,12 @@ document.querySelectorAll('.fmtBar[data-scope="fs"] .fmtBtn').forEach(btn => {
 // input 이벤트를 흘려보내 미리보기·카운터·자동저장이 평소처럼 동작하게 한다.
 function syncMirror(ta){
   if(ta && ta.__mirror){
-    ta.__mirror.value = ta.value;
-    ta.__mirror.dispatchEvent(new Event('input', { bubbles: true }));
+    const real = ta.__mirror;
+    real.value = ta.value;
+    const s = Math.min(ta.selectionStart, real.value.length);
+    const e = Math.min(ta.selectionEnd, real.value.length);
+    real.setSelectionRange(s, e);
+    real.dispatchEvent(new Event('input', { bubbles: true }));
   }
 }
 
@@ -4545,6 +4662,13 @@ let fsPrevActive = null;
 
 let fsScrollY = 0;
 let fsEditor = null;   // 전체 화면으로 열려 있는 카드 에디터 요소
+
+function setWorkspaceInert(on){
+  ['sidebar','previewArea','sidebarResizer'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.inert = !!on;
+  });
+}
 
 // 전체 화면의 접기 컨트롤을 실제 카드의 컨트롤과 맞춰줌
 function syncFsFold(){
@@ -4570,26 +4694,36 @@ function openFullscreen(realTa, title, editor){
 
   document.getElementById('fsTitle').textContent = title;
   setFsSearchOpen(false);   // 이전 카드의 검색 결과·강조를 지우고 검색 도구는 접힌 상태로 시작
-  document.getElementById('fsOverlay').style.display = 'block';
+  const overlay = document.getElementById('fsOverlay');
+  overlay.style.display = 'block';
+  overlay.setAttribute('aria-hidden', 'false');
+  setWorkspaceInert(true);
   // 배경 스크롤 잠금 (위치를 기억했다가 닫을 때 그대로 복원)
   fsScrollY = window.scrollY;
   document.body.classList.add('fsLock');
   fsPrevActive = activeTa;
   activeTa = fsTa;            // 툴바 삽입이 전체 화면 입력창을 향하게 함
   fsTa.focus();
-  fsTa.setSelectionRange(fsTa.value.length, fsTa.value.length);
+  fsTa.setSelectionRange(realTa.selectionStart, realTa.selectionEnd);
+  fsTa.scrollTop = realTa.scrollTop;
 }
 
 function closeFullscreen(){
   const fsTa = document.getElementById('fsTextarea');
-  document.getElementById('fsOverlay').style.display = 'none';
+  const overlay = document.getElementById('fsOverlay');
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
   fsEditor = null;
   document.body.classList.remove('fsLock');
+  setWorkspaceInert(false);
   window.scrollTo(0, fsScrollY);
   const real = fsTa.__mirror;
   fsTa.__mirror = null;
   activeTa = real || fsPrevActive;
-  if(real) real.focus();
+  if(real){
+    try { real.focus({ preventScroll: true }); }
+    catch(e){ real.focus(); }
+  }
 }
 
 // 입력창이 아닌 곳(패널 여백·배경)에서의 휠은 아예 무시해 뒤쪽이 밀리지 않게 함
@@ -4620,9 +4754,11 @@ document.getElementById('fsTextarea').addEventListener('keyup', function(e){
 document.getElementById('fsFoldChk').addEventListener('change', function(){
   syncFsFold();
   if(!fsEditor) return;
+  snapshotCards();
   const realChk = fsEditor.querySelector('.cardFoldChk');
   realChk.checked = this.checked;
   realChk.dispatchEvent(new Event('change', { bubbles: true }));
+  showUndoToast(this.checked ? '접기 카드 설정.' : '접기 카드 해제.');
 });
 
 document.getElementById('fsFoldTitle').addEventListener('input', function(){
@@ -4637,6 +4773,7 @@ document.getElementById('fsOverlay').addEventListener('mousedown', (e) => {
   if(e.target.id === 'fsOverlay') closeFullscreen();   // 바깥 여백 클릭
 });
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(e.key === 'Escape' && document.getElementById('fsOverlay').style.display === 'block'){
     e.preventDefault();
     closeFullscreen();
@@ -4645,11 +4782,11 @@ document.addEventListener('keydown', (e) => {
 
 // 전체 화면 툴바: 사이드바 툴바와 같은 동작을 그대로 호출
 const FS_ACTIONS = {
-  fold:   () => insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용'),
-  hr:     () => insertIntoBody('[HR]', '', ''),
-  hr2:    () => insertIntoBody('[HR2]', '', ''),
-  img:    () => insertIntoBody('[IMG ', ']', '이미지주소'),
-  quote:  () => insertIntoBody('> ', '', '인용할 내용'),
+  fold:   () => insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용', '접기 삽입.'),
+  hr:     () => insertIntoBody('[HR]', '', '', '구분선 삽입.'),
+  hr2:    () => insertIntoBody('[HR2]', '', '', '장면 전환 삽입.'),
+  img:    () => insertIntoBody('[IMG ', ']', '이미지주소', '이미지 문법 삽입.'),
+  quote:  () => insertIntoBody('> ', '', '인용할 내용', '인용 삽입.'),
   tidy:   () => document.getElementById('tidyBtn').click(),
 };
 document.querySelectorAll('#fsToolbar button[data-fs]').forEach(btn => {
@@ -4680,11 +4817,11 @@ function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function fsFindHits(q){
   if(!q) return [];
-  const hay = document.getElementById('fsTextarea').value.toLowerCase();
-  const needle = q.toLowerCase();
+  const hay = normalizeQuotes(document.getElementById('fsTextarea').value).toLowerCase();
+  const needle = normalizeQuotes(q).toLowerCase();
   const hits = [];
   let p = hay.indexOf(needle);
-  while(p !== -1){ hits.push(p); p = hay.indexOf(needle, p + 1); }
+  while(p !== -1){ hits.push(p); p = hay.indexOf(needle, p + Math.max(1, needle.length)); }
   return hits;
 }
 
@@ -4777,6 +4914,7 @@ function fsReplaceCurrent(){
   const selTxt = fsHlAt >= 0 ? ta.value.slice(fsHlAt, fsHlAt + q.length) : '';
   if(selTxt.toLowerCase() !== q.toLowerCase()){ fsFindStep(1); return; }  // 먼저 현재 항목 표시
   const s = fsHlAt;
+  snapshotCards();
   ta.focus();
   ta.setSelectionRange(s, s + q.length);  // 실제 대치 순간에만 잠깐 선택해 브라우저 되돌리기를 유지
   let ok = false;
@@ -4785,9 +4923,10 @@ function fsReplaceCurrent(){
     ta.value = ta.value.slice(0, s) + r + ta.value.slice(s + selTxt.length);
     ta.setSelectionRange(s + r.length, s + r.length);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  } else syncMirror(ta);
   fsHlAt = -1;
   fsFindStep(1, s + r.length);
+  showUndoToast('1곳 변경.');
 }
 
 // 이 카드 전체 대치 (대소문자 무시 — 검색과 동일 기준)
@@ -4800,6 +4939,7 @@ function fsReplaceAll(){
   const re = new RegExp(escRe(q), 'gi');
   const matches = ta.value.match(re);
   if(!matches){ counter.textContent = '0 / 0'; return; }
+  snapshotCards();
   const newVal = ta.value.replace(re, () => r);
   ta.focus();
   ta.setSelectionRange(0, ta.value.length);
@@ -4808,13 +4948,14 @@ function fsReplaceAll(){
   if(!ok || ta.value !== newVal){
     ta.value = newVal;
     ta.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  } else syncMirror(ta);
   ta.setSelectionRange(0, 0);
   ta.scrollTop = 0;
   fsHlAt = -1;
   fsHlCur = -1;
   fsHlPaint(q, -1);
   counter.textContent = matches.length + '곳 변경';
+  showUndoToast(matches.length + '곳 변경.');
 }
 
 function setFsSearchOpen(open, focusInput){
@@ -4843,10 +4984,12 @@ function setFsSearchOpen(open, focusInput){
     document.getElementById('fsTextarea').focus();
   };
   input.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'Enter'){ e.preventDefault(); fsFindStep(e.shiftKey ? -1 : 1); }
     else if(e.key === 'Escape') onEsc(e);
   });
   repl.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'Enter'){ e.preventDefault(); fsReplaceCurrent(); }
     else if(e.key === 'Escape') onEsc(e);
   });
@@ -4884,7 +5027,7 @@ function pvClearHits(){
 function pvUpdateCount(){
   const q = document.getElementById('pvFindInput').value;
   document.getElementById('pvFindCount').textContent =
-    !q ? '' : (pvHits.length ? (pvCur + 1) + ' / ' + pvHits.length : '0 / 0');
+    !q ? '' : (pvHits.length ? (pvCur >= 0 ? (pvCur + 1) + ' / ' + pvHits.length : pvHits.length + '곳') : '0 / 0');
 }
 
 // keepPos: 리렌더 후 재적용 시 현재 위치를 유지하고 스크롤하지 않음 (타이핑이 화면을 끌고 다니지 않게)
@@ -4918,8 +5061,8 @@ function pvApplySearch(keepPos){
     node.parentNode.replaceChild(frag, node);
   });
   if(pvHits.length){
-    pvCur = keepPos ? Math.min(Math.max(prevCur, 0), pvHits.length - 1) : 0;
-    pvMarkCurrent(!keepPos);
+    pvCur = keepPos && prevCur >= 0 ? Math.min(prevCur, pvHits.length - 1) : -1;
+    if(pvCur >= 0) pvMarkCurrent(false);
   }
   pvUpdateCount();
 }
@@ -4941,7 +5084,9 @@ function pvMarkCurrent(scroll){
 
 function pvGo(dir){
   if(!pvHits.length) return;
-  pvCur = (pvCur + dir + pvHits.length) % pvHits.length;
+  pvCur = pvCur < 0
+    ? (dir >= 0 ? 0 : pvHits.length - 1)
+    : (pvCur + dir + pvHits.length) % pvHits.length;
   pvMarkCurrent(true);
 }
 
@@ -4970,6 +5115,7 @@ function closePreviewSearch(){
 function pvReplaceCurrent(){
   const q = document.getElementById('pvFindInput').value;
   if(!q || !pvHits.length) return;
+  if(pvCur < 0){ pvGo(1); return; }
   const r = document.getElementById('pvReplInput').value;
   const hit = pvHits[pvCur];
   if(!hit) return;
@@ -4982,13 +5128,9 @@ function pvReplaceCurrent(){
   }
   const lines = src.ta.value.split('\n');
   const line = lines[src.raw] || '';
-  const lower = line.toLowerCase(), needle = q.toLowerCase();
-  const pos = [];
-  let p = lower.indexOf(needle);
-  while(p !== -1){ pos.push(p); p = lower.indexOf(needle, p + 1); }
-  if(k >= pos.length){ pvStatusFlash('원본 위치 확인 실패'); return; }
+  const at = findSourceOccurrence(line, q, k, true);
+  if(at < 0){ pvStatusFlash('원본 위치 확인 실패'); return; }
   snapshotCards();
-  const at = pos[k];
   lines[src.raw] = line.slice(0, at) + r + line.slice(at + q.length);
   src.ta.value = lines.join('\n');
   src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
@@ -5001,14 +5143,34 @@ function pvReplaceAll(){
   const q = document.getElementById('pvFindInput').value;
   if(!q) return;
   const r = document.getElementById('pvReplInput').value;
-  const re = new RegExp(escRe(q), 'gi');
-  snapshotCards();
-  let n = 0;
+  const perTextarea = new Map();
+
+  // DOM 강조 위치가 아니라 원문의 '화면에 보이는 투영'을 직접 검색한다.
+  // 그래서 접기 내부도 빠지지 않고, 표제·꼬리말·화자 이름표와 문법 기호는 건드리지 않는다.
   cardTextareas().forEach(ta => {
-    const m = ta.value.match(re);
-    if(m){ n += m.length; ta.value = ta.value.replace(re, () => r); }
+    const rows = new Map();
+    ta.value.split('\n').forEach((line, raw) => {
+      const matches = findAllSourceOccurrences(line, q, true);
+      if(matches.length) rows.set(raw, matches);
+    });
+    if(rows.size) perTextarea.set(ta, rows);
   });
-  if(!n){ undoSnapshot = null; pvStatusFlash('0 / 0'); return; }
+
+  let n = 0;
+  perTextarea.forEach(rows => rows.forEach(atList => { n += atList.length; }));
+  if(!n){ pvStatusFlash('0 / 0'); return; }
+  snapshotCards();
+  perTextarea.forEach((rows, ta) => {
+    const lines = ta.value.split('\n');
+    rows.forEach((atList, raw) => {
+      let line = lines[raw] || '';
+      atList.sort((a, b) => b - a).forEach(at => {
+        line = line.slice(0, at) + r + line.slice(at + q.length);
+      });
+      lines[raw] = line;
+    });
+    ta.value = lines.join('\n');
+  });
   render(); updateCounter(); saveDraft();
   showUndoToast(n + '곳 변경.');
   if(pvHits.length) pvMarkCurrent(true);
@@ -5027,6 +5189,7 @@ function pvStatusFlash(msg){
   const repl = document.getElementById('pvReplInput');
   input.addEventListener('input', () => pvApplySearch(false));
   input.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'Enter'){
       e.preventDefault();
       pvGo(e.shiftKey ? -1 : 1);
@@ -5036,6 +5199,7 @@ function pvStatusFlash(msg){
     }
   });
   repl.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'Enter'){ e.preventDefault(); pvReplaceCurrent(); }
     else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); closePreviewSearch(); }
   });
@@ -5051,31 +5215,33 @@ function pvStatusFlash(msg){
 
 // 입력창 밖에서의 Esc 로도 미리보기 검색 닫기 (전체 화면이 열려 있으면 그쪽 Esc 가 우선)
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(e.key !== 'Escape') return;
   if(document.getElementById('fsOverlay').style.display === 'block') return;
+  if(document.getElementById('codeOverlay').style.display === 'block') return;
   if(pvSearchOn) closePreviewSearch();
 });
 
 document.getElementById('insertFoldBtn').addEventListener('click', () => {
   // 텍스트를 드래그해 두고 누르면 그 부분이 통째로 접기에 들어가고,
   // 선택 없이 누르면 빈 접기 틀이 들어가고 안쪽 내용이 선택 상태가 돼서 바로 타이핑하면 됨
-  insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용');
+  insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용', '접기 삽입.');
 });
 
 document.getElementById('insertHrBtn').addEventListener('click', () => {
-  insertIntoBody('[HR]', '', '');
+  insertIntoBody('[HR]', '', '', '구분선 삽입.');
 });
 
 document.getElementById('insertHr2Btn').addEventListener('click', () => {
-  insertIntoBody('[HR2]', '', '');
+  insertIntoBody('[HR2]', '', '', '장면 전환 삽입.');
 });
 
 document.getElementById('insertImgBtn').addEventListener('click', () => {
-  insertIntoBody('[IMG ', ']', '이미지주소');
+  insertIntoBody('[IMG ', ']', '이미지주소', '이미지 문법 삽입.');
 });
 
 document.getElementById('insertQuoteBtn').addEventListener('click', () => {
-  insertIntoBody('> ', '', '인용할 내용');
+  insertIntoBody('> ', '', '인용할 내용', '인용 삽입.');
 });
 
 document.getElementById('tidyBtn').addEventListener('click', () => {
@@ -5112,17 +5278,19 @@ const SEARCH_HL_PROPS = ['fontFamily','fontSize','fontWeight','fontStyle','lette
 // 반환의 offsets: 각 일치의 텍스트 내 시작 위치(현재 항목 스크롤·선택에 사용).
 function searchHlMarkup(text, query, base, curGlobal){
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const re = new RegExp(escRe(query), 'gi');
-  let out = '', last = 0, m, n = 0;
+  const hay = normalizeQuotes(text).toLowerCase();
+  const needle = normalizeQuotes(query).toLowerCase();
+  let out = '', last = 0, n = 0;
   const offsets = [];
-  while((m = re.exec(text))){
+  let at = needle ? hay.indexOf(needle) : -1;
+  while(at !== -1){
     const isCur = (base + n) === curGlobal;
-    offsets.push(m.index);
-    out += esc(text.slice(last, m.index))
-         + '<span class="searchHit' + (isCur ? ' cur' : '') + '">' + esc(m[0]) + '</span>';
-    last = m.index + m[0].length;
+    offsets.push(at);
+    out += esc(text.slice(last, at))
+         + '<span class="searchHit' + (isCur ? ' cur' : '') + '">' + esc(text.slice(at, at + query.length)) + '</span>';
+    last = at + query.length;
     n++;
-    if(m.index === re.lastIndex) re.lastIndex++;   // 빈 일치 무한 루프 방지
+    at = hay.indexOf(needle, last);
   }
   out += esc(text.slice(last));
   return { html: out, count: n, offsets };
@@ -5216,6 +5384,7 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
     }
   } catch(e){}
   if(!n && !fields){ undoSnapshot = null; st.textContent = '일치 없음.'; return; }
+  subtitleSync.resync();
   render(); updateCounter(); saveDraft();
   showUndoToast('이름 ' + n + '곳 변경.');
   st.textContent = fields ? '이름 필드 ' + fields + '곳도 변경됨.' : '';
@@ -5233,7 +5402,8 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
 document.getElementById('downloadBtn').addEventListener('click', () => {
   const title = (document.getElementById('logTitle').value || '').trim();
   const num = (document.getElementById('logNumber').value || '').trim();
-  const name = (num || title) ? `${num}${num && title ? ' ' : ''}${title}`.replace(/[\\/:*?"<>|]/g, '_') : '조각로그';
+  const rawName = (num || title) ? `${num}${num && title ? ' ' : ''}${title}` : '조각로그';
+  const name = rawName.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 120) || '조각로그';
   const blob = new Blob([generateHTML()], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -5247,39 +5417,109 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
 
 // ---------- 로그 보관함 (초안 슬롯) ----------
 const SLOT_KEY = 'logGenSlots_v1';
+const MAX_ARCHIVE_BYTES = 4 * 1024 * 1024;
+const MAX_IMPORTED_SLOTS = 200;
+const MAX_CARD_CHARS = 500000;
+const MAX_TOTAL_BODY_CHARS = 2000000;
+const MAX_FOLD_TITLE_CHARS = 200;
+
+function validSlotId(id){
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+}
 
 function makeSlotId(){
   if(globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
   return 'slot-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
+function makeLegacySlotId(slot, index){
+  const seed = `${slot && slot.name || ''}|${slot && slot.savedAt || ''}|${index}`;
+  let hash = 2166136261;
+  for(let i = 0; i < seed.length; i++) hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619);
+  return `legacy-${(hash >>> 0).toString(36)}-${index}`;
+}
+
 function loadSlots(){
   try {
-    const parsed = JSON.parse(localStorage.getItem(SLOT_KEY));
-    if(!Array.isArray(parsed)) return [];
-    let migrated = false;
-    parsed.forEach(slot => {
-      if(slot && !slot.id){ slot.id = makeSlotId(); migrated = true; }
-    });
-    if(migrated) saveSlots(parsed);
-    return parsed;
-  } catch(e){ return []; }
+    const raw = localStorage.getItem(SLOT_KEY);
+    if(raw === null) return [];
+    const parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) return null;
+    const cleaned = [];
+    const seenIds = new Set();
+    for(let index = 0; index < parsed.length; index++){
+      const slot = parsed[index];
+      if(!slot || typeof slot.name !== 'string' || !slot.name.trim() || slot.name.trim().length > 100 || /[\u0000-\u001F\u007F]/.test(slot.name)){
+        return null;
+      }
+      const data = sanitizeImportedWork(slot.data);
+      if(!data) return null;
+      if(slot.id !== undefined && slot.id !== '' && !validSlotId(slot.id)) return null;
+      const id = validSlotId(slot.id) ? slot.id : makeLegacySlotId(slot, index);
+      if(seenIds.has(id)) return null;
+      seenIds.add(id);
+      const savedAt = Number(slot.savedAt);
+      const entry = { id, name: slot.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
+      // 검증에는 정규화된 data를 쓰되, untouched 슬롯은 미래/구버전 필드가 사라지지 않게 원본도 보존한다.
+      Object.defineProperty(entry, '_stored', { value:slot, writable:true, enumerable:false });
+      cleaned.push(entry);
+    }
+    return cleaned;
+  } catch(e){ return null; }
 }
 function saveSlots(list){
-  try { localStorage.setItem(SLOT_KEY, JSON.stringify(list)); return true; }
+  if(!Array.isArray(list)) return false;
+  try {
+    const payload = list.map(slot => {
+      const stored = slot && slot._stored && typeof slot._stored === 'object' ? slot._stored : null;
+      const base = stored ? { ...stored } : {};
+      return {
+        ...base,
+        id: slot.id,
+        name: slot.name,
+        savedAt: slot.savedAt,
+        data: stored ? stored.data : slot.data
+      };
+    });
+    localStorage.setItem(SLOT_KEY, JSON.stringify(payload));
+    return true;
+  }
   catch(e){ return false; }
+}
+
+function showSlotReadError(){
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '#c0392b';
+  status.textContent = '기존 보관함을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+}
+
+function collectValidatedSlotWork(){
+  const data = sanitizeImportedWork(collectSlotWork());
+  if(data) return data;
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '#c0392b';
+  status.textContent = '현재 작업이 보관 한도를 넘었거나 형식이 올바르지 않아 저장하지 않았습니다.';
+  return null;
 }
 
 function sanitizeImportedWork(data){
   if(!data || !Array.isArray(data.cards) || data.cards.length > 200) return null;
   const cards = [];
+  let totalBodyChars = 0;
   for(const card of data.cards){
+    if(typeof card === 'object' && card !== null){
+      if(card.folded !== undefined && typeof card.folded !== 'boolean') return null;
+      if(card.foldTitle !== undefined && typeof card.foldTitle !== 'string') return null;
+    }
     const body = typeof card === 'string' ? card : card && card.body;
-    if(typeof body !== 'string') return null;
+    const foldTitle = typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : '';
+    if(typeof body !== 'string' || body.length > MAX_CARD_CHARS || foldTitle.length > MAX_FOLD_TITLE_CHARS) return null;
+    totalBodyChars += body.length;
+    if(totalBodyChars > MAX_TOTAL_BODY_CHARS) return null;
     cards.push({
       body,
       folded: typeof card === 'object' && !!card.folded,
-      foldTitle: typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : ''
+      foldTitle
     });
   }
   const source = data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields) ? data.fields : {};
@@ -5287,13 +5527,25 @@ function sanitizeImportedWork(data){
   for(const id of WORK_FIELDS){
     if(source[id] === undefined) continue;
     if(typeof source[id] !== 'string' && typeof source[id] !== 'number') return null;
-    fields[id] = String(source[id]);
+    const value = String(source[id]);
+    const limit = id === 'imgUrl' ? 8192 : (id === 'extraChars' ? 50000 : 5000);
+    if(value.length > limit) return null;
+    fields[id] = value;
   }
+  let invalidBoolean = false;
   ['logTitleOn','titleMinimal','imgOn','footerOn'].forEach(id => {
-    if(source[id] !== undefined) fields[id] = !!source[id];
+    if(source[id] !== undefined){
+      if(typeof source[id] !== 'boolean') invalidBoolean = true;
+      else fields[id] = source[id];
+    }
   });
+  if(invalidBoolean) return null;
   if(fields.extraChars !== undefined){
-    try { if(!Array.isArray(JSON.parse(fields.extraChars))) return null; }
+    try {
+      const cleanChars = sanitizeExtraCharList(JSON.parse(fields.extraChars));
+      if(!cleanChars) return null;
+      fields.extraChars = JSON.stringify(cleanChars);
+    }
     catch(e){ return null; }
   }
   const out = { cards: cards.length ? cards : [{ body:'', folded:false, foldTitle:'' }], fields };
@@ -5301,6 +5553,8 @@ function sanitizeImportedWork(data){
     const style = sanitizeImportedPreset({ name:'보관함', values:data.style });
     if(!style) return null;
     out.style = style.values;
+  } else {
+    out.style = { ...DEFAULT_STYLE };
   }
   return out;
 }
@@ -5313,10 +5567,18 @@ function fmtDate(ts){
 function renderSlotList(){
   const container = document.getElementById('slotList');
   container.innerHTML = '';
-  loadSlots().forEach(slot => {
+  const slots = loadSlots();
+  if(slots === null){
+    showSlotReadError();
+    return;
+  }
+  slots.forEach(slot => {
     const row = document.createElement('div');
     row.className = 'slotRow';
     row.title = '클릭하면 이 작업으로 전환돼';
+    row.tabIndex = 0;
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', `${slot.name} 보관함 항목`);
     const name = document.createElement('span');
     name.className = 'slotName';
     name.textContent = slot.name;
@@ -5338,32 +5600,48 @@ function renderSlotList(){
       applyWork(JSON.parse(JSON.stringify(slot.data)));
       showUndoToast(`'${slot.name}' 불러옴.`);
     });
+    row.addEventListener('keydown', (e) => {
+      if(e.isComposing || e.keyCode === 229 || e.target !== row) return;
+      if(e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      row.click();
+    });
     over.addEventListener('click', (e) => {
       e.stopPropagation();
       const list = loadSlots();
+      if(list === null){ showSlotReadError(); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
       if(targetIndex < 0){
         document.getElementById('slotImportStatus').textContent = '덮어쓸 보관함 항목을 찾지 못했습니다.';
         renderSlotList();
         return;
       }
-      list[targetIndex].data = JSON.parse(JSON.stringify(collectSlotWork()));
+      const data = collectValidatedSlotWork();
+      if(!data) return;
+      list[targetIndex].data = data;
+      list[targetIndex]._stored = null;
       list[targetIndex].savedAt = Date.now();
       if(!saveSlots(list)){
         document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 덮어쓰지 못했습니다.';
         return;
       }
       renderSlotList();
-      document.getElementById('slotImportStatus').textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
+      const status = document.getElementById('slotImportStatus');
+      status.style.color = '';
+      status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
     });
     del.addEventListener('click', (e) => {
       e.stopPropagation();
       if(!confirm(`'${slot.name}' 슬롯 삭제?`)) return;
       const list = loadSlots();
+      if(list === null){ showSlotReadError(); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
       if(targetIndex < 0) return;
       list.splice(targetIndex, 1);
-      saveSlots(list);
+      if(!saveSlots(list)){
+        document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
+        return;
+      }
       renderSlotList();
     });
 
@@ -5380,22 +5658,46 @@ document.getElementById('saveSlotBtn').addEventListener('click', () => {
   const name = nameInput.value.trim()
     || document.getElementById('logTitle').value.trim()
     || '무제 로그';
+  if(name.length > 100){
+    document.getElementById('slotImportStatus').textContent = '보관함 이름은 100자 이하로 입력해 주세요.';
+    return;
+  }
   const list = loadSlots();
-  list.unshift({ id: makeSlotId(), name, savedAt: Date.now(), data: JSON.parse(JSON.stringify(collectSlotWork())) });
-  saveSlots(list);
+  if(list === null){ showSlotReadError(); return; }
+  const data = collectValidatedSlotWork();
+  if(!data) return;
+  const next = [{ id: makeSlotId(), name, savedAt: Date.now(), data }, ...list];
+  if(!saveSlots(next)){
+    document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 보관하지 못했습니다.';
+    return;
+  }
   nameInput.value = '';
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '';
+  status.textContent = `'${name}'을 보관했습니다.`;
   renderSlotList();
 });
 
 document.getElementById('exportSlotsBtn').addEventListener('click', () => {
   const list = loadSlots();
+  if(list === null){ showSlotReadError(); return; }
   const st = document.getElementById('slotImportStatus');
   if(!list.length){
     st.style.color = '';
     st.textContent = '보관함이 비어 있음. 현재 작업을 먼저 저장.';
     return;
   }
-  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  const exportList = list.map(slot => {
+    const stored = slot._stored && typeof slot._stored === 'object' ? slot._stored : null;
+    return {
+      ...(stored ? stored : {}),
+      id: slot.id,
+      name: slot.name,
+      savedAt: slot.savedAt,
+      data: stored ? stored.data : slot.data
+    };
+  });
+  const blob = new Blob([JSON.stringify(exportList, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -5416,6 +5718,12 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   const st = document.getElementById('slotImportStatus');
   if(!file) return;
+  if(file.size > MAX_ARCHIVE_BYTES){
+    st.style.color = '#c0392b';
+    st.textContent = '보관함 파일이 너무 큽니다. (최대 4MB)';
+    e.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     let imported;
@@ -5427,15 +5735,17 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
       return;
     }
     // 보관함 슬롯 형식과 각 카드·필드의 자료형을 함께 검증한다.
-    if(!Array.isArray(imported)){
+    if(!Array.isArray(imported) || imported.length > MAX_IMPORTED_SLOTS){
       st.style.color = '#c0392b';
-      st.textContent = '조각로그 보관함 파일이 아님. (프리셋 파일과 다름)';
+      st.textContent = '조각로그 보관함 파일이 아니거나 항목이 너무 많습니다. (최대 200개)';
       return;
     }
     const cleaned = imported.map(sl => {
       const data = sl && sanitizeImportedWork(sl.data);
-      if(!data || typeof sl.name !== 'string' || !sl.name.trim() || sl.name.length > 100) return null;
-      return { id: typeof sl.id === 'string' && sl.id ? sl.id : makeSlotId(), name: sl.name.trim(), savedAt: Number(sl.savedAt) || Date.now(), data };
+      if(!data || typeof sl.name !== 'string' || !sl.name.trim() || sl.name.length > 100 || /[\u0000-\u001F\u007F]/.test(sl.name)) return null;
+      if(sl.id !== undefined && sl.id !== '' && !validSlotId(sl.id)) return null;
+      const savedAt = Number(sl.savedAt);
+      return { id: sl.id || '', name: sl.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
     });
     if(!cleaned.length || cleaned.some(sl => !sl)){
       st.style.color = '#c0392b';
@@ -5443,18 +5753,38 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
       return;
     }
     imported = cleaned;
+    const importedIds = imported.map(sl => sl.id).filter(Boolean);
+    if(new Set(importedIds).size !== importedIds.length){
+      st.style.color = '#c0392b';
+      st.textContent = '보관함 파일 안에 중복된 항목 ID가 있습니다.';
+      return;
+    }
     const list = loadSlots();
+    if(list === null){
+      showSlotReadError();
+      return;
+    }
     let added = 0, updated = 0;
     imported.forEach(sl => {
-      const idx = list.findIndex(existing => existing.name === sl.name);
-      const entry = { id: idx >= 0 ? list[idx].id : sl.id, name: sl.name, savedAt: sl.savedAt || Date.now(), data: sl.data };
+      const idx = sl.id
+        ? list.findIndex(existing => existing.id === sl.id)
+        : list.findIndex(existing => existing.name === sl.name);
+      const entry = { id: idx >= 0 ? list[idx].id : (sl.id || makeSlotId()), name: sl.name, savedAt: sl.savedAt || Date.now(), data: sl.data };
       if(idx >= 0){ list[idx] = entry; updated++; }
       else { list.unshift(entry); added++; }
     });
-    saveSlots(list);
+    if(!saveSlots(list)){
+      st.style.color = '#c0392b';
+      st.textContent = '저장 공간 부족으로 보관함을 불러오지 못했습니다.';
+      return;
+    }
     renderSlotList();
     st.style.color = '';
     st.textContent = `불러오기 완료 — ${added}개 추가, ${updated}개 덮어씀.`;
+  };
+  reader.onerror = () => {
+    st.style.color = '#c0392b';
+    st.textContent = '파일을 읽지 못했습니다.';
   };
   reader.readAsText(file);
   e.target.value = '';
@@ -5489,18 +5819,12 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   snapshotCards();
 
   // 현재 작업 데이터만 빈 작업 상태로 되돌림. SLOT_KEY·PRESET_KEY는 건드리지 않는다.
-  const fieldDefaults = {
-    imgUrl: '', imgHeight: '300', ypos: '0',
-    charName: '', userName: '', extraChars: '[]', footerAuthor: '',
-    logNumber: '', logTitle: '', subChar: '', subUser: '', logSubtitle: ''
-  };
-  Object.entries(fieldDefaults).forEach(([id, value]) => {
+  Object.entries(WORK_FIELD_DEFAULTS).forEach(([id, value]) => {
     document.getElementById(id).value = value;
   });
-  document.getElementById('imgOn').checked = false;
-  document.getElementById('footerOn').checked = true;
-  document.getElementById('logTitleOn').checked = false;
-  document.getElementById('titleMinimal').checked = false;
+  Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, value]) => {
+    document.getElementById(id).checked = value;
+  });
   syncCoverControlState();
   document.getElementById('imgHeightVal').textContent = '300';
   document.getElementById('yposVal').textContent = '0';
@@ -5512,7 +5836,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
 
   applyStyleValues(DEFAULT_STYLE);
   currentPresetName = null;
-  currentComboName = null;
+  currentComboName = '모노 클래식';
   lastClickedPresetKey = null;
   presetDialogueCycleIndex = -1;
   charRowsKey = null;
@@ -5539,6 +5863,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   showUndoToast('현재 작업 전체 초기화.');
 
   const status = document.getElementById('slotImportStatus');
+  status.style.color = '';
   status.textContent = '현재 작업을 모두 비웠습니다.';
   setTimeout(() => { status.textContent = ''; }, 3000);
   if(activeTa) activeTa.focus();
@@ -5549,6 +5874,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
 // Ctrl/⌘+B 굵게 · Ctrl/⌘+I 강조 · Ctrl/⌘+E 가운데 정렬
 const FMT_SHORTCUT = { b: 'bold', i: 'emphasis', e: 'center' };
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
   const fmt = FMT_SHORTCUT[e.key.toLowerCase()];
   if(!fmt) return;
@@ -5566,6 +5892,7 @@ document.addEventListener('keydown', (e) => {
 // Ctrl/⌘+Enter: HTML 복사 · Ctrl/⌘+S: 파일 저장
 // Ctrl/⌘+F: 검색 — 전체 화면 편집 중이면 본문 검색창, 아니면 미리보기 검색
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(!(e.ctrlKey || e.metaKey) || e.altKey) return;
   if(e.shiftKey) return;
   if(e.key === 'Enter'){
@@ -5610,6 +5937,12 @@ const SIDEBAR_MAX = 760;
 function setSidebarWidth(px, save){
   const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.round(px)));
   document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+  const handle = document.getElementById('sidebarResizer');
+  if(handle){
+    handle.setAttribute('aria-valuemin', String(SIDEBAR_MIN));
+    handle.setAttribute('aria-valuemax', String(SIDEBAR_MAX));
+    handle.setAttribute('aria-valuenow', String(w));
+  }
   if(save){ try { localStorage.setItem(SIDEBAR_KEY, String(w)); } catch(e){} }
 }
 
@@ -5647,6 +5980,13 @@ function setSidebarWidth(px, save){
 
   // 더블클릭하면 기본 폭으로
   bar.addEventListener('dblclick', () => setSidebarWidth(SIDEBAR_DEFAULT, true));
+  bar.addEventListener('keydown', (e) => {
+    if(!['ArrowLeft','ArrowRight','Home'].includes(e.key)) return;
+    e.preventDefault();
+    if(e.key === 'Home') return setSidebarWidth(SIDEBAR_DEFAULT, true);
+    const current = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10) || SIDEBAR_DEFAULT;
+    setSidebarWidth(current + (e.key === 'ArrowRight' ? 20 : -20), true);
+  });
 })();
 
 // ---------- 탭 전환 ----------
@@ -5664,9 +6004,15 @@ document.querySelectorAll('.tabBtn').forEach(btn => {
   btn.addEventListener('click', () => {
     const sidebar = document.getElementById('sidebar');
     tabSwitching = true; // 전환 중 스크롤 변화는 기록하지 않음
-    document.querySelectorAll('.tabBtn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tabBtn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+      b.tabIndex = -1;
+    });
     document.querySelectorAll('.tabPanel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    btn.tabIndex = 0;
     activeTabId = btn.dataset.tab;
     document.getElementById(activeTabId).classList.add('active');
     // 패널이 바뀌면 사이드바 높이도 바뀌므로, 레이아웃이 확정된 뒤에 스크롤을 복원해야
@@ -5679,9 +6025,24 @@ document.querySelectorAll('.tabBtn').forEach(btn => {
   });
 });
 
+document.querySelector('.tabBar').addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+  const tabs = Array.from(document.querySelectorAll('.tabBtn'));
+  const current = Math.max(0, tabs.indexOf(document.activeElement));
+  let next = current;
+  if(e.key === 'Home') next = 0;
+  else if(e.key === 'End') next = tabs.length - 1;
+  else next = (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  e.preventDefault();
+  tabs[next].click();
+  tabs[next].focus();
+});
+
 // ---------- 본문 글자수/문단수/읽기시간 카운터 ----------
 function updateCounter(){
   const bodies = getCardBodies();
+  const settings = getSettings();
   const text = bodies.join('\n');
   const paraList = text.split('\n').map(l => l.trim()).filter(l => l !== '');
   const chars = text.replace(/\s/g, '').length;
@@ -5708,7 +6069,7 @@ function updateCounter(){
     let body = normalizeQuotes(l);
     const cm = body.match(/^\{(#?[0-9A-Fa-f]{3,8})\}\s*/);
     if(cm) body = body.slice(cm[0].length).trim();
-    if(body.startsWith('>>') || body.startsWith('<<')) body = body.slice(2).trim();
+    body = stripSpeaker(body, settings).line;
     if(/^"[^"]*"$/.test(body)){
       dlgC += stripMarkers(body.slice(1, -1)).replace(/\s/g, '').length;
     }else{
@@ -5750,9 +6111,18 @@ document.getElementById('clearBodyBtn').addEventListener('click', () => {
 // 본문/이미지 관련 입력을 이 브라우저(localStorage)에 자동 저장해서,
 // 창을 닫거나 새로고침해도 작업 내용이 유지되게 함.
 const DRAFT_KEY = 'logGenDraft_v1';
-const DRAFT_SCHEMA_VERSION = 2;
 const DRAFT_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
 let draftSaveTimer = null;
+let draftDirty = false;
+let draftBaseUpdatedAt = 0;
+
+function storedDraftUpdatedAt(){
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw) return 0;
+    return Number(JSON.parse(raw).updatedAt) || 0;
+  } catch(e){ return 0; }
+}
 
 // 예전 기본 예시가 자동 저장된 브라우저에서는 새 기본 화면이 영원히 가려졌다.
 // 실제 작성 초안은 보존하고, 제목과 본문이 폐기된 예시와 일치하는 경우만 새 기본값으로 교체한다.
@@ -5775,16 +6145,25 @@ function isRetiredDefaultDraft(d){
 }
 
 function scheduleDraftSave(){
+  draftDirty = true;
   clearTimeout(draftSaveTimer);
   const status = document.getElementById('draftStatus');
   if(status) status.textContent = '저장 중…';
-  draftSaveTimer = setTimeout(saveDraft, 140);
+  draftSaveTimer = setTimeout(() => saveDraft(false), 140);
 }
 
-function saveDraft(){
+function saveDraft(force = true){
   clearTimeout(draftSaveTimer);
   draftSaveTimer = null;
+  if(!force && !draftDirty) return true;
   try {
+    const externalUpdatedAt = storedDraftUpdatedAt();
+    if(externalUpdatedAt > draftBaseUpdatedAt){
+      draftDirty = true;
+      const status = document.getElementById('draftStatus');
+      if(status) status.textContent = '다른 탭에 더 최신 작업이 있어 자동 저장을 멈춤';
+      return false;
+    }
     const d = {};
     DRAFT_FIELDS.forEach(id => { d[id] = document.getElementById(id).value; });
     d.cards = getCards();
@@ -5793,18 +6172,25 @@ function saveDraft(){
     d.imgOn = document.getElementById('imgOn').checked;
     d.footerOn = document.getElementById('footerOn').checked;
     d.style = currentStyleValues();
-    d.schemaVersion = DRAFT_SCHEMA_VERSION;
+    d.updatedAt = Math.max(Date.now(), draftBaseUpdatedAt + 1);
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    draftBaseUpdatedAt = d.updatedAt;
+    draftDirty = false;
     const status = document.getElementById('draftStatus');
     if(status) status.textContent = '자동 저장됨';
+    return true;
   } catch(e){
+    draftDirty = true;
     const status = document.getElementById('draftStatus');
     if(status) status.textContent = '자동 저장 실패';
+    return false;
   }
 }
 
 // 짧은 저장 지연 중 창을 닫아도 마지막 입력이 빠지지 않게 함.
-window.addEventListener('beforeunload', saveDraft);
+window.addEventListener('beforeunload', () => {
+  if(draftDirty || draftSaveTimer) saveDraft(false);
+});
 
 function restoreDraft(){
   try {
@@ -5815,6 +6201,8 @@ function restoreDraft(){
       localStorage.removeItem(DRAFT_KEY);
       return;
     }
+    draftBaseUpdatedAt = Number(d.updatedAt) || 0;
+    draftDirty = false;
     DRAFT_FIELDS.forEach(id => {
       if(d[id] !== undefined) document.getElementById(id).value = d[id];
     });
@@ -5852,11 +6240,15 @@ document.getElementById('widthDesktopBtn').addEventListener('click', () => {
   document.getElementById('previewWrap').style.maxWidth = '800px';
   document.getElementById('widthDesktopBtn').classList.add('active');
   document.getElementById('widthMobileBtn').classList.remove('active');
+  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
+  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
 });
 document.getElementById('widthMobileBtn').addEventListener('click', () => {
   document.getElementById('previewWrap').style.maxWidth = '380px';
   document.getElementById('widthMobileBtn').classList.add('active');
   document.getElementById('widthDesktopBtn').classList.remove('active');
+  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'false');
+  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'true');
 });
 
 document.getElementById('copyBtn').addEventListener('click', () => {
@@ -5911,18 +6303,31 @@ document.getElementById('copyBtn').addEventListener('click', () => {
 });
 
 // ---------- 코드 전체 화면 ----------
+let codePrevFocus = null;
 function openCodeFullscreen(){
   const area = document.getElementById('codeFsArea');
   area.value = document.getElementById('codeBox').value;
-  document.getElementById('codeOverlay').style.display = 'block';
+  codePrevFocus = document.activeElement;
+  const overlay = document.getElementById('codeOverlay');
+  overlay.style.display = 'block';
+  overlay.setAttribute('aria-hidden', 'false');
+  setWorkspaceInert(true);
   document.body.classList.add('fsLock');
   area.focus();
   area.setSelectionRange(0, 0);
 }
 
 function closeCodeFullscreen(){
-  document.getElementById('codeOverlay').style.display = 'none';
+  const overlay = document.getElementById('codeOverlay');
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('fsLock');
+  setWorkspaceInert(false);
+  if(codePrevFocus && typeof codePrevFocus.focus === 'function'){
+    try { codePrevFocus.focus({ preventScroll: true }); }
+    catch(e){ codePrevFocus.focus(); }
+  }
+  codePrevFocus = null;
 }
 
 document.getElementById('codeFsBtn').addEventListener('click', openCodeFullscreen);
@@ -5934,6 +6339,7 @@ document.getElementById('codeOverlay').addEventListener('wheel', (e) => {
   if(!e.target.closest('#codeFsArea')) e.preventDefault();
 }, { passive: false });
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(e.key === 'Escape' && document.getElementById('codeOverlay').style.display === 'block'){
     e.preventDefault();
     closeCodeFullscreen();
@@ -5957,18 +6363,18 @@ const PRESET_KEY = 'logGenPresets_v2';
 const DEFAULT_STYLE = {
   narrFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
   dlgStyle: 'softlight', dlgFont: 'pretendard', dlgSize: '14', dlgLine: '1.7',
-  charColor: '#222222', userColor: '#707070', emphasisColor: '#858585',
+  charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
   spacingMode: 'normal', cardWidth: '750', bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, showSpeaker: false
 };
 
 // 가독성을 검증하며 고른 추천 색 조합 (배경 + 글자색 4종)
 const COLOR_COMBOS = [
-  { name: '모노 클래식', v: { bgColor:'#ffffff', narrColor:'#555555', charColor:'#222222', userColor:'#707070', emphasisColor:'#858585' } },
-  { name: '세피아 문고', v: { bgColor:'#faf6ef', narrColor:'#5c5245', charColor:'#7a4a2a', userColor:'#44603a', emphasisColor:'#8f8577' } },
-  { name: '로즈 페이퍼', v: { bgColor:'#fdf3f4', narrColor:'#6b5a5d', charColor:'#a03c52', userColor:'#4a5d7a', emphasisColor:'#a08a8f' } },
-  { name: '포레스트',   v: { bgColor:'#f3f6f1', narrColor:'#4f5a4c', charColor:'#2e5e3f', userColor:'#7a5230', emphasisColor:'#86917f' } },
-  { name: '라벤더',     v: { bgColor:'#f6f4fa', narrColor:'#5a5566', charColor:'#5b4a8a', userColor:'#8a4a6b', emphasisColor:'#908aa0' } },
-  { name: '신문지',     v: { bgColor:'#f4f2ec', narrColor:'#3a3a3a', charColor:'#111111', userColor:'#6b1f1f', emphasisColor:'#787265' } },
+  { name: '모노 클래식', v: { bgColor:'#ffffff', narrColor:'#555555', charColor:'#222222', userColor:'#707070', emphasisColor:'#747474' } },
+  { name: '세피아 문고', v: { bgColor:'#faf6ef', narrColor:'#5c5245', charColor:'#7a4a2a', userColor:'#44603a', emphasisColor:'#756b5f' } },
+  { name: '로즈 페이퍼', v: { bgColor:'#fdf3f4', narrColor:'#6b5a5d', charColor:'#a03c52', userColor:'#4a5d7a', emphasisColor:'#7b686e' } },
+  { name: '포레스트',   v: { bgColor:'#f3f6f1', narrColor:'#4f5a4c', charColor:'#2e5e3f', userColor:'#7a5230', emphasisColor:'#687162' } },
+  { name: '라벤더',     v: { bgColor:'#f6f4fa', narrColor:'#5a5566', charColor:'#5b4a8a', userColor:'#8a4a6b', emphasisColor:'#736d80' } },
+  { name: '신문지',     v: { bgColor:'#f4f2ec', narrColor:'#3a3a3a', charColor:'#111111', userColor:'#6b1f1f', emphasisColor:'#716b60' } },
   { name: '미드나잇',   v: { bgColor:'#16181f', narrColor:'#b8bcc8', charColor:'#9db4e8', userColor:'#d9a679', emphasisColor:'#7f8494' } },
   { name: '잉크 & 골드', v: { bgColor:'#1b1a19', narrColor:'#c9c2b6', charColor:'#d4af6a', userColor:'#9db4e8', emphasisColor:'#8f887c' } },
 ];
@@ -5979,7 +6385,7 @@ let lastClickedPresetKey = null;
 let presetDialogueCycleIndex = -1;
 
 // 선택 테두리나 현재 select 값에 의존하지 않고 실제 클릭 순서 자체를 기억한다.
-// 프리셋 카드가 클릭 때마다 다시 그려져도 1 → 2 → 3 순환이 끊기지 않는다.
+// 프리셋 카드가 클릭 때마다 다시 그려져도 1 → 2 → 3 → 4 순환이 끊기지 않는다.
 function presetDialogueStyle(presetKey){
   if(lastClickedPresetKey === presetKey){
     presetDialogueCycleIndex = (presetDialogueCycleIndex + 1) % DIALOG_STYLE_CYCLE.length;
@@ -6068,10 +6474,27 @@ function applyStyleValues(v){
 // 본문에 [이름]"대사" 를 쓰면 그 이름이 자동으로 인물 목록에 나타난다.
 // 색은 처음엔 나레이션 글자색과 같고, 사용자가 고른 색은 extraChars에 기억된다.
 
+function sanitizeExtraCharList(value){
+  if(!Array.isArray(value) || value.length > 100) return null;
+  const clean = [];
+  const seen = new Set();
+  for(const item of value){
+    if(!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    const color = typeof item.color === 'string' ? normalizeHex(item.color) : null;
+    if(!name || name.length > 24 || /[\[\]\u0000-\u001F\u007F]/.test(name) || !color) return null;
+    const key = name.toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    clean.push({ name, color });
+  }
+  return clean;
+}
+
 function parseExtraChars(){
   try {
     const v = JSON.parse(document.getElementById('extraChars').value);
-    return Array.isArray(v) ? v.filter(c => c && (c.name || '').trim()) : [];
+    return sanitizeExtraCharList(v) || [];
   } catch(e){ return []; }
 }
 
@@ -6087,7 +6510,7 @@ function detectCharNames(){
       while((m = re.exec(line)) !== null){
         const name = m[1].trim();
         if(!name || RESERVED_MARKERS.test(name)) continue;
-        if(!names.includes(name)) names.push(name);
+        if(!names.some(existing => existing.toLowerCase() === name.toLowerCase())) names.push(name);
       }
     });
   });
@@ -6099,7 +6522,7 @@ function currentChars(){
   const saved = parseExtraChars();
   const fallback = document.getElementById('narrColor').value;
   return detectCharNames().map(name => {
-    const prev = saved.find(c => c.name === name);
+    const prev = saved.find(c => c.name.toLowerCase() === name.toLowerCase());
     return { name, color: (prev && prev.color) || fallback };
   });
 }
@@ -6113,7 +6536,7 @@ function syncCharList(){
   const saved = parseExtraChars();
   const merged = saved.slice();
   chars.forEach(c => {
-    if(!merged.some(s => s.name === c.name)) merged.push(c);
+    if(!merged.some(s => s.name.toLowerCase() === c.name.toLowerCase())) merged.push(c);
   });
   document.getElementById('extraChars').value = JSON.stringify(merged);
 
@@ -6139,7 +6562,7 @@ function syncCharList(){
   charRowsKey = key;
   list.innerHTML = '';
 
-  chars.forEach(c => {
+  chars.forEach((c, index) => {
     const row = document.createElement('div');
     row.className = 'row';
 
@@ -6153,15 +6576,18 @@ function syncCharList(){
     hex.type = 'text';
     hex.className = 'hexLabel';
     hex.maxLength = 7;
+    hex.id = `extraCharHex-${index}`;
+    label.htmlFor = hex.id;
     hex.value = c.color;
 
     const color = document.createElement('input');
     color.type = 'color';
     color.value = c.color;
+    color.setAttribute('aria-label', `${c.name} 대사 색상 선택`);
 
     const commit = (val) => {
       const saved = parseExtraChars();
-      const target = saved.find(x => x.name === c.name);
+      const target = saved.find(x => x.name.toLowerCase() === c.name.toLowerCase());
       if(target) target.color = val;
       document.getElementById('extraChars').value = JSON.stringify(saved);
       render();
@@ -6188,7 +6614,7 @@ function syncSpeakerNames(){
   document.getElementById('speakerNames').style.display = on ? '' : 'none';
 }
 
-// ---------- 표지 봇·유저 이름 ↔ 대사 화자 이름 양방향 동기화 ----------
+// ---------- 표지 캐릭터·유저 이름 ↔ 대사 화자 이름 양방향 동기화 ----------
 // 어느 한쪽이 비어 있거나 직전까지 같은 이름을 따라가던 상태일 때만 반대쪽을 갱신한다.
 // 사용자가 한쪽을 별도로 고친 뒤에는 독립 상태가 되어 다른 쪽 입력으로 덮어쓰지 않는다.
 // 화자 표시가 꺼져 있어도 표지→화자 값은 저장하며, 미리보기 출력 여부만 showSpeaker가 결정한다.
@@ -6212,7 +6638,7 @@ const subtitleSync = (function(){
       prev[srcId] = src.value;
     });
 
-    // 표지의 봇·유저 이름을 화자 이름에도 보존한다. 표시 체크 여부와는 무관하다.
+    // 표지의 캐릭터·유저 이름을 화자 이름에도 보존한다. 표시 체크 여부와는 무관하다.
     dst.addEventListener('input', () => {
       if(src.value.trim() === '' || src.value === prev[dstId]){
         src.value = dst.value;
@@ -6237,7 +6663,7 @@ const subtitleSync = (function(){
       });
       if(touched && !silent){ render(); saveDraft(); }
     },
-    // 빈 화자 이름을 표지의 봇·유저 이름으로 채움. showSpeaker가 꺼져 있어도 값은 보존한다.
+    // 빈 화자 이름을 표지의 캐릭터·유저 이름으로 채움. showSpeaker가 꺼져 있어도 값은 보존한다.
     fillSpeaker(silent){
       let touched = false;
       pairs.forEach(([s, d]) => {
@@ -6399,51 +6825,80 @@ document.addEventListener('input', (e) => {
 
 // 본문 입력의 기본 실행 취소와 충돌하지 않는 작업 단위 단축키.
 document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
   if(!(e.ctrlKey || e.metaKey) || !e.altKey || e.key.toLowerCase() !== 'z') return;
   e.preventDefault();
   goActionHistory(e.shiftKey ? 1 : -1);
 });
 
 function loadPresets(){
-  let raw = localStorage.getItem(PRESET_KEY);
-  if(!raw){
-    const defaultPreset = { name: '프리셋 1', values: currentStyleValues() };
-    savePresets([defaultPreset]);
-    return [defaultPreset];
-  }
   try {
+    const raw = localStorage.getItem(PRESET_KEY);
+    if(!raw){
+      const defaultPreset = { name: '프리셋 1', values: currentStyleValues() };
+      savePresets([defaultPreset]);
+      return [defaultPreset];
+    }
     const list = JSON.parse(raw);
-    if(!Array.isArray(list)) throw new Error('invalid preset data');
-    // 구버전 프리셋 호환: bgColor가 없으면 예전 cardTone 값으로부터 유도해서 채워줌
-    let migrated = false;
-    list.forEach(p => {
-      if(p.values && p.values.bgColor === undefined){
-        p.values.bgColor = (p.values.cardTone === 'dark') ? '#1b1a19' : '#ffffff';
-        migrated = true;
+    // 사용자가 마지막 프리셋까지 삭제한 빈 배열도 정상적인 저장 상태다.
+    // 손상된 JSON/자료형만 오류로 취급해야 빈 목록이 오류 안내로 바뀌지 않는다.
+    if(!Array.isArray(list)) return null;
+    const seen = new Set();
+    const cleaned = [];
+    for(const stored of list){
+      if(!stored || !stored.values || typeof stored.values !== 'object') return null;
+      const candidate = { name:stored.name, values:{ ...stored.values } };
+      // 구버전 프리셋은 메모리에서만 보완한다. 읽기만으로 원본 저장값을 덮어쓰지 않는다.
+      if(candidate.values.bgColor === undefined){
+        candidate.values.bgColor = candidate.values.cardTone === 'dark' ? '#1b1a19' : '#ffffff';
       }
-    });
-    const cleaned = list.map(sanitizeImportedPreset).filter(Boolean);
-    if(!cleaned.length) throw new Error('empty preset data');
-    if(migrated || cleaned.length !== list.length) savePresets(cleaned);
+      const safe = sanitizeImportedPreset(candidate);
+      if(!safe) return null;
+      const key = safe.name.toLowerCase();
+      if(seen.has(key)) return null;
+      seen.add(key);
+      Object.defineProperty(safe, '_stored', { value:stored, writable:true, enumerable:false });
+      cleaned.push(safe);
+    }
     return cleaned;
   } catch(e){
-    const defaultPreset = { name: '프리셋 1', values: currentStyleValues() };
-    savePresets([defaultPreset]);
-    return [defaultPreset];
+    return null;
   }
 }
 
 function savePresets(list){
-  try { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); return true; }
+  if(!Array.isArray(list)) return false;
+  try {
+    const payload = list.map(preset => {
+      const stored = preset && preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
+      return {
+        ...(stored ? stored : {}),
+        name: preset.name,
+        values: stored ? stored.values : preset.values
+      };
+    });
+    localStorage.setItem(PRESET_KEY, JSON.stringify(payload));
+    return true;
+  }
   catch(e){ return false; }
 }
 
+function showPresetReadError(){
+  const status = document.getElementById('presetStatus');
+  if(status) status.textContent = '저장한 프리셋을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+}
+
+const MAX_PRESET_BYTES = 512 * 1024;
+const MAX_IMPORTED_PRESETS = 100;
+
 // 외부 프리셋 파일의 값을 실제 컨트롤 형식과 범위에 맞는지 확인한다.
-// 알 수 없는 필드는 버리고, 알려진 필드 하나라도 잘못되면 해당 프리셋을 거부한다.
+// 알 수 없는 필드는 버리고, 누락된 최신 필드는 기본값으로 채운다.
+// 알려진 필드 하나라도 잘못되면 해당 프리셋을 거부한다.
 function sanitizeImportedPreset(preset){
   if(!preset || typeof preset.name !== 'string' || !preset.name.trim() || preset.name.length > 80
+     || /[\u0000-\u001F\u007F]/.test(preset.name)
      || !preset.values || typeof preset.values !== 'object' || Array.isArray(preset.values)) return null;
-  const clean = {};
+  const clean = { ...DEFAULT_STYLE };
   let found = 0;
   for(const id of STYLE_FIELDS){
     if(preset.values[id] === undefined) continue;
@@ -6462,8 +6917,15 @@ function sanitizeImportedPreset(preset){
       clean[id] = String(raw);
     } else if(el.tagName === 'SELECT'){
       const value = String(raw);
-      if(!Array.from(el.options).some(opt => opt.value === value)) return null;
-      clean[id] = value;
+      if(Array.from(el.options).some(opt => opt.value === value)){
+        clean[id] = value;
+      } else if(id === 'narrFont' || id === 'dlgFont'){
+        // 배포 전 서체 목록이 바뀌어도 이전 보관함·프리셋 전체를 손상으로
+        // 오인하지 않는다. 더 이상 제공하지 않는 서체만 안전한 기본값으로 교체한다.
+        clean[id] = DEFAULT_STYLE[id];
+      } else {
+        return null;
+      }
     } else {
       if(typeof raw !== 'string') return null;
       clean[id] = raw;
@@ -6493,12 +6955,21 @@ function renderPresetList(){
   const list = loadPresets();
   const container = document.getElementById('presetList');
   container.innerHTML = '';
+  if(list === null){
+    currentPresetName = null;
+    showPresetReadError();
+    updateOverwriteBtn();
+    return;
+  }
 
   list.forEach(p => {
     const v = p.values;
     const card = document.createElement('div');
     card.className = 'presetCard' + (p.name === currentPresetName ? ' active' : '');
     card.title = '적용 · 같은 내 프리셋을 다시 누르면 대사 옵션 1→2→3→4 순환';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', `${p.name} 프리셋`);
     card.style.background = v.bgColor || '#ffffff';
     card.style.color = textColorFor(v.bgColor || '#ffffff');
 
@@ -6528,7 +6999,7 @@ function renderPresetList(){
     const preview = document.createElement('div');
     preview.className = 'presetPreview';
     preview.style.color = v.narrColor || '#666666';
-    preview.innerHTML = `서술 · <span style="color:${v.charColor || '#222222'}">대사</span> · <em style="color:${v.emphasisColor || '#858585'}">강조</em>`;
+    preview.innerHTML = `서술 · <span style="color:${v.charColor || '#222222'}">대사</span> · <em style="color:${v.emphasisColor || '#747474'}">강조</em>`;
 
     // 카드 클릭 = 적용 (이름 편집 중이거나 버튼 클릭은 제외)
     card.addEventListener('click', (e) => {
@@ -6543,6 +7014,12 @@ function renderPresetList(){
       render();
       saveDraft();
       commitStyleHistory(true);
+    });
+    card.addEventListener('keydown', (e) => {
+      if(e.isComposing || e.keyCode === 229 || e.target !== card) return;
+      if(e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      card.click();
     });
     card.addEventListener('mouseenter', () => {
       if(card.classList.contains('editing')) return;
@@ -6560,25 +7037,35 @@ function renderPresetList(){
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'pNameInput';
+      input.maxLength = 80;
       input.value = p.name;
       nameEl.replaceWith(input);
       input.focus();
       input.select();
 
+      let settled = false;
       const finish = (save) => {
+        if(settled) return;
         const name = input.value.trim();
         if(save && name && name !== p.name){
           const all = loadPresets();
-          if(all.some(x => x.name === name)){ alert('같은 이름의 프리셋이 이미 있음.'); input.focus(); return; }
+          if(all === null){ showPresetReadError(); input.focus(); return; }
+          if(all.some(x => x.name.toLowerCase() === name.toLowerCase())){ alert('같은 이름의 프리셋이 이미 있음.'); input.focus(); return; }
           const t = all.find(x => x.name === p.name);
           if(t) t.name = name;
-          savePresets(all);
+          if(!savePresets(all)){
+            document.getElementById('presetStatus').textContent = '저장 공간 부족으로 이름을 바꾸지 못했습니다.';
+            input.focus();
+            return;
+          }
           if(currentPresetName === p.name) currentPresetName = name;
         }
+        settled = true;
         card.classList.remove('editing');
         renderPresetList();
       };
       input.addEventListener('keydown', (e) => {
+        if(e.isComposing || e.keyCode === 229) return;
         if(e.key === 'Enter'){ e.preventDefault(); finish(true); }
         if(e.key === 'Escape'){ e.preventDefault(); finish(false); }
       });
@@ -6592,9 +7079,13 @@ function renderPresetList(){
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const all = loadPresets();
+      if(all === null){ showPresetReadError(); return; }
       if(all.length <= 1){ alert('프리셋은 최소 1개 유지.'); return; }
       if(!confirm(`'${p.name}' 프리셋 삭제?\n복구 불가.`)) return;
-      savePresets(all.filter(x => x.name !== p.name));
+      if(!savePresets(all.filter(x => x.name !== p.name))){
+        document.getElementById('presetStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
+        return;
+      }
       if(currentPresetName === p.name) currentPresetName = null;
       renderPresetList();
     });
@@ -6631,11 +7122,16 @@ function updateOverwriteBtn(){
 document.getElementById('overwritePresetBtn').addEventListener('click', () => {
   if(!currentPresetName) return;
   const list = loadPresets();
+  if(list === null){ showPresetReadError(); return; }
   const target = list.find(p => p.name === currentPresetName);
   if(!target) return;
   if(!confirm(`'${currentPresetName}' 프리셋을 지금 색상으로 덮어쓸까?`)) return;
   target.values = currentStyleValues();
-  savePresets(list);
+  target._stored = null;
+  if(!savePresets(list)){
+    document.getElementById('presetStatus').textContent = '저장 공간 부족으로 변경사항을 저장하지 못했습니다.';
+    return;
+  }
   renderPresetList();
   const st = document.getElementById('presetStatus');
   st.textContent = `'${currentPresetName}'에 덮어씀.`;
@@ -6655,15 +7151,23 @@ document.getElementById('savePresetBtn').addEventListener('click', () => {
     nameInput.placeholder = '이름을 먼저 입력';
     return;
   }
-  const list = loadPresets();
-  const values = currentStyleValues();
-  const existingIdx = list.findIndex(p => p.name === name);
-  if(existingIdx >= 0){
-    list[existingIdx].values = values;
-  } else {
-    list.push({ name, values });
+  if(name.length > 80){
+    document.getElementById('presetStatus').textContent = '프리셋 이름은 80자 이하로 입력해 주세요.';
+    return;
   }
-  savePresets(list);
+  const list = loadPresets();
+  if(list === null){ showPresetReadError(); return; }
+  const values = currentStyleValues();
+  const existingIdx = list.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+  if(existingIdx >= 0){
+    document.getElementById('presetStatus').textContent = '같은 이름이 이미 있습니다. 선택 후 변경사항 저장을 사용해 주세요.';
+    return;
+  }
+  list.push({ name, values });
+  if(!savePresets(list)){
+    document.getElementById('presetStatus').textContent = '저장 공간 부족으로 프리셋을 저장하지 못했습니다.';
+    return;
+  }
   currentPresetName = name;
   currentComboName = null;
   renderPresetList();
@@ -6676,7 +7180,9 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
   if(!confirm('디자인 설정을 기본값으로 되돌릴까?\n(↶ 되돌리기로 취소 가능)')) return;
   applyStyleValues(DEFAULT_STYLE);
   currentPresetName = null;
-  currentComboName = null;
+  currentComboName = '모노 클래식';
+  lastClickedPresetKey = null;
+  presetDialogueCycleIndex = -1;
   renderPresetList();
   renderComboList();
   render();
@@ -6687,7 +7193,16 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
 // ---------- 프리셋 내보내기 / 불러오기 ----------
 document.getElementById('exportPresetBtn').addEventListener('click', () => {
   const list = loadPresets();
-  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  if(list === null){ showPresetReadError(); return; }
+  const exportList = list.map(preset => {
+    const stored = preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
+    return {
+      ...(stored ? stored : {}),
+      name: preset.name,
+      values: stored ? stored.values : preset.values
+    };
+  });
+  const blob = new Blob([JSON.stringify(exportList, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -6706,6 +7221,12 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   const statusEl = document.getElementById('importStatus');
   if(!file) return;
+  if(file.size > MAX_PRESET_BYTES){
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '프리셋 파일이 너무 큽니다. (최대 512KB)';
+    e.target.value = '';
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = () => {
@@ -6717,9 +7238,9 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
       statusEl.textContent = '파일 읽기 실패. JSON 형식을 확인.';
       return;
     }
-    if(!Array.isArray(imported)){
+    if(!Array.isArray(imported) || imported.length > MAX_IMPORTED_PRESETS){
       statusEl.style.color = '#c0392b';
-      statusEl.textContent = '이 도구의 프리셋 파일이 아님.';
+      statusEl.textContent = '이 도구의 프리셋 파일이 아니거나 항목이 너무 많습니다. (최대 100개)';
       return;
     }
     const cleaned = imported.map(sanitizeImportedPreset);
@@ -6728,22 +7249,35 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
       statusEl.textContent = '프리셋 값이나 색상 형식이 올바르지 않음.';
       return;
     }
+    const importedNames = cleaned.map(p => p.name.toLowerCase());
+    if(new Set(importedNames).size !== importedNames.length){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '프리셋 파일 안에 중복된 이름이 있습니다.';
+      return;
+    }
     imported = cleaned;
 
     const list = loadPresets();
+    if(list === null){ showPresetReadError(); return; }
     let addedCount = 0, updatedCount = 0;
     imported.forEach(p => {
-      const idx = list.findIndex(existing => existing.name === p.name);
+      const idx = list.findIndex(existing => existing.name.toLowerCase() === p.name.toLowerCase());
       if(idx >= 0){
         list[idx].values = p.values;
+        list[idx]._stored = null;
         updatedCount++;
       } else {
         list.push({ name: p.name, values: p.values });
         addedCount++;
       }
     });
-    savePresets(list);
-    currentPresetName = imported[0].name;
+    if(!savePresets(list)){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '저장 공간 부족으로 프리셋을 불러오지 못했습니다.';
+      return;
+    }
+    const appliedPreset = list.find(p => p.name.toLowerCase() === imported[0].name.toLowerCase());
+    currentPresetName = appliedPreset ? appliedPreset.name : imported[0].name;
     currentComboName = null;
     applyStyleValues(imported[0].values);
     renderPresetList();
@@ -6754,6 +7288,10 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
 
     statusEl.style.color = '#2a7a2a';
     statusEl.textContent = `불러오기 완료: 새로 추가 ${addedCount}개, 덮어쓰기 ${updatedCount}개.`;
+  };
+  reader.onerror = () => {
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '프리셋 파일을 읽지 못했습니다.';
   };
   reader.readAsText(file);
   e.target.value = ''; // 같은 파일 다시 선택해도 change가 발생하도록 초기화
@@ -6801,7 +7339,7 @@ syncSubtitleFromSpeaker(true);   // 화자 이름 표시가 켜진 초안이면 
 render();
 updateCounter();
 const initialList = loadPresets();
-const matchingInitialPreset = initialList.find(p => styleStateEqual(p.values, currentStyleValues()));
+const matchingInitialPreset = initialList && initialList.find(p => styleStateEqual(p.values, currentStyleValues()));
 const matchingInitialCombo = COLOR_COMBOS.find(combo =>
   Object.entries(combo.v).every(([id, value]) =>
     String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
