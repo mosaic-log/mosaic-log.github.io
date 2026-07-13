@@ -2601,7 +2601,12 @@ function safeHexColor(value, fallback){
 // 인라인 서식: __...__ -> 굵게, *...* -> 강조(기울임 + 강조색).
 function processInline(text, emphasisColor){
   const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
-  const em = content => `<em style='color:${color};'>${content}</em>`;
+  // 게시판의 전역 em 스타일이나 상위 나레이션 색상이 강조색을 덮지 못하게
+  // 의미 요소와 내부 글자 양쪽에 선택한 강조색을 명시한다.
+  const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important;`;
+  // 이후 단계가 본문의 큰따옴표 대사만 찾으므로, 생성 마크업 속성은 작은따옴표를 써서
+  // style 값이 대사로 오인되는 일을 막는다.
+  const em = content => `<em style='${emphasisStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
   return escapeTextHTML(text)
     .replace(/__(.+?)__/g, '<strong>$1</strong>')
     .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, content) => em(content));
@@ -3072,12 +3077,15 @@ function buildTitleBlock(settings, hasImg){
 
 function buildFooter(settings){
   if(!settings.footerOn) return '';
-  // 꼬리말 문구는 고정. 작성자를 입력하면 뒤에 ©이름을 붙임.
+  // 도구 이름만 공식 페이지로 연결하고, 작성자 표기는 링크 밖에 둔다.
+  // 게시판의 기본 링크색이 덮어쓰지 못하도록 링크와 내부 글자에 현재 꼬리말색을 직접 지정한다.
   const author = (settings.footerAuthor || '').trim();
-  const full = author ? `조각로그 ©${author}` : '조각로그';
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${processInline(full, settings.emphasisColor)}</div>\n`;
+  const linkStyle = `color:${pal.caption} !important; -webkit-text-fill-color:${pal.caption} !important; text-decoration:none !important;`;
+  const toolLink = `<a href="https://mosaic-log.github.io/" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
+  const authorText = author ? ` ©${processInline(author, settings.emphasisColor)}` : '';
+  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCard(settings){
