@@ -3116,7 +3116,7 @@ function buildFooter(settings){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
   const linkStyle = `color:${pal.caption} !important; -webkit-text-fill-color:${pal.caption} !important; text-decoration:none !important;`;
-  const toolLink = `<a href="https://mosaic-log.github.io/" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
+  const toolLink = `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
   const authorText = author ? ` ©${processInline(author, settings.emphasisColor)}` : '';
   return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${toolLink}${authorText}</div>\n`;
 }
