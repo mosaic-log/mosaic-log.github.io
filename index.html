@@ -14,6 +14,8 @@
     --ink: #242320;
     --ink-soft: #68655f;
     --ink-faint: #716d66;
+    --help-ink: #918d86;
+    --help-ink-strong: #77736d;
     --line: #e4e0d9;
     --line-strong: #d3cec6;
     --bg-app: #f3f1ed;
@@ -353,7 +355,7 @@
     align-items: center;
     min-height: 28px;
     font-size: 11.5px;
-    color: var(--ink-faint);
+    color: var(--help-ink);
     cursor: pointer;
     user-select: none;
     font-weight: 600;
@@ -367,18 +369,21 @@
     width: 8px;
     height: 8px;
     margin: 0 7px 0 0;
-    opacity: .62;
+    opacity: .72;
     background:
-      linear-gradient(var(--ink-faint), var(--ink-faint)) center / 8px 1px no-repeat,
-      linear-gradient(var(--ink-faint), var(--ink-faint)) center / 1px 8px no-repeat;
+      linear-gradient(var(--help-ink), var(--help-ink)) center / 8px 1px no-repeat,
+      linear-gradient(var(--help-ink), var(--help-ink)) center / 1px 8px no-repeat;
   }
   .helpFold[open] summary::before, .syntaxHelp[open] summary::before {
-    background: linear-gradient(var(--ink-faint), var(--ink-faint)) center / 8px 1px no-repeat;
+    background: linear-gradient(var(--help-ink), var(--help-ink)) center / 8px 1px no-repeat;
   }
-  .helpFold summary:hover, .syntaxHelp summary:hover { color: var(--ink-soft); }
+  .helpFold summary:hover, .syntaxHelp summary:hover { color: var(--help-ink-strong); }
   .helpFold[open], .syntaxHelp[open] { padding: 0 10px 10px; background: var(--bg-subtle); }
   .helpFold[open] summary, .syntaxHelp[open] summary { min-height: 28px; }
   .helpFold > .hint, .syntaxHelp > .hint { margin: 7px 0 0; }
+  .helpFold > .hint, .syntaxHelp > .hint { color: var(--help-ink); }
+  .helpFold > .hint b, .syntaxHelp > .hint b,
+  .helpFold > .hint code, .syntaxHelp > .hint code { color: var(--help-ink-strong); }
   /* 닫힌 details의 자식에 display를 지정하면 기본 숨김이 풀리므로 명시적으로 숨김 */
   details.helpFold:not([open]) > *:not(summary),
   details.syntaxHelp:not([open]) > *:not(summary) { display: none; }
@@ -1827,6 +1832,34 @@
   .settingsForm .row.isControlDisabled { opacity: .42; }
   .settingsForm .row.isControlDisabled label { color: var(--ink-faint); }
 
+  /* 화자 이름표는 디자인 탭의 기존 반폭 구조를 유지한다.
+     왼쪽 절반은 라벨, 오른쪽 절반은 입력칸으로 쓰고 입력칸 끝을 행 오른쪽에 맞춘다. */
+  #tabDesign #speakerGroup #speakerNames .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+  }
+  #tabDesign #speakerGroup #speakerNames .row > label {
+    grid-column: 1;
+    width: auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  #tabDesign #speakerGroup #speakerNames .row > input {
+    grid-column: 2;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  /* 문단 정렬 체크 항목은 기존 배치를 유지하고 세로 간격만 조밀하게 한다. */
+  #tabDesign .optionFold .row {
+    min-height: 27px;
+    margin-bottom: 2px;
+  }
+  #tabDesign .optionFold .row:last-child { margin-bottom: 0; }
+
   /* ---------- 버튼 위계 ---------- */
   .btnPrimary, .btnSecondary, .btnQuiet, .btnDanger {
     min-height: var(--control-h);
@@ -2023,7 +2056,7 @@
     <details class="helpFold">
       <summary>도움말</summary>
       <p class="hint">빈 항목은 생략됩니다. <b>미니멀</b>은 표제 아래 선 없이 여백으로 본문과 나눕니다.</p>
-      <p class="hint">부제는 <b>캐릭터 × 유저 · 자유 문구</b> 순서입니다. 화자 이름과 자동 연동되며 직접 고치면 독립합니다.</p>
+      <p class="hint">부제는 <b>캐릭터 × 유저 · 자유 문구</b> 순서입니다. 화자 이름표와는 별도로 입력합니다.</p>
     </details>
   </div>
 
@@ -4509,8 +4542,6 @@ function applyWork(data){
   cards.forEach(c => addCard(c, false));
   activeTa = cardTextareas()[0] || null;
   charRowsKey = null;
-  subtitleSync.resync();   // 복원된 화자 이름 기준으로 부제 따라가기 재정렬
-  subtitleSync.fillSpeaker(true); // 구버전 슬롯의 표지 이름을 숨은 화자 이름에도 보존
   syncCharList();
   render();
   updateCounter();
@@ -5392,7 +5423,6 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
     }
   } catch(e){}
   if(!n && !fields){ undoSnapshot = null; st.textContent = '일치 없음.'; return; }
-  subtitleSync.resync();
   render(); updateCounter(); saveDraft();
   showUndoToast('이름 ' + n + '곳 변경.');
   st.textContent = fields ? '이름 필드 ' + fields + '곳도 변경됨.' : '';
@@ -5846,7 +5876,6 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   presetDialogueCycleIndex = -1;
   charRowsKey = null;
   syncCharList();
-  subtitleSync.resync();
   syncSpeakerNames();
 
   // 검색·선택·임시 입력 같은 화면 상태도 함께 비움.
@@ -6619,83 +6648,8 @@ function syncSpeakerNames(){
   document.getElementById('speakerNames').style.display = on ? '' : 'none';
 }
 
-// ---------- 표지 캐릭터·유저 이름 ↔ 대사 화자 이름 양방향 동기화 ----------
-// 어느 한쪽이 비어 있거나 직전까지 같은 이름을 따라가던 상태일 때만 반대쪽을 갱신한다.
-// 사용자가 한쪽을 별도로 고친 뒤에는 독립 상태가 되어 다른 쪽 입력으로 덮어쓰지 않는다.
-// 화자 표시가 꺼져 있어도 표지→화자 값은 저장하며, 미리보기 출력 여부만 showSpeaker가 결정한다.
-const subtitleSync = (function(){
-  const pairs = [['charName','subChar'], ['userName','subUser']];
-  const prev = {};
-  pairs.forEach(([s, d]) => {
-    prev[s] = document.getElementById(s).value;
-    prev[d] = document.getElementById(d).value;
-  });
-
-  pairs.forEach(([srcId, dstId]) => {
-    const src = document.getElementById(srcId);
-    const dst = document.getElementById(dstId);
-    src.addEventListener('input', () => {
-      if(document.getElementById('showSpeaker').checked
-         && (dst.value.trim() === '' || dst.value === prev[srcId])){
-        dst.value = src.value;
-        dst.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더·저장 배선 경유
-      }
-      prev[srcId] = src.value;
-    });
-
-    // 표지의 캐릭터·유저 이름을 화자 이름에도 보존한다. 표시 체크 여부와는 무관하다.
-    dst.addEventListener('input', () => {
-      if(src.value.trim() === '' || src.value === prev[dstId]){
-        src.value = dst.value;
-        src.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      prev[dstId] = dst.value;
-    });
-  });
-
-  return {
-    // 빈 부제 칸을 화자 이름으로 채움 (silent: render/save 생략 — 초기 구동용)
-    fill(silent){
-      if(!document.getElementById('showSpeaker').checked) return;
-      let touched = false;
-      pairs.forEach(([s, d]) => {
-        const src = document.getElementById(s), dst = document.getElementById(d);
-        if(src.value.trim() && dst.value.trim() === ''){
-          dst.value = src.value;
-          prev[s] = src.value;   // 채운 직후부터 따라가기가 이어지도록
-          touched = true;
-        }
-      });
-      if(touched && !silent){ render(); saveDraft(); }
-    },
-    // 빈 화자 이름을 표지의 캐릭터·유저 이름으로 채움. showSpeaker가 꺼져 있어도 값은 보존한다.
-    fillSpeaker(silent){
-      let touched = false;
-      pairs.forEach(([s, d]) => {
-        const speaker = document.getElementById(s), subtitle = document.getElementById(d);
-        if(speaker.value.trim() === '' && subtitle.value.trim() !== ''){
-          speaker.value = subtitle.value;
-          prev[s] = speaker.value;
-          prev[d] = subtitle.value;
-          touched = true;
-        }
-      });
-      if(touched && !silent){ render(); saveDraft(); }
-    },
-    // 프로그램적 값 변경(복원 등) 뒤 prev를 현재 값으로 재정렬
-    resync(){
-      pairs.forEach(([s, d]) => {
-        prev[s] = document.getElementById(s).value;
-        prev[d] = document.getElementById(d).value;
-      });
-    },
-  };
-})();
-function syncSubtitleFromSpeaker(silent){ subtitleSync.fill(silent); }
 document.getElementById('showSpeaker').addEventListener('change', () => {
   syncSpeakerNames();
-  subtitleSync.fillSpeaker(false);
-  syncSubtitleFromSpeaker(false);
 });
 
 // ---------- 큰 작업 + 디자인 변경 통합 히스토리 ----------
@@ -7338,9 +7292,6 @@ if(cardTextareas().length === 0){
 activeTa = cardTextareas()[0] || null;
 updateHexLabels();
 syncSpeakerNames();
-subtitleSync.resync();           // 초안 복원 값 기준으로 따라가기 재정렬
-subtitleSync.fillSpeaker(true);  // 표지 이름만 있으면 숨은 화자 이름에도 저장
-syncSubtitleFromSpeaker(true);   // 화자 이름 표시가 켜진 초안이면 부제 칸을 미리 채움
 render();
 updateCounter();
 const initialList = loadPresets();
