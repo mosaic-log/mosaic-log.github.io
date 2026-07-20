@@ -1319,7 +1319,8 @@
     margin-left: 18px;
     margin-right: auto;
   }
-  #fsFoldLabel {
+  #fsFoldLabel,
+  #fsFoldMinimalLabel {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1329,7 +1330,8 @@
     user-select: none;
     white-space: nowrap;
   }
-  #fsFoldLabel input { accent-color: var(--accent); cursor: pointer; }
+  #fsFoldLabel input,
+  #fsFoldMinimalLabel input { accent-color: var(--accent); cursor: pointer; }
   #fsFoldTitle {
     width: 320px;
     padding: 6px 10px;
@@ -1952,6 +1954,9 @@
     .swDot { width: 21px; height: 21px; font-size: 9px; }
     .presetCard { gap: 7px; }
     .cardEditor textarea { min-height: 210px; padding: 12px; font-size: 13px; }
+    .cardToolRow { flex-wrap: wrap; }
+    .cardFoldGroup { flex: 1 1 230px; justify-content: flex-end; }
+    .cardFoldGroup .foldTitleInput { flex: 1 1 110px; }
     #previewToolbar { align-items: center; }
     #previewLabel .previewMeta { display: none; }
     .widthToggle button { padding: 0 9px; font-size: 11px; }
@@ -2020,6 +2025,11 @@
       <span class="rangeval" id="imgHeightVal">300</span>
     </div>
     <div class="row">
+      <label for="xpos">가로 위치</label>
+      <input type="range" id="xpos" min="0" max="100" step="1" value="50">
+      <span class="rangeval" id="xposVal">50</span>
+    </div>
+    <div class="row">
       <label for="ypos">세로 위치</label>
       <input type="range" id="ypos" min="0" max="100" value="0">
       <span class="rangeval" id="yposVal">0</span>
@@ -2067,6 +2077,9 @@
       <p class="group-desc">마지막 카드 아래에 작성자 정보를 표시합니다.</p>
       <div class="row">
         <label><input type="checkbox" id="footerOn" checked> 꼬리말 표시</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="footerMinimal"> 미니멀</label>
       </div>
       <div class="row">
         <label for="footerAuthor">작성자</label>
@@ -2144,7 +2157,8 @@
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
       <p class="hint"><b>미리보기 선택:</b> 글자를 드래그하면 도구막대가 뜸. 굵게/강조 적용 및 해제 (적용된 기능은 선택 상태로 표시).</p>
       <p class="hint"><b>구분선:</b> <code>[HR]</code> 얇은 선 · <code>[HR2]</code> 장면 전환 장식(✦ ✦ ✦). 미리보기에서 길게 누르면 변경·삭제 가능.</p>
-      <p class="hint"><b>카드 접기:</b> 카드 헤더의 <b>접기 카드</b> 체크. <b>✦ 제목 ✦</b> 표지로 표시, 클릭 시 펼침. 대표 이미지·표제는 항상 노출.</p>
+      <p class="hint"><b>카드 접기:</b> 카드 헤더의 <b>접기 카드</b> 체크. <b>✦ 제목 ✦</b> 표지로 표시하며, 제목을 비우면 <b>✦ ✦ ✦</b>로 표시. 클릭 시 펼침. 대표 이미지·표제는 항상 노출.</p>
+      <p class="hint"><b>접기 카드 미니멀:</b> 제목과 펼친 본문 사이의 선을 없애고 여백으로만 구분.</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code>. 제목 생략 가능. 닫지 않으면 카드 끝까지 접힘.</p>
       <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> — 같거나 큰 소제목이 나올 때까지 자동으로 접힘.</p>
       <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 캡션은 <code>[IMG 주소 | 캡션]</code></p>
@@ -2288,10 +2302,14 @@
     <div class="row">
       <label for="cardWidth">읽기 폭</label>
       <select id="cardWidth">
+        <option value="900">최대 (900px)</option>
         <option value="750" selected>넓게 (750px)</option>
         <option value="680">보통 (680px)</option>
         <option value="620">좁게 (620px)</option>
       </select>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="cardBorderOn" checked> 카드 외곽선 표시</label>
     </div>
 
     <details class="helpFold optionFold">
@@ -2309,6 +2327,7 @@
     <details class="helpFold">
       <summary>도움말</summary>
       <p class="hint"><b>읽기 폭:</b> 카드 최대 폭. 좁힐수록 한 줄이 짧아져 읽기 편함. 모바일에는 영향 없음.</p>
+      <p class="hint"><b>카드 외곽선:</b> 끄면 대표 이미지·표제·본문 카드의 바깥 테두리만 숨김. 내부 구분선과 둥근 모서리는 유지.</p>
       <p class="hint"><b>첫 줄 들여쓰기:</b> 나레이션에 적용. 대사·소제목·가운데 정렬·인용 제외.</p>
       <p class="hint"><b>여백 밀도:</b> 문단·대사 박스·구분선 여백을 함께 조절. 연속 대사 구간은 자동으로 좁아짐.</p>
       <p class="hint"><b>카드 배경색:</b> 어떤 색을 골라도 대사 박스·구분선·테두리·소제목 색이 자동 파생됨. 글자색만 대비되게 지정.</p>
@@ -2485,6 +2504,7 @@
       <div id="fsFoldGroup">
         <label id="fsFoldLabel"><input type="checkbox" id="fsFoldChk"> 접기 카드</label>
         <input type="text" id="fsFoldTitle" maxlength="200" aria-label="접기 카드 제목" style="display:none;" placeholder="접기 제목 (독자가 클릭해서 펼치는 헤더에 표시)">
+        <label id="fsFoldMinimalLabel" style="display:none;"><input type="checkbox" id="fsFoldMinimalChk"> 미니멀</label>
       </div>
       <button type="button" id="fsCloseBtn" title="닫기 (Esc)">✕ 닫기</button>
     </div>
@@ -2919,6 +2939,7 @@ function getSettings(){
     imgOn: document.getElementById('imgOn').checked,
     imgUrl: document.getElementById('imgUrl').value.trim(),
     imgHeight: document.getElementById('imgHeight').value,
+    xpos: document.getElementById('xpos').value,
     ypos: document.getElementById('ypos').value,
     narrFont: document.getElementById('narrFont').value,
     narrSize: document.getElementById('narrSize').value,
@@ -2936,6 +2957,7 @@ function getSettings(){
     charName: document.getElementById('charName').value,
     userName: document.getElementById('userName').value,
     footerOn: document.getElementById('footerOn').checked,
+    footerMinimal: document.getElementById('footerMinimal').checked,
     footerAuthor: document.getElementById('footerAuthor').value,
     logTitleOn: document.getElementById('logTitleOn').checked,
     titleMinimal: document.getElementById('titleMinimal').checked,
@@ -2946,6 +2968,7 @@ function getSettings(){
     logSubtitle: document.getElementById('logSubtitle').value,
     spacingMode: document.getElementById('spacingMode').value,
     cardWidth: document.getElementById('cardWidth').value,
+    cardBorderOn: document.getElementById('cardBorderOn').checked,
     bgColor: document.getElementById('bgColor').value,
     narrIndent: document.getElementById('narrIndent').checked,
     narrJustify: document.getElementById('narrJustify').checked,
@@ -2962,9 +2985,15 @@ function buildImageBlock(settings){
   // border를 개별 속성(left/right/top)으로 지정해 아카라이브가 축약형을 재해석해도 이중선이 생기지 않게 함.
   const pal = tonePalette(settings);
   const H = parseFloat(settings.imgHeight) || 300;
-  const ypos = (settings.ypos === undefined || settings.ypos === null) ? 0 : settings.ypos;
+  const xValue = Number(settings.xpos);
+  const yValue = Number(settings.ypos);
+  const xpos = Number.isFinite(xValue) ? Math.min(100, Math.max(0, xValue)) : 50;
+  const ypos = Number.isFinite(yValue) ? Math.min(100, Math.max(0, yValue)) : 0;
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:50% ${ypos}%; background-size:cover; border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; border-top:1px solid ${pal.cardBorder}; border-radius:16px 16px 0 0;"></div>
+  const outerBorder = settings.cardBorderOn === false
+    ? ''
+    : `border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; border-top:1px solid ${pal.cardBorder};`;
+  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
 `;
 }
 
@@ -3097,13 +3126,17 @@ function buildTitleBlock(settings, hasImg){
   if(sub)   inner += `<p style="margin:${title ? 8 : 0}px 0 0 0; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processInline(sub, settings.emphasisColor)}</p>`;
   // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
+  const showOuterBorder = settings.cardBorderOn !== false;
+  const sideBorders = showOuterBorder
+    ? `border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder};`
+    : '';
   const topEdge = hasImg
-    ? `border-top:1px solid ${pal.divider};`
-    : `border-top:1px solid ${pal.cardBorder}; border-radius:16px 16px 0 0;`;
+    ? ``
+    : `${showOuterBorder ? `border-top:1px solid ${pal.cardBorder};` : ''} border-radius:16px 16px 0 0;`;
   // 미니멀: 표제 아래 구분선(첫 카드의 위 테두리) 없이 여백만으로 본문과 나뉘도록 아래 여백 확대
   const padBottom = settings.titleMinimal ? Math.round(30*sm) : Math.round(20*sm);
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
 `;
 }
 
@@ -3115,10 +3148,15 @@ function buildFooter(settings){
   const author = (settings.footerAuthor || '').trim();
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  const linkStyle = `color:${pal.caption} !important; -webkit-text-fill-color:${pal.caption} !important; text-decoration:none !important;`;
+  const footerColor = settings.footerMinimal ? mixHex(pal.cardBg, pal.caption, 0.65) : pal.caption;
+  const dividerStyle = settings.footerMinimal ? '' : `border-top:1px solid ${pal.divider};`;
+  // 미니멀은 선만 없애고 기존 선 아래의 여백은 유지해 본문과 너무 가까워지지 않게 한다.
+  const topPadding = 14;
+  const footerFontSize = settings.footerMinimal ? 10.5 : 11.5;
+  const linkStyle = `color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; text-decoration:none !important;`;
   const toolLink = `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
   const authorText = author ? ` ©${processInline(author, settings.emphasisColor)}` : '';
-  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:14px; border-top:1px solid ${pal.divider}; text-align:center; color:${pal.caption}; font-size:11.5px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${toolLink}${authorText}</div>\n`;
+  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:${topPadding}px; ${dividerStyle} text-align:center; color:${footerColor}; font-size:${footerFontSize}px; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)};">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCard(settings){
@@ -3129,10 +3167,11 @@ function buildCard(settings){
     .map(c => ({
       lines: c.body.split('\n').map(l => l.trim()).filter(l => l !== ''),
       folded: c.folded,
-      foldTitle: (c.foldTitle || '').trim() || '펼쳐 보기',
+      foldTitle: (c.foldTitle || '').trim(),
+      foldMinimal: !!c.foldMinimal,
     }))
     .filter(c => c.lines.length > 0); // 내용이 빈 카드는 출력에서 제외
-  if(cardList.length === 0) cardList = [{ lines: [], folded: false, foldTitle: '' }];
+  if(cardList.length === 0) cardList = [{ lines: [], folded: false, foldTitle: '', foldMinimal: false }];
 
   // 배경 이미지는 아카라이브가 썸네일로 인식하지 못하므로, 대표 이미지가 있으면
   // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
@@ -3157,11 +3196,18 @@ function buildCard(settings){
     // 연결된 첫 카드는 위 모서리를 각지게 해서 이미지와 하나의 틀처럼 이어지게 함
     const radius = connected ? '0 0 16px 16px' : '16px';
     const W = parseInt(settings.cardWidth) || 750;
-    // 미니멀 표제: 표제 밴드와 첫 카드 사이의 선(카드 위 테두리)을 없애고 여백으로만 구분
-    const noTopLine = connected && hasTitle && settings.titleMinimal;
-    const borderCss = noTopLine
-      ? `border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; border-bottom:1px solid ${pal.cardBorder};`
-      : `border:1px solid ${pal.cardBorder};`;
+    // 대표 이미지 바로 아래에는 선을 두지 않는다. 표제 미니멀도 표제와 첫 카드 사이를 여백으로만 구분한다.
+    const noTopLine = connected && ((hasTitle && settings.titleMinimal) || (hasImg && !hasTitle));
+    const showOuterBorder = settings.cardBorderOn !== false;
+    let borderCss = '';
+    if(showOuterBorder){
+      borderCss = noTopLine
+        ? `border-left:1px solid ${pal.cardBorder}; border-right:1px solid ${pal.cardBorder}; border-bottom:1px solid ${pal.cardBorder};`
+        : `border:1px solid ${pal.cardBorder};`;
+    } else if(connected && !noTopLine){
+      // 이미지·표제와 카드 사이의 선은 외곽선이 아니라 내부 경계이므로 유지한다.
+      borderCss = `border-top:1px solid ${pal.cardBorder};`;
+    }
     const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
 
     if(card.folded){
@@ -3169,8 +3215,16 @@ function buildCard(settings){
       // 닫혀 있으면 제목만 담긴 카드처럼 보이고, 네이티브 삼각형(▸/▾)이 상태를 알려줌.
       // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
-      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${processInline(card.foldTitle, settings.emphasisColor)}<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
-  <div style="box-sizing:border-box; border-top:1px solid ${pal.divider}; padding:clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px);">
+      const foldTitle = card.foldTitle || '';
+      const foldTitleHTML = foldTitle.trim()
+        ? processInline(foldTitle, settings.emphasisColor)
+        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px;">✦</span>`;
+      const foldBodyBorder = card.foldMinimal ? '' : `border-top:1px solid ${pal.divider};`;
+      const foldBodyPadding = card.foldMinimal
+        ? `clamp(26px,5vw,30px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
+      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:15.5px; font-weight:700; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};"><span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>${foldTitleHTML}<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span></summary>
+  <div style="box-sizing:border-box; ${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </details>`;
     }
@@ -4124,6 +4178,10 @@ document.getElementById('imgHeight').addEventListener('input', e => {
   document.getElementById('imgHeightVal').textContent = e.target.value;
 });
 
+document.getElementById('xpos').addEventListener('input', e => {
+  document.getElementById('xposVal').textContent = e.target.value;
+});
+
 document.getElementById('ypos').addEventListener('input', e => {
   document.getElementById('yposVal').textContent = e.target.value;
 });
@@ -4150,17 +4208,17 @@ document.getElementById('imgUrl').addEventListener('change', () => {
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
-  imgUrl:'', imgHeight:'300', ypos:'0',
+  imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'',
   logNumber:'', logTitle:'', subChar:'', subUser:'', logSubtitle:''
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
-  logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true
+  logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true, footerMinimal:false
 });
-const STYLE_FIELDS = ['narrFont','narrSize','narrLine','narrColor','dlgStyle','dlgFont','dlgSize','dlgLine','charColor','userColor','emphasisColor','spacingMode','cardWidth','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
-const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn']);
+const STYLE_FIELDS = ['narrFont','narrSize','narrLine','narrColor','dlgStyle','dlgFont','dlgSize','dlgLine','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
+const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn', 'footerMinimal']);
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
   logTitle:   () => previewParts().title,
@@ -4172,8 +4230,13 @@ const PREVIEW_FOCUS_MAP = {
   imgOn:      () => previewParts().image,
   imgUrl:     () => previewParts().image,
   imgHeight:  () => previewParts().image,
+  xpos:       () => previewParts().image,
   ypos:       () => previewParts().image,
   footerOn:   () => {
+    const cards = previewParts().cards;
+    return cards[cards.length - 1] || null;
+  },
+  footerMinimal: () => {
     const cards = previewParts().cards;
     return cards[cards.length - 1] || null;
   },
@@ -4202,9 +4265,9 @@ document.getElementById('dlgFont').addEventListener('change', () => loadSelected
 
 function syncCoverControlState(){
   const groups = [
-    { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','ypos'] },
+    { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','xpos','ypos'] },
     { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','logNumber','logTitle','subChar','subUser','logSubtitle'] },
-    { on: document.getElementById('footerOn').checked, ids: ['footerAuthor'] },
+    { on: document.getElementById('footerOn').checked, ids: ['footerMinimal','footerAuthor'] },
   ];
   groups.forEach(group => group.ids.forEach(id => {
     const el = document.getElementById(id);
@@ -4251,6 +4314,7 @@ function getCards(){
     body: ed.querySelector('textarea').value,
     folded: ed.querySelector('.cardFoldChk').checked,
     foldTitle: ed.querySelector('.foldTitleInput').value,
+    foldMinimal: ed.querySelector('.cardFoldMinimalChk').checked,
   }));
 }
 
@@ -4267,8 +4331,8 @@ function renumberCards(){
 }
 
 function createCardEditor(value){
-  // value: 문자열(본문만) 또는 {body, folded, foldTitle} 객체
-  const data = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
+  // value: 문자열(본문만) 또는 {body, folded, foldTitle, foldMinimal} 객체
+  const data = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '', foldMinimal: false };
 
   const ed = document.createElement('div');
   ed.className = 'cardEditor';
@@ -4336,6 +4400,15 @@ function createCardEditor(value){
   foldTitleInput.setAttribute('aria-label', '접기 카드 제목');
   foldTitleInput.value = data.foldTitle || '';
   foldTitleInput.style.display = foldChk.checked ? '' : 'none';
+
+  const foldMinimalLabel = document.createElement('label');
+  foldMinimalLabel.className = 'foldChk foldMinimalLabel';
+  const foldMinimalChk = document.createElement('input');
+  foldMinimalChk.type = 'checkbox';
+  foldMinimalChk.className = 'cardFoldMinimalChk';
+  foldMinimalChk.checked = !!data.foldMinimal;
+  foldMinimalLabel.appendChild(document.createTextNode('미니멀'));
+  foldMinimalLabel.appendChild(foldMinimalChk);
 
   const ta = document.createElement('textarea');
   ta.value = data.body || '';
@@ -4408,6 +4481,7 @@ function createCardEditor(value){
   });
   const syncFoldUi = () => {
     foldTitleInput.style.display = foldChk.checked ? '' : 'none';
+    foldMinimalLabel.style.display = foldChk.checked ? '' : 'none';
     ed.classList.toggle('isFolded', foldChk.checked);
     renumberCards();
   };
@@ -4427,6 +4501,19 @@ function createCardEditor(value){
   });
   requestAnimationFrame(syncFoldUi);
   foldTitleInput.addEventListener('input', refresh);
+  let minimalUndoPrepared = false;
+  const prepareMinimalUndo = () => {
+    if(minimalUndoPrepared) return;
+    snapshotCards();
+    minimalUndoPrepared = true;
+  };
+  foldMinimalChk.addEventListener('pointerdown', prepareMinimalUndo);
+  foldMinimalChk.addEventListener('keydown', (e) => { if(e.key === ' ' || e.key === 'Enter') prepareMinimalUndo(); });
+  foldMinimalChk.addEventListener('change', () => {
+    refresh();
+    if(minimalUndoPrepared) showUndoToast(foldMinimalChk.checked ? '접기 카드 미니멀 설정.' : '접기 카드 미니멀 해제.');
+    minimalUndoPrepared = false;
+  });
 
   del.addEventListener('click', () => {
     if(cardTextareas().length <= 1) return;
@@ -4465,6 +4552,7 @@ function createCardEditor(value){
   const foldGroup = document.createElement('div');
   foldGroup.className = 'cardFoldGroup';
   foldGroup.appendChild(foldTitleInput);   // 제목이 왼쪽
+  foldGroup.appendChild(foldMinimalLabel); // 접기 카드의 선 없는 미니멀 표시
   foldGroup.appendChild(foldLabel);        // 체크박스가 오른쪽
   foldGroup.appendChild(del);              // 위험 동작은 도구줄 끝에 조용히 배치
 
@@ -4515,6 +4603,7 @@ function collectWork(){
   fields.titleMinimal = document.getElementById('titleMinimal').checked;
   fields.imgOn = document.getElementById('imgOn').checked;
   fields.footerOn = document.getElementById('footerOn').checked;
+  fields.footerMinimal = document.getElementById('footerMinimal').checked;
   return { cards: getCards(), fields };
 }
 
@@ -4534,6 +4623,7 @@ function applyWork(data){
   });
   if(data.style && typeof data.style === 'object') applyStyleValues(data.style);
   syncCoverControlState();
+  document.getElementById('xposVal').textContent = document.getElementById('xpos').value;
   document.getElementById('yposVal').textContent = document.getElementById('ypos').value;
   document.getElementById('imgHeightVal').textContent = document.getElementById('imgHeight').value;
   document.getElementById('cardEditors').innerHTML = '';
@@ -4713,7 +4803,9 @@ function setWorkspaceInert(on){
 function syncFsFold(){
   const chk = document.getElementById('fsFoldChk');
   const titleInput = document.getElementById('fsFoldTitle');
+  const minimalLabel = document.getElementById('fsFoldMinimalLabel');
   titleInput.style.display = chk.checked ? '' : 'none';
+  minimalLabel.style.display = chk.checked ? '' : 'none';
 }
 
 function openFullscreen(realTa, title, editor){
@@ -4725,10 +4817,13 @@ function openFullscreen(realTa, title, editor){
   // 접기 카드 여부·제목을 그대로 가져옴
   const chk = document.getElementById('fsFoldChk');
   const titleInput = document.getElementById('fsFoldTitle');
+  const minimalChk = document.getElementById('fsFoldMinimalChk');
   const realChk = fsEditor && fsEditor.querySelector('.cardFoldChk');
   const realTitle = fsEditor && fsEditor.querySelector('.foldTitleInput');
+  const realMinimal = fsEditor && fsEditor.querySelector('.cardFoldMinimalChk');
   chk.checked = !!(realChk && realChk.checked);
   titleInput.value = realTitle ? realTitle.value : '';
+  minimalChk.checked = !!(realMinimal && realMinimal.checked);
   syncFsFold();
 
   document.getElementById('fsTitle').textContent = title;
@@ -4805,6 +4900,15 @@ document.getElementById('fsFoldTitle').addEventListener('input', function(){
   const realTitle = fsEditor.querySelector('.foldTitleInput');
   realTitle.value = this.value;
   realTitle.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+document.getElementById('fsFoldMinimalChk').addEventListener('change', function(){
+  if(!fsEditor) return;
+  snapshotCards();
+  const realMinimal = fsEditor.querySelector('.cardFoldMinimalChk');
+  realMinimal.checked = this.checked;
+  realMinimal.dispatchEvent(new Event('change', { bubbles: true }));
+  showUndoToast(this.checked ? '접기 카드 미니멀 설정.' : '접기 카드 미니멀 해제.');
 });
 
 document.getElementById('fsCloseBtn').addEventListener('click', closeFullscreen);
@@ -5545,6 +5649,7 @@ function sanitizeImportedWork(data){
     if(typeof card === 'object' && card !== null){
       if(card.folded !== undefined && typeof card.folded !== 'boolean') return null;
       if(card.foldTitle !== undefined && typeof card.foldTitle !== 'string') return null;
+      if(card.foldMinimal !== undefined && typeof card.foldMinimal !== 'boolean') return null;
     }
     const body = typeof card === 'string' ? card : card && card.body;
     const foldTitle = typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : '';
@@ -5554,7 +5659,8 @@ function sanitizeImportedWork(data){
     cards.push({
       body,
       folded: typeof card === 'object' && !!card.folded,
-      foldTitle
+      foldTitle,
+      foldMinimal: typeof card === 'object' && !!card.foldMinimal
     });
   }
   const source = data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields) ? data.fields : {};
@@ -5568,7 +5674,7 @@ function sanitizeImportedWork(data){
     fields[id] = value;
   }
   let invalidBoolean = false;
-  ['logTitleOn','titleMinimal','imgOn','footerOn'].forEach(id => {
+  ['logTitleOn','titleMinimal','imgOn','footerOn','footerMinimal'].forEach(id => {
     if(source[id] !== undefined){
       if(typeof source[id] !== 'boolean') invalidBoolean = true;
       else fields[id] = source[id];
@@ -5583,7 +5689,7 @@ function sanitizeImportedWork(data){
     }
     catch(e){ return null; }
   }
-  const out = { cards: cards.length ? cards : [{ body:'', folded:false, foldTitle:'' }], fields };
+  const out = { cards: cards.length ? cards : [{ body:'', folded:false, foldTitle:'', foldMinimal:false }], fields };
   if(data.style !== undefined){
     const style = sanitizeImportedPreset({ name:'보관함', values:data.style });
     if(!style) return null;
@@ -5862,6 +5968,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   });
   syncCoverControlState();
   document.getElementById('imgHeightVal').textContent = '300';
+  document.getElementById('xposVal').textContent = '50';
   document.getElementById('yposVal').textContent = '0';
 
   document.getElementById('cardEditors').innerHTML = '';
@@ -6145,7 +6252,7 @@ document.getElementById('clearBodyBtn').addEventListener('click', () => {
 // 본문/이미지 관련 입력을 이 브라우저(localStorage)에 자동 저장해서,
 // 창을 닫거나 새로고침해도 작업 내용이 유지되게 함.
 const DRAFT_KEY = 'logGenDraft_v1';
-const DRAFT_FIELDS = ['imgUrl','imgHeight','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
+const DRAFT_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
 let draftSaveTimer = null;
 let draftDirty = false;
 let draftBaseUpdatedAt = 0;
@@ -6205,6 +6312,7 @@ function saveDraft(force = true){
     d.titleMinimal = document.getElementById('titleMinimal').checked;
     d.imgOn = document.getElementById('imgOn').checked;
     d.footerOn = document.getElementById('footerOn').checked;
+    d.footerMinimal = document.getElementById('footerMinimal').checked;
     d.style = currentStyleValues();
     d.updatedAt = Math.max(Date.now(), draftBaseUpdatedAt + 1);
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
@@ -6241,12 +6349,14 @@ function restoreDraft(){
       if(d[id] !== undefined) document.getElementById(id).value = d[id];
     });
     syncTypographyRangeLabels();
+    document.getElementById('xposVal').textContent = document.getElementById('xpos').value;
     document.getElementById('yposVal').textContent = document.getElementById('ypos').value;
     document.getElementById('imgHeightVal').textContent = document.getElementById('imgHeight').value;
     if(d.logTitleOn !== undefined) document.getElementById('logTitleOn').checked = !!d.logTitleOn;
     if(d.titleMinimal !== undefined) document.getElementById('titleMinimal').checked = !!d.titleMinimal;
     if(d.imgOn !== undefined) document.getElementById('imgOn').checked = !!d.imgOn;
     if(d.footerOn !== undefined) document.getElementById('footerOn').checked = !!d.footerOn;
+    if(d.footerMinimal !== undefined) document.getElementById('footerMinimal').checked = !!d.footerMinimal;
     if(d.style && typeof d.style === 'object') applyStyleValues(d.style);
     syncCharList();
 
@@ -6398,7 +6508,7 @@ const DEFAULT_STYLE = {
   narrFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
   dlgStyle: 'softlight', dlgFont: 'pretendard', dlgSize: '14', dlgLine: '1.7',
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  spacingMode: 'normal', cardWidth: '750', bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, showSpeaker: false
+  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, showSpeaker: false
 };
 
 // 가독성을 검증하며 고른 추천 색 조합 (배경 + 글자색 4종)
@@ -6767,12 +6877,12 @@ document.getElementById('redoStyleBtn').addEventListener('click', () => goAction
 // 검색어·프리셋 이름 같은 임시 UI 입력은 제외하고 실제 작업값만 감시한다.
 const HISTORY_WORK_IDS = new Set([
   ...WORK_FIELDS, ...STYLE_FIELDS,
-  'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn'
+  'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn', 'footerMinimal'
 ]);
 function isHistoryAffectingInput(el){
   if(!el || el.nodeType !== 1) return false;
   if(el.id === 'fsTextarea') return true;
-  if(el.matches('.cardFoldChk, .foldTitleInput')) return true;
+  if(el.matches('.cardFoldChk, .cardFoldMinimalChk, .foldTitleInput')) return true;
   if(el.matches('#cardEditors textarea')) return true;
   return !!el.id && HISTORY_WORK_IDS.has(el.id);
 }
