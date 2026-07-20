@@ -758,6 +758,40 @@
   #newLogBtn:hover { border-color: var(--line); background: var(--bg-field); color: var(--ink-soft); }
   .archiveSaveRow { margin-top: 10px; }
   .archiveFileRow { margin-top: 8px; }
+  .archiveListTools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .archiveListTools input,
+  .archiveListTools select {
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 11.5px;
+    border-radius: 8px;
+  }
+  .archiveListMeta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 25px;
+    margin-top: 3px;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+  }
+  #slotExpandBtn {
+    width: auto;
+    min-height: 24px;
+    padding: 0 5px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+    font-weight: 500;
+  }
+  #slotExpandBtn:hover { color: var(--ink-soft); }
   .archiveResetRow {
     display: flex;
     justify-content: flex-end;
@@ -781,7 +815,22 @@
     background: #fbf3f1;
     color: #8a4b43;
   }
-  #slotList { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+  #slotList {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 294px;
+    margin-top: 2px;
+    padding-right: 2px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+  .slotEmpty {
+    padding: 18px 8px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 11.5px;
+  }
   .slotRow {
     display: flex;
     align-items: center;
@@ -793,8 +842,15 @@
     background: var(--bg-panel);
   }
   .slotRow:hover { border-color: var(--ink-faint); background: var(--bg-field); }
-  .slotRow .slotName {
+  .slotRow .slotIdentity {
+    display: flex;
+    align-items: baseline;
     flex: 1;
+    min-width: 0;
+    gap: 6px;
+  }
+  .slotRow .slotName {
+    flex: 0 1 auto;
     min-width: 0;
     font-size: 12px;
     font-weight: 600;
@@ -802,6 +858,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .slotRow .slotChar {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+    font-weight: 400;
   }
   .slotRow .slotDate { font-size: 10.5px; color: var(--ink-faint); flex-shrink: 0; }
   .slotRow button {
@@ -2098,6 +2164,18 @@
       <div class="presetRow archiveSaveRow">
         <input type="text" id="slotName" maxlength="100" aria-label="보관함 이름" placeholder="이름 (비우면 로그 제목 사용)">
         <button type="button" class="secondary btnSecondary" id="saveSlotBtn">저장</button>
+      </div>
+      <div class="archiveListTools">
+        <input type="search" id="slotSearch" aria-label="보관함 검색" placeholder="보관함 검색" autocomplete="off">
+        <select id="slotSort" aria-label="보관함 정렬">
+          <option value="recent">최근순</option>
+          <option value="oldest">오래된순</option>
+          <option value="name">이름순</option>
+        </select>
+      </div>
+      <div class="archiveListMeta">
+        <span id="slotCount" aria-live="polite"></span>
+        <button type="button" id="slotExpandBtn" hidden>전체 보기</button>
       </div>
       <div id="slotList"></div>
       <div class="presetRow archiveFileRow">
@@ -5705,24 +5783,73 @@ function fmtDate(ts){
   return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+function slotCharacterName(slot){
+  const value = slot && slot.data && slot.data.fields && slot.data.fields.subChar;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+const SLOT_PREVIEW_COUNT = 6;
+let slotListExpanded = false;
+
 function renderSlotList(){
   const container = document.getElementById('slotList');
+  const count = document.getElementById('slotCount');
+  const expandBtn = document.getElementById('slotExpandBtn');
   container.innerHTML = '';
   const slots = loadSlots();
   if(slots === null){
+    count.textContent = '';
+    expandBtn.hidden = true;
     showSlotReadError();
     return;
   }
-  slots.forEach(slot => {
+  const query = document.getElementById('slotSearch').value.trim().toLocaleLowerCase('ko');
+  const sort = document.getElementById('slotSort').value;
+  const filtered = slots.filter(slot => {
+    if(!query) return true;
+    return slot.name.toLocaleLowerCase('ko').includes(query)
+      || slotCharacterName(slot).toLocaleLowerCase('ko').includes(query);
+  });
+  if(sort === 'oldest') filtered.sort((a, b) => a.savedAt - b.savedAt);
+  else if(sort === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  else filtered.sort((a, b) => b.savedAt - a.savedAt);
+
+  const canExpand = !query && filtered.length > SLOT_PREVIEW_COUNT;
+  const visible = canExpand && !slotListExpanded ? filtered.slice(0, SLOT_PREVIEW_COUNT) : filtered;
+  count.textContent = query
+    ? `${filtered.length}개 찾음 · 전체 ${slots.length}개`
+    : (canExpand && !slotListExpanded ? `${visible.length}개 표시 · 전체 ${slots.length}개` : `전체 ${slots.length}개`);
+  expandBtn.hidden = !canExpand;
+  expandBtn.textContent = slotListExpanded ? '접기' : '전체 보기';
+
+  if(!visible.length){
+    const empty = document.createElement('div');
+    empty.className = 'slotEmpty';
+    empty.textContent = slots.length ? '일치하는 보관함이 없습니다.' : '저장된 보관함이 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+
+  visible.forEach(slot => {
+    const characterName = slotCharacterName(slot);
     const row = document.createElement('div');
     row.className = 'slotRow';
     row.title = '클릭하면 이 작업으로 전환돼';
     row.tabIndex = 0;
     row.setAttribute('role', 'group');
-    row.setAttribute('aria-label', `${slot.name} 보관함 항목`);
+    row.setAttribute('aria-label', `${slot.name}${characterName ? `, 캐릭터 ${characterName}` : ''} 보관함 항목`);
+    const identity = document.createElement('span');
+    identity.className = 'slotIdentity';
     const name = document.createElement('span');
     name.className = 'slotName';
     name.textContent = slot.name;
+    identity.appendChild(name);
+    if(characterName){
+      const character = document.createElement('span');
+      character.className = 'slotChar';
+      character.textContent = characterName;
+      identity.appendChild(character);
+    }
     const date = document.createElement('span');
     date.className = 'slotDate';
     date.textContent = fmtDate(slot.savedAt);
@@ -5786,13 +5913,20 @@ function renderSlotList(){
       renderSlotList();
     });
 
-    row.appendChild(name);
+    row.appendChild(identity);
     row.appendChild(date);
     row.appendChild(over);
     row.appendChild(del);
     container.appendChild(row);
   });
 }
+
+document.getElementById('slotSearch').addEventListener('input', renderSlotList);
+document.getElementById('slotSort').addEventListener('change', renderSlotList);
+document.getElementById('slotExpandBtn').addEventListener('click', () => {
+  slotListExpanded = !slotListExpanded;
+  renderSlotList();
+});
 
 document.getElementById('saveSlotBtn').addEventListener('click', () => {
   const nameInput = document.getElementById('slotName');
