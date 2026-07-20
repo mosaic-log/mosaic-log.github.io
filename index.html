@@ -2239,7 +2239,7 @@
       <p class="hint"><b>접기 카드 미니멀:</b> 제목과 펼친 본문 사이의 선을 없애고 여백으로만 구분.</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code>. 제목 생략 가능. 닫지 않으면 카드 끝까지 접힘.</p>
       <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> — 같거나 큰 소제목이 나올 때까지 자동으로 접힘.</p>
-      <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 캡션은 <code>[IMG 주소 | 캡션]</code></p>
+      <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소는 <code>[IMG 주소 @60]</code> · 캡션은 뒤에 <code>| 캡션</code>. 가로 크기만 바뀌며 원본 비율은 유지됩니다.</p>
       <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> — 이름은 <b>테마 &gt; 현재 테마</b>에 자동 등록.</p>
       <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> (꺾쇠+공백). 편지·문자·시스템 메시지용. <code>&gt;&gt;</code>와 구분됨.</p>
       <p class="hint"><b>가운데 정렬:</b> 줄 맨 앞 <code>[C] </code></p>
@@ -2846,17 +2846,20 @@ function buildParagraph(rawLine, settings, opts){
     return `    <div data-mosaic-generated="true" style="text-align:center; color:${pal.ornament}; font-size:12px; letter-spacing:10px; margin:${Math.round(34*sm)}px 0;">✦ ✦ ✦</div>\n`;
   }
 
-  // 본문 중간 이미지: [IMG 주소] 또는 [IMG 주소 | 캡션]
-  const imgMatch = line.match(/^\[IMG\s+(\S+?)(?:\s*\|\s*(.+?))?\s*\]$/i);
+  // 본문 중간 이미지: [IMG 주소], [IMG 주소 @60], [IMG 주소 @60 | 캡션]
+  // @뒤 숫자는 카드 폭 대비 가로 비율이며, height:auto로 원본 종횡비를 유지한다.
+  const imgMatch = line.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]$/i);
   if(imgMatch){
     let src = imgMatch[1];
     if(src.startsWith('//')) src = 'https:' + src;
-    const caption = imgMatch[2] ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(imgMatch[2].trim(), settings.emphasisColor)}</p>` : '';
-    const alt = imgMatch[2] ? stripMarkers(imgMatch[2].trim()) : '';
+    const imageWidth = Math.max(10, Math.min(100, parseInt(imgMatch[2] || '100', 10)));
+    const captionText = imgMatch[3] ? imgMatch[3].trim() : '';
+    const caption = captionText ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(captionText, settings.emphasisColor)}</p>` : '';
+    const alt = captionText ? stripMarkers(captionText) : '';
     // 카드의 첫 요소면 위 마진을 없앰 (카드 안쪽 여백과 겹쳐 위쪽만 넓어 보이는 것 방지).
     // 아카라이브가 <img>를 <p>로 감싸며 붙이는 기본 여백도 line-height/font-size 0으로 눌러줌.
     const imgMt = opts.isFirst ? 0 : Math.round(22 * sm);
-    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dii" style="width:100%; height:auto; display:block; border-radius:10px; margin:0;">${caption}</div>\n`;
+    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dii" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
   }
 
   // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
@@ -3381,15 +3384,15 @@ function sourceProjectionMeta(line){
   }
 
   // 본문 이미지에서는 캡션만 화면에 보인다.
-  const image = rest.match(/^\[IMG\s+(\S+?)(?:\s*\|\s*(.+?))?\s*\]\s*$/i);
+  const image = rest.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]\s*$/i);
   if(image){
-    if(!image[2]){
+    if(!image[3]){
       hide(offset, normalized.length);
       return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
     }
-    const captionAt = rest.indexOf(image[2]);
+    const captionAt = rest.indexOf(image[3]);
     hide(offset, offset + captionAt);
-    hide(offset + captionAt + image[2].length, normalized.length);
+    hide(offset + captionAt + image[3].length, normalized.length);
     return { normalized, hidden, start: offset + captionAt, maskInlineSpeakers:false };
   }
 
@@ -4774,6 +4777,29 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   showUndoToast(label || '본문 요소 삽입.');
 }
 
+function insertBodyImage(){
+  const urlInput = prompt('이미지 주소를 입력하세요.');
+  if(urlInput === null) return;
+  const url = urlInput.trim();
+  if(!url || /[\s\]]/.test(url)){
+    alert('공백이나 ]가 없는 이미지 주소를 입력해 주세요.');
+    return;
+  }
+  const widthInput = prompt('이미지 가로 크기 (10~100%)\n세로 크기는 원본 비율에 맞춰 자동 조절됩니다.', '100');
+  if(widthInput === null) return;
+  const parsedWidth = parseInt(String(widthInput).replace('%', '').trim(), 10);
+  if(!Number.isFinite(parsedWidth) || parsedWidth < 10 || parsedWidth > 100){
+    alert('크기는 10부터 100 사이의 숫자로 입력해 주세요.');
+    return;
+  }
+  const captionInput = prompt('캡션 (선택 사항)', '');
+  if(captionInput === null) return;
+  const caption = captionInput.replace(/[\r\n]+/g, ' ').trim();
+  const sizeMarker = parsedWidth === 100 ? '' : ` @${parsedWidth}`;
+  const captionMarker = caption ? ` | ${caption}` : '';
+  insertIntoBody(`[IMG ${url}${sizeMarker}${captionMarker}]`, '', '', '이미지 삽입.');
+}
+
 // ---------- 입력창 서식 도구막대 (B / I / C) ----------
 // 선택한 글자를 마커로 감싸거나(굵게·강조), 커서가 놓인 줄을 가운데 정렬한다.
 function applyTextareaFormat(ta, fmt){
@@ -5006,7 +5032,7 @@ const FS_ACTIONS = {
   fold:   () => insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용', '접기 삽입.'),
   hr:     () => insertIntoBody('[HR]', '', '', '구분선 삽입.'),
   hr2:    () => insertIntoBody('[HR2]', '', '', '장면 전환 삽입.'),
-  img:    () => insertIntoBody('[IMG ', ']', '이미지주소', '이미지 문법 삽입.'),
+  img:    () => insertBodyImage(),
   quote:  () => insertIntoBody('> ', '', '인용할 내용', '인용 삽입.'),
   tidy:   () => document.getElementById('tidyBtn').click(),
 };
@@ -5458,7 +5484,7 @@ document.getElementById('insertHr2Btn').addEventListener('click', () => {
 });
 
 document.getElementById('insertImgBtn').addEventListener('click', () => {
-  insertIntoBody('[IMG ', ']', '이미지주소', '이미지 문법 삽입.');
+  insertBodyImage();
 });
 
 document.getElementById('insertQuoteBtn').addEventListener('click', () => {
