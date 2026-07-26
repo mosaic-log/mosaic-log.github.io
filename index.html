@@ -2877,7 +2877,7 @@
     <div id="docNavPanel" hidden aria-label="문서 탐색기"></div>
     <div class="editorToolbar">
       <span class="tbGroup">
-        <button type="button" id="tidyBtn" title="둥근 따옴표 정리, 빈 줄·잔공백 제거">정돈</button>
+        <button type="button" id="tidyBtn" title="단독 --- 변환, 둥근 따옴표·빈 줄·잔공백 정리">정돈</button>
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
@@ -2909,7 +2909,7 @@
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
       <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
       <p class="hint"><b>위치 맞추기:</b> 본문 클릭 → 해당 미리보기 · 미리보기 선택 → 해당 입력 줄 · 필요 시 끄기</p>
-      <p class="hint"><b>구분선:</b> <code>[HR]</code> 얇은 선 · <code>[HR2]</code> 장면 전환(✦ ✦ ✦) · 길게 누르기 → 변경·삭제</p>
+      <p class="hint"><b>구분선:</b> <code>---</code> → <code>[HR]</code> · <code>[HR2]</code> 장면 전환(✦ ✦ ✦) · 길게 누르기 → 변경·삭제</p>
       <p class="hint"><b>카드 접기:</b> 헤더의 <b>접기 카드</b> 체크 · <b>✦ 제목 ✦</b> 표지 · 빈 제목 <b>✦ ✦ ✦</b> · 대표 이미지·표제 상시 노출</p>
       <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
@@ -3289,7 +3289,7 @@
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
-        <button type="button" data-fs="tidy" title="둥근 따옴표 정리, 빈 줄·잔공백 제거">정돈</button>
+        <button type="button" data-fs="tidy" title="단독 --- 변환, 둥근 따옴표·빈 줄·잔공백 정리">정돈</button>
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
@@ -3421,6 +3421,28 @@ function normalizeQuotes(text){
     .replace(/[\u2018\u2019\u2032]/g, "'");
 }
 
+// 한 줄에 하이픈 3개만 있으면 구분선 문법으로 바꾼다.
+// 문장 안의 --- 또는 ----처럼 길이가 다른 표기는 그대로 둔다.
+function normalizeStandaloneHr(text){
+  return String(text).split('\n').map(line =>
+    /^[\t ]*---[\t ]*$/.test(line) ? '[HR]' : line
+  ).join('\n');
+}
+
+function normalizeStandaloneHrInput(ta){
+  const before = ta.value;
+  const after = normalizeStandaloneHr(before);
+  if(after === before) return false;
+
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const nextStart = normalizeStandaloneHr(before.slice(0, start)).length;
+  const nextEnd = normalizeStandaloneHr(before.slice(0, end)).length;
+  ta.value = after;
+  ta.setSelectionRange(nextStart, nextEnd);
+  return true;
+}
+
 function safeHexColor(value, fallback){
   const normalized = typeof value === 'string' ? normalizeHex(value) : null;
   return normalized || fallback || '#555555';
@@ -3532,7 +3554,7 @@ function headingSpec(level){
 
 function buildParagraph(rawLine, settings, opts){
   opts = opts || {};
-  let line = normalizeQuotes(rawLine.trim());
+  let line = normalizeStandaloneHr(normalizeQuotes(rawLine.trim()));
   if(!line) return '';
 
   const pal = tonePalette(settings);
@@ -5308,7 +5330,8 @@ function renumberCards(){
 
 function createCardEditor(value){
   // value: 문자열(본문만) 또는 {body, folded, foldTitle, foldMinimal} 객체
-  const data = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '', foldMinimal: false };
+  const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '', foldMinimal: false };
+  const data = { ...source, body: normalizeStandaloneHr(source.body || '') };
 
   const ed = document.createElement('div');
   ed.className = 'cardEditor';
@@ -5466,6 +5489,7 @@ function createCardEditor(value){
     showUndoToast('카드 복제됨.');
   });
   ta.addEventListener('input', () => {
+    normalizeStandaloneHrInput(ta);
     focusPreviewOnCaret(ta);
     refresh();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
@@ -5946,6 +5970,7 @@ document.getElementById('fsOverlay').addEventListener('wheel', (e) => {
 }, { passive: false });
 
 document.getElementById('fsTextarea').addEventListener('input', function(){
+  normalizeStandaloneHrInput(this);
   syncMirror(this);
   if(fsHlQuery) fsHlPaint(fsHlQuery, fsHlCur);
 });
@@ -6472,7 +6497,7 @@ document.getElementById('tidyBtn').addEventListener('click', () => {
   let changed = 0;
   cardTextareas().forEach(ta => {
     const before = ta.value;
-    let v = normalizeQuotes(before);
+    let v = normalizeStandaloneHr(normalizeQuotes(before));
     v = v.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');   // 폭 없는 문자 제거
     v = v.split('\n').map(l => l.replace(/\s+$/,'')).join('\n'); // 줄 끝 공백 제거
     v = v.replace(/\n{3,}/g, '\n\n');                     // 3줄 이상 빈 줄 -> 1줄
