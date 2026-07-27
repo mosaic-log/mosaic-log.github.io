@@ -2153,10 +2153,28 @@
   }
   #tabDesign .layoutOptionSection .row:last-child,
   #tabDesign .foldCardOptionSection .row:last-child { margin-bottom: 0; }
-  #tabDesign .speakerScopeNote {
-    color: var(--ink-faint);
+  #tabDesign #speakerGroup .speakerToggleRow > #showSpeaker {
+    grid-column: 2;
+    justify-self: start;
+    margin: 0;
+  }
+  #tabDesign #speakerGroup #speakerNames .speakerScopeRow {
+    min-height: 26px;
+    margin-top: -2px;
+    margin-bottom: 8px;
+  }
+  #tabDesign #speakerGroup #speakerNames .speakerScopeRow > label {
+    color: var(--help-ink);
+    font-size: 11.5px;
+    font-weight: 400;
+  }
+  #tabDesign #speakerGroup #speakerNames .speakerScopeNote {
+    grid-column: 2;
+    align-self: center;
+    color: var(--help-ink);
     font-size: 11px;
     font-weight: 400;
+    line-height: 1.45;
   }
 
   /* 디자인 탭의 세 영역은 연한 헤더 띠와 넉넉한 여백으로 나눈다. */
@@ -2560,11 +2578,6 @@
       grid-template-columns: 82px minmax(0, 1fr) 42px;
       column-gap: 8px;
     }
-    #tabDesign #speakerGroup .speakerToggleLabel { flex-wrap: wrap; }
-    #tabDesign #speakerGroup .speakerScopeNote {
-      flex-basis: 100%;
-      margin-left: 22px;
-    }
   }
 
   /* ---------- 기능 실험실 ---------- */
@@ -2935,7 +2948,7 @@
     </details>
     <details class="syntaxHelp">
       <summary>입력 문법 안내 (펼치기)</summary>
-      <p class="hint"><b>대사:</b> 줄 전체 <code>"…"</code> → 대사 박스 · 맨 앞 <code>&gt;&gt;</code>: {{char}} 색 · <code>&lt;&lt;</code>: {{user}} 색</p>
+      <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 옵션 3–5는 출력에서 자동 줄바꿈</p>
       <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
       <p class="hint"><b>굵게:</b> <code>__이 부분__</code> · 겹쳐 쓰기 <code>__*둘 다*__</code></p>
       <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
@@ -3052,17 +3065,22 @@
           <option value="softlight" selected>옵션 1 - 글자 강조</option>
           <option value="highlight">옵션 2 - 배경 강조</option>
         </optgroup>
-        <optgroup label="한 줄 전체 대사에 적용">
+        <optgroup label="출력에서 대사를 분리해 적용">
           <option value="badge">옵션 3 - 이름 배지</option>
           <option value="gradient">옵션 4 - 그라데이션</option>
           <option value="box">옵션 5 - 인용박스</option>
         </optgroup>
       </select>
     </div>
-    <div class="row">
-      <label class="speakerToggleLabel"><input type="checkbox" id="showSpeaker"><span>화자 이름 표시</span><span class="speakerScopeNote">· 한 줄 전체 대사에만 적용</span></label>
+    <div class="row speakerToggleRow">
+      <label for="showSpeaker">화자 이름 표시</label>
+      <input type="checkbox" id="showSpeaker">
     </div>
     <div id="speakerNames" style="display:none;">
+      <div class="row speakerScopeRow">
+        <label>적용 범위</label>
+        <span class="speakerScopeNote">1–2 단독 대사 · 3–5 모든 대사</span>
+      </div>
       <div class="row">
         <label for="charName">{{char}} 이름</label>
         <input type="text" id="charName" placeholder="캐릭터">
@@ -3763,7 +3781,8 @@ function buildParagraph(rawLine, settings, opts){
     // 옵션1·2에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
     // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
     // 마커가 없는 대사는 줄 맨 앞 마커/{#색} 또는 기본({{char}}) 색을 따름.
-    // (옵션3·4·5는 대사 단독 줄만 별도 표현 — 섞인 줄의 인라인 마커는 흔적 없이 지워만 줌)
+    // 옵션3·4·5의 일반 문장은 assembleBody에서 출력용 줄로 먼저 분리된다.
+    // 이 분기에 남은 특수 문법 줄에서는 인라인 화자 마커만 흔적 없이 정리한다.
     if(/"[^"]*"/.test(content)){
       // 기본 화자 색 (줄 맨 앞 마커 / {#색} / {{char}})
       const baseColor = overrideColor
@@ -3928,8 +3947,100 @@ function isPureDialogueLine(line, settings){
   return /^"[^"]*"$/.test(l);
 }
 
+// 옵션 3·4·5는 입력값을 바꾸지 않고 출력용 줄 배열에서만
+// 문장 속 대사를 독립 문단으로 분리한다.
+function usesSeparatedDialogueOutput(settings){
+  return ['badge', 'gradient', 'box'].includes(settings.dlgStyle);
+}
+
+function isStructuralBodyLine(line){
+  const trimmed = String(line).trim();
+  const upper = trimmed.toUpperCase();
+  return upper === '[HR]'
+    || upper === '[HR2]'
+    || /^\[IMG\s+/i.test(trimmed)
+    || /^\[접기(?:\s+.+?)?\]$/.test(trimmed)
+    || /^\[\/접기\]$/.test(trimmed)
+    || /^#{1,4}>?\s+/.test(trimmed)
+    || /^>(?!>)/.test(trimmed);
+}
+
+function splitDialogueLineForOutput(rawLine, settings){
+  const original = String(rawLine);
+  let line = normalizeQuotes(original).trim();
+  if(!usesSeparatedDialogueOutput(settings)
+    || !/"[^"]*"/.test(line)
+    || isPureDialogueLine(line, settings)
+    || isStructuralBodyLine(line)){
+    return [original];
+  }
+
+  let centerPrefix = '';
+  if(/^\[C\]\s*/i.test(line)){
+    centerPrefix = '[C] ';
+    line = line.replace(/^\[C\]\s*/i, '');
+  }
+
+  let colorPrefix = '';
+  const colorMatch = line.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
+  if(colorMatch){
+    colorPrefix = `{${colorMatch[1]}} `;
+    line = line.slice(colorMatch[0].length).trim();
+  }
+
+  // 줄 맨 앞 화자 표시는 해당 줄에서 발견되는 모든 대사의 기본 화자로 승계한다.
+  let defaultSpeakerPrefix = '';
+  if(line.startsWith('>>') || line.startsWith('<<')){
+    defaultSpeakerPrefix = line.slice(0, 2) + ' ';
+    line = line.slice(2).trim();
+  } else {
+    const leadingPerson = line.match(/^\[([^\[\]\n]{1,24})\]\s*/);
+    if(leadingPerson && findChar(settings, leadingPerson[1])){
+      defaultSpeakerPrefix = `[${leadingPerson[1]}] `;
+      line = line.slice(leadingPerson[0].length).trim();
+    }
+  }
+
+  const parts = [];
+  let cursor = 0;
+  const dialoguePattern = /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g;
+  let match;
+  while((match = dialoguePattern.exec(line))){
+    const inlinePerson = match[2] ? findChar(settings, match[2]) : null;
+    const recognizedInlineSpeaker = Boolean(match[1] || inlinePerson);
+    const quoteOffset = match[0].indexOf(match[3]);
+    const quoteStart = match.index + quoteOffset;
+    const segmentStart = recognizedInlineSpeaker ? match.index : quoteStart;
+    const narration = line.slice(cursor, segmentStart).trim();
+    if(narration) parts.push(centerPrefix + narration);
+
+    const inlineSpeakerPrefix = match[1]
+      ? match[1] + ' '
+      : (inlinePerson ? `[${match[2]}] ` : '');
+    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}${match[3]}`.trim());
+    cursor = match.index + match[0].length;
+  }
+
+  const tail = line.slice(cursor).trim();
+  if(tail) parts.push(centerPrefix + tail);
+  return parts.length > 1 ? parts : [original];
+}
+
+function expandDialogueLinesForOutput(lines, settings){
+  if(!usesSeparatedDialogueOutput(settings)) return lines;
+  const expanded = [];
+  lines.forEach(line => {
+    splitDialogueLineForOutput(line, settings).forEach(part => {
+      const trimmed = String(part).trim();
+      if(trimmed) expanded.push(trimmed);
+    });
+  });
+  return expanded;
+}
+
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (수동 접기 + 소제목 접기 포함)
 function assembleBody(lines, settings){
+  const renderLines = expandDialogueLinesForOutput(lines, settings);
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]'; };
   let bodyHTML = '';
   let manualBuf = null, manualTitle = '';   // [접기 제목] ... [/접기]
@@ -3952,7 +4063,7 @@ function assembleBody(lines, settings){
     headBuf = null;
   };
 
-  lines.forEach((line, i) => {
+  renderLines.forEach((line, i) => {
     // ----- 수동 접기 열기 -----
     const openMatch = line.match(/^\[접기(?:\s+(.+?))?\]$/);
     if(openMatch && manualBuf === null){
@@ -3986,11 +4097,11 @@ function assembleBody(lines, settings){
     }
 
     const isHR = isSep(line);
-    const nextIsHR = !isHR && lines[i + 1] !== undefined && isSep(lines[i + 1]);
-    const prevIsHR = !isHR && lines[i - 1] !== undefined && isSep(lines[i - 1]);
+    const nextIsHR = !isHR && renderLines[i + 1] !== undefined && isSep(renderLines[i + 1]);
+    const prevIsHR = !isHR && renderLines[i - 1] !== undefined && isSep(renderLines[i - 1]);
     // 연속 대사: 이 줄과 다음 줄이 모두 대사 단독 줄이면 간격을 좁혀 대화 리듬을 살림
     const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
-      && lines[i + 1] !== undefined && isPureDialogueLine(lines[i + 1], settings);
+      && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
     // 카드 본문의 맨 첫 요소인지 (접기 블록 안은 제외 — 그쪽은 자체 여백을 가짐)
     const isFirst = i === 0 && manualBuf === null && headBuf === null;
     push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst }));
@@ -8041,7 +8152,7 @@ function syncCharList(){
   });
 }
 
-// '대사 위에 화자 이름 표시'가 켜졌을 때만 이름 입력칸을 보여줌
+// '대사 위에 화자 이름 표시'가 켜졌을 때만 적용 범위와 이름 입력칸을 보여줌
 function syncSpeakerNames(){
   const on = document.getElementById('showSpeaker').checked;
   document.getElementById('speakerNames').style.display = on ? '' : 'none';
