@@ -3005,6 +3005,9 @@
     <div class="row">
       <label title="접기 제목의 ✦ 장식만 숨김"><input type="checkbox" id="foldTitleMinimal"> 접기 제목 장식 제거</label>
     </div>
+    <div class="row">
+      <label title="빈 접기 카드에 위에서부터 1, 2, 3 표시"><input type="checkbox" id="foldTitleAutoNumber"> 빈 제목 자동 번호</label>
+    </div>
     </div>
   </details>
 
@@ -3778,6 +3781,7 @@ function getSettings(){
     foldTitleSize: document.getElementById('foldTitleSize').value,
     foldTitleBold: document.getElementById('foldTitleBold').checked,
     foldTitleMinimal: document.getElementById('foldTitleMinimal').checked,
+    foldTitleAutoNumber: document.getElementById('foldTitleAutoNumber').checked,
     charColor: document.getElementById('charColor').value,
     userColor: document.getElementById('userColor').value,
     emphasisColor: document.getElementById('emphasisColor').value,
@@ -4041,6 +4045,7 @@ function buildCard(settings){
   const titleBand = buildTitleBlock(settings, hasImg);
   const hasTitle = titleBand !== '';
 
+  let blankFoldNumber = 0;
   const cards = cardList.map((card, idx) => {
     const isFirst = idx === 0;
     const isLast = idx === cardList.length - 1;
@@ -4073,9 +4078,13 @@ function buildCard(settings){
       // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
       const foldTitle = card.foldTitle || '';
+      const autoFoldTitle = settingFlagOn(settings.foldTitleAutoNumber) && !foldTitle.trim()
+        ? String(++blankFoldNumber)
+        : '';
+      const visibleFoldTitle = foldTitle.trim() || autoFoldTitle;
       const minimalFoldTitle = settingFlagOn(settings.foldTitleMinimal);
-      const foldTitleHTML = foldTitle.trim()
-        ? processInline(foldTitle, settings.emphasisColor)
+      const foldTitleHTML = visibleFoldTitle
+        ? processInline(visibleFoldTitle, settings.emphasisColor)
         : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px;">✦</span>`;
       const foldLeftOrnament = minimalFoldTitle
         ? ''
@@ -5206,7 +5215,7 @@ const WORK_FIELD_DEFAULTS = Object.freeze({
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
   logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true, footerMinimal:false
 });
-const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleMinimal','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
+const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleMinimal','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','showSpeaker'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn', 'footerMinimal']);
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
@@ -5241,7 +5250,7 @@ const PREVIEW_FOCUS_MAP = {
 document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').forEach(el => {
   if(el.classList.contains('hexLabel') || !SIDEBAR_OUTPUT_IDS.has(el.id)) return;
   // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
-  if(el.id === 'foldTitleMinimal') return;
+  if(el.id === 'foldTitleMinimal' || el.id === 'foldTitleAutoNumber') return;
   el.addEventListener('input', () => {
     syncTypographyRangeLabels();
     syncDesignSummaries();
@@ -5252,11 +5261,13 @@ document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').
   });
 });
 
-document.getElementById('foldTitleMinimal').addEventListener('change', () => {
-  syncDesignSummaries();
-  render();
-  scheduleDraftSave();
-  commitStyleHistory(true);
+['foldTitleMinimal','foldTitleAutoNumber'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    syncDesignSummaries();
+    render();
+    scheduleDraftSave();
+    commitStyleHistory(true);
+  });
 });
 
 document.getElementById('textFont').addEventListener('change', () => loadSelectedWebFont('textFont'));
@@ -7692,7 +7703,7 @@ const PRESET_KEY = 'logGenPresets_v2';
 const DEFAULT_STYLE = {
   textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7',
-  titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleMinimal: false,
+  titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleMinimal: false, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
   spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, showSpeaker: false
 };
