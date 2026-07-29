@@ -441,6 +441,22 @@
   }
   #copyBtn:hover { background: var(--accent-hover); }
   #copyBtn:active { background: #2b4a38; }
+  .copyPaddingOption {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: fit-content;
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+  }
+  .copyPaddingOption input {
+    margin: 0;
+    accent-color: var(--accent);
+  }
   #copyStatus {
     font-size: 11.5px;
     color: var(--ok);
@@ -2681,7 +2697,9 @@
 
   .labOutputUtility {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     margin: 0 0 5px;
   }
   #preflightBtn {
@@ -3261,6 +3279,10 @@
 
   <div class="stickyActions">
     <div class="labOutputUtility">
+      <label class="copyPaddingOption">
+        <input type="checkbox" id="copyWithOuterBreaks">
+        <span>로그 앞뒤 여백 추가</span>
+      </label>
       <button type="button" id="preflightBtn" aria-expanded="false" aria-controls="preflightPanel">출력 점검</button>
     </div>
     <div id="preflightPanel" hidden>
@@ -7715,6 +7737,9 @@ document.getElementById('copyBtn').addEventListener('click', () => {
   let html;
   try {
     html = generateHTML();
+    if(document.getElementById('copyWithOuterBreaks').checked){
+      html = '<br><br>' + html + '<br><br>';
+    }
   } catch(e){
     status.textContent = 'HTML 생성 중 오류: ' + e.message;
     return;
@@ -7724,37 +7749,34 @@ document.getElementById('copyBtn').addEventListener('click', () => {
     setTimeout(() => { status.textContent = ''; }, 3000);
   };
 
-  // 코드 박스를 선택해 execCommand로 복사하는 구식(동기·확실한) 방법을 기본으로 사용.
-  // 로컬 파일(file://)로 열어도 동작함. 실패하면 클립보드 API를 시도하고,
-  // 그마저 안 되면 코드 박스를 선택된 상태로 열어둬서 Ctrl+C 한 번으로 끝나게 함.
+  // 임시 입력 요소를 이용해 복사하므로 미리보기·편집 원문·코드 보기는 바뀌지 않음.
+  // 로컬 파일(file://)에서도 동작하는 동기 방식을 먼저 쓰고, 실패하면 클립보드 API를 시도함.
   try {
-    const box = document.getElementById('codeBox');
-    const wrap = document.getElementById('codeWrap');
-    const advanced = document.getElementById('outputAdvanced');
-    const wasAdvancedOpen = advanced.open;
-    advanced.open = true;
-    wrap.classList.add('open');
-    box.value = html;
-    box.focus();
-    box.select();
-    box.setSelectionRange(0, box.value.length);
+    const temp = document.createElement('textarea');
+    temp.value = html;
+    temp.setAttribute('readonly', '');
+    temp.style.position = 'fixed';
+    temp.style.left = '-9999px';
+    temp.style.opacity = '0';
+    document.body.appendChild(temp);
+    temp.select();
+    temp.setSelectionRange(0, temp.value.length);
     let done = false;
     try { done = document.execCommand('copy'); } catch(e){ done = false; }
+    document.body.removeChild(temp);
     if(done){
-      if(!wasAdvancedOpen) advanced.open = false;
       if(window.getSelection) window.getSelection().removeAllRanges();
       ok();
       return;
     }
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(html).then(() => {
-        if(!wasAdvancedOpen) advanced.open = false;
         ok();
       }).catch(() => {
-        status.textContent = '자동 복사 차단됨. 선택된 코드를 Ctrl+C(⌘+C)로 복사.';
+        status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
       });
     } else {
-      status.textContent = '자동 복사 차단됨. 선택된 코드를 Ctrl+C(⌘+C)로 복사.';
+      status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
     }
   } catch(e){
     status.textContent = '복사 중 오류: ' + e.message;
