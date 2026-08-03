@@ -459,11 +459,19 @@
     color: var(--ok);
     text-align: center;
     margin-top: 8px;
-    height: 14px;
+    min-height: 14px;
+  }
+  #copyStatus:empty,
+  #restoreHtmlStatus:empty { display: none; }
+  .htmlFileRow { margin-top: 10px; }
+  #restoreHtmlStatus { margin: 8px 0 0; text-align: center; }
+  .outputAdvanced {
+    margin-top: 8px;
+    padding-left: 0;
+    padding-right: 0;
   }
   #codeWrap { display: none; position: relative; margin-top: 8px; }
   #codeWrap.open { display: block; }
-  .outputAdvanced { margin-top: 8px; }
   #codeBox {
     width: 100%;
     max-width: 100%;
@@ -1646,17 +1654,6 @@
   }
   #undoBtn:hover { background: rgba(255,255,255,0.16); }
 
-  #downloadBtn {
-    width: 100%;
-    padding: 9px;
-    background: var(--bg-field);
-    color: var(--ink-soft);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    font-size: 12px;
-    margin-top: 8px;
-  }
-  #downloadBtn:hover { border-color: var(--ink-faint); }
   #errorBar {
     display: none;
     margin-top: 10px;
@@ -3578,7 +3575,7 @@
     <div class="labOutputUtility">
       <label class="copyPaddingOption">
         <input type="checkbox" id="copyWithOuterBreaks">
-        <span>로그 앞뒤 여백 추가</span>
+        <span>카드 전체 위아래 여백</span>
       </label>
       <button type="button" id="preflightBtn" aria-expanded="false" aria-controls="preflightPanel">출력 점검</button>
     </div>
@@ -3588,7 +3585,12 @@
     </div>
     <button type="button" class="btnPrimary" id="copyBtn">HTML 복사하기</button>
     <div id="copyStatus" aria-live="polite"></div>
-    <button type="button" class="btnSecondary" id="downloadBtn">HTML 파일로 저장</button>
+    <div class="presetRow htmlFileRow">
+      <button type="button" class="secondary btnSecondary" id="downloadBtn" style="flex:1;">HTML 내보내기</button>
+      <button type="button" class="secondary btnSecondary" id="restoreHtmlBtn" style="flex:1;">HTML 불러오기</button>
+      <input type="file" id="restoreHtmlFile" accept="text/html,.html,.htm" style="display:none;">
+    </div>
+    <div id="restoreHtmlStatus" class="hint" aria-live="polite"></div>
     <details class="helpFold outputAdvanced" id="outputAdvanced">
       <summary>코드 직접 보기</summary>
       <div id="codeWrap" class="open">
@@ -4768,10 +4770,44 @@ ${bodyHTML}${footer}  </div>
   return recognitionImg + imgBlock + titleBand + cards.join('\n');
 }
 
-function generateHTML(){
-  // 복사/코드보기용: 실제 입력된 값 그대로 (URL 비어있으면 이미지 없음)
+const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
+const RESTORE_META_SUFFIX = '-->';
+
+function encodeRestoreState(data){
+  const bytes = new TextEncoder().encode(JSON.stringify({ app:'mosaic-log', version:1, data }));
+  let binary = '';
+  const chunkSize = 0x8000;
+  for(let i = 0; i < bytes.length; i += chunkSize){
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function decodeRestoreState(html){
+  const start = html.indexOf(RESTORE_META_PREFIX);
+  if(start < 0) return null;
+  const payloadStart = start + RESTORE_META_PREFIX.length;
+  const end = html.indexOf(RESTORE_META_SUFFIX, payloadStart);
+  if(end < 0) throw new Error('복원 데이터가 끝까지 저장되지 않았습니다.');
+  const encoded = html.slice(payloadStart, end).trim();
+  if(!encoded || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('복원 데이터 형식이 올바르지 않습니다.');
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const envelope = JSON.parse(new TextDecoder().decode(bytes));
+  if(!envelope || envelope.app !== 'mosaic-log' || envelope.version !== 1 || !envelope.data){
+    throw new Error('지원하지 않는 조각로그 복원 데이터입니다.');
+  }
+  return envelope.data;
+}
+
+function generateHTML(includeRestoreState = false){
   const settings = getSettings();
-  return buildCard(settings);
+  const output = buildCard(settings);
+  if(!includeRestoreState) return output;
+  // 내려받는 HTML 파일 자체로 작업을 복원할 수 있도록 보이지 않는 상태 데이터를 함께 기록한다.
+  const restoreMeta = RESTORE_META_PREFIX + encodeRestoreState(collectSlotWork()) + RESTORE_META_SUFFIX + '\n';
+  return restoreMeta + output;
 }
 
 let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
@@ -8217,13 +8253,64 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
   }
 });
 
+// ---------- 출력 HTML에서 작업 복원 ----------
+document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
+  document.getElementById('restoreHtmlFile').click();
+});
+
+document.getElementById('restoreHtmlFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const status = document.getElementById('restoreHtmlStatus');
+  if(!file) return;
+  if(file.size > 12 * 1024 * 1024){
+    status.style.color = '#c0392b';
+    status.textContent = 'HTML 파일이 너무 큽니다. (최대 12MB)';
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let rawWork;
+    try {
+      rawWork = decodeRestoreState(String(reader.result || ''));
+    } catch(err){
+      status.style.color = '#c0392b';
+      status.textContent = err && err.message ? err.message : 'HTML 복원 데이터를 읽지 못했습니다.';
+      return;
+    }
+    if(!rawWork){
+      status.style.color = '#c0392b';
+      status.textContent = '복원 정보가 없는 HTML입니다. 이 기능이 추가된 뒤 저장한 출력물을 선택해 주세요.';
+      return;
+    }
+    const work = sanitizeImportedWork(rawWork);
+    if(!work){
+      status.style.color = '#c0392b';
+      status.textContent = 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.';
+      return;
+    }
+    if(!confirm('현재 작업을 선택한 출력 HTML의 내용으로 바꿀까요?\n(적용 후 되돌리기로 복구할 수 있습니다.)')) return;
+    snapshotCards();
+    applyWork(work);
+    showUndoToast('출력 HTML에서 작업 복원.');
+    status.style.color = '';
+    status.textContent = `복원 완료: ${work.cards.length}개 카드`;
+  };
+  reader.onerror = () => {
+    status.style.color = '#c0392b';
+    status.textContent = 'HTML 파일을 읽지 못했습니다.';
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
 // ---------- HTML 파일로 저장 ----------
 document.getElementById('downloadBtn').addEventListener('click', () => {
   const title = (document.getElementById('logTitle').value || '').trim();
   const num = (document.getElementById('logNumber').value || '').trim();
   const rawName = (num || title) ? `${num}${num && title ? ' ' : ''}${title}` : '조각로그';
   const name = rawName.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 120) || '조각로그';
-  const blob = new Blob([generateHTML()], { type: 'text/html;charset=utf-8' });
+  const blob = new Blob([generateHTML(true)], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
