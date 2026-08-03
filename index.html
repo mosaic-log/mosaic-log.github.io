@@ -31,6 +31,7 @@
     --control-sm: 30px;
   }
   * { box-sizing: border-box; }
+  input[type="checkbox"] { accent-color: var(--accent); }
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
@@ -2165,6 +2166,22 @@
     min-width: 0;
     margin-left: 0;
   }
+  #tabDesign #speakerGroup #speakerNames .row > .speakerNameToggle {
+    grid-column: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    min-width: 0;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  #tabDesign #speakerGroup #speakerNames .speakerNameToggle input {
+    flex: none;
+    width: auto;
+    margin: 0;
+  }
 
   /* 디자인 탭: 컨트롤을 화면 끝까지 늘이지 않고, 같은 기준선에 여유 있게 정렬한다. */
   #tabDesign .designFold .foldBody {
@@ -2978,7 +2995,12 @@
     display: grid;
     gap: 0;
   }
-  #tabDesign .dialogueCheckList { margin-top: 8px; }
+  #tabDesign .dialogueCheckList {
+    grid-template-columns: var(--design-label-width) minmax(0, 1fr) var(--design-value-width);
+    column-gap: 16px;
+    margin-top: 8px;
+  }
+  #tabDesign .dialogueCheckList .designCheckRow { grid-column: 2 / -1; }
   #tabDesign .compactCheckList { margin-top: 5px; }
   #tabDesign .designCheckRow {
     display: flex;
@@ -3019,6 +3041,7 @@
     }
     #tabDesign .designFold .row,
     #tabDesign #speakerGroup #speakerNames .row { column-gap: 9px; }
+    #tabDesign .dialogueCheckList { column-gap: 9px; }
     #tabDesign .typographyGroup .titleBoldRow { column-gap: 9px; }
   }
 </style>
@@ -3283,38 +3306,38 @@
     <div class="row">
       <label for="narrSize">나레이션 크기</label>
       <input type="range" id="narrSize" value="14" step="0.5" min="9" max="24">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="narrSizeVal" data-range="narrSize" value="14" step="0.5" min="9" max="24" aria-label="나레이션 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrSizeVal" data-range="narrSize" value="14" aria-label="나레이션 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row">
       <label for="narrLine">나레이션 줄간격</label>
       <input type="range" id="narrLine" value="1.7" step="0.05" min="1" max="3">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="narrLineVal" data-range="narrLine" value="1.7" step="0.05" min="1" max="3" aria-label="나레이션 줄간격 직접 입력"></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrLineVal" data-range="narrLine" value="1.7" aria-label="나레이션 줄간격 직접 입력"></span>
     </div>
     <div class="row">
       <label for="dlgSize">대사 크기</label>
       <input type="range" id="dlgSize" value="14" step="0.5" min="9" max="24">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="dlgSizeVal" data-range="dlgSize" value="14" step="0.5" min="9" max="24" aria-label="대사 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgSizeVal" data-range="dlgSize" value="14" aria-label="대사 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row">
       <label for="dlgLine">대사 줄간격</label>
       <input type="range" id="dlgLine" value="1.7" step="0.05" min="1" max="3">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="dlgLineVal" data-range="dlgLine" value="1.7" step="0.05" min="1" max="3" aria-label="대사 줄간격 직접 입력"></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgLineVal" data-range="dlgLine" value="1.7" aria-label="대사 줄간격 직접 입력"></span>
     </div>
     <div class="row">
       <label for="paragraphGap">단락 간격</label>
       <input type="range" id="paragraphGap" value="20" step="2" min="8" max="40">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" value="20" step="2" min="8" max="40" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" value="20" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="typeSectionLabel designSectionLabel">제목</div>
     <div class="row titleStyleRow">
       <label for="titleSize">표제 제목</label>
       <input type="range" id="titleSize" value="21" step="1" min="16" max="36">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" step="1" min="16" max="36" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row titleStyleRow">
       <label for="foldTitleSize">접기 제목</label>
       <input type="range" id="foldTitleSize" value="16" step="1" min="11" max="24">
-      <span class="rangeEditor"><input type="number" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" step="1" min="11" max="24" aria-label="접기 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="접기 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="titleBoldRow" role="group" aria-label="제목 굵기">
       <span class="titleBoldLabel">굵게</span>
@@ -3353,10 +3376,9 @@
       </span>
     </div>
     <div class="designCheckList dialogueCheckList">
-      <label class="designCheckRow" title="대사 옵션 1·2는 한 줄, 3·4·5는 다음 줄에 번역을 연하게 표시"><input type="checkbox" id="parallelTranslationSoft" checked><span>병행 번역</span></label>
-      <label class="designCheckRow"><input type="checkbox" id="showSpeaker"><span>화자 이름 표시</span></label>
+      <label class="designCheckRow" title="대사 옵션 1·2는 한 줄, 3·4·5는 다음 줄에 번역을 연하게 표시"><input type="checkbox" id="parallelTranslationSoft" checked><span>원문 병행</span></label>
     </div>
-    <div id="speakerNames" style="display:none;">
+    <div id="speakerNames">
       <div class="row speakerScopeRow">
         <label>적용 범위</label>
         <span class="speakerScopeNote">1–2 단독 대사 · 3–5 모든 대사</span>
@@ -3364,10 +3386,12 @@
       <div class="row">
         <label for="charName">{{char}} 이름</label>
         <input type="text" id="charName" placeholder="캐릭터">
+        <label class="speakerNameToggle"><input type="checkbox" id="charSpeakerOn"><span>표시</span></label>
       </div>
       <div class="row">
         <label for="userName">{{user}} 이름</label>
         <input type="text" id="userName" placeholder="유저">
+        <label class="speakerNameToggle"><input type="checkbox" id="userSpeakerOn"><span>표시</span></label>
       </div>
     </div>
     </div>
@@ -4185,8 +4209,11 @@ function buildParagraph(rawLine, settings, opts){
     let embeddedLabel = '';
     let speakerNameHtml = '';
     let mtEff = mt;
-    if(settings.showSpeaker){
-      const who = speaker || 'char';
+    const who = speaker || 'char';
+    const speakerNameOn = (who && typeof who === 'object')
+      ? settings.charSpeakerOn
+      : (who === 'user' ? settings.userSpeakerOn : settings.charSpeakerOn);
+    if(speakerNameOn){
       const name = (who && typeof who === 'object')
         ? who.name
         : (who === 'user'
@@ -4194,7 +4221,7 @@ function buildParagraph(rawLine, settings, opts){
             : ((settings.charName || '').trim() || '{{char}}'));
       const nameHtml = processInline(name, settings.emphasisColor);
       speakerNameHtml = nameHtml;
-      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; font-size:11px; font-weight:700; letter-spacing:0.5px; color:${parallelTranslationTextColor(settings, color)}; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
+      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; color:${parallelTranslationTextColor(settings, color)}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
       embeddedLabel = `<span data-mosaic-speaker-label="true" style="display:block; margin:0 0 5px 0; color:${parallelTranslationTextColor(settings, color)}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px;">${nameHtml}</span>`;
       mtEff = 0;
     }
@@ -4305,7 +4332,8 @@ function getSettings(){
     userColor: document.getElementById('userColor').value,
     emphasisColor: document.getElementById('emphasisColor').value,
     parallelTranslationSoft: document.getElementById('parallelTranslationSoft').checked,
-    showSpeaker: document.getElementById('showSpeaker').checked,
+    charSpeakerOn: document.getElementById('charSpeakerOn').checked,
+    userSpeakerOn: document.getElementById('userSpeakerOn').checked,
     extraChars: parseExtraChars(),
     charName: document.getElementById('charName').value,
     userName: document.getElementById('userName').value,
@@ -4659,7 +4687,7 @@ function buildCard(settings){
   // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
   let recognitionImg = '';
   if(settings.imgOn && settings.imgUrl){
-    recognitionImg = `<p style="margin:0; height:0; line-height:0; overflow:hidden;"><img style="width:0; height:0;" src="${escapeAttr(settings.imgUrl)}" alt="" aria-hidden="true" class="fr-fic fr-dii"></p>\n`;
+    recognitionImg = `<p style="text-align:center;"><img style="width:0px; height:0px;" src="${escapeAttr(settings.imgUrl)}" alt="" class="fr-fic fr-dii"></p>\n`;
   }
 
   // 대표 이미지와 표제 밴드는 모든 카드 '위'에 항상 표시 — 카드를 접어도 보이고, 첫 카드와 한 몸처럼 연결됨
@@ -6712,7 +6740,8 @@ function syncTypographyRangeLabels(){
   ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','titleSize','foldTitleSize'].forEach(id => {
     const input = document.getElementById(id);
     const label = document.getElementById(id + 'Val');
-    if(input && label) label.value = input.value;
+    // 직접 입력 중에는 "1." 같은 소수점 입력 중간값을 덮어쓰지 않는다.
+    if(input && label && label !== document.activeElement) label.value = input.value;
   });
 }
 
@@ -6778,7 +6807,7 @@ const WORK_FIELD_DEFAULTS = Object.freeze({
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
   logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true, footerMinimal:false
 });
-const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','parallelTranslationSoft','showSpeaker'];
+const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','parallelTranslationSoft','charSpeakerOn','userSpeakerOn'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn', 'footerMinimal']);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
@@ -8695,7 +8724,6 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   lastClickedPresetKey = null;
   charRowsKey = null;
   syncCharList();
-  syncSpeakerNames();
 
   // 검색·선택·임시 입력 같은 화면 상태도 함께 비움.
   closePreviewSearch();
@@ -9266,7 +9294,7 @@ const DEFAULT_STYLE = {
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, parallelTranslationSoft: true, showSpeaker: false
+  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, parallelTranslationSoft: true, charSpeakerOn: false, userSpeakerOn: false
 };
 
 // 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
@@ -9595,7 +9623,6 @@ function applyStyleValues(v){
   syncTypographyRangeLabels();
   syncDesignSummaries();
   updateHexLabels();
-  syncSpeakerNames();
 }
 
 // ---------- 추가 인물 (본문에서 자동 감지) ----------
@@ -9735,17 +9762,6 @@ function syncCharList(){
     list.appendChild(row);
   });
 }
-
-// '대사 위에 화자 이름 표시'가 켜졌을 때만 적용 범위와 이름 입력칸을 보여줌
-function syncSpeakerNames(){
-  const on = document.getElementById('showSpeaker').checked;
-  document.getElementById('speakerNames').style.display = on ? '' : 'none';
-}
-
-document.getElementById('showSpeaker').addEventListener('change', () => {
-  syncSpeakerNames();
-  syncDesignSummaries();
-});
 
 // ---------- 큰 작업 + 디자인 변경 통합 히스토리 ----------
 // 본문 타이핑은 기록하지 않고, 파괴적 편집과 디자인 변경만 전체 작업 상태로 보관한다.
@@ -10806,10 +10822,11 @@ function basicPreflightIssues(){
   if(document.getElementById('imgOn').checked && !document.getElementById('imgUrl').value.trim()){
     issues.push({ severity:'error', message:'대표 이미지 표시가 켜져 있지만 주소가 비어 있습니다.', targetId:'imgUrl' });
   }
-  if(document.getElementById('showSpeaker').checked){
-    if(!document.getElementById('charName').value.trim() || !document.getElementById('userName').value.trim()){
-      issues.push({ severity:'warn', message:'빈 화자 이름은 {{char}} 또는 {{user}} 변수로 출력됩니다.', targetId:'charName' });
-    }
+  if(document.getElementById('charSpeakerOn').checked && !document.getElementById('charName').value.trim()){
+    issues.push({ severity:'warn', message:'빈 {{char}} 이름은 {{char}} 변수로 출력됩니다.', targetId:'charName' });
+  }
+  if(document.getElementById('userSpeakerOn').checked && !document.getElementById('userName').value.trim()){
+    issues.push({ severity:'warn', message:'빈 {{user}} 이름은 {{user}} 변수로 출력됩니다.', targetId:'userName' });
   }
   render();
   const bytes = new Blob([document.getElementById('codeBox').value]).size;
@@ -10953,7 +10970,6 @@ if(cardTextareas().length === 0){
 }
 activeTa = cardTextareas()[0] || null;
 updateHexLabels();
-syncSpeakerNames();
 syncTypographyRangeLabels();
 syncDesignSummaries();
 previewDirectEditReady = true;
