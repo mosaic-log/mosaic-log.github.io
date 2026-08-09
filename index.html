@@ -96,6 +96,37 @@
     color: var(--ink-faint);
     white-space: nowrap;
   }
+  #archiveOpenBtn {
+    flex:none;
+    min-height:26px;
+    padding:3px 7px;
+    border:1px solid transparent;
+    border-radius:6px;
+    background:transparent;
+    color:var(--ink-faint);
+    font-size:10.5px;
+    font-weight:650;
+    white-space:nowrap;
+  }
+  #archiveOpenBtn:hover, #archiveOpenBtn[aria-expanded="true"] { border-color:var(--line); background:var(--bg-field); color:var(--ink); }
+  #archiveDrawer {
+    position:fixed;
+    inset:0 auto 0 0;
+    z-index:80;
+    width:var(--sidebar-w, 460px);
+    max-width:100vw;
+    padding:20px 24px 40px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    background:var(--bg-panel);
+    border-right:1px solid var(--line);
+    box-shadow:10px 0 28px rgba(35,32,28,.10);
+  }
+  #archiveDrawer[hidden] { display:none; }
+  .archiveDrawerHead { display:flex; align-items:center; justify-content:space-between; min-height:38px; margin-bottom:10px; }
+  .archiveDrawerTitle { font-size:18px; font-weight:800; }
+  #archiveCloseBtn { width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); font-size:18px; }
+  #archiveCloseBtn:hover { border-color:var(--line); background:var(--bg-field); color:var(--ink); }
   #draftConflictBtn {
     flex: none;
     min-height: 24px;
@@ -241,10 +272,15 @@
   }
   .subtitleLine {
     display: grid;
-    grid-template-columns: minmax(0, .85fr) auto minmax(0, .85fr) auto minmax(0, 1.35fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: 6px;
+    column-gap: 8px;
+    row-gap: 8px;
   }
+  .subtitleLine .subtitleDot { display:none; }
+  .subtitleLine #logSubtitle { grid-column:1 / -1; }
+  .titleControls .titleFieldRow:has(.subtitleLine) { align-items:start; }
+  .titleControls .titleFieldRow:has(.subtitleLine) > label { padding-top:8px; }
   /* 표제만 라벨 열을 짧게 잡아 세 입력 행의 시작점과 끝점을 맞춘다. */
   .titleControls .row > label { width: 68px; }
   .titleControls .titleFieldRow { padding-right: 0; }
@@ -286,6 +322,22 @@
     accent-color: var(--accent);
     padding: 0;
     margin: 0;
+  }
+  /* 본문 조절 슬라이더는 기능 묶음별 색으로 빠르게 구분한다. */
+  #narrSize,
+  #narrLine {
+    accent-color: #3f7055;
+  }
+  #dlgSize,
+  #dlgLine {
+    accent-color: #66865c;
+  }
+  #paragraphGap {
+    accent-color: #717674;
+  }
+  #titleSize,
+  #foldTitleSize {
+    accent-color: #555b58;
   }
   .row select {
     width: 100%;
@@ -606,6 +658,7 @@
     gap: 8px;
     align-items: stretch;
   }
+  #tabBody .nameReplaceRow.keywordAutoRow { grid-template-columns:minmax(0, 1fr); }
   #tabBody .nameFieldGroup {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -658,6 +711,27 @@
   @container sidebar (max-width: 380px) {
     #tabBody .nameReplaceRow { grid-template-columns: 1fr; }
     #tabBody .nameActionGroup { width: 100%; }
+  }
+  /* 본문 작성 흐름에서 바로 조절하는 문단 옵션 */
+  #paragraphSettingsGroup .paragraphCheckList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 18px;
+  }
+  #paragraphSettingsGroup .paragraphCheckRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  #paragraphSettingsGroup .paragraphCheckRow:hover { color: var(--ink); }
+  #paragraphSettingsGroup .paragraphCheckRow input { flex: none; margin: 0; }
+  @container sidebar (max-width: 380px) {
+    #paragraphSettingsGroup .paragraphCheckList { grid-template-columns: 1fr; }
   }
   #savePresetBtn {
     border-color: var(--ink);
@@ -713,6 +787,38 @@
     background: #fff;
     border-color: var(--line);
     color: var(--ink);
+  }
+  #tabBody > .group > #bodyEditorToolbar {
+    position: sticky;
+    top: var(--body-toolbar-sticky-top, 112px);
+    z-index: 9;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 5px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-strong);
+    border-radius: 0;
+    background: var(--bg-panel);
+    box-shadow: none;
+    scrollbar-width: none;
+  }
+  #bodyEditorToolbar::-webkit-scrollbar { display: none; }
+  #tabBody > .group > #bodyEditorToolbar { justify-content: center; }
+  #bodyEditorToolbar .tbSep {
+    height: 13px;
+    margin: 0 2px;
+  }
+  #tabBody > .group > #bodyEditorToolbar button {
+    min-height: 28px;
+    padding: 0 8px;
+  }
+  #tabBody > .group > #bodyEditorToolbar button:hover {
+    border-color: transparent;
+    background: var(--bg-muted);
   }
 
   /* ---------- 본문 카운터 ---------- */
@@ -1179,28 +1285,35 @@
     margin: 0;
     white-space: nowrap;
   }
-  .previewSyncToggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 5px;
-    border-radius: 6px;
-    color: var(--ink-faint);
-    font-size: 11px;
-    line-height: 1.4;
-    cursor: pointer;
-    user-select: none;
+  .previewSyncFloat {
+    position:fixed;
+    right:20px;
+    bottom:20px;
+    z-index:45;
+    display:flex;
+    align-items:center;
+    width:42px;
+    height:42px;
+    overflow:hidden;
+    border:1px solid var(--line-strong);
+    border-radius:999px;
+    background:color-mix(in srgb, var(--bg-panel) 94%, transparent);
+    box-shadow:0 5px 18px rgba(35,32,28,.13);
+    color:var(--ink-faint);
+    cursor:pointer;
+    user-select:none;
+    backdrop-filter:blur(8px);
+    transition:width .18s ease, border-color .14s ease, background-color .14s ease, color .14s ease;
   }
-  .previewSyncToggle:hover {
-    background: var(--bg-field);
-    color: var(--ink-soft);
-  }
-  .previewSyncToggle input {
-    width: 13px;
-    height: 13px;
-    margin: 0;
-    accent-color: var(--accent);
-  }
+  .previewSyncFloat:hover,
+  .previewSyncFloat:focus-within { width:148px; color:var(--ink); }
+  .previewSyncFloat:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); color:var(--accent); }
+  .previewSyncFloat input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+  .previewSyncFloat:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:2px; }
+  .previewSyncIcon { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; font-size:17px; font-weight:800; }
+  .previewSyncText { flex:none; padding-right:14px; opacity:0; font-size:11.5px; font-weight:700; white-space:nowrap; transition:opacity .12s ease; }
+  .previewSyncFloat:hover .previewSyncText,
+  .previewSyncFloat:focus-within .previewSyncText { opacity:1; }
   #fsHl .searchHit {
     display: inline;
     margin: 0;
@@ -1320,6 +1433,7 @@
 
   /* 미리보기 검색 (Ctrl/⌘+F) — 강조 span 은 미리보기 DOM 에만 존재, 출력물과 무관 */
   #pvSearchBox {
+    --pv-control-h: 34px;
     display: none;
     flex-direction: row;
     align-items: center;
@@ -1336,9 +1450,12 @@
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.06);
   }
-  .pvSearchMain, #pvReplaceRow { display: flex; align-items: center; gap: 5px; flex: none; }
-  #pvSearchBox input { width: 150px; padding: 6px 10px; font-size: 11.5px; }
-  #pvFindInput, #pvReplInput { flex: 0 1 190px; min-width: 100px; width: auto !important; }
+  .pvSearchMain, #pvReplaceRow { display:flex; align-items:center; gap:6px; min-width:0; }
+  .pvSearchMain { flex:1 1 300px; }
+  #pvReplaceRow { flex:1 1 470px; }
+  #pvSearchBox input { box-sizing:border-box; height:var(--pv-control-h); width:150px; padding:6px 11px; font-size:11.5px; }
+  #pvFindInput, #pvReplInput { flex:1 1 180px; min-width:120px; width:auto !important; }
+  #pvScopeSelect { box-sizing:border-box; flex:0 0 126px; width:126px; height:var(--pv-control-h); padding:0 28px 0 10px; font-size:11.5px; }
   .pvNavGroup, .pvReplaceActions { display: inline-flex; flex: none; }
   #pvReplaceRow {
     padding: 0;
@@ -1347,13 +1464,14 @@
   }
   #pvSearchBox button {
     font-size: 11.5px;
-    height: 28px;
+    box-sizing:border-box;
+    height:var(--pv-control-h);
     border: 1px solid var(--line-strong);
     background: var(--bg-panel);
     color: var(--ink-soft);
     border-radius: 7px;
   }
-  #pvSearchBox .pvIconBtn { width: 28px; padding: 0; flex: none; }
+  #pvSearchBox .pvIconBtn { width:34px; padding:0; flex:none; }
   #pvSearchBox .pvActBtn { padding: 0 9px; }
   .pvNavGroup .pvIconBtn, .pvReplaceActions .pvActBtn { border-radius: 0 !important; margin-left: -1px; }
   .pvNavGroup > :first-child, .pvReplaceActions > :first-child { margin-left: 0; border-radius: 7px 0 0 7px !important; }
@@ -1631,8 +1749,11 @@
   #undoToast {
     display: none;
     position: fixed;
-    left: 14px;
-    bottom: 14px;
+    /* 입력 사이드바가 아니라 미리보기 영역의 하단 중앙에 표시한다. */
+    left: calc(var(--sidebar-w, 460px) + (100vw - var(--sidebar-w, 460px)) / 2);
+    bottom: 18px;
+    transform: translateX(-50%);
+    max-width: min(560px, calc(100vw - var(--sidebar-w, 460px) - 32px));
     z-index: 50;
     align-items: center;
     gap: 10px;
@@ -1640,19 +1761,21 @@
     color: #fff;
     font-size: 12px;
     padding: 10px 12px 10px 14px;
+    border: 1px solid rgba(255,255,255,0.38);
     border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    box-shadow: 0 5px 18px rgba(0,0,0,0.30);
   }
+  #undoMsg { min-width: 0; overflow-wrap: anywhere; }
   #undoBtn {
-    border: 1px solid rgba(255,255,255,0.45);
-    background: none;
+    border: 1px solid rgba(255,255,255,0.56);
+    background: transparent;
     color: #fff;
     font-size: 12px;
     font-weight: 700;
     padding: 5px 10px;
     border-radius: 7px;
   }
-  #undoBtn:hover { background: rgba(255,255,255,0.16); }
+  #undoBtn:hover { border-color:rgba(255,255,255,0.82); background:rgba(255,255,255,0.14); }
 
   #errorBar {
     display: none;
@@ -2014,11 +2137,6 @@
     gap: 5px;
     min-width: 0;
   }
-  .previewHeaderDivider {
-    color: var(--ink-faint);
-    font-size: 11px;
-    user-select: none;
-  }
   #previewLabel {
     display: inline-flex;
     align-items: center;
@@ -2187,12 +2305,6 @@
     max-width: none;
     padding-right: 0;
   }
-  #tabDesign .designFold .row {
-    grid-template-columns: 102px minmax(0, 1fr) 48px;
-    column-gap: 16px;
-    min-height: 34px;
-    margin-bottom: 8px;
-  }
   #tabDesign .designFold .row > label:not(:only-child) {
     overflow: visible;
     white-space: nowrap;
@@ -2219,49 +2331,17 @@
     font-size: 11.5px;
     font-weight: 700;
   }
-  #tabDesign #speakerGroup #speakerNames .row {
-    grid-template-columns: 102px minmax(0, 1fr) 48px;
-    column-gap: 16px;
-  }
-  #tabDesign #speakerGroup #speakerNames .row > input {
-    grid-column: 2;
-  }
   #tabDesign .designFold .foldBody > .row:last-child,
   #tabDesign #speakerNames .row:last-child {
     margin-bottom: 0;
   }
 
   /* 체크 옵션 묶음은 안쪽 카드를 만들지 않고, 짧은 소제목 아래 한 열로 정돈한다. */
-  #tabDesign .layoutOptionSection,
-  #tabDesign .foldCardOptionSection {
-    margin-top: 20px;
-    padding-top: 0;
-    border-top: 0;
-  }
-  #tabDesign .layoutOptionTitle,
   #tabDesign .foldCardOptionTitle {
     margin-bottom: 6px;
     color: var(--ink-soft);
     font-size: 11.5px;
     font-weight: 700;
-  }
-  #tabDesign #speakerGroup #speakerNames .speakerScopeRow {
-    min-height: 26px;
-    margin-top: -2px;
-    margin-bottom: 8px;
-  }
-  #tabDesign #speakerGroup #speakerNames .speakerScopeRow > label {
-    color: var(--help-ink);
-    font-size: 11.5px;
-    font-weight: 400;
-  }
-  #tabDesign #speakerGroup #speakerNames .speakerScopeNote {
-    grid-column: 2;
-    align-self: center;
-    color: var(--help-ink);
-    font-size: 11px;
-    font-weight: 400;
-    line-height: 1.45;
   }
   #tabDesign #speakerGroup .dialogueSectionLabel {
     margin: 0 0 8px;
@@ -2619,12 +2699,25 @@
     }
     .editorToolbar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; }
     #tabBody > .group > .editorToolbar { justify-content: safe center; }
+    #tabBody > .group > #bodyEditorToolbar {
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding: 5px 4px;
+    }
+    #bodyEditorToolbar::-webkit-scrollbar { display: none; }
     .editorToolbar .tbGroup { flex: none; }
     #previewArea { padding: 22px 12px 52px; }
     #previewWrap { max-width: 100% !important; }
     #previewToolbar { margin-bottom: 8px; }
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
+    #undoToast {
+      left: 50%;
+      bottom: 14px;
+      max-width: calc(100vw - 24px);
+    }
     .settingsForm { --settings-label-w: 68px; --settings-row-gap: 8px; }
   }
 
@@ -2649,13 +2742,15 @@
     .cardFoldGroup { flex: 1 1 230px; justify-content: flex-end; }
     .cardFoldGroup .foldTitleInput { flex: 1 1 110px; }
     #previewToolbar { align-items: center; gap: 8px; }
-    .previewSyncToggle { padding: 4px; font-size: 10.5px; }
+    .previewSyncFloat { right:12px; bottom:12px; }
     .widthToggle button { padding: 0 9px; font-size: 11px; }
-    #pvSearchBox { margin-left: 0; margin-right: 0; }
-    .pvSearchMain { flex-wrap: wrap; }
+    #pvSearchBox { margin-left:0; margin-right:0; flex-wrap:wrap; }
+    .pvSearchMain, #pvReplaceRow { flex:1 1 100%; }
+    .pvSearchMain { flex-wrap:nowrap; }
     #pvFindInput { flex: 1 1 160px; }
     #pvReplaceRow { flex-wrap: nowrap; }
     #pvReplInput { flex: 1 1 130px; }
+    #pvScopeSelect { flex-basis:112px; width:112px; }
     #fsOverlay, #codeOverlay { padding: 0; }
     #fsPanel, #codePanel { max-width: none; border-radius: 0; padding: 12px; }
     #fsToolbar, #fsSearchBar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; }
@@ -2877,6 +2972,7 @@
   body.labFocus #tabBody > .group > .counterRow { display: none; }
   body.labFocus #sidebar { border-right: 1px solid var(--line); }
   body.labFocus #focusModeBtn { color: var(--accent); border-color: var(--accent); }
+  body.labFocus #bodyEditorToolbar { top: 8px; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
@@ -3017,8 +3113,7 @@
     color: var(--ink);
   }
   #tabDesign .designCheckRow input { flex: none; margin: 0; }
-  #tabDesign .foldCardOptionSection,
-  #tabDesign .layoutOptionSection {
+  #tabDesign .foldCardOptionSection {
     margin-top: 20px;
     padding: 0;
     border: 0;
@@ -3030,7 +3125,6 @@
     border-radius: 0;
     background: transparent;
   }
-  #tabDesign #speakerGroup #speakerNames .speakerScopeRow { margin: 0 0 5px; }
   @media (max-width: 760px) {
     #tabDesign {
       --design-label-width: 96px;
@@ -3050,6 +3144,7 @@
     <div id="brandRow">
       <h1>조각로그 <span class="enName">Mosaic Log</span></h1>
       <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
+      <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
       <button type="button" id="draftConflictBtn" title="다른 탭의 최신 초안을 현재 작업으로 덮어씀" hidden>이 탭 저장</button>
       <span class="styleHistoryBtns" aria-label="작업 기록" title="큰 작업과 디자인 변경을 작업 단위로 되돌립니다.">
         <button type="button" id="undoStyleBtn" aria-label="작업 되돌리기" title="작업 되돌리기 (Ctrl+Alt+Z)">↶</button>
@@ -3146,46 +3241,6 @@
     </div>
   </details>
 
-  <details class="group foldGroup" id="archiveGroup">
-    <summary class="group-title foldHead">보관함<span class="foldArrow" aria-hidden="true"></span></summary>
-    <div class="foldBody">
-      <div class="archiveHead">
-        <p class="group-desc">현재 작업 자동 저장 · 보관함 별도 저장</p>
-        <button type="button" class="btnQuiet" id="newLogBtn">＋ 새 로그</button>
-      </div>
-      <div class="presetRow archiveSaveRow">
-        <input type="text" id="slotName" maxlength="100" aria-label="보관함 이름" placeholder="이름 (비우면 로그 제목 사용)">
-        <button type="button" class="secondary btnSecondary" id="saveSlotBtn">저장</button>
-      </div>
-      <div class="archiveListTools">
-        <input type="search" id="slotSearch" aria-label="보관함 검색" placeholder="보관함 검색" autocomplete="off">
-        <select id="slotSort" aria-label="보관함 정렬">
-          <option value="recent">최근순</option>
-          <option value="oldest">오래된순</option>
-          <option value="name">이름순</option>
-        </select>
-      </div>
-      <div class="archiveListMeta">
-        <span id="slotCount" aria-live="polite"></span>
-        <button type="button" id="slotExpandBtn" hidden>전체 보기</button>
-      </div>
-      <div id="slotList"></div>
-      <div class="presetRow archiveFileRow">
-        <button type="button" class="secondary btnSecondary" id="exportSlotsBtn" style="flex:1;">내보내기</button>
-        <button type="button" class="secondary btnSecondary" id="importSlotsBtn" style="flex:1;">불러오기</button>
-        <input type="file" id="importSlotsFile" accept="application/json" style="display:none;">
-      </div>
-      <div id="slotImportStatus" class="hint" aria-live="polite"></div>
-      <div class="archiveResetRow">
-        <button type="button" class="btnDanger" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
-      </div>
-      <details class="helpFold">
-        <summary>보관함 사용법</summary>
-        <p class="hint"><b>저장</b> 슬롯에 보관 · <b>슬롯 클릭</b> 전환(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>내보내기</b> 보관함 전체 백업</p>
-      </details>
-    </div>
-  </details>
-
 </div><!-- /tabCover -->
 
 <div class="tabPanel" id="tabBody" role="tabpanel" aria-labelledby="tabBtnBody">
@@ -3200,7 +3255,7 @@
       </span>
     </div>
     <div id="docNavPanel" hidden aria-label="문서 탐색기"></div>
-    <div class="editorToolbar">
+    <div class="editorToolbar" id="bodyEditorToolbar">
       <span class="tbGroup">
         <button type="button" id="tidyBtn" title="단독 --- 변환, 둥근 따옴표·빈 줄·잔공백 정리">정돈</button>
       </span>
@@ -3223,7 +3278,7 @@
       <summary>카드·드래그 도움말</summary>
       <p class="hint">카드 1개 = 아카라이브 둥근 박스 1개 · 대표 이미지: 첫 카드 위 · 꼬리말: 마지막 카드 아래</p>
       <p class="hint"><b>드래그 이동:</b> 이미지·구분선·장면 전환 위치 변경 · 되돌리기 지원 · 접기 블록 제외</p>
-      <p class="hint"><b>길게 누르기:</b> 본문 이미지 삭제·비율·캡션 · 구분선·장면 전환 변경·삭제</p>
+      <p class="hint"><b>한 번 클릭:</b> 본문 이미지 삭제·비율·캡션 · 구분선·장면 전환 변경·삭제</p>
     </details>
     <details class="syntaxHelp">
       <summary>입력 문법 안내 (펼치기)</summary>
@@ -3235,12 +3290,12 @@
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
       <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
       <p class="hint"><b>위치 맞추기:</b> 표지·본문 입력 → 해당 미리보기 · 미리보기 선택 → 해당 입력 줄 · 필요 시 끄기</p>
-      <p class="hint"><b>구분선:</b> <code>---</code> → <code>[HR]</code> · <code>[HR2]</code> 장면 전환(✦ ✦ ✦) · 길게 누르기 → 변경·삭제</p>
+      <p class="hint"><b>구분선:</b> <code>---</code> → <code>[HR]</code> · <code>[HR2]</code> 장면 전환(✦ ✦ ✦) · 한 번 클릭 → 변경·삭제</p>
       <p class="hint"><b>카드 접기:</b> 헤더의 <b>접기 카드</b> 체크 · <b>✦ 제목 ✦</b> 표지 · 빈 제목 <b>✦ ✦ ✦</b> · 대표 이미지·표제 상시 노출</p>
       <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
       <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
       <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> · 같거나 큰 소제목 전까지 자동 접기</p>
-      <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 길게 누르기 → 삭제·비율·캡션</p>
+      <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
       <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> · 이름: <b>테마 &gt; 현재 테마</b>에 자동 등록</p>
       <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> · 편지·문자·시스템 메시지용 · <code>&gt;&gt;</code>와 구분</p>
       <p class="hint"><b>상태창:</b> 줄 전체를 <code>[ 내용 | 내용 ]</code>으로 입력 · 출력에서는 바깥 대괄호 자동 제거</p>
@@ -3249,6 +3304,20 @@
       <p class="hint"><b>색 덮어쓰기:</b> 줄 맨 앞 <code>{#색상코드}</code> · 예: <code>{#009966}&gt;&gt;"초록 대사"</code></p>
     </details>
   </div>
+
+  <details class="group foldGroup" id="paragraphSettingsGroup">
+    <summary class="group-title foldHead">문단 설정<span class="foldArrow" aria-hidden="true"></span></summary>
+    <div class="foldBody">
+      <p class="group-desc">모든 카드의 문단 정렬 방식</p>
+      <div class="paragraphCheckList">
+        <label class="paragraphCheckRow"><input type="checkbox" id="narrIndent"><span>첫 줄 들여쓰기</span></label>
+        <label class="paragraphCheckRow"><input type="checkbox" id="narrJustify"><span>나레이션 양쪽 정렬</span></label>
+        <label class="paragraphCheckRow"><input type="checkbox" id="narrCenter"><span>나레이션 가운데 정렬</span></label>
+        <label class="paragraphCheckRow"><input type="checkbox" id="headingCenter"><span>마크다운 가운데 정렬</span></label>
+        <label class="paragraphCheckRow"><input type="checkbox" id="dialogueCenter"><span>대사 가운데 정렬</span></label>
+      </div>
+    </div>
+  </details>
 
   <details class="group foldGroup" id="nameReplaceGroup">
     <summary class="group-title foldHead">이름 바꾸기<span class="foldArrow" aria-hidden="true"></span></summary>
@@ -3270,6 +3339,27 @@
         <summary>도움말</summary>
         <p class="hint">모든 카드 적용 · <b>은/는·이/가·을/를·과/와</b> 자동 변환</p>
         <p class="hint">정확히 일치하는 캐릭터·유저·커스텀 인물 함께 변경 · 인물 색상 유지</p>
+      </details>
+    </div>
+  </details>
+
+  <details class="group foldGroup" id="keywordReplaceGroup">
+    <summary class="group-title foldHead">키워드 치환<span class="foldArrow" aria-hidden="true"></span></summary>
+    <div class="foldBody">
+      <p class="group-desc">규칙을 저장하면 기존·새 입력에 계속 자동 적용</p>
+      <div class="nameReplaceRow keywordAutoRow">
+        <div class="nameFieldGroup">
+          <input type="text" id="keywordFrom" aria-label="찾을 키워드" placeholder="찾을 키워드">
+          <span class="arrowSep">→</span>
+          <input type="text" id="keywordTo" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
+        </div>
+      </div>
+      <div id="keywordStatus" class="hint" aria-live="polite"></div>
+      <details class="helpFold">
+        <summary>도움말</summary>
+        <p class="hint">바꿀 키워드 입력 후 Enter 또는 바깥 클릭 시 자동 규칙 활성화 · 기존 카드와 이후 입력 모두 적용</p>
+        <p class="hint">모든 카드 적용 · 대소문자를 구분해 입력한 문구와 정확히 일치하는 부분만 변경</p>
+        <p class="hint">이름·조사 자동 변환과 테마의 인물 이름 변경은 적용하지 않음</p>
       </details>
     </div>
   </details>
@@ -3332,15 +3422,15 @@
       <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row titleStyleRow">
-      <label for="foldTitleSize">접기 제목</label>
+      <label for="foldTitleSize">카드 제목</label>
       <input type="range" id="foldTitleSize" value="16" step="1" min="11" max="24">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="접기 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="카드 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="titleBoldRow" role="group" aria-label="제목 굵기">
       <span class="titleBoldLabel">굵게</span>
       <div class="titleBoldOptions">
         <label class="compactCheck"><input type="checkbox" id="titleBold" checked> 표제</label>
-        <label class="compactCheck"><input type="checkbox" id="foldTitleBold" checked> 접기</label>
+        <label class="compactCheck"><input type="checkbox" id="foldTitleBold" checked> 카드</label>
       </div>
     </div>
     </div>
@@ -3372,14 +3462,20 @@
         <button type="button" id="dlgStyleNext" aria-label="다음 대사 표현" title="다음 대사 표현">›</button>
       </span>
     </div>
-    <div class="designCheckList dialogueCheckList">
-      <label class="designCheckRow" title="대사 옵션 1·2는 한 줄, 3·4·5는 다음 줄에 번역을 연하게 표시"><input type="checkbox" id="parallelTranslationSoft" checked><span>원문 병행</span></label>
+    <div class="row selectCycleRow" id="parallelTranslationLayoutRow">
+      <label for="parallelTranslationLayout">원문 병행</label>
+      <select id="parallelTranslationLayout">
+        <option value="auto" selected>자동 배치</option>
+        <option value="inline">이어쓰기</option>
+        <option value="stack">아래쓰기</option>
+        <option value="off">미적용</option>
+      </select>
+      <span class="selectCycleStepper" role="group" aria-label="원문 병행 이전·다음">
+        <button type="button" id="parallelLayoutPrev" aria-label="이전 원문 병행 설정" title="이전 원문 병행 설정">‹</button>
+        <button type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
+      </span>
     </div>
     <div id="speakerNames">
-      <div class="row speakerScopeRow">
-        <label>적용 범위</label>
-        <span class="speakerScopeNote">1–2 단독 대사 · 3–5 모든 대사</span>
-      </div>
       <div class="row">
         <label for="charName">{{char}} 이름</label>
         <input type="text" id="charName" placeholder="캐릭터">
@@ -3417,10 +3513,10 @@
     <div class="row selectCycleRow">
       <label for="cardWidth">본문 폭</label>
       <select id="cardWidth">
-        <option value="900">최대 (900px)</option>
-        <option value="750" selected>넓게 (750px)</option>
-        <option value="680">보통 (680px)</option>
         <option value="620">좁게 (620px)</option>
+        <option value="680">보통 (680px)</option>
+        <option value="750" selected>넓게 (750px)</option>
+        <option value="900">최대 (900px)</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="본문 폭 이전·다음">
         <button type="button" id="cardWidthPrev" aria-label="이전 본문 폭" title="이전 본문 폭">‹</button>
@@ -3434,20 +3530,12 @@
     <div class="foldCardOptionSection">
       <div class="foldCardOptionTitle">접기 카드</div>
       <div class="designCheckList">
-        <label class="designCheckRow" title="접기 제목에 ✦ 장식을 표시"><input type="checkbox" id="foldTitleDecorationOn" checked><span>접기 제목 장식 표시</span></label>
-        <label class="designCheckRow" title="모든 접기 카드와 내부 접기의 제목 아래에 구분선을 표시"><input type="checkbox" id="foldDividerOn" checked><span>접기 제목 구분선 표시</span></label>
+        <label class="designCheckRow" title="카드 제목에 ✦ 장식을 표시"><input type="checkbox" id="foldTitleDecorationOn" checked><span>카드 제목 장식 표시</span></label>
+        <label class="designCheckRow" title="카드 제목과 내부 접기의 제목 아래에 구분선을 표시"><input type="checkbox" id="foldDividerOn" checked><span>카드 제목 구분선 표시</span></label>
         <label class="designCheckRow" title="빈 접기 카드에 위에서부터 1, 2, 3 표시"><input type="checkbox" id="foldTitleAutoNumber"><span>빈 제목 자동 번호</span></label>
       </div>
     </div>
 
-    <div class="layoutOptionSection">
-      <div class="layoutOptionTitle">문단</div>
-      <div class="designCheckList">
-        <label class="designCheckRow"><input type="checkbox" id="narrIndent"><span>첫 줄 들여쓰기</span></label>
-        <label class="designCheckRow"><input type="checkbox" id="narrJustify"><span>나레이션 양쪽 정렬</span></label>
-        <label class="designCheckRow"><input type="checkbox" id="headingCenter"><span>소제목 가운데 정렬</span></label>
-      </div>
-    </div>
     </div>
   </details>
 
@@ -3570,6 +3658,51 @@
 
 </div><!-- /tabTheme -->
 
+<div id="archiveDrawer" hidden aria-hidden="true">
+  <div class="archiveDrawerHead">
+    <div class="archiveDrawerTitle">보관함</div>
+    <button type="button" id="archiveCloseBtn" aria-label="보관함 닫기" title="보관함 닫기">×</button>
+  </div>
+  <div class="group" id="archiveGroup">
+    <div class="archiveHead">
+      <div>
+        <p class="group-desc">현재 작업 자동 저장 · 보관함 별도 저장</p>
+      </div>
+      <button type="button" class="btnQuiet" id="newLogBtn">＋ 새 로그</button>
+    </div>
+    <div class="presetRow archiveSaveRow">
+      <input type="text" id="slotName" maxlength="100" aria-label="보관함 이름" placeholder="이름 (비우면 로그 제목 사용)">
+      <button type="button" class="secondary btnSecondary" id="saveSlotBtn">저장</button>
+    </div>
+    <div class="archiveListTools">
+      <input type="search" id="slotSearch" aria-label="보관함 검색" placeholder="보관함 검색" autocomplete="off">
+      <select id="slotSort" aria-label="보관함 정렬">
+        <option value="recent">최근순</option>
+        <option value="oldest">오래된순</option>
+        <option value="name">이름순</option>
+      </select>
+    </div>
+    <div class="archiveListMeta">
+      <span id="slotCount" aria-live="polite"></span>
+      <button type="button" id="slotExpandBtn" hidden>전체 보기</button>
+    </div>
+    <div id="slotList"></div>
+    <div class="presetRow archiveFileRow">
+      <button type="button" class="secondary btnSecondary" id="exportSlotsBtn" style="flex:1;">내보내기</button>
+      <button type="button" class="secondary btnSecondary" id="importSlotsBtn" style="flex:1;">불러오기</button>
+      <input type="file" id="importSlotsFile" accept="application/json" style="display:none;">
+    </div>
+    <div id="slotImportStatus" class="hint" aria-live="polite"></div>
+    <div class="archiveResetRow">
+      <button type="button" class="btnDanger" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
+    </div>
+    <details class="helpFold">
+      <summary>보관함 사용법</summary>
+      <p class="hint"><b>저장</b> 슬롯에 보관 · <b>슬롯 클릭</b> 전환(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>내보내기</b> 보관함 전체 백업</p>
+    </details>
+  </div>
+</div><!-- /archiveDrawer -->
+
 
   <div class="stickyActions">
     <div class="labOutputUtility">
@@ -3609,11 +3742,6 @@
     <div id="previewToolbar">
       <span class="previewHeaderLeft">
         <span id="previewLabel">미리보기</span>
-        <span class="previewHeaderDivider" aria-hidden="true">·</span>
-        <label class="previewSyncToggle" title="표지·본문 입력과 미리보기 사이의 자동 위치 이동을 켜거나 끕니다.">
-          <input type="checkbox" id="positionSyncOn" checked>
-          <span>위치 연동</span>
-        </label>
       </span>
       <span class="previewTools">
         <span class="widthToggle">
@@ -3632,16 +3760,22 @@
         <span id="pvFindCount"></span>
       </div>
       <div id="pvReplaceRow">
+        <select id="pvScopeSelect" aria-label="검색·대치 적용 범위" title="검색·대치 적용 범위"></select>
         <input type="text" id="pvReplInput" aria-label="미리보기 바꿀 텍스트" placeholder="바꿀 텍스트">
         <span class="pvReplaceActions">
           <button type="button" class="pvActBtn" id="pvReplBtn" title="현재 항목 대치">대치</button>
-          <button type="button" class="pvActBtn" id="pvReplAllBtn" title="모든 카드에서 대치">전체 대치</button>
+          <button type="button" class="pvActBtn" id="pvReplAllBtn" title="선택 범위의 모든 일치 대치">전체 대치</button>
         </span>
       </div>
       <button type="button" class="pvIconBtn" id="pvFindCloseBtn" title="검색 닫기 (Esc)">✕</button>
     </div>
     <div id="preview" spellcheck="false" autocorrect="off" autocapitalize="off" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></div>
   </div>
+  <label class="previewSyncFloat" id="previewSyncFloat" title="위치 연동 켜짐">
+    <input type="checkbox" id="positionSyncOn" checked aria-label="위치 연동 켜짐">
+    <span class="previewSyncIcon" aria-hidden="true">↕</span>
+    <span class="previewSyncText" id="previewSyncText">위치 연동 켜짐</span>
+  </label>
 </div>
 
 <div id="codeOverlay" aria-hidden="true">
@@ -3664,7 +3798,7 @@
       <span id="fsTitle">카드 1</span>
       <div id="fsFoldGroup">
         <label id="fsFoldLabel"><input type="checkbox" id="fsFoldChk"> 접기 카드</label>
-        <input type="text" id="fsFoldTitle" maxlength="200" aria-label="접기 카드 제목" style="display:none;" placeholder="접기 제목 (독자가 클릭해서 펼치는 헤더에 표시)">
+        <input type="text" id="fsFoldTitle" maxlength="200" aria-label="카드 제목" placeholder="카드 제목">
       </div>
       <button type="button" id="fsCloseBtn" title="닫기 (Esc)">✕ 닫기</button>
     </div>
@@ -3810,14 +3944,18 @@ function escapeCssUrl(s){
 function normalizeQuotes(text){
   return text
     .replace(/[\u201C\u201D\u301D\u301E\u2033]/g, '"')
-    .replace(/[\u2018\u2019\u2032]/g, "'");
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\uFF07]/g, "'");
 }
 
-// 한 문단 안에 병행 대사가 여러 개 있어도 각각의 `"원문" (번역)` 범위만 찾는다.
-// 번역 안에 또 다른 따옴표·괄호가 나오면 범위를 추측하지 않고 일반 문장으로 남겨 과도한 묶음을 막는다.
+// 같은 입력 줄의 `"대사" (번역)`, `"대사" ("번역")`,
+// `'속마음' (번역)`, `'속마음' ('번역')`을 병행 구문으로 찾는다.
+// 작은따옴표 원문은 병행 번역만 붙이고 대사로 승격하지 않는다. 추가 괄호가
+// 들어오면 범위를 추측하지 않고 일반 문장으로 남긴다.
 function parallelDialogueSegments(line){
-  const source = String(line);
-  const pattern = /("[^"]*")(\s*)([（(])(\s*)([^"()（）]+?)(\s*)([)）])/g;
+  // 이 함수가 직접 호출되는 경로에서도 스마트 따옴표가 빠짐없이 처리되게 한다.
+  // 따옴표 정규화는 글자 수가 바뀌지 않아 미리보기 편집 위치 계산에도 안전하다.
+  const source = normalizeQuotes(String(line));
+  const pattern = /((?:"[^"\r\n]*"|'[^'\r\n]*'))([ \t]*)([（(])([ \t]*)([^()（）\r\n]+?)([ \t]*)([)）])/g;
   const segments = [];
   let match;
   while((match = pattern.exec(source))){
@@ -3826,32 +3964,60 @@ function parallelDialogueSegments(line){
       start: match.index,
       end: pattern.lastIndex,
       original: match[1],
-      translation: match[5],
       betweenOriginalAndGroup: match[2],
-      translationGroup: match[3] + match[4] + match[5] + match[6] + match[7],
-      beforeTranslation: match[2] + match[4],
-      afterTranslation: match[6],
-      openIndex: match.index + match[1].length + match[2].length,
-      closeIndex: pattern.lastIndex - 1
+      translationGroup: match[3] + match[4] + match[5] + match[6] + match[7]
     });
   }
   return segments;
 }
 
-// 문단 전체가 정확히 하나의 병행 대사일 때 사용하는 단독 대사 정보.
+function resolvedParallelTranslationMode(settings){
+  if(!settings.parallelTranslationSoft) return 'plain';
+  const selected = settings.parallelTranslationLayout || 'auto';
+  // 불러온 이전 자료나 내부 호출에서 두 값이 어긋나도 `미적용`을 우선한다.
+  if(selected === 'off') return 'plain';
+  if(selected === 'inline' || selected === 'stack') return selected;
+  return ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+}
+
+// 문단 전체가 정확히 하나의 병행 구문일 때 사용하는 정보.
 function parallelDialogueParts(line){
-  const source = String(line).trim();
+  const source = normalizeQuotes(String(line)).trim();
   const segments = parallelDialogueSegments(source);
   return segments.length === 1 && segments[0].start === 0 && segments[0].end === source.length
     ? segments[0]
     : null;
 }
 
-// 옵션 1·2의 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 대사 강조를 적용한다.
+// 카드·대사 표현 방식·문단 종류와 무관하게 번역 크기를 같은 기준으로 계산한다.
+// 큰따옴표 대사는 대사 크기, 작은따옴표 속마음은 본문 크기의 90%를 사용한다.
+function parallelTranslationSize(settings, thoughtParallel){
+  const fallback = thoughtParallel ? 13.5 : 14;
+  const rawSize = thoughtParallel ? settings.narrSize : settings.dlgSize;
+  return Math.max(9, Math.round((parseFloat(rawSize) || fallback) * 0.9 * 10) / 10);
+}
+
+// 병행 번역 HTML은 순수 대사와 서술 혼합 문단이 모두 이 함수만 사용한다.
+// 작은따옴표 속마음은 사용자가 아래쓰기를 골라도 반드시 이어쓴다.
+function parallelTranslationHTML(segment, settings, color, requestedMode){
+  const thoughtParallel = segment.original.startsWith("'");
+  const mode = thoughtParallel ? 'inline' : requestedMode;
+  const size = parallelTranslationSize(settings, thoughtParallel);
+  // 번역 괄호 안의 작은따옴표는 속마음 문법이 아니라 번역 표기의 일부다.
+  // 글자로 보존해야 바깥 병행 번역의 보조색·축소 크기를 그대로 유지한다.
+  const content = processInline(segment.translationGroup, settings.emphasisColor, { literalSingleQuotes:true });
+  const textColor = parallelTranslationTextColor(settings, color);
+  if(mode === 'inline'){
+    return `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="inline" style="color:${textColor}; font-size:${size}px; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
+  }
+  return `<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${textColor}; font-size:${size}px; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
+}
+
+// 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 원문의 서식을 적용한다.
 // 완성된 강조 HTML에 나중에 번역 span을 복원해 속성 따옴표가 대사로 오인되는 것을 방지한다.
 function prepareMixedParallelTranslations(line, settings, color){
   if(!settings.parallelTranslationSoft) return { line:String(line), tokens:[] };
-  const mode = ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+  const mode = resolvedParallelTranslationMode(settings);
   const source = String(line);
   const segments = parallelDialogueSegments(source);
   if(!segments.length) return { line:source, tokens:[] };
@@ -3861,11 +4027,7 @@ function prepareMixedParallelTranslations(line, settings, color){
   segments.forEach(segment => {
     prepared += source.slice(cursor, segment.start) + segment.original;
     const token = `\uE100${tokens.length}\uE101`;
-    const translationSize = Math.max(9, Math.round((parseFloat(settings.dlgSize) || 14) * 0.9 * 10) / 10);
-    const html = mode === 'inline'
-      ? `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="inline" style="color:${parallelTranslationTextColor(settings, color)}; font-size:1em; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${processInline(segment.translationGroup, settings.emphasisColor)}</span>`
-      : `<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${parallelTranslationTextColor(settings, color)}; font-size:${translationSize}px; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${processInline(segment.translation, settings.emphasisColor)}</span>`;
-    tokens.push({ token, html });
+    tokens.push({ token, html:parallelTranslationHTML(segment, settings, color, mode) });
     prepared += token;
     cursor = segment.end;
   });
@@ -3906,7 +4068,8 @@ function safeHexColor(value, fallback){
 
 // 인라인 서식: __...__ -> 굵게, *...* -> 강조(기울임 + 강조색),
 // '...' -> 속마음(기울임 없이 같은 강조색). 둥근 작은따옴표는 normalizeQuotes에서 통일된다.
-function processInline(text, emphasisColor){
+function processInline(text, emphasisColor, options){
+  const literalSingleQuotes = !!(options && options.literalSingleQuotes);
   const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
   // 게시판의 전역 스타일이나 상위 나레이션 색상이 선택한 강조색을 덮지 못하게 한다.
   const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important;`;
@@ -3915,11 +4078,14 @@ function processInline(text, emphasisColor){
   // style 값이 대사로 오인되는 일을 막는다.
   const em = content => `<em style='${emphasisStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
   const thought = content => `<span data-mosaic-thought='true' style='${thoughtStyle}'>'${content}'</span>`;
-  return escapeTextHTML(text)
-    .replace(/__(.+?)__/g, '<strong>$1</strong>')
-    // 영문 축약형(It's, don't)의 작은따옴표는 건드리지 않고, 독립된 '속마음' 쌍만 인식한다.
-    .replace(/(^|\s)'([^'\n]+?)'(?=$|[\s.,!?…。！？])/g, (m, prefix, content) => prefix + thought(content))
-    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, content) => em(content));
+  let content = escapeTextHTML(normalizeQuotes(String(text)))
+    .replace(/__(.+?)__/g, '<strong>$1</strong>');
+  if(!literalSingleQuotes){
+    // 여는 따옴표 바로 앞이 글자·숫자인 영문 축약형(It's, don't)은 건드리지 않는다.
+    // 닫는 따옴표 뒤에는 조사나 문장부호가 바로 이어져도 속마음으로 인식한다.
+    content = content.replace(/(^|[^\p{L}\p{N}])'([^'\n]+?)'/gu, (m, prefix, inner) => prefix + thought(inner));
+  }
+  return content.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
 }
 
 // 배경색 밝기에 따라 읽기 좋은 글자색(흰/검)을 자동 선택 (옵션2 배경 강조용)
@@ -4161,22 +4327,24 @@ function buildParagraph(rawLine, settings, opts){
   line = sp.line;
 
   // 줄 전체가 정확히 "..." 로 감싸져 있으면 대사.
-  // "원문" (번역)은 모든 표시 방식에서 하나의 대사로 묶는다.
-  // 병행 번역이 켜지면 옵션 1·2는 한 줄, 옵션 3·4·5는 다음 줄 보조 서식으로 자동 표시한다.
+  // "원문" (번역)은 대사로 묶고, '속마음' (번역)은 속마음 스타일을 유지한다.
+  // 큰따옴표 대사는 원문 병행의 자동 배치·이어쓰기·아래쓰기 설정을 따른다.
   // *...* 강조는 문장 안과 독립 문장 모두 같은 기울임·강조색으로 처리됨.
-  const parallelTranslationMode = settings.parallelTranslationSoft
-    ? (['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack')
-    : 'plain';
+  const parallelTranslationMode = resolvedParallelTranslationMode(settings);
   const parallelDialogue = settings.parallelTranslationSoft ? parallelDialogueParts(line) : null;
-  const isDialogue = /^"[^"]*"$/.test(line) || parallelDialogue !== null;
+  const isDialogueParallel = parallelDialogue && parallelDialogue.original.startsWith('"');
+  const isDialogue = /^"[^"]*"$/.test(line) || Boolean(isDialogueParallel);
 
   // [HR]/[HR2] 바로 앞/뒤 문단은 여백을 더 띄워서 단락 구분을 더 직관적으로 보여줌
   const HR_GAP = Math.round(36 * sm);
   const mt = opts.extraTop ? HR_GAP : 0;
-  const justify = settings.narrJustify ? 'text-align:justify; ' : '';
+  const narrationAlign = settings.narrCenter
+    ? 'text-align:center; '
+    : (settings.narrJustify ? 'text-align:justify; ' : '');
 
   if(isDialogue){
     let color;
+    const dialogueAlign = (forceCenter || settings.dialogueCenter) ? 'text-align:center; ' : '';
     if(overrideColor){
       color = overrideColor;
     } else if(speaker && typeof speaker === 'object'){
@@ -4186,14 +4354,11 @@ function buildParagraph(rawLine, settings, opts){
     } else {
       color = settings.charColor;
     }
-    const dialogueSource = parallelDialogue && parallelTranslationMode !== 'plain'
+    const dialogueSource = parallelDialogue
       ? parallelDialogue.original
       : line;
-    const translationSize = Math.max(9, Math.round((parseFloat(settings.dlgSize) || 14) * 0.9 * 10) / 10);
-    const parallelTranslationHtml = parallelDialogue && parallelTranslationMode !== 'plain'
-      ? (parallelTranslationMode === 'inline'
-          ? `${parallelDialogue.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="inline" style="color:${parallelTranslationTextColor(settings, color)}; font-size:1em; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${processInline(parallelDialogue.translationGroup, settings.emphasisColor)}</span>`
-          : `<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${parallelTranslationTextColor(settings, color)}; font-size:${translationSize}px; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${processInline(parallelDialogue.translation, settings.emphasisColor)}</span>`)
+    const parallelTranslationHtml = parallelDialogue
+      ? parallelTranslationHTML(parallelDialogue, settings, color, parallelTranslationMode)
       : '';
     // 연속 대사(주고받는 대화) 구간은 간격을 자동으로 좁혀 대화의 리듬을 살림
     let mb;
@@ -4238,7 +4403,7 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
       const txtColor = soft ? color : textColorFor(bgColor);
-      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(dialogueSource, settings.emphasisColor)}</span>${parallelTranslationHtml}</p>\n`);
+      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(dialogueSource, settings.emphasisColor)}</span>${parallelTranslationHtml}</p>\n`);
     }
 
     const dialogueHtml = processInline(dialogueSource, settings.emphasisColor);
@@ -4252,16 +4417,16 @@ function buildParagraph(rawLine, settings, opts){
       const badgeLabel = speakerNameHtml
         ? `<span data-mosaic-speaker-label="true" style="display:inline-block; margin:0 0 7px 0; padding:2px 7px; border-radius:999px; background-color:${badgeBg}; color:${textColorFor(badgeBg)}; font-size:10px; font-weight:700; line-height:1.35; letter-spacing:0.3px;">${speakerNameHtml}</span>`
         : '';
-      return `    <p style="margin:${mt}px 0 ${mb}px 0; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
+      return `    <p style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
     }
 
     // 옵션4: 왼쪽에서 오른쪽으로 자연스럽게 사라지는 연한 색면
     if(settings.dlgStyle === 'gradient'){
-      return `    <p style="margin:${mt}px 0 ${mb}px 0; padding:11px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+      return `    <p style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:11px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
     }
 
     // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
-    return `    <p style="margin:${mt}px 0 ${mb}px 0; padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+    return `    <p style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:14px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
     const mb = opts.extraBottom ? HR_GAP : baseParagraphGap;
     const baseColor = overrideColor
@@ -4301,8 +4466,8 @@ function buildParagraph(rawLine, settings, opts){
     }
     content = restoreMixedParallelTranslations(content, preparedParallel.tokens);
 
-    const alignN = forceCenter ? 'text-align:center; ' : justify;
-    const indentN = (settings.narrIndent && !forceCenter) ? 'text-indent:1em; ' : '';
+    const alignN = forceCenter ? 'text-align:center; ' : narrationAlign;
+    const indentN = (settings.narrIndent && !forceCenter && !settings.narrCenter) ? 'text-indent:1em; ' : '';
     return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentN}${alignN}color:${settings.narrColor}; font-size:${settings.narrSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
   }
 }
@@ -4333,7 +4498,8 @@ function getSettings(){
     charColor: document.getElementById('charColor').value,
     userColor: document.getElementById('userColor').value,
     emphasisColor: document.getElementById('emphasisColor').value,
-    parallelTranslationSoft: document.getElementById('parallelTranslationSoft').checked,
+    parallelTranslationSoft: document.getElementById('parallelTranslationLayout').value !== 'off',
+    parallelTranslationLayout: document.getElementById('parallelTranslationLayout').value,
     charSpeakerOn: document.getElementById('charSpeakerOn').checked,
     userSpeakerOn: document.getElementById('userSpeakerOn').checked,
     extraChars: parseExtraChars(),
@@ -4356,7 +4522,9 @@ function getSettings(){
     bgColor: document.getElementById('bgColor').value,
     narrIndent: document.getElementById('narrIndent').checked,
     narrJustify: document.getElementById('narrJustify').checked,
+    narrCenter: document.getElementById('narrCenter').checked,
     headingCenter: document.getElementById('headingCenter').checked,
+    dialogueCenter: document.getElementById('dialogueCenter').checked,
   };
 }
 
@@ -4436,8 +4604,9 @@ function isPureDialogueLine(line, settings){
     const pm = l.match(/^\[([^\[\]\n]{1,24})\]\s*/);
     if(pm && settings && findChar(settings, pm[1])) l = l.slice(pm[0].length).trim();
   }
+  const parallel = settings && settings.parallelTranslationSoft ? parallelDialogueParts(l) : null;
   return /^"[^"]*"$/.test(l)
-    || Boolean(settings && settings.parallelTranslationSoft && parallelDialogueParts(l));
+    || Boolean(parallel && parallel.original.startsWith('"'));
 }
 
 // 옵션 3·4·5는 입력값을 바꾸지 않고 출력용 줄 배열에서만
@@ -4498,7 +4667,7 @@ function splitDialogueLineForOutput(rawLine, settings){
   const parts = [];
   let cursor = 0;
   const dialoguePattern = settings.parallelTranslationSoft
-    ? /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")((?:\s*\(\s*[^"()（）]+?\s*\)|\s*（\s*[^"()（）]+?\s*）))?/g
+    ? /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")((?:\s*\(\s*[^()（）]+?\s*\)|\s*（\s*[^()（）]+?\s*）))?/g
     : /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g;
   let match;
   while((match = dialoguePattern.exec(line))){
@@ -4645,7 +4814,7 @@ function buildTitleBlock(settings, hasImg){
   const topEdge = hasImg
     ? ``
     : `${showOuterBorder ? `border-top:1px solid ${pal.headingBorder};` : ''} border-radius:16px 16px 0 0;`;
-  // 미니멀: 표제 아래 구분선(첫 카드의 위 테두리) 없이 여백만으로 본문과 나뉘도록 아래 여백 확대
+  // 기준 버전의 간격으로 복원: 미니멀은 구분선 대신 충분한 여백으로 본문과 구분한다.
   const padBottom = settings.titleMinimal ? Math.round(30*sm) : Math.round(20*sm);
   const W = parseInt(settings.cardWidth) || 750;
   return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
@@ -4677,13 +4846,14 @@ function buildCard(settings){
 
   // 카드별 입력창에서 직접 읽음: 이미지는 첫 카드에만, 꼬리말은 마지막 카드에만
   let cardList = getCards()
-    .map(c => ({
+    .map((c, sourceIndex) => ({
+      sourceIndex,
       lines: c.body.split('\n').map(l => l.trim()).filter(l => l !== ''),
       folded: settingFlagOn(c.folded),
-      foldTitle: (c.foldTitle || '').trim(),
+      foldTitle: (c.cardTitle !== undefined ? c.cardTitle : (c.foldTitle || '')).trim(),
     }))
     .filter(c => c.lines.length > 0); // 내용이 빈 카드는 출력에서 제외
-  if(cardList.length === 0) cardList = [{ lines: [], folded: false, foldTitle: '' }];
+  if(cardList.length === 0) cardList = [{ sourceIndex:0, lines:[], folded:false, foldTitle:'' }];
 
   // 배경 이미지는 아카라이브가 썸네일로 인식하지 못하므로, 대표 이미지가 있으면
   // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
@@ -4756,12 +4926,32 @@ function buildCard(settings){
       const foldBodyPadding = foldDividerMinimal
         ? `clamp(26px,5vw,30px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
         : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
-      return `<details style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
+      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary style="cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div style="box-sizing:border-box; ${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </details>`;
     }
-    return `<div style="${shellStyle}">
+    const cardTitle = (card.foldTitle || '').trim();
+    if(cardTitle){
+      const minimalCardTitle = settingFlagOn(settings.foldTitleMinimal);
+      const cardTitleHTML = processInline(cardTitle, settings.emphasisColor);
+      const cardLeftOrnament = minimalCardTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>`;
+      const cardRightOrnament = minimalCardTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span>`;
+      const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
+      const cardBodyPadding = foldDividerMinimal
+        ? `clamp(26px,5vw,30px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
+      return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
+  <div data-mosaic-card-title="true" style="padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
+  <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
+${bodyHTML}${footer}  </div>
+</div>`;
+    }
+    return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
   <div style="box-sizing:border-box; padding:clamp(20px,4vw,26px) clamp(16px,4vw,22px) clamp(24px,5vw,30px);">
 ${bodyHTML}${footer}  </div>
 </div>`;
@@ -4842,6 +5032,7 @@ function formatMatchContent(fmt, match){
 // 원문 인덱스를 유지한 채 기록하고, 제목·인용문 안의 화자처럼 보이는 글자는 그대로 둔다.
 function sourceProjectionMeta(line){
   const normalized = normalizeQuotes(String(line));
+  const currentSettings = getSettings();
   const hidden = [];
   const hide = (start, end) => {
     if(end > start) hidden.push([Math.max(0, start), Math.min(normalized.length, end)]);
@@ -4937,23 +5128,13 @@ function sourceProjectionMeta(line){
     offset += fixedSpeaker[0].length;
   } else {
     const named = rest.match(/^\[([^\[\]\n]{1,24})\]\s*(?=["“‘'])/);
-    if(named && findChar(getSettings(), named[1])){
+    if(named && findChar(currentSettings, named[1])){
       hide(offset, offset + named[0].length);
       offset += named[0].length;
     }
   }
-  // 다음 줄 표시에서는 출력에서 생략되는 바깥 괄호를 편집 투영에서도 숨긴다.
-  // 한 줄 표시에서는 괄호가 화면에 남으므로 원문과 같은 투영을 그대로 사용한다.
-  const parallelToggle = document.getElementById('parallelTranslationSoft');
-  const dialogueStyle = document.getElementById('dlgStyle');
-  const parallelSegments = parallelToggle && parallelToggle.checked && dialogueStyle
-    && !['softlight', 'highlight'].includes(dialogueStyle.value)
-    ? parallelDialogueSegments(normalized.slice(offset))
-    : [];
-  parallelSegments.forEach(parallel => {
-    hide(offset + parallel.openIndex, offset + parallel.openIndex + 1);
-    hide(offset + parallel.closeIndex, offset + parallel.closeIndex + 1);
-  });
+  // 이어쓰기와 아래쓰기 모두 번역 괄호를 실제 화면에 표시한다.
+  // 편집·검색 투영에서도 괄호를 숨기지 않아 화면 글자와 원문 인덱스를 일치시킨다.
   return { normalized, hidden, start: offset, maskInlineSpeakers:true };
 }
 
@@ -4993,29 +5174,6 @@ function lineSearchProjection(line){
     mask(m.index + m[0].length - 1, m.index + m[0].length);
   }
   return chars.join('');
-}
-
-function findAllSourceOccurrences(line, text, caseInsensitive){
-  if(!text) return [];
-  const normalizedLine = lineSearchProjection(line);
-  const normalizedText = normalizeQuotes(text);
-  const hay = caseInsensitive ? normalizedLine.toLowerCase() : normalizedLine;
-  const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
-  const matches = [];
-  let from = sourceContentStart(line);
-  let idx = hay.indexOf(needle, from);
-  while(idx !== -1){
-    matches.push(idx);
-    from = idx + Math.max(1, needle.length);
-    idx = hay.indexOf(needle, from);
-  }
-  return matches;
-}
-
-function findSourceOccurrence(line, text, occurrence, caseInsensitive){
-  const matches = findAllSourceOccurrences(line, text, caseInsensitive);
-  if(!Array.isArray(matches)) return -1;
-  return matches[Math.max(0, occurrence || 0)] ?? -1;
 }
 
 // 상태창은 출력할 때 `|` 양옆 공백을 통일하므로 화면 문자열의 길이가 원문과 달라질 수 있다.
@@ -5058,25 +5216,68 @@ function sourceDisplayProjectionMap(line){
 }
 
 function findSourceRange(line, text, occurrence, caseInsensitive){
-  if(!text) return null;
+  const ranges = findAllSourceRanges(line, text, caseInsensitive);
+  return ranges[Math.max(0, occurrence || 0)] || null;
+}
+
+function findAllSourceRanges(line, text, caseInsensitive){
+  if(!text) return [];
   const display = sourceDisplayProjectionMap(line);
-  // 블록 전체를 드래그하면 브라우저가 요소 경계의 줄바꿈까지 선택 문자열에 넣을 수 있다.
-  // 실제 본문 글자만 비교하도록 바깥 공백과 NBSP를 정리한다.
   const normalizedText = normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
-  if(!normalizedText) return null;
+  if(!normalizedText) return [];
   const hay = caseInsensitive ? display.text.toLowerCase() : display.text;
   const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
+  const ranges = [];
   let from = 0;
-  let at = -1;
-  const target = Math.max(0, occurrence || 0);
-  for(let n = 0; n <= target; n++){
-    at = hay.indexOf(needle, from);
-    if(at === -1) return null;
+  let at = hay.indexOf(needle, from);
+  while(at !== -1){
+    const last = at + needle.length - 1;
+    if(display.map[at] !== undefined && display.map[last] !== undefined){
+      ranges.push({ start:display.map[at], end:display.map[last] + 1 });
+    }
     from = at + Math.max(1, needle.length);
+    at = hay.indexOf(needle, from);
   }
-  const last = at + needle.length - 1;
-  if(display.map[at] === undefined || display.map[last] === undefined) return null;
-  return { start:display.map[at], end:display.map[last] + 1 };
+  return ranges;
+}
+
+// 대치 범위가 굵게·강조 구간의 경계를 가로지르면 남은 한쪽 마커가 본문에
+// 노출될 수 있다. 해당 서식쌍만 걷어낸 뒤 원래 범위를 새 인덱스로 옮긴다.
+function prepareSourceRangeReplacement(line, sourceRange){
+  const raw = String(line);
+  const remove = new Set();
+  [
+    { re:/__(.+?)__/g, width:2 },
+    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
+  ].forEach(({ re, width }) => {
+    let match;
+    while((match = re.exec(raw)) !== null){
+      const innerStart = match.index + width;
+      const innerEnd = match.index + match[0].length - width;
+      const overlaps = sourceRange.start < innerEnd && sourceRange.end > innerStart;
+      const fullyInside = sourceRange.start >= innerStart && sourceRange.end <= innerEnd;
+      if(!overlaps || fullyInside) continue;
+      for(let i = match.index; i < match.index + width; i++) remove.add(i);
+      for(let i = innerEnd; i < innerEnd + width; i++) remove.add(i);
+    }
+  });
+  if(!remove.size) return { line:raw, range:sourceRange };
+  let clean = '';
+  let cleanStart = 0;
+  let cleanEnd = 0;
+  for(let i = 0; i < raw.length; i++){
+    if(i < sourceRange.start && !remove.has(i)) cleanStart++;
+    if(i < sourceRange.end && !remove.has(i)) cleanEnd++;
+    if(!remove.has(i)) clean += raw[i];
+  }
+  return { line:clean, range:{ start:cleanStart, end:cleanEnd } };
+}
+
+function replaceSourceRange(line, sourceRange, replacement){
+  const prepared = prepareSourceRangeReplacement(line, sourceRange);
+  return prepared.line.slice(0, prepared.range.start)
+    + replacement
+    + prepared.line.slice(prepared.range.end);
 }
 
 function comparableFormattedText(value){
@@ -5251,19 +5452,24 @@ function activeFormatEl(node, tagName, block){
 function previewCardContexts(){
   const preview = document.getElementById('preview');
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
-  const nonEmpty = editors.filter(ed => ed.querySelector('textarea').value.split('\n').some(l => l.trim() !== ''));
-  const cardEls = Array.from(preview.children).filter(el => {
-    if(el.tagName === 'DETAILS') return true;
-    if(el.tagName !== 'DIV') return false;
-    if(el.style.backgroundImage) return false;
-    const inner = el.firstElementChild;
-    return !!(inner && inner.tagName === 'DIV');
-  });
-  return cardEls.map((cardEl, index) => ({
-    cardEl,
-    ed: nonEmpty[index] || null,
-    ta: nonEmpty[index] ? nonEmpty[index].querySelector('textarea') : null
-  })).filter(ctx => ctx.ta);
+  // 출력 순서를 추측하지 않고 buildCard가 기록한 원래 카드 번호로 직접 연결한다.
+  // 빈 카드·접기·카드 제목이 중간에 섞여도 다른 카드 textarea로 밀리지 않는다.
+  return Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]')).map(cardEl => {
+    const sourceIndex = Number(cardEl.dataset.mosaicCardIndex);
+    const ed = Number.isInteger(sourceIndex) ? editors[sourceIndex] : null;
+    return {
+      cardEl,
+      sourceIndex,
+      ed:ed || null,
+      ta:ed ? ed.querySelector('textarea') : null
+    };
+  }).filter(ctx => ctx.ta);
+}
+
+function previewCardBody(cardEl){
+  if(!cardEl) return null;
+  if(cardEl.tagName === 'DETAILS') return cardEl.querySelector(':scope > div');
+  return cardEl.querySelector(':scope > div:not([data-mosaic-card-title="true"])');
 }
 
 // 미리보기에서 실제 본문 글자를 가진 최소 블록만 수집한다.
@@ -5273,8 +5479,8 @@ function previewSourceBlocks(cardEl){
     && cardEl.firstElementChild.tagName === 'SUMMARY' ? cardEl.firstElementChild : null;
   return Array.from(cardEl.querySelectorAll('p, summary, div')).filter(el => {
     if(el === cardSummary) return false;
-    if(el.matches('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
-    if(el.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.matches('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.closest('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
     if(el.tagName === 'DIV' && el.querySelector('p, summary, div')) return false;
     return el.textContent.trim() !== '';
   });
@@ -5300,10 +5506,10 @@ function sourceDisplayEntries(ta){
     renderLines.forEach(renderLine => {
       const projection = sourceDisplayProjectionMap(renderLine).text.trim();
       if(!projection) return;
-      const starts = findAllSourceOccurrences(line, projection, false);
-      let occurrence = starts.findIndex(start => start >= sourceCursor);
+      const ranges = findAllSourceRanges(line, projection, false);
+      let occurrence = ranges.findIndex(range => range.start >= sourceCursor);
       if(occurrence < 0) occurrence = 0;
-      const sourceBounds = findSourceRange(line, projection, occurrence, false);
+      const sourceBounds = ranges[occurrence] || null;
       if(sourceBounds) sourceCursor = sourceBounds.end;
       result.push({
         raw,
@@ -5425,7 +5631,7 @@ function previewEditableText(el){
   const clone = el.cloneNode(true);
   clone.querySelectorAll('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')
     .forEach(node => node.remove());
-  // 다음 줄로 표시되는 병행 번역은 DOM상 인접 span이라 textContent에서 두 문장이
+  // 아래쓰기로 표시되는 병행 번역은 DOM상 인접 span이라 textContent에서 두 문장이
   // 붙어 버린다. 원문의 두 내용 사이 공백과 동일하게 한 칸을 보존한다.
   clone.querySelectorAll('[data-mosaic-parallel-translation-mode="stack"]')
     .forEach(node => node.before(document.createTextNode(' ')));
@@ -5567,6 +5773,12 @@ function commitPreviewDirectEdit(el, descriptor){
     return;
   }
 
+  const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
+  if(!owningContext || owningContext.ta !== descriptor.ta){
+    // 연결이 바뀐 오래된 미리보기 요소는 절대 다른 카드 원문에 저장하지 않는다.
+    render();
+    return;
+  }
   const ta = descriptor.ta;
   const lines = ta ? ta.value.split('\n') : [];
   if(!ta || lines[descriptor.raw] === undefined) return;
@@ -5584,7 +5796,8 @@ function commitPreviewDirectEdit(el, descriptor){
   if(updated === lines[descriptor.raw]) return;
   previewDirectEditCommitting = true;
   snapshotCards();
-  lines[descriptor.raw] = updated;
+  if(!descriptor.segmented && updated === '') lines.splice(descriptor.raw, 1);
+  else lines[descriptor.raw] = updated;
   ta.value = lines.join('\n');
   activeTa = ta;
   ta.dispatchEvent(new Event('input', { bubbles:true }));
@@ -5629,6 +5842,8 @@ function previewSelectionDetails(el, formatNode){
 // 반드시 대응하는 본문 원문 줄의 __...__ / *...* 문법으로 변환한다.
 function applyPreviewFormatToSource(el, descriptor, fmt, details){
   if(previewDirectEditCommitting || !descriptor || descriptor.type !== 'body' || !details) return false;
+  const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
+  if(!owningContext || owningContext.ta !== descriptor.ta) return false;
   const ta = descriptor.ta;
   const lines = ta ? ta.value.split('\n') : [];
   const line = lines[descriptor.raw];
@@ -5874,64 +6089,14 @@ function enablePreviewDirectEditor(el, descriptor, label){
   }
 }
 
-// 직접 글자 편집과 충돌하지 않도록 짧은 클릭은 그대로 두고,
-// 소제목을 움직이지 않은 채 길게 눌렀을 때만 # 단계 선택 메뉴를 연다.
+// 소제목을 한 번 클릭하면 # 단계 선택 메뉴를 연다.
 function bindHeadingLevelInteraction(block, ctx){
   if(!block || block.dataset.mosaicHeadingLevelBound === 'true') return;
   block.dataset.mosaicHeadingLevelBound = 'true';
-  block.title = '미리보기에서 수정 · 길게 눌러 # 단계 변경';
-  const HOLD_MS = 520;
-  const MOVE_PX = 7;
-
-  block.addEventListener('mousedown', e => {
-    if(e.button !== 0) return;
-    const sx = e.clientX;
-    const sy = e.clientY;
-    let timer = null;
-    const cleanup = () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', cleanup);
-    };
-    const onMove = ev => {
-      if(Math.hypot(ev.clientX - sx, ev.clientY - sy) >= MOVE_PX) cleanup();
-    };
-    timer = setTimeout(() => {
-      cleanup();
-      if(!block.isConnected) return;
-      const selection = window.getSelection();
-      if(selection) selection.removeAllRanges();
-      showBlockToolbar(ctx);
-    }, HOLD_MS);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', cleanup);
+  block.title = '클릭해서 # 단계 변경 · 글자는 미리보기에서 직접 수정';
+  block.addEventListener('click', () => {
+    if(block.isConnected) showBlockToolbar(ctx);
   });
-
-  block.addEventListener('touchstart', e => {
-    if(!e.touches.length) return;
-    const first = e.touches[0];
-    const sx = first.clientX;
-    const sy = first.clientY;
-    let timer = null;
-    const cleanup = () => {
-      clearTimeout(timer);
-      block.removeEventListener('touchmove', onMove);
-      block.removeEventListener('touchend', cleanup);
-      block.removeEventListener('touchcancel', cleanup);
-    };
-    const onMove = ev => {
-      if(!ev.touches.length) return;
-      const point = ev.touches[0];
-      if(Math.hypot(point.clientX - sx, point.clientY - sy) >= MOVE_PX) cleanup();
-    };
-    timer = setTimeout(() => {
-      cleanup();
-      if(block.isConnected) showBlockToolbar(ctx);
-    }, HOLD_MS);
-    block.addEventListener('touchmove', onMove, { passive:true });
-    block.addEventListener('touchend', cleanup);
-    block.addEventListener('touchcancel', cleanup);
-  }, { passive:true });
   block.addEventListener('contextmenu', e => e.preventDefault());
 }
 
@@ -6351,15 +6516,27 @@ function renderPreview(prebuiltHTML){
   const preview = document.getElementById('preview');
   preview.classList.add('previewRefreshing');
   hideBlockToolbar();
-  // 다시 그리면 <details>가 전부 닫히므로, 펼쳐둔 상태를 기억했다가 복원함
-  // (타이핑 등으로 리렌더될 때 읽던 접기가 닫히지 않게)
-  const openStates = Array.from(preview.querySelectorAll('details')).map(d => d.open);
+  // 카드 번호와 카드 안쪽 순번을 함께 기록한다. 전체 details 순번만 쓰면 앞 카드가
+  // 비거나 접기 구조가 달라졌을 때 다음 카드의 펼침 상태가 엉뚱한 곳으로 이동한다.
+  const openStates = new Map();
+  previewCardContexts().forEach(ctx => {
+    const details = [
+      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
+      ...ctx.cardEl.querySelectorAll('details')
+    ];
+    details.forEach((detail, index) => openStates.set(`${ctx.sourceIndex}:${index}`, detail.open));
+  });
   preview.innerHTML = prebuiltHTML !== undefined
     ? prebuiltHTML
     : buildCard(getSettings());
-  const details = preview.querySelectorAll('details');
-  openStates.forEach((wasOpen, i) => {
-    if(details[i] && wasOpen) details[i].open = true;
+  previewCardContexts().forEach(ctx => {
+    const details = [
+      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
+      ...ctx.cardEl.querySelectorAll('details')
+    ];
+    details.forEach((detail, index) => {
+      if(openStates.get(`${ctx.sourceIndex}:${index}`) === true) detail.open = true;
+    });
   });
   enableBlockDrag(preview);
   if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
@@ -6367,72 +6544,49 @@ function renderPreview(prebuiltHTML){
   requestAnimationFrame(() => preview.classList.remove('previewRefreshing'));
 }
 
-// 최상위 요소는 움직이면 이동하고, 모든 본문 이미지는 제자리에서 길게 누르면 편집 메뉴를 연다.
+// 한 번 클릭하면 편집 메뉴를 열고, 일정 거리 이상 움직이면 기존 드래그 이동을 시작한다.
 function bindSeparatorInteraction(target, dragCtx, menuCtx){
-  const HOLD_MS = 520;
   const MOVE_PX = 7;
+  let suppressClick = false;
 
   target.addEventListener('mousedown', e => {
     if(e.button !== 0) return;
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY;
-    let timer = null;
     const cleanup = () => {
-      clearTimeout(timer);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
     const onMove = ev => {
       if(Math.hypot(ev.clientX - sx, ev.clientY - sy) < MOVE_PX) return;
       cleanup();
-      if(dragCtx) startBlockDrag(dragCtx);
+      if(dragCtx){
+        suppressClick = true;
+        startBlockDrag(dragCtx);
+      }
     };
     const onUp = () => cleanup();
-    timer = setTimeout(() => {
-      cleanup();
-      showBlockToolbar(menuCtx);
-    }, HOLD_MS);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
-
-  // 터치에서는 움직이면 스크롤로 보고 취소하고, 움직이지 않을 때만 길게 누르기를 인식한다.
-  target.addEventListener('touchstart', e => {
-    if(!e.touches.length) return;
-    const first = e.touches[0];
-    const sx = first.clientX, sy = first.clientY;
-    let timer = null;
-    const cleanup = () => {
-      clearTimeout(timer);
-      target.removeEventListener('touchmove', onMove);
-      target.removeEventListener('touchend', cleanup);
-      target.removeEventListener('touchcancel', cleanup);
-    };
-    const onMove = ev => {
-      if(!ev.touches.length) return;
-      const t = ev.touches[0];
-      if(Math.hypot(t.clientX - sx, t.clientY - sy) >= MOVE_PX) cleanup();
-    };
-    timer = setTimeout(() => {
-      cleanup();
-      showBlockToolbar(menuCtx);
-    }, HOLD_MS);
-    target.addEventListener('touchmove', onMove, { passive: true });
-    target.addEventListener('touchend', cleanup);
-    target.addEventListener('touchcancel', cleanup);
-  }, { passive: true });
+  target.addEventListener('click', e => {
+    e.preventDefault();
+    if(suppressClick){ suppressClick = false; return; }
+    showBlockToolbar(menuCtx);
+  });
   target.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 // 최상위 이미지·구분선·장면 전환은 드래그 이동도 지원한다.
-// 접기 안쪽 이미지는 구조를 깨지 않도록 이동은 막고 길게 누르기 편집만 연결한다.
+// 접기 안쪽 이미지는 구조를 깨지 않도록 이동은 막고 클릭 편집만 연결한다.
 function enableBlockDrag(preview){
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
   // 출력에서 빈 카드는 제외되므로, 내용 있는 카드만 순서대로 대응시킴
   const nonEmpty = editors.filter(ed => ed.querySelector('textarea').value.split('\n').some(l => l.trim() !== ''));
 
   // 미리보기 최상위 자식 중 '카드'만 골라냄 (썸네일 p, 이미지 밴드, 표제 밴드 제외)
-  const cardEls = Array.from(preview.children).filter(el => {
+  const indexedCardEls = Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]'));
+  const cardEls = indexedCardEls.length ? indexedCardEls : Array.from(preview.children).filter(el => {
     if(el.tagName === 'DETAILS') return true;
     if(el.tagName !== 'DIV') return false;
     if(el.style.backgroundImage) return false;
@@ -6441,7 +6595,8 @@ function enableBlockDrag(preview){
   });
 
   cardEls.forEach((cardEl, cardIdx) => {
-    const editor = nonEmpty[cardIdx];
+    const sourceIndex = Number(cardEl.dataset.mosaicCardIndex);
+    const editor = Number.isInteger(sourceIndex) ? editors[sourceIndex] : nonEmpty[cardIdx];
     if(!editor) return;
     const ta = editor.querySelector('textarea');
     const entries = [];
@@ -6461,9 +6616,7 @@ function enableBlockDrag(preview){
     const map = topLevelMap(entries);
 
     // 카드 본문 컨테이너: details면 summary 다음, div면 첫 자식
-    const bodyDiv = cardEl.tagName === 'DETAILS'
-      ? cardEl.querySelector(':scope > div')
-      : cardEl.firstElementChild;
+    const bodyDiv = previewCardBody(cardEl);
     if(!bodyDiv) return;
 
     // 원문과 출력의 이미지 순서는 같으므로, 접기 안쪽 이미지도 원문 줄과 안전하게 연결할 수 있다.
@@ -6479,7 +6632,7 @@ function enableBlockDrag(preview){
         if(!block || block.dataset.mosaicImageEditBound === 'true') return;
         block.dataset.mosaicImageEditBound = 'true';
         block.style.cursor = 'pointer';
-        block.title = '길게 눌러 이미지 삭제/비율/캡션 편집';
+        block.title = '클릭해서 이미지 삭제/비율/캡션 편집';
         bindSeparatorInteraction(block, null, {
           block,
           ta,
@@ -6517,17 +6670,17 @@ function enableBlockDrag(preview){
         block.style.position = 'relative';
         const hit = document.createElement('div');
         hit.style.cssText = 'position:absolute; left:0; right:0; top:-11px; height:24px; cursor:grab;';
-        hit.title = '드래그로 이동 · 길게 눌러 변경/삭제';
+        hit.title = '클릭해서 변경/삭제 · 드래그로 이동';
         bindSeparatorInteraction(hit, dragCtx, menuCtx);
         block.appendChild(hit);
       } else if(isHr2){
         block.style.cursor = 'grab';
-        block.title = '드래그로 이동 · 길게 눌러 변경/삭제';
+        block.title = '클릭해서 변경/삭제 · 드래그로 이동';
         bindSeparatorInteraction(block, dragCtx, menuCtx);
       } else {
         block.dataset.mosaicImageEditBound = 'true';
         block.style.cursor = 'grab';
-        block.title = '드래그로 이미지 이동 · 길게 눌러 삭제/비율/캡션';
+        block.title = '클릭해서 삭제/비율/캡션 · 드래그로 이미지 이동';
         bindSeparatorInteraction(block, dragCtx, menuCtx);
       }
     });
@@ -6623,17 +6776,27 @@ try {
 function positionSyncEnabled(){
   return !!(positionSyncInput && positionSyncInput.checked);
 }
+function syncPositionSyncFloatingUi(){
+  const on = positionSyncEnabled();
+  const text = `위치 연동 ${on ? '켜짐' : '꺼짐'}`;
+  document.getElementById('previewSyncText').textContent = text;
+  document.getElementById('previewSyncFloat').title = text;
+  positionSyncInput.setAttribute('aria-label', text);
+}
 positionSyncInput.addEventListener('change', () => {
   pendingPreviewFocus = null;
+  syncPositionSyncFloatingUi();
   try { localStorage.setItem(POSITION_SYNC_KEY, positionSyncInput.checked ? 'on' : 'off'); }
   catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 설정은 유지 */ }
 });
+syncPositionSyncFloatingUi();
 
 // 미리보기 최상위 구성요소 분류: 이미지 밴드 / 표제 밴드 / 카드들
 function previewParts(){
   const preview = document.getElementById('preview');
   const parts = { image: null, title: null, cards: [] };
   Array.from(preview.children).forEach(el => {
+    if(el.hasAttribute('data-mosaic-card-index')){ parts.cards.push(el); return; }
     if(el.tagName === 'DETAILS'){ parts.cards.push(el); return; }
     if(el.tagName !== 'DIV') return;                       // 숨김 썸네일 <p>
     if(el.style.backgroundImage){ parts.image = el; return; }
@@ -6662,17 +6825,19 @@ function scrollPreviewIfNeeded(el, force){
 // 특정 카드/줄에 해당하는 미리보기 블록 찾기
 function previewBlockFor(ta, raw){
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
-  const nonEmpty = editors.filter(ed => ed.querySelector('textarea').value.split('\n').some(l => l.trim() !== ''));
   const myEd = ta.closest('.cardEditor');
-  const cardIdx = nonEmpty.indexOf(myEd);
-  const cards = previewParts().cards;
-  const cardEl = cards[cardIdx];
+  const sourceIndex = editors.indexOf(myEd);
+  // 내용 있는 카드의 순번을 추측하지 않고 출력 카드가 기록한 원래 카드 번호로 찾는다.
+  // 앞쪽에 빈 카드가 있거나 카드 순서를 바꾼 직후에도 다른 카드로 이동하지 않는다.
+  const cardEl = Number.isInteger(sourceIndex) && sourceIndex >= 0
+    ? previewParts().cards.find(card => Number(card.dataset.mosaicCardIndex) === sourceIndex)
+    : null;
   if(!cardEl) return null;
 
   const entries = [];
   ta.value.split('\n').forEach((l, i) => { if(l.trim() !== '') entries.push({ raw: i, text: l.trim() }); });
   const map = topLevelMap(entries);
-  const bodyDiv = cardEl.tagName === 'DETAILS' ? cardEl.querySelector(':scope > div') : cardEl.firstElementChild;
+  const bodyDiv = previewCardBody(cardEl);
   if(!bodyDiv) return cardEl;
   let blocks = Array.from(bodyDiv.children);
   if(blocks.length === map.length + 1) blocks = blocks.slice(0, -1);   // 꼬리말 제외
@@ -6815,7 +6980,9 @@ function syncDesignSummaries(){
   const width = selectedControlText('cardWidth');
   document.getElementById('typographyDesignSummary').textContent =
     `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
-  document.getElementById('dialogueDesignSummary').textContent = dialogue;
+  const parallelLayout = selectedControlText('parallelTranslationLayout');
+  document.getElementById('dialogueDesignSummary').textContent =
+    `${dialogue} · 병행 ${parallelLayout}`;
   document.getElementById('layoutDesignSummary').textContent =
     `${spacing} · ${width} · 외곽선 ${document.getElementById('cardBorderOn').checked ? '켬' : '끔'}`;
 }
@@ -6834,16 +7001,16 @@ document.getElementById('imgUrl').addEventListener('change', () => {
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logTitle','subChar','subUser','logSubtitle','keywordFrom','keywordTo'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'',
-  logNumber:'', logTitle:'', subChar:'', subUser:'', logSubtitle:''
+  logNumber:'', logTitle:'', subChar:'', subUser:'', logSubtitle:'', keywordFrom:'', keywordTo:''
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
   logTitleOn:false, titleMinimal:false, imgOn:false, footerOn:true, footerMinimal:false
 });
-const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','headingCenter','parallelTranslationSoft','charSpeakerOn','userSpeakerOn'];
+const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','narrCenter','headingCenter','dialogueCenter','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'footerOn', 'footerMinimal']);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
@@ -6873,7 +7040,7 @@ const PREVIEW_FOCUS_MAP = {
     const cards = previewParts().cards;
     const last = cards[cards.length - 1];
     if(!last) return null;
-    const body = last.tagName === 'DETAILS' ? last.querySelector(':scope > div') : last.firstElementChild;
+    const body = previewCardBody(last);
     return body ? body.lastElementChild : last;
   },
 };
@@ -6883,6 +7050,9 @@ document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').
   // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
   if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
   el.addEventListener('input', () => {
+    // 나레이션의 양쪽 정렬과 가운데 정렬은 동시에 적용될 수 없으므로 마지막 선택만 유지한다.
+    if(el.id === 'narrCenter' && el.checked) document.getElementById('narrJustify').checked = false;
+    if(el.id === 'narrJustify' && el.checked) document.getElementById('narrCenter').checked = false;
     syncTypographyRangeLabels();
     syncDesignSummaries();
     const positionSync = positionSyncEnabled();
@@ -6953,6 +7123,37 @@ function cardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors textarea'));
 }
 
+// 카드 입력창에 붙인 관찰자를 정리한 뒤 DOM을 비워, 반복 불러오기·초기화 시
+// 제거된 카드가 메모리에 남거나 뒤늦은 크기 콜백이 실행되지 않게 한다.
+function disposeCardEditor(ed){
+  if(!ed) return;
+  const observer = ed._widthObserver;
+  if(observer && typeof observer.disconnect === 'function') observer.disconnect();
+  delete ed._widthObserver;
+}
+
+function clearCardEditors(){
+  const container = document.getElementById('cardEditors');
+  Array.from(container.children).forEach(disposeCardEditor);
+  container.replaceChildren();
+}
+
+// 상단 탭 헤더의 실제 높이를 따라가 툴바가 그 아래에 정확히 붙도록 한다.
+function syncBodyToolbarStickyOffset(){
+  const sidebar = document.getElementById('sidebar');
+  const sidebarTop = document.getElementById('sidebarTop');
+  if(!sidebar || !sidebarTop) return;
+  // 상단 탭과 편집 도크를 바로 이어 붙여, 스크롤된 본문이 틈 사이로 비치지 않게 한다.
+  sidebar.style.setProperty('--body-toolbar-sticky-top', `${Math.round(sidebarTop.getBoundingClientRect().height)}px`);
+}
+let bodyToolbarHeaderObserver = null;
+if(typeof ResizeObserver === 'function'){
+  bodyToolbarHeaderObserver = new ResizeObserver(syncBodyToolbarStickyOffset);
+  bodyToolbarHeaderObserver.observe(document.getElementById('sidebarTop'));
+}
+window.addEventListener('resize', syncBodyToolbarStickyOffset);
+requestAnimationFrame(syncBodyToolbarStickyOffset);
+
 function getCardBodies(){
   return cardTextareas().map(t => t.value);
 }
@@ -6962,6 +7163,7 @@ function getCards(){
     body: ed.querySelector('textarea').value,
     folded: ed.querySelector('.cardFoldChk').checked,
     foldTitle: ed.querySelector('.foldTitleInput').value,
+    cardTitle: ed.querySelector('.foldTitleInput').value,
   }));
 }
 
@@ -6978,9 +7180,9 @@ function renumberCards(){
 }
 
 function createCardEditor(value){
-  // value: 문자열(본문만) 또는 {body, folded, foldTitle} 객체
+  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle} 객체
   const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
-  const data = { ...source, body: normalizeStandaloneHr(source.body || '') };
+  const data = { ...source, foldTitle:source.cardTitle !== undefined ? source.cardTitle : (source.foldTitle || ''), body: normalizeStandaloneHr(source.body || '') };
 
   const ed = document.createElement('div');
   ed.className = 'cardEditor';
@@ -7054,16 +7256,14 @@ function createCardEditor(value){
   head.appendChild(left);
   head.appendChild(right);
 
-  // 접기 제목 입력줄 (접기 카드일 때만 표시)
-  // 접기 제목: 헤더의 전체보기 버튼 옆에 위치 (접기 카드일 때만 표시)
+  // 카드 제목: 접기 여부와 관계없이 항상 표시하며, 접기 카드에서는 summary 제목으로 사용한다.
   const foldTitleInput = document.createElement('input');
   foldTitleInput.type = 'text';
   foldTitleInput.className = 'foldTitleInput';
   foldTitleInput.maxLength = 200;
-  foldTitleInput.placeholder = '접기 제목';
-  foldTitleInput.setAttribute('aria-label', '접기 카드 제목');
+  foldTitleInput.placeholder = '카드 제목';
+  foldTitleInput.setAttribute('aria-label', '카드 제목');
   foldTitleInput.value = data.foldTitle || '';
-  foldTitleInput.style.display = foldChk.checked ? '' : 'none';
 
   const ta = document.createElement('textarea');
   ta.value = data.body || '';
@@ -7102,6 +7302,7 @@ function createCardEditor(value){
       if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
     });
     widthObserver.observe(ta);
+    ed._widthObserver = widthObserver;
   }
 
   const refresh = () => { render(); updateCounter(); scheduleDraftSave(); };
@@ -7110,7 +7311,7 @@ function createCardEditor(value){
     const clone = createCardEditor({
       body: ta.value,
       folded: foldChk.checked,
-      foldTitle: foldTitleInput.value
+      cardTitle: foldTitleInput.value
     });
     ed.after(clone);
     renumberCards();
@@ -7126,9 +7327,14 @@ function createCardEditor(value){
     showUndoToast('카드 복제됨.');
   });
   ta.addEventListener('input', () => {
+    applyActiveKeywordRuleToTextarea(ta);
     normalizeStandaloneHrInput(ta);
-    focusPreviewOnCaret(ta);
+    // 미리보기 직접 편집이 원문 입력창으로 반영되는 동안에는 현재 미리보기 위치를
+    // 유지한다. 왼쪽 입력창에서 직접 타이핑할 때만 기존 위치 연동을 실행한다.
+    if(previewDirectEditCommitting) pendingPreviewFocus = null;
+    else focusPreviewOnCaret(ta);
     refresh();
+    if(ed.classList.contains('isCollapsed')) updatePeek();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
   ta.addEventListener('focus', () => {
@@ -7177,8 +7383,6 @@ function createCardEditor(value){
     if(!collapsed && ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
 
-  // 접힌 상태에서 본문이 바뀌면(대치·정돈 등) 요약도 갱신
-  ta.addEventListener('input', () => { if(ed.classList.contains('isCollapsed')) updatePeek(); });
   upBtn.addEventListener('click', () => {
     const prev = ed.previousElementSibling;
     if(prev){
@@ -7200,7 +7404,6 @@ function createCardEditor(value){
     }
   });
   const syncFoldUi = () => {
-    foldTitleInput.style.display = foldChk.checked ? '' : 'none';
     ed.classList.toggle('isFolded', foldChk.checked);
     renumberCards();
   };
@@ -7226,6 +7429,7 @@ function createCardEditor(value){
     snapshotCards();
     const focusEditor = ed.nextElementSibling || ed.previousElementSibling;
     if(activeTa === ta) activeTa = null;
+    disposeCardEditor(ed);
     ed.remove();
     renumberCards();
     refresh();
@@ -7300,6 +7504,8 @@ document.getElementById('addCardBtn').addEventListener('click', () => {
 // 글자 하나하나의 입력은 브라우저 기본 Ctrl/⌘+Z가 담당한다.
 let undoSnapshot = null;
 let undoTimer = null;
+let toastUndoAction = null;
+const UNDO_TOAST_DURATION_MS = 4000;
 
 // 작업 전체(카드 + 표제/이미지/이름/꼬리말)를 담는 헬퍼 — 보관함 슬롯과 되돌리기가 공유
 function collectWork(){
@@ -7324,6 +7530,7 @@ function applyWork(data){
   WORK_FIELDS.forEach(id => {
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
   });
+  syncActiveKeywordRule();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
     document.getElementById(id).checked = fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback;
   });
@@ -7332,7 +7539,7 @@ function applyWork(data){
   document.getElementById('xposVal').textContent = document.getElementById('xpos').value;
   document.getElementById('yposVal').textContent = document.getElementById('ypos').value;
   document.getElementById('imgHeightVal').textContent = document.getElementById('imgHeight').value;
-  document.getElementById('cardEditors').innerHTML = '';
+  clearCardEditors();
   activeTa = null;
   const cards = (data.cards && data.cards.length) ? data.cards : [{ body:'', folded:false, foldTitle:'' }];
   cards.forEach(c => addCard(c, false));
@@ -7350,20 +7557,43 @@ function snapshotCards(){
   undoSnapshot = captureActionState('작업 전');
 }
 
-function showUndoToast(message){
-  recordCompletedAction(message);
+function showUndoToast(message, undoAction){
+  if(typeof undoAction !== 'function') recordCompletedAction(message);
   const toast = document.getElementById('undoToast');
   document.getElementById('undoMsg').textContent = message;
+  toastUndoAction = typeof undoAction === 'function' ? undoAction : null;
   toast.style.display = 'flex';
   clearTimeout(undoTimer);
-  undoTimer = setTimeout(() => { toast.style.display = 'none'; }, 6000);
+  undoTimer = setTimeout(() => {
+    toast.style.display = 'none';
+    toastUndoAction = null;
+  }, UNDO_TOAST_DURATION_MS);
 }
 
 document.getElementById('undoBtn').addEventListener('click', () => {
   document.getElementById('undoToast').style.display = 'none';
   clearTimeout(undoTimer);
+  const undoAction = toastUndoAction;
+  toastUndoAction = null;
+  if(undoAction){
+    undoAction();
+    return;
+  }
   goActionHistory(-1);
 });
+
+// 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
+// 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
+// 덮어쓰기 직후에는 정확한 저장 상태로 되돌릴 수 있다.
+function restoreStoredValue(key, previousValue){
+  try {
+    if(previousValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previousValue);
+    return true;
+  } catch(e){
+    return false;
+  }
+}
 
 // ---------- 본문 삽입 툴바 ----------
 // 커서 위치(또는 선택 영역)에 텍스트를 넣고 편집 상태를 자연스럽게 유지
@@ -7371,6 +7601,7 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
   const ta = activeTa || cardTextareas()[0];
   if(!ta) return;
+  activeTa = ta;
   const start = ta.selectionStart;
   const end = ta.selectionEnd;
   const before = ta.value.slice(0, start);
@@ -7513,6 +7744,12 @@ function syncMirror(ta){
     const e = Math.min(ta.selectionEnd, real.value.length);
     real.setSelectionRange(s, e);
     real.dispatchEvent(new Event('input', { bubbles: true }));
+    // 실제 카드의 input 처리에서 자동 키워드 치환·구분선 정돈이 일어나면
+    // 전체 화면 거울에도 즉시 되비쳐 두 입력창의 값과 커서가 갈라지지 않게 한다.
+    if(ta.value !== real.value){
+      ta.value = real.value;
+      ta.setSelectionRange(real.selectionStart, real.selectionEnd);
+    }
   }
 }
 
@@ -7528,11 +7765,10 @@ function setWorkspaceInert(on){
   });
 }
 
-// 전체 화면의 접기 컨트롤을 실제 카드의 컨트롤과 맞춰줌
+// 전체 화면의 접기 컨트롤과 카드 제목을 실제 카드의 컨트롤과 맞춰줌
 function syncFsFold(){
-  const chk = document.getElementById('fsFoldChk');
   const titleInput = document.getElementById('fsFoldTitle');
-  titleInput.style.display = chk.checked ? '' : 'none';
+  titleInput.style.display = '';
 }
 
 function openFullscreen(realTa, title, editor){
@@ -7541,7 +7777,7 @@ function openFullscreen(realTa, title, editor){
   fsTa.__mirror = realTa;
   fsEditor = editor || null;
 
-  // 접기 카드 여부·제목을 그대로 가져옴
+  // 접기 카드 여부·카드 제목을 그대로 가져옴
   const chk = document.getElementById('fsFoldChk');
   const titleInput = document.getElementById('fsFoldTitle');
   const realChk = fsEditor && fsEditor.querySelector('.cardFoldChk');
@@ -7873,14 +8109,122 @@ let pvSearchOn = false;
 let pvHits = [];
 let pvCur = -1;
 
+function pvScopeTextarea(){
+  const scope = document.getElementById('pvScopeSelect').value;
+  if(scope === 'all') return null;
+  const match = scope.match(/^card:(\d+)$/);
+  if(match) return cardTextareas()[Number(match[1])] || null;
+  if(activeTa && activeTa.matches('#cardEditors textarea')) return activeTa;
+  if(pvCur >= 0 && pvHits[pvCur]){
+    const src = findBlockSource(pvHits[pvCur]);
+    if(src && src.ta) return src.ta;
+  }
+  return cardTextareas()[0] || null;
+}
+
+function pvScopeTextareas(){
+  const ta = pvScopeTextarea();
+  return ta ? [ta] : cardTextareas();
+}
+
+function pvScopePreviewRoots(){
+  const ta = pvScopeTextarea();
+  if(!ta) return previewCardContexts().map(ctx => ctx.cardEl);
+  const ctx = previewCardContexts().find(item => item.ta === ta);
+  return ctx ? [ctx.cardEl] : [];
+}
+
+function pvRefreshScopeOptions(resetToAll){
+  const select = document.getElementById('pvScopeSelect');
+  const previous = select.value;
+  const textareas = cardTextareas();
+  select.innerHTML = '';
+  const all = document.createElement('option');
+  all.value = 'all';
+  all.textContent = '전체 카드';
+  select.appendChild(all);
+  textareas.forEach((ta, index) => {
+    const option = document.createElement('option');
+    option.value = `card:${index}`;
+    option.textContent = `카드 ${index + 1}`;
+    select.appendChild(option);
+  });
+  const values = Array.from(select.options).map(option => option.value);
+  if(resetToAll) select.value = 'all';
+  else select.value = values.includes(previous) ? previous : 'all';
+}
+
 function pvClearHits(){
   document.querySelectorAll('#preview .pvHit').forEach(sp => {
     const parent = sp.parentNode;
     if(!parent) return;
-    parent.replaceChild(document.createTextNode(sp.textContent), sp);
+    // 검색어가 굵게·강조 span 경계를 가로질러도 원래 미리보기 구조를 보존한다.
+    while(sp.firstChild) parent.insertBefore(sp.firstChild, sp);
+    sp.remove();
     parent.normalize();
   });
   pvHits = []; pvCur = -1;
+}
+
+// 한 출력 문단의 여러 텍스트 노드를 하나의 문자열처럼 검색한다.
+// 굵게·강조·원문 병행 span 경계를 가로지르는 검색어도 한 항목으로 표시하되,
+// 화자 이름표와 자동 장식은 원문 입력에 없는 글자이므로 검색에서 제외한다.
+function pvHighlightBlock(block, query){
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let node;
+  while(walker.nextNode()){
+    node = walker.currentNode;
+    const parent = node.parentElement;
+    if(!node.data || (parent && parent.closest('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"], [data-mosaic-footer="true"], [data-mosaic-card-title="true"]'))) continue;
+    nodes.push(node);
+  }
+  if(!nodes.length) return [];
+  const text = nodes.map(item => item.data).join('');
+  const hay = normalizeQuotes(text).toLowerCase();
+  const needle = normalizeQuotes(query).toLowerCase();
+  if(!needle) return [];
+  const matches = [];
+  let at = hay.indexOf(needle);
+  while(at !== -1){
+    matches.push({ start:at, end:at + query.length });
+    at = hay.indexOf(needle, at + Math.max(1, query.length));
+  }
+  if(!matches.length) return [];
+
+  const boundaries = [];
+  let cursor = 0;
+  nodes.forEach(textNode => {
+    boundaries.push({ node:textNode, start:cursor, end:cursor + textNode.data.length });
+    cursor += textNode.data.length;
+  });
+  const locate = (position, startBoundary) => {
+    for(let i = 0; i < boundaries.length; i++){
+      const item = boundaries[i];
+      if(position < item.end || (position === item.end && (!startBoundary || i === boundaries.length - 1))){
+        return { node:item.node, offset:Math.max(0, Math.min(item.node.data.length, position - item.start)) };
+      }
+    }
+    const last = boundaries[boundaries.length - 1];
+    return { node:last.node, offset:last.node.data.length };
+  };
+
+  const hits = [];
+  // 뒤에서부터 감싸야 앞쪽 원본 텍스트 노드의 오프셋이 바뀌지 않는다.
+  matches.slice().reverse().forEach(match => {
+    const start = locate(match.start, true);
+    const end = locate(match.end, false);
+    if(!start || !end) return;
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    const span = document.createElement('span');
+    span.className = 'pvHit';
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    hits.unshift(span);
+  });
+  return hits;
 }
 
 function pvUpdateCount(){
@@ -7892,32 +8236,16 @@ function pvUpdateCount(){
 // keepPos: 리렌더 후 재적용 시 현재 위치를 유지하고 스크롤하지 않음 (타이핑이 화면을 끌고 다니지 않게)
 function pvApplySearch(keepPos){
   const prevCur = pvCur;
+  pvRefreshScopeOptions(false);
   pvClearHits();
   const q = document.getElementById('pvFindInput').value;
   if(!pvSearchOn || !q){ pvUpdateCount(); return; }
-  const needle = q.toLowerCase();
-  const preview = document.getElementById('preview');
-  const walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT);
-  const textNodes = [];
-  while(walker.nextNode()) textNodes.push(walker.currentNode);   // 순회 중 DOM 을 바꾸면 안 되므로 먼저 모음
-  textNodes.forEach(node => {
-    const text = node.data;
-    const lower = text.toLowerCase();
-    let from = 0, at = lower.indexOf(needle);
-    if(at === -1) return;
-    const frag = document.createDocumentFragment();
-    while(at !== -1){
-      if(at > from) frag.appendChild(document.createTextNode(text.slice(from, at)));
-      const sp = document.createElement('span');
-      sp.className = 'pvHit';
-      sp.textContent = text.slice(at, at + q.length);
-      frag.appendChild(sp);
-      pvHits.push(sp);
-      from = at + q.length;
-      at = lower.indexOf(needle, from);
-    }
-    if(from < text.length) frag.appendChild(document.createTextNode(text.slice(from)));
-    node.parentNode.replaceChild(frag, node);
+  const roots = pvScopePreviewRoots();
+  if(!roots.length){ pvUpdateCount(); return; }
+  roots.forEach(root => {
+    previewSourceBlocks(root).forEach(block => {
+      pvHits.push(...pvHighlightBlock(block, q));
+    });
   });
   if(pvHits.length){
     pvCur = keepPos && prevCur >= 0 ? Math.min(prevCur, pvHits.length - 1) : -1;
@@ -7952,6 +8280,7 @@ function pvGo(dir){
 function openPreviewSearch(){
   pvSearchOn = true;
   document.getElementById('pvSearchBox').style.display = 'flex';
+  pvRefreshScopeOptions(true);
   const input = document.getElementById('pvFindInput');
   input.focus();
   input.select();
@@ -7987,17 +8316,17 @@ function pvReplaceCurrent(){
   }
   const lines = src.ta.value.split('\n');
   const line = lines[src.raw] || '';
-  const at = findSourceOccurrence(line, q, k, true);
-  if(at < 0){ pvStatusFlash('원본 위치 확인 실패'); return; }
+  const sourceRange = findSourceRange(line, q, k, true);
+  if(!sourceRange){ pvStatusFlash('원본 위치 확인 실패'); return; }
   snapshotCards();
-  lines[src.raw] = line.slice(0, at) + r + line.slice(at + q.length);
+  lines[src.raw] = replaceSourceRange(line, sourceRange, r);
   src.ta.value = lines.join('\n');
   src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
   showUndoToast('1곳 변경.');
   if(pvHits.length) pvMarkCurrent(true);
 }
 
-// 모든 카드 대치 (대소문자 무시 — 검색 강조와 동일 기준. 본문 카드에만 적용)
+// 선택한 범위 안의 모든 일치 대치 (대소문자 무시 — 검색 강조와 동일 기준)
 function pvReplaceAll(){
   const q = document.getElementById('pvFindInput').value;
   if(!q) return;
@@ -8006,10 +8335,10 @@ function pvReplaceAll(){
 
   // DOM 강조 위치가 아니라 원문의 '화면에 보이는 투영'을 직접 검색한다.
   // 그래서 접기 내부도 빠지지 않고, 표제·꼬리말·화자 이름표와 문법 기호는 건드리지 않는다.
-  cardTextareas().forEach(ta => {
+  pvScopeTextareas().forEach(ta => {
     const rows = new Map();
     ta.value.split('\n').forEach((line, raw) => {
-      const matches = findAllSourceOccurrences(line, q, true);
+      const matches = findAllSourceRanges(line, q, true);
       if(matches.length) rows.set(raw, matches);
     });
     if(rows.size) perTextarea.set(ta, rows);
@@ -8021,10 +8350,10 @@ function pvReplaceAll(){
   snapshotCards();
   perTextarea.forEach((rows, ta) => {
     const lines = ta.value.split('\n');
-    rows.forEach((atList, raw) => {
+    rows.forEach((rangeList, raw) => {
       let line = lines[raw] || '';
-      atList.sort((a, b) => b - a).forEach(at => {
-        line = line.slice(0, at) + r + line.slice(at + q.length);
+      rangeList.sort((a, b) => b.start - a.start).forEach(range => {
+        line = replaceSourceRange(line, range, r);
       });
       lines[raw] = line;
     });
@@ -8046,7 +8375,11 @@ function pvStatusFlash(msg){
 (function(){
   const input = document.getElementById('pvFindInput');
   const repl = document.getElementById('pvReplInput');
+  const scope = document.getElementById('pvScopeSelect');
   input.addEventListener('input', () => pvApplySearch(false));
+  scope.addEventListener('change', () => {
+    pvApplySearch(false);
+  });
   input.addEventListener('keydown', (e) => {
     if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'Enter'){
@@ -8167,7 +8500,11 @@ function scrollCardIntoSidebar(ed){
   // #sidebarTop은 sticky라 카드가 그 아래로 숨을 수 있다. 실제 보이는 시작점은
   // 사이드바 맨 위가 아니라 고정 헤더의 아랫선이다.
   const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sbRect.top;
-  const desiredTop = Math.max(sbRect.top + margin, headerBottom + headerGap);
+  const bodyToolbar = document.getElementById('bodyEditorToolbar');
+  const toolbarBottom = bodyToolbar && bodyToolbar.offsetParent !== null
+    ? bodyToolbar.getBoundingClientRect().bottom
+    : headerBottom;
+  const desiredTop = Math.max(sbRect.top + margin, headerBottom + headerGap, toolbarBottom + margin);
   // 카드가 사이드바보다 길어도 헤더와 입력창의 시작점이 고정 헤더 아래로 오게 한다.
   if(edRect.top < desiredTop || edRect.bottom > sbRect.bottom - margin){
     sidebar.scrollTop += edRect.top - desiredTop;
@@ -8252,6 +8589,70 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
     pvApplySearch(false);
   }
 });
+
+// ---------- 키워드 치환 ----------
+// 이름 바꾸기와 달리 조사·인물 필드는 건드리지 않고, 활성 규칙을 기존·신규 본문에 계속 적용한다.
+function syncActiveKeywordRule(){
+  const group = document.getElementById('keywordReplaceGroup');
+  const from = document.getElementById('keywordFrom').value;
+  const to = document.getElementById('keywordTo').value;
+  group.dataset.keywordFrom = from;
+  group.dataset.keywordTo = to;
+  group.dataset.keywordReady = String(Boolean(from && from !== to));
+}
+
+function activeKeywordRule(){
+  const group = document.getElementById('keywordReplaceGroup');
+  if(group.dataset.keywordReady !== 'true') return null;
+  return { from:group.dataset.keywordFrom || '', to:group.dataset.keywordTo || '' };
+}
+
+function applyActiveKeywordRuleToTextarea(ta){
+  const rule = activeKeywordRule();
+  if(!rule || !rule.from || !ta.value.includes(rule.from)) return 0;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const beforeStart = ta.value.slice(0, start).split(rule.from).join(rule.to).length;
+  const beforeEnd = ta.value.slice(0, end).split(rule.from).join(rule.to).length;
+  const count = ta.value.split(rule.from).length - 1;
+  ta.value = ta.value.split(rule.from).join(rule.to);
+  try { ta.setSelectionRange(beforeStart, beforeEnd); } catch(e){}
+  return count;
+}
+
+function activateKeywordRule(){
+  const from = document.getElementById('keywordFrom').value;
+  const to = document.getElementById('keywordTo').value;
+  const st = document.getElementById('keywordStatus');
+  syncActiveKeywordRule();
+  if(!from){ st.textContent = '자동 치환 꺼짐.'; scheduleDraftSave(); return; }
+  if(from === to){ st.textContent = '두 키워드가 같아 자동 치환하지 않음.'; scheduleDraftSave(); return; }
+  const hasMatches = cardTextareas().some(ta => ta.value.includes(from));
+  if(hasMatches) snapshotCards();
+  let count = 0;
+  cardTextareas().forEach(ta => { count += applyActiveKeywordRuleToTextarea(ta); });
+  if(count){
+    render(); updateCounter();
+    showUndoToast('키워드 ' + count + '곳 자동 치환.');
+  }
+  saveDraft();
+  st.textContent = count ? `자동 치환 켜짐 · 기존 ${count}곳 변경` : '자동 치환 켜짐.';
+}
+
+document.getElementById('keywordTo').addEventListener('change', activateKeywordRule);
+document.getElementById('keywordFrom').addEventListener('change', () => {
+  const group = document.getElementById('keywordReplaceGroup');
+  if(!document.getElementById('keywordFrom').value || group.dataset.keywordReady === 'true') activateKeywordRule();
+});
+['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    activateKeywordRule();
+    e.currentTarget.blur();
+  }
+}));
+syncActiveKeywordRule();
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -8561,6 +8962,7 @@ function renderSlotList(){
       snapshotCards();
       applyWork(JSON.parse(JSON.stringify(slot.data)));
       showUndoToast(`'${slot.name}' 불러옴.`);
+      setArchiveDrawerOpen(false);
     });
     row.addEventListener('keydown', (e) => {
       if(e.isComposing || e.keyCode === 229 || e.target !== row) return;
@@ -8580,6 +8982,7 @@ function renderSlotList(){
       }
       const data = collectValidatedSlotWork();
       if(!data) return;
+      const previousStoredSlots = localStorage.getItem(SLOT_KEY);
       list[targetIndex].data = data;
       list[targetIndex]._stored = null;
       list[targetIndex].savedAt = Date.now();
@@ -8591,6 +8994,18 @@ function renderSlotList(){
       const status = document.getElementById('slotImportStatus');
       status.style.color = '';
       status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
+      showUndoToast(`'${slot.name}' 보관함 덮어씀.`, () => {
+        const restored = restoreStoredValue(SLOT_KEY, previousStoredSlots);
+        const undoStatus = document.getElementById('slotImportStatus');
+        if(!restored){
+          undoStatus.style.color = '#c0392b';
+          undoStatus.textContent = '보관함 덮어쓰기를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+          return;
+        }
+        undoStatus.style.color = '';
+        undoStatus.textContent = `'${slot.name}' 보관함 덮어쓰기를 되돌렸습니다.`;
+        renderSlotList();
+      });
     });
     del.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -8767,13 +9182,14 @@ document.getElementById('newLogBtn').addEventListener('click', () => {
   document.getElementById('imgOn').checked = false;
   document.getElementById('logTitleOn').checked = false;
   syncCoverControlState();
-  document.getElementById('cardEditors').innerHTML = '';
+  clearCardEditors();
   activeTa = null;
   addCard('', true);
   render();
   updateCounter();
   saveDraft();
   showUndoToast('새 로그 시작.');
+  setArchiveDrawerOpen(false);
 });
 
 document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
@@ -8799,7 +9215,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   document.getElementById('xposVal').textContent = '50';
   document.getElementById('yposVal').textContent = '0';
 
-  document.getElementById('cardEditors').innerHTML = '';
+  clearCardEditors();
   activeTa = null;
   addCard('', false);
   activeTa = cardTextareas()[0] || null;
@@ -8816,9 +9232,9 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   closePreviewSearch();
   fsClearSearch();
   hideSelToolbar();
-  ['pvFindInput','pvReplInput','fsFindInput','fsReplInput','nameFrom','nameTo','slotName','presetName']
+  ['pvFindInput','pvReplInput','fsFindInput','fsReplInput','nameFrom','nameTo','keywordFrom','keywordTo','slotName','presetName']
     .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  ['nameStatus','copyStatus','presetStatus','importStatus']
+  ['nameStatus','keywordStatus','copyStatus','presetStatus','importStatus']
     .forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ''; });
 
   try { localStorage.removeItem(DRAFT_KEY); } catch(e){ /* 저장소 사용 불가 시 무시 */ }
@@ -8966,6 +9382,32 @@ function setSidebarWidth(px, save){
   });
 })();
 
+// ---------- 보관함 오버레이 ----------
+function setArchiveDrawerOpen(open){
+  const drawer = document.getElementById('archiveDrawer');
+  const button = document.getElementById('archiveOpenBtn');
+  drawer.hidden = !open;
+  drawer.setAttribute('aria-hidden', String(!open));
+  button.setAttribute('aria-expanded', String(open));
+  if(open){
+    renderSlotList();
+    requestAnimationFrame(() => document.getElementById('archiveCloseBtn').focus());
+  }else{
+    button.focus();
+  }
+}
+document.getElementById('archiveOpenBtn').addEventListener('click', () => {
+  setArchiveDrawerOpen(document.getElementById('archiveDrawer').hidden);
+});
+document.getElementById('archiveCloseBtn').addEventListener('click', () => setArchiveDrawerOpen(false));
+document.getElementById('archiveDrawer').addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    e.preventDefault();
+    e.stopPropagation();
+    setArchiveDrawerOpen(false);
+  }
+});
+
 // ---------- 탭 전환 ----------
 // 탭별 스크롤 위치를 기억해서, 오갈 때 보던 자리로 돌아오게 함.
 // 사이드바 스크롤을 상시 추적해두면, 버튼 클릭으로 브라우저가 스크롤을 건드려도
@@ -9076,7 +9518,7 @@ document.getElementById('clearBodyBtn').addEventListener('click', () => {
   const hasText = getCardBodies().some(v => v.trim() !== '');
   if(hasText && !confirm('모든 카드의 본문을 비울까?\n(되돌리기로 복구 가능)')) return;
   snapshotCards();
-  document.getElementById('cardEditors').innerHTML = '';
+  clearCardEditors();
   activeTa = null;
   addCard('', true);
   render();
@@ -9381,7 +9823,7 @@ const DEFAULT_STYLE = {
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, headingCenter: false, parallelTranslationSoft: true, charSpeakerOn: false, userSpeakerOn: false
+  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, narrCenter: false, headingCenter: false, dialogueCenter: false, parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 };
 
 // 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
@@ -9477,6 +9919,7 @@ function stepSelectOption(selectId, delta){
 
 [
   ['textFont', 'textFontPrev', 'textFontNext'],
+  ['parallelTranslationLayout', 'parallelLayoutPrev', 'parallelLayoutNext'],
   ['spacingMode', 'spacingModePrev', 'spacingModeNext'],
   ['cardWidth', 'cardWidthPrev', 'cardWidthNext']
 ].forEach(([selectId, prevId, nextId]) => {
@@ -9692,7 +10135,13 @@ function applyStyleValues(v){
   if(values.textFont === undefined){
     values.textFont = values.narrFont !== undefined ? values.narrFont : values.dlgFont;
   }
+  // 이전 버전의 체크박스 저장값을 새 드롭다운의 `미적용` 값으로 변환한다.
+  if(values.parallelTranslationSoft !== undefined){
+    if(!settingFlagOn(values.parallelTranslationSoft)) values.parallelTranslationLayout = 'off';
+    else if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
+  }
   if(values.paragraphGap === undefined) values.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(values.narrCenter === undefined) values.narrCenter = DEFAULT_STYLE.narrCenter;
   STYLE_FIELDS.forEach(id => {
     if(values[id] === undefined) return;
     const el = document.getElementById(id);
@@ -9707,6 +10156,10 @@ function applyStyleValues(v){
       el.value = values[id];
     }
   });
+  // 이전 저장값이나 외부 프리셋에 두 정렬이 함께 켜져 있어도 가운데 정렬을 우선해 안전하게 정규화한다.
+  if(document.getElementById('narrCenter').checked && document.getElementById('narrJustify').checked){
+    document.getElementById('narrJustify').checked = false;
+  }
   syncTypographyRangeLabels();
   syncDesignSummaries();
   updateHexLabels();
@@ -10072,6 +10525,12 @@ function sanitizeImportedPreset(preset){
     sourceValues.textFont = sourceValues.narrFont !== undefined
       ? sourceValues.narrFont
       : sourceValues.dlgFont;
+  }
+  // 이전 버전의 원문 병행 체크박스를 현재 드롭다운 값으로 변환한다.
+  // 검증 전에 옮겨야 `끔`이 DEFAULT_STYLE의 자동 배치로 덮이지 않는다.
+  if(sourceValues.parallelTranslationLayout === undefined && sourceValues.parallelTranslationSoft !== undefined){
+    if(typeof sourceValues.parallelTranslationSoft !== 'boolean') return null;
+    sourceValues.parallelTranslationLayout = sourceValues.parallelTranslationSoft ? 'auto' : 'off';
   }
   if(sourceValues.paragraphGap === undefined) sourceValues.paragraphGap = DEFAULT_STYLE.paragraphGap;
   let found = 0;
@@ -10455,6 +10914,8 @@ document.getElementById('overwritePresetBtn').addEventListener('click', () => {
   const target = list.find(p => p.name === currentPresetName);
   if(!target) return;
   if(!confirm(`'${currentPresetName}' 프리셋을 지금 색상으로 덮어쓸까?`)) return;
+  const overwrittenPresetName = currentPresetName;
+  const previousStoredPresets = localStorage.getItem(PRESET_KEY);
   target.values = currentThemeColorValues();
   target._stored = null;
   if(!savePresets(list)){
@@ -10463,8 +10924,18 @@ document.getElementById('overwritePresetBtn').addEventListener('click', () => {
   }
   renderPresetList();
   const st = document.getElementById('presetStatus');
-  st.textContent = `'${currentPresetName}'에 덮어씀.`;
-  setTimeout(() => { st.textContent = ''; }, 2500);
+  st.textContent = `'${overwrittenPresetName}'에 덮어씀.`;
+  showUndoToast(`'${overwrittenPresetName}' 프리셋 덮어씀.`, () => {
+    const restored = restoreStoredValue(PRESET_KEY, previousStoredPresets);
+    const undoStatus = document.getElementById('presetStatus');
+    if(!restored){
+      undoStatus.textContent = '프리셋 덮어쓰기를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+      return;
+    }
+    undoStatus.textContent = `'${overwrittenPresetName}' 프리셋 덮어쓰기를 되돌렸습니다.`;
+    renderPresetList();
+    renderComboList();
+  });
 });
 
 function updateSavePresetBtn(){
@@ -10770,9 +11241,9 @@ function buildDocumentNavigator(){
       .split('\n')
       .map(line => line.trim().match(/^#{1,4}>?\s+(.+)$/))
       .find(Boolean);
-    const foldNavigatorTitle = String(card.foldTitle || '').trim();
-    const navigatorTitle = card.folded && foldNavigatorTitle
-      ? foldNavigatorTitle
+    const cardNavigatorTitle = String(card.foldTitle || '').trim();
+    const navigatorTitle = cardNavigatorTitle
+      ? cardNavigatorTitle
       : (firstHeading ? stripMarkers(firstHeading[1]).trim() : '');
     const cardKind = card.folded ? '접기' : `카드 ${cardIndex + 1}`;
     title.textContent = navigatorTitle ? `${cardKind} · ${navigatorTitle}` : cardKind;
