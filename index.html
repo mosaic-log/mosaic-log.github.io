@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- index 기반 개선본 v180 · 미리보기 외곽 버튼 단일 좌표·충돌 배치 -->
+<!-- index 기반 개선본 v183 · 표시 버전 v1.4.1.2 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -3910,7 +3910,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.1 GitHub 저장소 열기">v1.4.1</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.1.2 GitHub 저장소 열기">v1.4.1.2</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -8077,34 +8077,6 @@ function moveSeparatorIntoSplitLine(text, srcRaw, destInfo, settings){
 // 카드별 복사는 이 문자열에서 꺼내므로 미리보기 전용 버튼이나 편집 속성이 섞이지 않는다.
 let previewSourceHTML = '';
 
-function previewCardHTML(sourceIndex){
-  if(!previewSourceHTML) return '';
-  const doc = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
-  const card = Array.from(doc.body.querySelectorAll('[data-mosaic-card-index]')).find(el =>
-    Number(el.getAttribute('data-mosaic-card-index')) === Number(sourceIndex)
-  );
-  return card ? stripEditorOutputMetadata(card.outerHTML) : '';
-}
-
-function previewProfileHTML(){
-  if(!previewSourceHTML) return '';
-  const doc = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
-  const profile = doc.body.querySelector('[data-mosaic-profile="true"]');
-  return profile ? stripEditorOutputMetadata(profile.outerHTML) : '';
-}
-
-function previewCoverHTML(excludeProfile = false){
-  if(!previewSourceHTML) return '';
-  const doc = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
-  const children = Array.from(doc.body.children);
-  const firstCardIndex = children.findIndex(el => el.hasAttribute('data-mosaic-card-index'));
-  const candidates = firstCardIndex < 0 ? children : children.slice(0, firstCardIndex);
-  const coverNodes = excludeProfile
-    ? candidates.filter(el => el.getAttribute('data-mosaic-profile') !== 'true')
-    : candidates;
-  return stripEditorOutputMetadata(coverNodes.map(el => el.outerHTML).join('\n'));
-}
-
 function copyPreviewCardText(text){
   // file:// 미리보기에서도 동작하도록 동기 복사를 우선하고 Clipboard API를 보조로 쓴다.
   try {
@@ -8202,8 +8174,112 @@ function layoutPreviewFloatingButtons(){
 }
 
 function previewCopySuccessMessage(label){
-  const compact = String(label).replace(/^카드\s+(\d+)$/, '카드$1');
+  const compact = String(label).replace(/카드\s+(\d+)/g, '카드$1');
   return `${compact}의 HTML을 복사했습니다.`;
+}
+
+const PREVIEW_COPY_JOIN_TOLERANCE = 2;
+
+// 기능상의 종류가 아니라 화면에서 실제로 맞닿은지를 복사 단위의 기준으로 삼는다.
+// 소수점 렌더링 오차는 허용하되, 옆에 놓인 요소나 폭이 크게 다른 요소는 합치지 않는다.
+function previewCopyElementsAreAttached(previousElement, nextElement){
+  if(!previousElement || !nextElement) return false;
+  const previousRect = previousElement.getBoundingClientRect();
+  const nextRect = nextElement.getBoundingClientRect();
+  const verticalGap = nextRect.top - previousRect.bottom;
+  const overlapWidth = Math.max(0,
+    Math.min(previousRect.right, nextRect.right) - Math.max(previousRect.left, nextRect.left));
+  const narrowerWidth = Math.min(previousRect.width, nextRect.width);
+  return verticalGap >= -PREVIEW_COPY_JOIN_TOLERANCE
+    && verticalGap <= PREVIEW_COPY_JOIN_TOLERANCE
+    && narrowerWidth > 0
+    && overlapWidth >= narrowerWidth * 0.8;
+}
+
+function previewCopyLabel(labels){
+  return labels.filter((label, index, all) => label && all.indexOf(label) === index).join('와 ');
+}
+
+function previewTopLevelCopyLabel(element, visibleCardNumbers){
+  if(element.dataset.mosaicProfile === 'true') return '프로필';
+  if(element.dataset.mosaicCoverImage === 'true' || element.dataset.mosaicTitle === 'true') return '표지';
+  if(element.hasAttribute('data-mosaic-card-index')){
+    const sourceIndex = Number(element.dataset.mosaicCardIndex);
+    const visibleNumber = visibleCardNumbers.get(sourceIndex);
+    return `카드 ${visibleNumber || 1}`;
+  }
+  return '카드';
+}
+
+// previewSourceHTML과 화면의 #preview는 렌더 직후 같은 최상위 자식 순서를 가진다.
+// 검색 강조·직접 편집용 속성이 들어간 화면 DOM은 복사하지 않고, 같은 순서의 순수 출력
+// 노드를 복사한다. 대표 이미지 인식용 숨김 노드는 최상단 프로필을 건너뛰고
+// 실제 대표 이미지 블록과 함께 보존한다.
+function previewCopySegments(){
+  const preview = document.getElementById('preview');
+  if(!previewSourceHTML || !preview) return [];
+  const sourceDocument = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
+  const sourceChildren = Array.from(sourceDocument.body.children);
+  const previewChildren = Array.from(preview.children);
+  const visibleCardNumbers = new Map(
+    previewCardContexts().map((context, index) => [context.sourceIndex, index + 1])
+  );
+  const coverImageIndex = sourceChildren.findIndex(element => element.dataset.mosaicCoverImage === 'true');
+  const segments = [];
+  let pendingHiddenElements = [];
+  sourceChildren.forEach((sourceElement, index) => {
+    const previewElement = previewChildren[index];
+    const hidden = sourceElement.hidden
+      || sourceElement.getAttribute('aria-hidden') === 'true'
+      || !previewElement
+      || previewElement.hidden
+      || previewElement.getAttribute('aria-hidden') === 'true';
+    if(hidden){
+      pendingHiddenElements.push(sourceElement);
+      return;
+    }
+    const keepHiddenForCoverImage = pendingHiddenElements.length
+      && coverImageIndex >= 0
+      && index < coverImageIndex;
+    const sourceHTML = keepHiddenForCoverImage
+      ? sourceElement.outerHTML
+      : [...pendingHiddenElements.map(element => element.outerHTML), sourceElement.outerHTML].join('\n');
+    const html = stripEditorOutputMetadata(
+      sourceHTML
+    );
+    if(!keepHiddenForCoverImage) pendingHiddenElements = [];
+    segments.push({
+      startElement:previewElement,
+      endElement:previewElement,
+      labels:[previewTopLevelCopyLabel(sourceElement, visibleCardNumbers)],
+      html
+    });
+  });
+  if(pendingHiddenElements.length && segments.length){
+    const lastSegment = segments[segments.length - 1];
+    lastSegment.html += `\n${stripEditorOutputMetadata(pendingHiddenElements.map(element => element.outerHTML).join('\n'))}`;
+  }
+  return segments;
+}
+
+function previewCopyGroups(){
+  const groups = [];
+  previewCopySegments().forEach(segment => {
+    const previous = groups[groups.length - 1];
+    if(previous && previewCopyElementsAreAttached(previous.endElement, segment.startElement)){
+      previous.endElement = segment.endElement;
+      previous.labels.push(...segment.labels);
+      previous.htmlParts.push(segment.html);
+      return;
+    }
+    groups.push({
+      startElement:segment.startElement,
+      endElement:segment.endElement,
+      labels:[...segment.labels],
+      htmlParts:[segment.html]
+    });
+  });
+  return groups;
 }
 
 function addPreviewCopyButton(target, label, getHTML, successMessage){
@@ -8241,44 +8317,14 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
 }
 
 function decoratePreviewCopyButtons(){
-  const parts = previewParts();
-  const cardContexts = previewCardContexts();
-  const profileAtTop = document.getElementById('profilePlacement').value === 'top';
-  if(profileAtTop && parts.profile && previewProfileHTML()){
+  previewCopyGroups().forEach(group => {
+    const label = previewCopyLabel(group.labels);
     addPreviewCopyButton(
-      parts.profile,
-      '프로필',
-      () => {
-        const profileHTML = previewProfileHTML();
-        return profileHTML ? `${profileHTML}\n<br>` : '';
-      },
-      previewCopySuccessMessage('프로필')
-    );
-  }
-  const coverTarget = parts.image || parts.title || (!profileAtTop ? parts.profile : null);
-  // 미리보기의 실제 외곽 카드 단위로 복사한다. 대표 이미지·표제·붙어 있는 프로필은
-  // 첫 외곽 카드로 함께 복사하고, 첫 본문 카드는 다음 독립 카드로 따로 복사한다.
-  const coverHTMLForCopy = () => previewCoverHTML(profileAtTop);
-  if(coverTarget && coverHTMLForCopy()){
-    const coverLabel = !profileAtTop && parts.profile ? '표지와 프로필' : '표지';
-    addPreviewCopyButton(
-      coverTarget,
-      coverLabel,
-      () => {
-        const coverHTML = coverHTMLForCopy();
-        return coverHTML ? `${coverHTML}\n<br>` : '';
-      },
-      previewCopySuccessMessage(coverLabel)
-    );
-  }
-  cardContexts.forEach((ctx, visibleIndex) => {
-    const label = `카드 ${visibleIndex + 1}`;
-    addPreviewCopyButton(
-      ctx.cardEl,
+      group.startElement,
       label,
       () => {
-        const cardHTML = previewCardHTML(ctx.sourceIndex);
-        return cardHTML ? `${cardHTML}\n<br>` : '';
+        const html = group.htmlParts.filter(Boolean).join('\n');
+        return html ? `${html}\n<br>` : '';
       },
       previewCopySuccessMessage(label)
     );
