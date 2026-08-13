@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- index 기반 프로필 개선본 v133 · 자동 글자 확대 방지 속성 상위 통합 -->
+<!-- index 기반 개선본 v178 · 버전 GitHub 링크 추가 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -76,20 +76,78 @@
     gap: 12px;
     margin-bottom: 18px;
   }
+  .brandActions {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 12px;
+    margin-left: auto;
+  }
+  .brandActions .draftStatus { margin-left: 0; }
   #sidebar h1 {
+    display: flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
     font-size: 23px;
     margin: 0;
     font-weight: 800;
     letter-spacing: -0.75px;
     line-height: 1.2;
   }
+  #sidebar h1 .brandName { white-space: nowrap; }
+  #sidebar h1 .brandMeta {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    flex: none;
+    gap: 1px;
+    margin-left: 8px;
+    line-height: 1;
+    white-space: nowrap;
+  }
   #sidebar h1 .enName {
     font-size: 12px;
     font-weight: 600;
     color: var(--ink-faint);
     letter-spacing: 0.6px;
-    margin-left: 8px;
-    vertical-align: 3px;
+  }
+  #sidebar h1 .appVersion {
+    color: var(--help-ink);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: .25px;
+    line-height: 1;
+    text-decoration: none;
+  }
+  #sidebar h1 .appVersion:hover,
+  #sidebar h1 .appVersion:focus-visible {
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  @container sidebar (max-width: 410px) {
+    #brandRow {
+      align-items: flex-start;
+      gap: 8px;
+    }
+    #brandRow h1 {
+      flex: 0 0 auto;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    #sidebar h1 .brandMeta {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 6px;
+      margin: 2px 0 0;
+    }
+    .brandActions {
+      width: auto;
+      gap: 8px;
+      margin-left: auto;
+    }
   }
   .draftStatus {
     margin-left: auto;
@@ -704,7 +762,14 @@
     gap: 8px;
     align-items: stretch;
   }
-  #tabBody .nameReplaceRow.keywordAutoRow { grid-template-columns:minmax(0, 1fr); }
+  #tabBody .nameReplaceRow.keywordAutoRow { grid-template-columns:minmax(150px, 1fr) auto; }
+  #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  #tabBody .keywordRuleEmpty { padding:9px 10px; border:1px dashed var(--line); border-radius:7px; color:var(--ink-faint); font-size:11.5px; text-align:center; }
+  #tabBody .keywordRuleItem { display:flex; align-items:center; gap:8px; min-height:36px; padding:6px 8px 6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg-panel); }
+  #tabBody .keywordRuleText { flex:1; min-width:0; overflow:hidden; color:var(--ink-soft); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+  #tabBody .keywordRuleText b { color:var(--ink); font-weight:650; }
+  #tabBody .keywordUndoBtn { flex:none; min-height:26px; padding:3px 8px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--ink-faint); font-size:10.5px; }
+  #tabBody .keywordUndoBtn:hover { border-color:#d8b5b5; background:#fff8f8; color:#9a5148; }
   #tabBody .nameFieldGroup {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -748,6 +813,15 @@
   #tabBody .nameActionGroup button + button {
     margin-left: -1px;
     border-radius: 0 8px 8px 0;
+  }
+  /* 키워드 치환처럼 실행 버튼이 하나뿐인 행은 분할 버튼의 빈 오른쪽 칸을 만들지 않는다. */
+  #tabBody .keywordAutoRow .nameActionGroup {
+    grid-template-columns: minmax(0, 1fr);
+    /* 이름 바꾸기의 찾기/바꾸기 분할 버튼 한 칸(112px ÷ 2)과 같은 폭 */
+    width: 56px;
+  }
+  #tabBody .keywordAutoRow .nameActionGroup button:only-child {
+    border-radius: 8px;
   }
   #tabBody .nameActionGroup button:hover {
     position: relative;
@@ -1062,16 +1136,17 @@
     font-size: 11.5px;
   }
   .slotRow {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-radius: 9px;
-    cursor: pointer;
+    cursor: default;
     background: var(--bg-panel);
   }
-  .slotRow:hover { border-color: var(--ink-faint); background: var(--bg-field); }
+  .slotRow:hover { border-color: var(--line-strong); background: var(--bg-field); }
   .slotRow .slotIdentity {
     display: flex;
     align-items: baseline;
@@ -1079,6 +1154,7 @@
     min-width: 0;
     gap: 6px;
   }
+  .slotRow .slotActions { grid-column:1 / -1; display:flex; justify-content:flex-end; gap:5px; padding-top:2px; }
   .slotRow .slotName {
     flex: 0 1 auto;
     min-width: 0;
@@ -1110,6 +1186,9 @@
     flex-shrink: 0;
   }
   .slotRow button:hover { color: var(--ink-soft); border-color: var(--line-strong); }
+  .slotRow .slotLoad { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:color-mix(in srgb, var(--accent) 7%, var(--bg-panel)); color:var(--accent); font-weight:650; }
+  .slotRow .slotLoad:hover { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--bg-panel)); color:var(--accent-hover); }
+  .slotRow .slotOverwrite { background:transparent; }
   .slotRow .slotDel:hover { color: #b23b3b; border-color: #d9a5a5; }
 
   /* 카드 에디터 헤더 컨트롤 */
@@ -2186,6 +2265,7 @@
     align-items: flex-start;
   }
   #previewWrap {
+    position: relative;
     width: 100%;
     max-width: 800px;
     transition: max-width .18s ease;
@@ -2257,7 +2337,9 @@
       min-width: 0 !important;
     }
   }
-  .previewBlockCopyBtn {
+  .previewBlockCopyBtn,
+  .previewProfilePlacementBtn,
+  .previewMinimalToggleBtn {
     position: absolute;
     top: 8px;
     left: 100%;
@@ -2282,7 +2364,11 @@
     transition: opacity .12s ease, color .12s ease, border-color .12s ease, background .12s ease;
   }
   .previewBlockCopyBtn:hover,
-  .previewBlockCopyBtn:focus-visible {
+  .previewBlockCopyBtn:focus-visible,
+  .previewProfilePlacementBtn:hover,
+  .previewProfilePlacementBtn:focus-visible,
+  .previewMinimalToggleBtn:hover,
+  .previewMinimalToggleBtn:focus-visible {
     opacity: 1;
     color: var(--accent);
     border-color: var(--accent);
@@ -2299,7 +2385,9 @@
     border-color: #a65f59;
   }
   @media (hover:none) {
-    .previewBlockCopyBtn { opacity: .78; }
+    .previewBlockCopyBtn,
+    .previewProfilePlacementBtn,
+    .previewMinimalToggleBtn { opacity: .78; }
   }
   #preview [data-preview-direct-edit="true"] {
     cursor: text;
@@ -2517,6 +2605,72 @@
     color: var(--ink);
   }
 
+  /* 프로필 기본 설정: 짧은 선택지는 드롭다운보다 한눈에 비교되는 분할 버튼으로 표시한다. */
+  #profileGroup .profileConfigurationLabel {
+    margin: 16px 0 7px;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .settingsForm .segmentedChoiceRow {
+    grid-template-columns: var(--settings-label-w) minmax(0, 1fr) auto;
+  }
+  .settingsForm .segmentedChoiceSource {
+    display: none;
+  }
+  .settingsForm .segmentedChoice {
+    grid-column: 2;
+    display: grid;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--bg-field);
+  }
+  .settingsForm .segmentedChoice.isTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settingsForm .segmentedChoice.isThree { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .settingsForm .segmentedChoice button {
+    min-width: 0;
+    min-height: var(--control-h);
+    padding: 0 8px;
+    border: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .settingsForm .segmentedChoice.isThree button {
+    padding-right: 6px;
+    padding-left: 6px;
+    font-size: 10.5px;
+  }
+  .settingsForm .segmentedChoice button:first-child { border-left: 0; }
+  .settingsForm .segmentedChoice button:hover:not(:disabled) {
+    position: relative;
+    z-index: 1;
+    background: var(--bg-muted);
+    color: var(--ink);
+  }
+  .settingsForm .segmentedChoice button[aria-pressed="true"] {
+    position: relative;
+    z-index: 1;
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-field));
+    color: var(--accent);
+  }
+  .settingsForm .segmentedChoice button:focus-visible {
+    position: relative;
+    z-index: 2;
+    outline: 2px solid var(--ink-faint);
+    outline-offset: -2px;
+  }
+  .settingsForm .segmentedChoice button:disabled { cursor: default; }
+
   /* 디자인 탭의 세 영역은 연한 헤더 띠와 넉넉한 여백으로 나눈다. */
   #tabDesign > .designFold {
     margin-bottom: 20px;
@@ -2629,6 +2783,7 @@
   }
   /* 상단 프로필의 긴 입력 목록을 기능별 얇은 하위 아코디언으로 구분한다. */
   #profileGroup .profileSubFold {
+    position: relative;
     margin: 0;
     border-top: 1px solid var(--line);
   }
@@ -2653,8 +2808,9 @@
     font-weight: 750;
   }
   #profileGroup .profileSubMeta {
+    flex: 1 1 auto;
     min-width: 0;
-    margin-left: auto;
+    margin-left: 8px;
     overflow: hidden;
     color: var(--ink-faint);
     font-size: 10.5px;
@@ -2663,6 +2819,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  #profileGroup .profileSubMeta:empty { display: none; }
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubMeta {
     display: none;
   }
@@ -2671,9 +2828,10 @@
   }
   #profileGroup .profileSubArrow {
     position: relative;
-    flex: 0 0 8px;
-    width: 8px;
-    height: 8px;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
     opacity: .62;
     background: linear-gradient(var(--ink-faint), var(--ink-faint)) center / 8px 1px no-repeat;
   }
@@ -2684,12 +2842,203 @@
   }
   #profileGroup .profileSubBody { padding: 3px 2px 14px; }
   #profileGroup .profileSubBody > .group-desc:first-child { margin-top: 0; }
+  #profileGroup .profileSubActions {
+    position: static;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    min-height: 32px;
+    gap: 4px;
+  }
+  #profileGroup .profileSubActions + .profileSubArrow { margin-left: 0; }
+  #profileGroup .profileSubFold[open] > .profileSubHead .profileSubActions + .profileSubArrow {
+    margin-left: 0;
+  }
+  #profileGroup .profileEntitySwitch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    min-width: 32px;
+    min-height: 32px;
+    justify-content: center;
+  }
+  #profileGroup .profileEntitySwitch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+  }
+  #profileGroup .profileEntitySwitchTrack {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--bg-field);
+    transition: border-color .14s ease, background .14s ease;
+  }
+  #profileGroup .profileEntitySwitchTrack::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transition: transform .14s ease, background .14s ease;
+  }
+  #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack {
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--line-strong));
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg-field));
+  }
+  #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack::after {
+    transform: translateX(12px);
+    background: color-mix(in srgb, var(--accent) 68%, white);
+  }
+  #profileGroup .profileEntitySwitch input:focus-visible + .profileEntitySwitchTrack {
+    outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    outline-offset: 2px;
+  }
+  #profileGroup .profileEntitySwitch:has(input:disabled) { cursor: default; }
+  #profileGroup .profileEntitySwitch input:disabled + .profileEntitySwitchTrack {
+    border-color: color-mix(in srgb, var(--line-strong) 70%, var(--bg-field));
+    background: var(--bg-muted);
+    opacity: .52;
+  }
+  #profileGroup .profileEntitySwitch input:disabled + .profileEntitySwitchTrack::after {
+    background: color-mix(in srgb, var(--ink-faint) 58%, var(--bg-field));
+  }
+  #profileGroup .profileResetIconBtn {
+    width: 28px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: color-mix(in srgb, var(--ink-faint) 58%, transparent);
+    font-size: 14px;
+    line-height: 1;
+    transition: color .14s ease, background .14s ease;
+  }
+  #profileGroup .profileResetIconBtn:hover {
+    background: var(--bg-muted);
+    color: #a65f59;
+  }
+  #profileGroup .profileSubBody.isEntityDisabled { opacity: .46; }
   #profileGroup .profileTagsRow { align-items: center; }
-  /* 사진 URL은 기본 정보 뒤에 두고, 위치·배율만 한 단계 안쪽의 하위 설정으로 묶는다. */
+  #profileGroup .profileImageRow { align-items: center; }
+  #profileGroup .profileImageField {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  #profileGroup .profileImageField > input {
+    width: 100%;
+    min-width: 0;
+  }
+  #profileGroup .profileImageDot {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 24px;
+    color: #a65f59;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  #profileGroup .profileImageDot[hidden] { display: none; }
+  #profileGroup .profileImageAdjustBtn {
+    width: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 16px;
+    line-height: 1;
+  }
+  #profileGroup .profileImageAdjustBtn:hover:not(:disabled),
+  #profileGroup .profileImageAdjustBtn[aria-expanded="true"] { color: var(--ink); background: var(--bg-muted); }
+  #profileGroup .profileImageAdjustBtn:disabled { opacity: .35; cursor: default; }
+  #profileGroup .profileImageAdjustPanel[hidden] { display: none; }
+  /* 사진 위치·배율은 사진 행 아래에서 필요할 때만 펼친다. */
   #profileGroup .profileImageAdjustments {
-    margin: 4px 0 2px 14px;
+    margin: 4px 0 8px 10px;
+    padding-top: 8px;
     padding-left: 10px;
     border-left: 1px solid var(--line);
+  }
+  #profileGroup .profileImageAdjustFooter {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2px;
+  }
+  #profileGroup .profileImageResetBtn {
+    min-height: 26px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+  }
+  #profileGroup .profileImageResetBtn:hover { color: #a65f59; background: transparent; }
+  #profileGroup .profileImageAdjustments input[type="range"] {
+    height: 18px;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    accent-color: #b8b4ad;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border: 0;
+    border-radius: 999px;
+    background: #dedbd5;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border: 0;
+    border-radius: 50%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: #aaa69f;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-track {
+    height: 4px;
+    border: 0;
+    border-radius: 999px;
+    background: #dedbd5;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: #c7c3bc;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 0;
+    border-radius: 50%;
+    background: #aaa69f;
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(113, 109, 102, .16);
+  }
+  #profileGroup .profileImageAdjustments input[type="range"]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px rgba(113, 109, 102, .16);
   }
   #profileGroup .profileImageAdjustments .row > label {
     color: var(--ink-faint);
@@ -3561,13 +3910,15 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1>조각로그 <span class="enName">Mosaic Log</span></h1>
-      <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
-      <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
-      <button type="button" id="draftConflictBtn" title="다른 탭의 최신 초안을 현재 작업으로 덮어씀" hidden>이 탭 저장</button>
-      <span class="styleHistoryBtns" aria-label="작업 기록" title="큰 작업과 디자인 변경을 작업 단위로 되돌립니다.">
-        <button type="button" id="undoStyleBtn" aria-label="작업 되돌리기" title="작업 되돌리기 (Ctrl+Alt+Z)">↶</button>
-        <button type="button" id="redoStyleBtn" aria-label="작업 되살리기" title="작업 되살리기 (Ctrl+Alt+Shift+Z)">↷</button>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.1 GitHub 저장소 열기">v1.4.1</a></span></h1>
+      <span class="brandActions">
+        <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
+        <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
+        <button type="button" id="draftConflictBtn" title="다른 탭의 최신 초안을 현재 작업으로 덮어씀" hidden>이 탭 저장</button>
+        <span class="styleHistoryBtns" aria-label="작업 기록" title="큰 작업과 디자인 변경을 작업 단위로 되돌립니다.">
+          <button type="button" id="undoStyleBtn" aria-label="작업 되돌리기" title="작업 되돌리기 (Ctrl+Alt+Z)">↶</button>
+          <button type="button" id="redoStyleBtn" aria-label="작업 되살리기" title="작업 되살리기 (Ctrl+Alt+Shift+Z)">↷</button>
+        </span>
       </span>
     </div>
 
@@ -3638,15 +3989,15 @@
         <input type="text" id="logSubtitle" aria-label="자유 부제" placeholder="예: Log #1">
       </span>
     </div>
-    <div class="row selectCycleRow">
-      <label for="titleProfileOrder">인물 순서</label>
-      <select id="titleProfileOrder">
+    <div class="row segmentedChoiceRow">
+      <label id="titleProfileOrderLabel">인물 순서</label>
+      <select id="titleProfileOrder" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
         <option value="bot-user" selected>BOT → USER</option>
         <option value="user-bot">USER → BOT</option>
       </select>
-      <span class="selectCycleStepper" role="group" aria-label="표제·프로필 인물 순서 이전·다음">
-        <button type="button" id="titleProfileOrderPrev" aria-label="이전 인물 순서" title="이전 인물 순서">‹</button>
-        <button type="button" id="titleProfileOrderNext" aria-label="다음 인물 순서" title="다음 인물 순서">›</button>
+      <span class="segmentedChoice isTwo" data-control="titleProfileOrder" role="group" aria-labelledby="titleProfileOrderLabel">
+        <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
+        <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
       </span>
     </div>
     <details class="titleLinkFold">
@@ -3682,38 +4033,40 @@
       <div class="row">
         <label><input type="checkbox" id="profileMinimal"> 미니멀</label>
       </div>
-      <div class="row selectCycleRow">
-        <label for="profilePlacement">배치</label>
-        <select id="profilePlacement">
+      <div class="profileConfigurationLabel">구성</div>
+      <div class="row segmentedChoiceRow">
+        <label id="profilePlacementLabel">배치</label>
+        <select id="profilePlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
           <option value="below" selected>표지 아래</option>
           <option value="top">최상단 독립</option>
         </select>
-        <span class="selectCycleStepper" role="group" aria-label="프로필 배치 이전·다음">
-          <button type="button" id="profilePlacementPrev" aria-label="이전 프로필 배치" title="이전 프로필 배치">‹</button>
-          <button type="button" id="profilePlacementNext" aria-label="다음 프로필 배치" title="다음 프로필 배치">›</button>
+        <span class="segmentedChoice isTwo" data-control="profilePlacement" role="group" aria-labelledby="profilePlacementLabel">
+          <button type="button" data-value="below" aria-pressed="true">표지 아래</button>
+          <button type="button" data-value="top" aria-pressed="false">최상단</button>
         </span>
       </div>
-      <div class="row selectCycleRow">
-        <label for="profileStyle">스타일</label>
-        <select id="profileStyle">
+      <div class="row segmentedChoiceRow">
+        <label id="profileStyleLabel">스타일</label>
+        <select id="profileStyle" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
           <option value="compact" selected>미니</option>
           <option value="portrait">클래식</option>
           <option value="showcase">포트레이트</option>
         </select>
-        <span class="selectCycleStepper" role="group" aria-label="프로필 스타일 이전·다음">
-          <button type="button" id="profileStylePrev" aria-label="이전 프로필 스타일" title="이전 프로필 스타일">‹</button>
-          <button type="button" id="profileStyleNext" aria-label="다음 프로필 스타일" title="다음 프로필 스타일">›</button>
+        <span class="segmentedChoice isThree" data-control="profileStyle" role="group" aria-labelledby="profileStyleLabel">
+          <button type="button" data-value="compact" aria-pressed="true">미니</button>
+          <button type="button" data-value="portrait" aria-pressed="false">클래식</button>
+          <button type="button" data-value="showcase" aria-pressed="false">포트레이트</button>
         </span>
       </div>
-      <div class="row selectCycleRow">
-        <label for="profileProfileOrder">인물 순서</label>
-        <select id="profileProfileOrder">
+      <div class="row segmentedChoiceRow">
+        <label id="profileProfileOrderLabel">인물 순서</label>
+        <select id="profileProfileOrder" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
           <option value="bot-user" selected>BOT → USER</option>
           <option value="user-bot">USER → BOT</option>
         </select>
-        <span class="selectCycleStepper" role="group" aria-label="표제·프로필 인물 순서 이전·다음">
-          <button type="button" id="profileProfileOrderPrev" aria-label="이전 인물 순서" title="이전 인물 순서">‹</button>
-          <button type="button" id="profileProfileOrderNext" aria-label="다음 인물 순서" title="다음 인물 순서">›</button>
+        <span class="segmentedChoice isTwo" data-control="profileProfileOrder" role="group" aria-labelledby="profileProfileOrderLabel">
+          <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
+          <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
         </span>
       </div>
       <input type="hidden" id="profileOrder" value="bot-user">
@@ -3721,14 +4074,14 @@
       </details>
 
       <details class="profileSubFold" id="profileCharGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubMeta" id="profileCharSummary"></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCharResetBtn" aria-label="BOT 전체 초기화" title="BOT 전체 초기화">↺</button><label class="profileEntitySwitch" title="BOT 프로필 표시 전환"><input type="checkbox" id="profileCharOn" checked aria-label="BOT 프로필 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row">
         <label for="profileCharName">이름</label>
         <input type="text" id="profileCharName" maxlength="100" placeholder="표시 이름">
       </div>
       <div class="row">
-        <label for="profileCharUrl">BOT 링크</label>
+        <label for="profileCharUrl">링크</label>
         <input type="url" id="profileCharUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
       </div>
       <div class="row profileTagsRow">
@@ -3741,15 +4094,19 @@
         <input type="hidden" id="profileCharTags" value="">
       </div>
       <div class="row">
-        <label for="profileCharDesc">정보</label>
+        <label for="profileCharDesc">소개</label>
         <textarea id="profileCharDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
-      <div class="row">
+      <div class="row profileImageRow">
         <label for="profileCharImage">사진</label>
-        <input type="url" id="profileCharImage" maxlength="8192" placeholder="이미지 URL">
+        <div class="profileImageField">
+          <input type="url" id="profileCharImage" maxlength="8192" placeholder="이미지 URL">
+          <span class="imageLoadStatus profileImageDot" id="profileCharImageStatus" data-state="idle" aria-live="polite" hidden></span>
+          <button type="button" class="profileImageAdjustBtn" id="profileCharImageAdjustBtn" aria-label="BOT 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="profileCharImageAdjustPanel">⚙︎</button>
+        </div>
       </div>
-      <div class="imageCheckRow"><span class="imageLoadStatus" id="profileCharImageStatus" data-state="idle" aria-live="polite" hidden></span></div>
-      <div class="profileImageAdjustments" role="group" aria-label="BOT 사진 조절">
+      <div class="profileImageAdjustPanel" id="profileCharImageAdjustPanel" hidden>
+        <div class="profileImageAdjustments" role="group" aria-label="BOT 사진 조절">
         <div class="row">
           <label for="profileCharScale">배율</label>
           <input type="range" id="profileCharScale" min="100" max="300" step="5" value="100">
@@ -3765,12 +4122,14 @@
           <input type="range" id="profileCharY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileCharYVal" data-range="profileCharY" value="50" aria-label="봇 사진 세로 위치 직접 입력"></span>
         </div>
+        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn" id="profileCharImageResetBtn">사진 초기화</button></div>
+        </div>
       </div>
         </div>
       </details>
 
       <details class="profileSubFold" id="profileUserGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubMeta" id="profileUserSummary"></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileUserResetBtn" aria-label="USER 전체 초기화" title="USER 전체 초기화">↺</button><label class="profileEntitySwitch" title="USER 프로필 표시 전환"><input type="checkbox" id="profileUserOn" checked aria-label="USER 프로필 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row">
         <label for="profileUserName">이름</label>
@@ -3786,15 +4145,19 @@
         <input type="hidden" id="profileUserTags" value="">
       </div>
       <div class="row">
-        <label for="profileUserDesc">정보</label>
+        <label for="profileUserDesc">소개</label>
         <textarea id="profileUserDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
-      <div class="row">
+      <div class="row profileImageRow">
         <label for="profileUserImage">사진</label>
-        <input type="url" id="profileUserImage" maxlength="8192" placeholder="이미지 URL">
+        <div class="profileImageField">
+          <input type="url" id="profileUserImage" maxlength="8192" placeholder="이미지 URL">
+          <span class="imageLoadStatus profileImageDot" id="profileUserImageStatus" data-state="idle" aria-live="polite" hidden></span>
+          <button type="button" class="profileImageAdjustBtn" id="profileUserImageAdjustBtn" aria-label="USER 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="profileUserImageAdjustPanel">⚙︎</button>
+        </div>
       </div>
-      <div class="imageCheckRow"><span class="imageLoadStatus" id="profileUserImageStatus" data-state="idle" aria-live="polite" hidden></span></div>
-      <div class="profileImageAdjustments" role="group" aria-label="USER 사진 조절">
+      <div class="profileImageAdjustPanel" id="profileUserImageAdjustPanel" hidden>
+        <div class="profileImageAdjustments" role="group" aria-label="USER 사진 조절">
         <div class="row">
           <label for="profileUserScale">배율</label>
           <input type="range" id="profileUserScale" min="100" max="300" step="5" value="100">
@@ -3810,12 +4173,14 @@
           <input type="range" id="profileUserY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileUserYVal" data-range="profileUserY" value="50" aria-label="유저 사진 세로 위치 직접 입력"></span>
         </div>
+        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn" id="profileUserImageResetBtn">사진 초기화</button></div>
+        </div>
       </div>
         </div>
       </details>
 
       <details class="profileSubFold" id="profileCommonGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubMeta" id="profileCommonSummary"></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCommonResetBtn" aria-label="관계와 상황 내용 초기화" title="관계와 상황 내용 초기화">↺</button><label class="profileEntitySwitch" title="관계와 상황 표시 전환"><input type="checkbox" id="profileCommonOn" checked aria-label="관계와 상황 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row profileTagsRow">
         <label id="profileRelationshipLabel">관계·키워드</label>
@@ -3961,15 +4326,21 @@
       <p class="group-desc">규칙을 저장하면 기존·새 입력에 계속 자동 적용</p>
       <div class="nameReplaceRow keywordAutoRow">
         <div class="nameFieldGroup">
-          <input type="text" id="keywordFrom" aria-label="찾을 키워드" placeholder="찾을 키워드">
+          <input type="text" id="keywordFrom" maxlength="80" aria-label="찾을 키워드" placeholder="찾을 키워드">
           <span class="arrowSep">→</span>
-          <input type="text" id="keywordTo" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
+          <input type="text" id="keywordTo" maxlength="80" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
+        </div>
+        <div class="nameActionGroup">
+          <button type="button" id="keywordAddBtn">치환</button>
         </div>
       </div>
+      <input type="hidden" id="keywordRules" value="[]">
       <div id="keywordStatus" class="hint" aria-live="polite"></div>
+      <div id="keywordRuleList" class="keywordRuleList" aria-label="활성 키워드 치환 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
-        <p class="hint">바꿀 키워드 입력 후 Enter 또는 바깥 클릭 시 자동 규칙 활성화 · 기존 카드와 이후 입력 모두 적용</p>
+        <p class="hint">치환 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
+        <p class="hint">각 규칙의 되돌리기는 현재 본문에서 바뀐 문구를 원래 문구로 되돌리고 규칙을 제거</p>
         <p class="hint">모든 카드 적용 · 대소문자를 구분해 입력한 문구와 정확히 일치하는 부분만 변경</p>
         <p class="hint">이름·조사 자동 변환과 테마의 인물 이름 변경은 적용하지 않음</p>
       </details>
@@ -4721,6 +5092,13 @@ function processInline(text, emphasisColor, options){
   return content.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
 }
 
+// Shift+Enter로 만든 같은 문단 내 줄바꿈. 일반 줄을 합치는 단계에서만 이 토큰을
+// 만들기 때문에 사용자가 직접 입력한 HTML이나 구조 문법과 섞이지 않는다.
+const SOFT_BREAK_TOKEN = '\uE200';
+function processBodyInline(text, emphasisColor, options){
+  return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join('<br>');
+}
+
 // 배경색 밝기에 따라 읽기 좋은 글자색(흰/검)을 자동 선택 (옵션2 배경 강조용)
 function textColorFor(hex){
   const h = hex.replace('#','');
@@ -5036,10 +5414,10 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
       const txtColor = soft ? color : textColorFor(bgColor);
-      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processInline(dialogueSource, settings.emphasisColor)}</span>${parallelTranslationHtml}</p>\n`);
+      return wrapDialogue(`      <p style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor)}</span>${parallelTranslationHtml}</p>\n`);
     }
 
-    const dialogueHtml = processInline(dialogueSource, settings.emphasisColor);
+    const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor);
     const dialogueBodyHtml = parallelDialogue && parallelTranslationMode === 'inline'
       ? `<span style="display:block;">${dialogueHtml}${parallelTranslationHtml}</span>`
       : `<span style="display:block;">${dialogueHtml}</span>${parallelTranslationHtml}`;
@@ -5067,7 +5445,7 @@ function buildParagraph(rawLine, settings, opts){
           : (speaker === 'user' ? settings.userColor : settings.charColor));
     // 병행 번역을 임시 토큰으로 보호하고 사용자 글자를 안전한 HTML로 만든 뒤 대사 강조를 합친다.
     const preparedParallel = prepareMixedParallelTranslations(line, settings, baseColor);
-    let content = processInline(preparedParallel.line, settings.emphasisColor);
+    let content = processBodyInline(preparedParallel.line, settings.emphasisColor);
 
     // 옵션1·2에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
     // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
@@ -5153,6 +5531,9 @@ function getSettings(){
     logSubtitle: document.getElementById('logSubtitle').value,
     profileOn: document.getElementById('profileOn').checked,
     profileMinimal: document.getElementById('profileMinimal').checked,
+    profileCharOn: document.getElementById('profileCharOn').checked,
+    profileUserOn: document.getElementById('profileUserOn').checked,
+    profileCommonOn: document.getElementById('profileCommonOn').checked,
     profilePlacement: document.getElementById('profilePlacement').value,
     profileStyle: document.getElementById('profileStyle').value,
     profileOrder: document.getElementById('profileOrder').value,
@@ -5202,7 +5583,7 @@ function buildImageBlock(settings){
   const outerBorder = settings.cardBorderOn === false
     ? ''
     : `border-left:1px solid ${pal.headingBorder}; border-right:1px solid ${pal.headingBorder}; border-top:1px solid ${pal.headingBorder};`;
-  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
+  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
 `;
 }
 
@@ -5366,9 +5747,26 @@ function expandDialogueLinesForOutput(lines, settings){
   return expanded;
 }
 
+function combineSoftBreakLines(lines){
+  const combined = [];
+  for(let i = 0; i < lines.length; i++){
+    let line = String(lines[i]);
+    while(/\[BR\]\s*$/i.test(line) && i + 1 < lines.length){
+      const left = line.replace(/\[BR\]\s*$/i, '');
+      const right = String(lines[i + 1]);
+      // 빈 줄과 제목·인용·이미지·상태창·접기 등 구조 줄은 같은 문단으로 묶지 않는다.
+      if(!left.trim() || !right.trim() || isStructuralBodyLine(left) || isStructuralBodyLine(right)) break;
+      line = left + SOFT_BREAK_TOKEN + right;
+      i++;
+    }
+    combined.push(line);
+  }
+  return combined;
+}
+
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (수동 접기 + 소제목 접기 포함)
 function assembleBody(lines, settings){
-  const renderLines = expandDialogueLinesForOutput(lines, settings);
+  const renderLines = expandDialogueLinesForOutput(combineSoftBreakLines(lines), settings);
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]'; };
   let bodyHTML = '';
   let manualBuf = null, manualTitle = '';   // [접기 제목] ... [/접기]
@@ -5496,7 +5894,7 @@ function buildTitleBlock(settings, hasImg){
   // 일반 표제의 기존 간격은 그대로 유지한다.
   const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+  return `<div data-mosaic-title="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
 `;
 }
 
@@ -5516,11 +5914,13 @@ function profileImageBackgroundSize(url, zoom){
 // flex/grid를 쓰지 않고 block·inline-block·table-cell만 사용한다.
 function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTopSpacing){
   if(!settings.profileOn) return '';
-  const relationship = (settings.profileRelationship || '').trim();
-  const situation = (settings.profileSituation || '').trim();
+  const commonEnabled = settings.profileCommonOn !== false;
+  const relationship = commonEnabled ? (settings.profileRelationship || '').trim() : '';
+  const situation = commonEnabled ? (settings.profileSituation || '').trim() : '';
   let profiles = [
     {
       role:'BOT',
+      enabled:settings.profileCharOn !== false,
       image:(settings.profileCharImage || '').trim(),
       scale:settings.profileCharScale,
       x:settings.profileCharX,
@@ -5532,6 +5932,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     },
     {
       role:'USER',
+      enabled:settings.profileUserOn !== false,
       image:(settings.profileUserImage || '').trim(),
       scale:settings.profileUserScale,
       x:settings.profileUserX,
@@ -5541,7 +5942,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       tags:(settings.profileUserTags || '').trim(),
       color:settings.userColor
     }
-  ].filter(profile => profile.image || profile.name || profile.desc || profile.tags);
+  ].filter(profile => profile.enabled && (profile.image || profile.name || profile.desc || profile.tags));
   if(settings.profileOrder === 'user-bot') profiles.reverse();
   if(!profiles.length && !relationship && !situation) return '';
 
@@ -5979,7 +6380,7 @@ function buildCard(settings){
         : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span>`;
       const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
       const foldBodyPadding = foldDividerMinimal
-        ? `clamp(26px,5vw,30px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
+        ? `clamp(12px,2.5vw,16px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
         : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
       return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
@@ -5998,7 +6399,7 @@ ${bodyHTML}${footer}  </div>
         : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span>`;
       const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
       const cardBodyPadding = foldDividerMinimal
-        ? `clamp(26px,5vw,30px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
+        ? `clamp(12px,2.5vw,16px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
         : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
       return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
   <div data-mosaic-card-title="true" style="padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
@@ -6551,12 +6952,47 @@ function previewSourceBlocks(cardEl){
 function sourceDisplayEntries(ta){
   const result = [];
   const settings = getSettings();
-  ta.value.split('\n').forEach((line, raw) => {
+  const sourceLines = ta.value.split('\n');
+  for(let raw = 0; raw < sourceLines.length; raw++){
+    let line = sourceLines[raw];
     const trimmed = line.trim();
-    if(!trimmed) return;
+    if(!trimmed) continue;
     if(/^\[접기\]\s*$/.test(trimmed)){
       result.push({ raw, editable:false });
-      return;
+      continue;
+    }
+
+    // [BR]로 이어진 여러 원문 줄은 미리보기에서 하나의 문단이므로 직접 편집도
+    // 하나의 항목으로 묶는다. 구조 문법·빈 줄 앞에서는 결합하지 않는다.
+    let rawEnd = raw;
+    let combinedLine = line;
+    while(/\[BR\]\s*$/i.test(combinedLine) && rawEnd + 1 < sourceLines.length){
+      const left = combinedLine.replace(/\[BR\]\s*$/i, '');
+      const right = sourceLines[rawEnd + 1];
+      if(!left.trim() || !right.trim() || isStructuralBodyLine(left) || isStructuralBodyLine(right)) break;
+      combinedLine = left + SOFT_BREAK_TOKEN + right;
+      rawEnd++;
+    }
+    if(rawEnd > raw){
+      const renderLines = expandDialogueLinesForOutput([combinedLine], settings);
+      renderLines.forEach(renderLine => {
+        const projection = sourceDisplayProjectionMap(renderLine).text
+          .split(SOFT_BREAK_TOKEN).join('\n').trim();
+        if(!projection) return;
+        result.push({
+          raw,
+          rawEnd,
+          editable:renderLines.length === 1,
+          renderLine,
+          projection,
+          occurrence:0,
+          sourceBounds:null,
+          segmented:false,
+          softBreak:true
+        });
+      });
+      raw = rawEnd;
+      continue;
     }
     // 대사 옵션 3–5는 한 원문 줄 안의 서술과 대사를 여러 출력 문단으로 나눈다.
     // 미리보기 편집 연결도 같은 분할 결과를 사용해야 HR 등 구조 요소 뒤에서
@@ -6573,6 +7009,7 @@ function sourceDisplayEntries(ta){
       if(sourceBounds) sourceCursor = sourceBounds.end;
       result.push({
         raw,
+        rawEnd:raw,
         editable:true,
         renderLine,
         projection,
@@ -6581,7 +7018,7 @@ function sourceDisplayEntries(ta){
         segmented:renderLines.length > 1
       });
     });
-  });
+  }
   return result;
 }
 
@@ -6601,6 +7038,8 @@ function findBlockSource(node){
     ta:ctx.ta,
     block,
     raw:entry.raw,
+    rawEnd:entry.rawEnd === undefined ? entry.raw : entry.rawEnd,
+    softBreak:!!entry.softBreak,
     segmented:!!entry.segmented,
     sourceBounds:entry.sourceBounds || null
   };
@@ -6687,7 +7126,7 @@ function replacePreviewBodyLine(rawLine, nextVisible){
   return replaceVisibleUsingProjection(raw, nextVisible, lineSearchProjection(raw));
 }
 
-function previewEditableText(el){
+function previewEditableText(el, preserveLineBreaks){
   const clone = el.cloneNode(true);
   clone.querySelectorAll('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')
     .forEach(node => node.remove());
@@ -6695,6 +7134,14 @@ function previewEditableText(el){
   // 붙어 버린다. 원문의 두 내용 사이 공백과 동일하게 한 칸을 보존한다.
   clone.querySelectorAll('[data-mosaic-parallel-translation-mode="stack"]')
     .forEach(node => node.before(document.createTextNode(' ')));
+  if(preserveLineBreaks){
+    clone.querySelectorAll('br').forEach(node => node.replaceWith(document.createTextNode('\n')));
+    return clone.textContent
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]*\n[ \t]*/g, '\n')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
   return clone.textContent.replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
 }
 
@@ -6754,7 +7201,7 @@ function syncDirectEditPosition(el, descriptor){
     revealInEditor(
       descriptor.ta,
       descriptor.raw,
-      previewEditableText(el),
+      previewEditableText(el, true),
       0,
       descriptor.sourceBounds,
       descriptor.segmented
@@ -6764,7 +7211,7 @@ function syncDirectEditPosition(el, descriptor){
 
 function commitPreviewDirectEdit(el, descriptor){
   if(previewDirectEditCommitting) return;
-  const next = previewEditableText(el);
+  const next = previewEditableText(el, descriptor.type === 'body');
   if(descriptor.type === 'cover'){
     const input = document.getElementById(descriptor.id);
     if(!input) return;
@@ -6853,6 +7300,30 @@ function commitPreviewDirectEdit(el, descriptor){
   const lines = ta ? ta.value.split('\n') : [];
   if(!ta || lines[descriptor.raw] === undefined) return;
   const rawLine = lines[descriptor.raw];
+  const rawEnd = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
+  if(!descriptor.segmented && (descriptor.softBreak || next.includes('\n'))){
+    const nextParts = next.split('\n');
+    const oldParts = lines.slice(descriptor.raw, rawEnd + 1)
+      .map(part => part.replace(/\[BR\]\s*$/i, ''));
+    const updatedGroup = nextParts.map((part, index) => {
+      // 기존 각 줄의 [C]·화자·색상·강조 문법은 가능한 한 그대로 유지하고,
+      // 새로 생긴 줄만 보이는 글자를 원문으로 사용한다.
+      if(oldParts[index] !== undefined) return replacePreviewBodyLine(oldParts[index], part);
+      return part;
+    }).join('[BR]\n');
+    const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
+    if(updatedGroup === oldGroup) return;
+    previewDirectEditCommitting = true;
+    snapshotCards();
+    const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
+    lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
+    ta.value = lines.join('\n');
+    activeTa = ta;
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast('미리보기에서 같은 문단 줄바꿈 수정.');
+    previewDirectEditCommitting = false;
+    return;
+  }
   let updated;
   if(descriptor.segmented && descriptor.sourceBounds){
     const start = descriptor.sourceBounds.start;
@@ -7043,7 +7514,9 @@ function enablePreviewDirectEditor(el, descriptor, label){
   el.setAttribute('contenteditable', 'plaintext-only');
   el.setAttribute('role', 'textbox');
   el.setAttribute('aria-label', label);
-  el.setAttribute('title', '미리보기에서 수정 · Enter 저장 · Esc 취소');
+  el.setAttribute('title', descriptor.type === 'body'
+    ? '미리보기에서 수정 · Enter 저장 · Shift+Enter 같은 문단 줄바꿈 · Esc 취소'
+    : '미리보기에서 수정 · Enter 저장 · Esc 취소');
   // 미리보기는 교정 화면이 아니므로 브라우저·확장 프로그램의 빨간 맞춤법 밑줄을 표시하지 않는다.
   el.spellcheck = false;
   el.setAttribute('spellcheck', 'false');
@@ -7059,14 +7532,14 @@ function enablePreviewDirectEditor(el, descriptor, label){
   let cancelled = false;
   let focusValue = '';
   const syncChangedHighlight = () => {
-    if(previewEditableText(el) !== focusValue){
+    if(previewEditableText(el, descriptor.type === 'body') !== focusValue){
       el.dataset.previewEditChanged = 'true';
     }else{
       delete el.dataset.previewEditChanged;
     }
   };
   el.addEventListener('focus', () => {
-    focusValue = previewEditableText(el);
+    focusValue = previewEditableText(el, descriptor.type === 'body');
     delete el.dataset.previewEditChanged;
     syncDirectEditPosition(el, descriptor);
   });
@@ -7117,6 +7590,23 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
     if(e.key === 'Enter'){
       e.preventDefault();
+      if(e.shiftKey && descriptor.type === 'body'){
+        const selection = window.getSelection();
+        if(selection && selection.rangeCount){
+          const range = selection.getRangeAt(0);
+          if(el.contains(range.startContainer) && el.contains(range.endContainer)){
+            range.deleteContents();
+            const br = document.createElement('br');
+            range.insertNode(br);
+            range.setStartAfter(br);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            syncChangedHighlight();
+          }
+        }
+        return;
+      }
       el.blur();
     } else if(e.key === 'Escape'){
       e.preventDefault();
@@ -7129,7 +7619,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     if(cancelled) return;
     // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
     // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
-    if(previewEditableText(el) === focusValue){
+    if(previewEditableText(el, descriptor.type === 'body') === focusValue){
       delete el.dataset.previewEditChanged;
       return;
     }
@@ -7212,6 +7702,8 @@ function decoratePreviewDirectEditors(){
           type:'body',
           ta:ctx.ta,
           raw:entry.raw,
+          rawEnd:entry.rawEnd === undefined ? entry.raw : entry.rawEnd,
+          softBreak:!!entry.softBreak,
           segmented:entry.segmented,
           sourceBounds:entry.sourceBounds || null
         }, '본문 문단 수정');
@@ -7613,20 +8105,6 @@ function previewCoverHTML(excludeProfile = false){
   return stripEditorOutputMetadata(coverNodes.map(el => el.outerHTML).join('\n'));
 }
 
-// 프로필을 최상단 독립 카드로 둘 때는 그 아래의 대표 이미지·표제·첫 본문 카드가
-// 시각적으로 하나의 카드다. 개별 복사에서도 같은 단위가 유지되도록 첫 카드까지 포함한다.
-function previewCoverWithFirstCardHTML(excludeProfile = false){
-  if(!previewSourceHTML) return '';
-  const doc = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
-  const children = Array.from(doc.body.children);
-  const firstCardIndex = children.findIndex(el => el.hasAttribute('data-mosaic-card-index'));
-  const candidates = firstCardIndex < 0 ? children : children.slice(0, firstCardIndex + 1);
-  const groupedNodes = excludeProfile
-    ? candidates.filter(el => el.getAttribute('data-mosaic-profile') !== 'true')
-    : candidates;
-  return stripEditorOutputMetadata(groupedNodes.map(el => el.outerHTML).join('\n'));
-}
-
 function copyPreviewCardText(text){
   // file:// 미리보기에서도 동작하도록 동기 복사를 우선하고 Clipboard API를 보조로 쓴다.
   try {
@@ -7652,26 +8130,105 @@ function copyPreviewCardText(text){
   return Promise.resolve(false);
 }
 
+const PREVIEW_CONTROL_INSET = 8;
+const PREVIEW_CONTROL_GAP = 6;
+const PREVIEW_CONTROL_SIZE = 27;
+
+function createPreviewControlButton(className, text, title){
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.textContent = text;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  return button;
+}
+
 function positionPreviewCopyButton(button){
   const target = button._mosaicCopyTarget;
   if(!target || !target.isConnected) return;
-  button.style.top = `${target.offsetTop + 8}px`;
-  button.style.left = `${target.offsetLeft + target.offsetWidth + 8}px`;
+  button.style.top = `${target.offsetTop + PREVIEW_CONTROL_INSET}px`;
+  button.style.left = `${target.offsetLeft + target.offsetWidth + PREVIEW_CONTROL_INSET}px`;
 }
 
-function layoutPreviewCopyButtons(){
+function positionPreviewProfilePlacementButton(button){
+  const target = button._mosaicProfileTarget;
+  if(!target || !target.isConnected) return;
+  const preview = document.getElementById('preview');
+  const overlappingCopy = Array.from(preview.querySelectorAll(':scope > .previewBlockCopyBtn'))
+    .find(copy => copy._mosaicCopyTarget === target);
+  const stackOffset = overlappingCopy ? overlappingCopy.offsetHeight + PREVIEW_CONTROL_GAP : 0;
+  button.style.top = `${target.offsetTop + PREVIEW_CONTROL_INSET + stackOffset}px`;
+  button.style.left = `${target.offsetLeft + target.offsetWidth + PREVIEW_CONTROL_INSET}px`;
+}
+
+function previewElementRect(element, positioningRoot){
+  const root = positioningRoot || document.getElementById('preview');
+  let top = 0;
+  let left = 0;
+  let node = element;
+  while(node && node !== root){
+    top += node.offsetTop;
+    left += node.offsetLeft;
+    node = node.offsetParent;
+  }
+  if(node === root){
+    return { top, left, width: element.offsetWidth };
+  }
+  // 서로 다른 좌표 컨텍스트가 생긴 예외적인 레이아웃에서만 화면 좌표로 보정한다.
+  const rootRect = root.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  return {
+    top: rect.top - rootRect.top - root.clientTop + root.scrollTop,
+    left: rect.left - rootRect.left - root.clientLeft + root.scrollLeft,
+    width: rect.width
+  };
+}
+
+function positionPreviewMinimalToggleButton(button){
+  const target = button._mosaicMinimalTarget;
+  const anchor = button._mosaicMinimalAnchor || target;
+  if(!target || !anchor || !target.isConnected || !anchor.isConnected) return;
+  const preview = document.getElementById('preview');
+  // 버튼의 absolute 좌표는 #preview가 아니라 실제 offsetParent를 기준으로 계산한다.
+  // 미리보기 자체의 좌표만 빼면 표제 버튼이 페이지 상단에 붙는 문제가 생긴다.
+  const positioningRoot = button.offsetParent || preview;
+  const targetRect = previewElementRect(target, positioningRoot);
+  const anchorRect = previewElementRect(anchor, positioningRoot);
+  const buttonHeight = button.offsetHeight || PREVIEW_CONTROL_SIZE;
+  const left = anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET;
+  let top = targetRect.top + PREVIEW_CONTROL_INSET;
+  // 같은 오른쪽 열에서 기존 복사·이동 버튼과 실제로 겹칠 때만 그 아래로 쌓는다.
+  preview.querySelectorAll(':scope > .previewBlockCopyBtn, :scope > .previewProfilePlacementBtn').forEach(control => {
+    const controlRect = previewElementRect(control, positioningRoot);
+    const controlTop = controlRect.top;
+    const controlLeft = controlRect.left;
+    const controlHeight = control.offsetHeight || PREVIEW_CONTROL_SIZE;
+    if(!Number.isFinite(controlTop) || !Number.isFinite(controlLeft)) return;
+    const sameColumn = Math.abs(controlLeft - left) < 2;
+    const overlaps = top < controlTop + controlHeight + PREVIEW_CONTROL_GAP
+      && top + buttonHeight + PREVIEW_CONTROL_GAP > controlTop;
+    if(sameColumn && overlaps) top = controlTop + controlHeight + PREVIEW_CONTROL_GAP;
+  });
+  button.style.top = `${top}px`;
+  button.style.left = `${left}px`;
+}
+
+function layoutPreviewFloatingButtons(){
   document.querySelectorAll('#preview > .previewBlockCopyBtn').forEach(positionPreviewCopyButton);
+  document.querySelectorAll('#preview > .previewProfilePlacementBtn').forEach(positionPreviewProfilePlacementButton);
+  document.querySelectorAll('#previewWrap > .previewMinimalToggleBtn').forEach(positionPreviewMinimalToggleButton);
+}
+
+function previewCopySuccessMessage(label){
+  const compact = String(label).replace(/^카드\s+(\d+)$/, '카드$1');
+  return `${compact}의 HTML을 복사했습니다.`;
 }
 
 function addPreviewCopyButton(target, label, getHTML, successMessage){
   if(!target) return;
   const preview = document.getElementById('preview');
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'previewBlockCopyBtn';
-  button.textContent = '⧉';
-  button.title = `${label} HTML 복사`;
-  button.setAttribute('aria-label', button.title);
+  const button = createPreviewControlButton('previewBlockCopyBtn', '⧉', `${label} HTML 복사`);
   button._mosaicCopyTarget = target;
   button.addEventListener('click', event => {
     event.preventDefault();
@@ -7680,7 +8237,7 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
     if(!html){
       button.textContent = '!';
       button.classList.add('isError');
-      showUndoToast(`${label} HTML을 찾지 못했습니다.`);
+      showNoticeToast(`${label} HTML을 찾지 못했습니다.`);
       return;
     }
     copyPreviewCardText(html).then(done => {
@@ -7688,7 +8245,7 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
       button.classList.toggle('isError', !done);
       button.textContent = done ? '✓' : '!';
       button.title = done ? `${label} HTML 복사 완료` : '클립보드 권한을 확인해 주세요';
-      showUndoToast(done
+      showNoticeToast(done
         ? successMessage
         : '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.');
       setTimeout(() => {
@@ -7715,32 +8272,26 @@ function decoratePreviewCopyButtons(){
         const profileHTML = previewProfileHTML();
         return profileHTML ? `${profileHTML}\n<br>` : '';
       },
-      '프로필 HTML과 아래 여백 한 줄을 복사했습니다.'
+      previewCopySuccessMessage('프로필')
     );
   }
   const coverTarget = parts.image || parts.title || (!profileAtTop ? parts.profile : null);
-  // 대표 이미지나 표제가 있으면 배치 방식과 무관하게 첫 본문 카드까지 하나의 표지
-  // 복사 단위로 취급한다. 프로필 최상단 독립일 때만 프로필을 이 묶음에서 제외한다.
-  const mergeCoverWithFirstCard = !!(parts.image || parts.title) && cardContexts.length > 0;
-  const coverHTMLForCopy = () => mergeCoverWithFirstCard
-    ? previewCoverWithFirstCardHTML(profileAtTop)
-    : previewCoverHTML(profileAtTop);
+  // 미리보기의 실제 외곽 카드 단위로 복사한다. 대표 이미지·표제·붙어 있는 프로필은
+  // 첫 외곽 카드로 함께 복사하고, 첫 본문 카드는 다음 독립 카드로 따로 복사한다.
+  const coverHTMLForCopy = () => previewCoverHTML(profileAtTop);
   if(coverTarget && coverHTMLForCopy()){
+    const coverLabel = !profileAtTop && parts.profile ? '표지와 프로필' : '표지';
     addPreviewCopyButton(
       coverTarget,
-      mergeCoverWithFirstCard ? '표지와 첫 카드' : '표지',
+      coverLabel,
       () => {
         const coverHTML = coverHTMLForCopy();
         return coverHTML ? `${coverHTML}\n<br>` : '';
       },
-      mergeCoverWithFirstCard
-        ? '표지와 첫 카드 HTML을 한 덩어리로 복사했습니다.'
-        : '표지 HTML과 아래 여백 한 줄을 복사했습니다.'
+      previewCopySuccessMessage(coverLabel)
     );
   }
   cardContexts.forEach((ctx, visibleIndex) => {
-    // 대표 이미지·표제가 있으면 첫 카드는 바로 위 표지 복사에 이미 포함된다.
-    if(mergeCoverWithFirstCard && visibleIndex === 0) return;
     const label = `카드 ${visibleIndex + 1}`;
     addPreviewCopyButton(
       ctx.cardEl,
@@ -7749,20 +8300,107 @@ function decoratePreviewCopyButtons(){
         const cardHTML = previewCardHTML(ctx.sourceIndex);
         return cardHTML ? `${cardHTML}\n<br>` : '';
       },
-      `${label} HTML과 아래 여백 한 줄을 복사했습니다.`
+      previewCopySuccessMessage(label)
     );
   });
   // 접기 상태가 바뀌면 아래 카드의 위치도 달라지므로 외곽 버튼을 다시 맞춘다.
   document.querySelectorAll('#preview details').forEach(detail => {
-    detail.addEventListener('toggle', () => requestAnimationFrame(layoutPreviewCopyButtons));
+    detail.addEventListener('toggle', () => requestAnimationFrame(layoutPreviewFloatingButtons));
   });
 }
 
-window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewCopyButtons));
+function decoratePreviewProfilePlacementButton(){
+  const profile = previewParts().profile;
+  if(!profile) return;
+  const placement = document.getElementById('profilePlacement');
+  if(!placement) return;
+  const atTop = placement.value === 'top';
+  const title = atTop ? '프로필을 표지 아래로 이동' : '프로필을 최상단 독립으로 이동';
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  button._mosaicProfileTarget = profile;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const next = placement.value === 'top' ? 'below' : 'top';
+    placement.value = next;
+    placement.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(next === 'top'
+      ? '프로필을 최상단 독립으로 이동했습니다.'
+      : '프로필을 표지 아래로 이동했습니다.');
+  });
+  document.getElementById('preview').appendChild(button);
+  positionPreviewProfilePlacementButton(button);
+}
+
+function addPreviewMinimalToggleButton(target, anchor, inputId, label){
+  const input = document.getElementById(inputId);
+  if(!target || !input) return;
+  const title = input.checked ? `${label} 미니멀 해제` : `${label} 미니멀 적용`;
+  const button = createPreviewControlButton('previewMinimalToggleBtn', input.checked ? '•' : '○', title);
+  button.setAttribute('aria-pressed', String(input.checked));
+  button._mosaicMinimalTarget = target;
+  button._mosaicMinimalAnchor = anchor || target;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const enabled = !input.checked;
+    input.checked = enabled;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(`${label} 미니멀을 ${enabled ? '적용' : '해제'}했습니다.`);
+  });
+  document.getElementById('previewWrap').appendChild(button);
+  positionPreviewMinimalToggleButton(button);
+}
+
+function addPreviewCardDividerToggleButton(cardEl, titleEl){
+  const divider = document.getElementById('foldDividerOn');
+  if(!cardEl || !titleEl || !divider) return;
+  const title = divider.checked
+    ? '모든 카드 제목 구분선 숨기기'
+    : '모든 카드 제목 구분선 표시';
+  const button = createPreviewControlButton('previewMinimalToggleBtn', divider.checked ? '○' : '•', title);
+  button.setAttribute('aria-pressed', String(!divider.checked));
+  button._mosaicMinimalTarget = titleEl;
+  button._mosaicMinimalAnchor = cardEl;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    divider.checked = !divider.checked;
+    syncDesignSummaries();
+    render();
+    scheduleDraftSave();
+    showUndoToast(divider.checked
+      ? '모든 카드 제목 구분선을 표시했습니다.'
+      : '모든 카드 제목 구분선을 숨겼습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+  positionPreviewMinimalToggleButton(button);
+}
+
+function decoratePreviewMinimalToggleButtons(){
+  document.querySelectorAll('#previewWrap > .previewMinimalToggleBtn').forEach(button => button.remove());
+  const parts = previewParts();
+  addPreviewMinimalToggleButton(parts.title, parts.title, 'titleMinimal', '표제');
+  addPreviewMinimalToggleButton(parts.profile, parts.profile, 'profileMinimal', '프로필');
+  const footer = document.querySelector('#preview [data-mosaic-footer="true"]');
+  const footerCard = footer && footer.closest('[data-mosaic-card-index]');
+  addPreviewMinimalToggleButton(footer, footerCard || footer, 'footerMinimal', '꼬리말');
+  previewCardContexts().forEach(({ cardEl }) => {
+    const titleEl = cardEl.tagName === 'DETAILS'
+      ? cardEl.querySelector(':scope > summary')
+      : cardEl.querySelector(':scope > [data-mosaic-card-title="true"]');
+    addPreviewCardDividerToggleButton(cardEl, titleEl);
+  });
+}
+
+window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewFloatingButtons));
 // 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
 // 달라지는 경우에도 외곽 복사 버튼을 해당 카드 오른쪽에 다시 맞춘다.
 const previewCopyResizeObserver = typeof ResizeObserver === 'function'
-  ? new ResizeObserver(() => requestAnimationFrame(layoutPreviewCopyButtons))
+  ? new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons))
   : null;
 if(previewCopyResizeObserver){
   previewCopyResizeObserver.observe(document.getElementById('preview'));
@@ -7807,7 +8445,12 @@ function renderPreview(prebuiltHTML){
   if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
   decoratePreviewDirectEditors();
   decoratePreviewCopyButtons();
-  requestAnimationFrame(() => preview.classList.remove('previewRefreshing'));
+  decoratePreviewProfilePlacementButton();
+  decoratePreviewMinimalToggleButtons();
+  requestAnimationFrame(() => {
+    layoutPreviewFloatingButtons();
+    preview.classList.remove('previewRefreshing');
+  });
 }
 
 // 한 번 클릭하면 편집 메뉴를 열고, 일정 거리 이상 움직이면 기존 드래그 이동을 시작한다.
@@ -8062,10 +8705,14 @@ function previewParts(){
   const preview = document.getElementById('preview');
   const parts = { image: null, title: null, profile: null, cards: [] };
   Array.from(preview.children).forEach(el => {
+    // 대표 이미지 목록 인식용 숨김 썸네일을 표제 밴드로 오인하지 않는다.
+    if(el.hidden || el.getAttribute('aria-hidden') === 'true') return;
     if(el.hasAttribute('data-mosaic-card-index')){ parts.cards.push(el); return; }
     if(el.tagName === 'DETAILS'){ parts.cards.push(el); return; }
     if(el.tagName !== 'DIV') return;                       // 숨김 썸네일 <p>
     if(el.dataset.mosaicProfile === 'true'){ parts.profile = el; return; }
+    if(el.dataset.mosaicCoverImage === 'true'){ parts.image = el; return; }
+    if(el.dataset.mosaicTitle === 'true'){ parts.title = el; return; }
     if(el.style.backgroundImage){ parts.image = el; return; }
     const first = el.firstElementChild;
     if(first && first.tagName === 'DIV') parts.cards.push(el);   // 카드(안쪽 패딩 div)
@@ -8225,6 +8872,42 @@ function syncProfileImageRangeLabels(){
   });
 }
 
+const PROFILE_IMAGE_UI_CONFIGS = [
+  { label:'BOT', inputId:'profileCharImage', buttonId:'profileCharImageAdjustBtn', panelId:'profileCharImageAdjustPanel', toggleId:'profileCharOn' },
+  { label:'USER', inputId:'profileUserImage', buttonId:'profileUserImageAdjustBtn', panelId:'profileUserImageAdjustPanel', toggleId:'profileUserOn' },
+];
+
+function setProfileImageAdjustOpen(config, open){
+  const button = document.getElementById(config.buttonId);
+  const panel = document.getElementById(config.panelId);
+  const next = !!open && !button.disabled;
+  panel.hidden = !next;
+  button.setAttribute('aria-expanded', String(next));
+  button.textContent = '⚙︎';
+  button.setAttribute('aria-label', `${config.label} 사진 조정 ${next ? '닫기' : '열기'}`);
+  button.title = next ? '사진 조정 닫기' : '사진 조정';
+}
+
+function syncProfileImageUiState(){
+  const profileOn = document.getElementById('profileOn').checked;
+  PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
+    const input = document.getElementById(config.inputId);
+    const button = document.getElementById(config.buttonId);
+    const enabled = profileOn && document.getElementById(config.toggleId).checked && input.value.trim() !== '';
+    button.disabled = !enabled;
+    if(!enabled) setProfileImageAdjustOpen(config, false);
+  });
+}
+
+PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
+  const input = document.getElementById(config.inputId);
+  const button = document.getElementById(config.buttonId);
+  button.addEventListener('click', () => {
+    setProfileImageAdjustOpen(config, button.getAttribute('aria-expanded') !== 'true');
+  });
+  input.addEventListener('input', syncProfileImageUiState);
+});
+
 function syncCoverImageRangeLabels(){
   ['imgHeight','xpos','ypos'].forEach(id => {
     const input = document.getElementById(id);
@@ -8295,9 +8978,12 @@ function syncDesignSummaries(){
   const titleLinkSummary = document.getElementById('titleLinkSummary');
   if(titleLinkSummary){
     const linked = [];
+    const activeProfileBotName = document.getElementById('profileOn').checked
+      && document.getElementById('profileCharOn').checked
+      && document.getElementById('profileCharName').value.trim();
     if(document.getElementById('logNumber').value.trim() && document.getElementById('logNumberUrl').value.trim()) linked.push('메모');
     if(document.getElementById('logTitle').value.trim() && document.getElementById('logTitleUrl').value.trim()) linked.push('제목');
-    if((document.getElementById('subChar').value.trim() || document.getElementById('profileCharName').value.trim()) && document.getElementById('subCharUrl').value.trim()) linked.push('BOT');
+    if((document.getElementById('subChar').value.trim() || activeProfileBotName) && document.getElementById('subCharUrl').value.trim()) linked.push('BOT');
     titleLinkSummary.textContent = linked.length ? linked.join(' · ') : '미설정';
   }
 
@@ -8308,28 +8994,9 @@ function syncDesignSummaries(){
     : '숨김';
 
   const profileBaseSummary = document.getElementById('profileBaseSummary');
-  const profileCharSummary = document.getElementById('profileCharSummary');
-  const profileUserSummary = document.getElementById('profileUserSummary');
-  const profileCommonSummary = document.getElementById('profileCommonSummary');
   if(profileBaseSummary) profileBaseSummary.textContent = profileOn
     ? `${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
     : '숨김';
-  if(profileCharSummary){
-    const name = document.getElementById('profileCharName').value.trim() || '이름 없음';
-    const image = document.getElementById('profileCharImage').value.trim() ? '사진 있음' : '사진 없음';
-    profileCharSummary.textContent = `${name} · ${image}`;
-  }
-  if(profileUserSummary){
-    const name = document.getElementById('profileUserName').value.trim() || '이름 없음';
-    const image = document.getElementById('profileUserImage').value.trim() ? '사진 있음' : '사진 없음';
-    profileUserSummary.textContent = `${name} · ${image}`;
-  }
-  if(profileCommonSummary){
-    const states = [];
-    if(document.getElementById('profileRelationship').value.trim()) states.push('관계 입력됨');
-    if(document.getElementById('profileSituation').value.trim()) states.push('상황 입력됨');
-    profileCommonSummary.textContent = states.length ? states.join(' · ') : '미입력';
-  }
 
   const footerOn = document.getElementById('footerOn').checked;
   document.getElementById('footerCoverSummary').textContent = footerOn
@@ -8380,6 +9047,80 @@ function syncProfileTagEditorsFromMasters(){
   });
 }
 
+const PROFILE_ENTITY_CONFIGS = [
+  {
+    label:'BOT', toggleId:'profileCharOn', groupId:'profileCharGroup', resetButtonId:'profileCharResetBtn', imageResetButtonId:'profileCharImageResetBtn',
+    controlIds:['profileCharName','profileCharUrl','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
+    resetValues:{ profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' },
+    imageResetValues:{ profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
+  },
+  {
+    label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn', imageResetButtonId:'profileUserImageResetBtn',
+    controlIds:['profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
+    resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' },
+    imageResetValues:{ profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
+  },
+  {
+    label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
+    controlIds:['profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'],
+    resetValues:{ profileRelationship:'', profileSituation:'' },
+    resetPrompt:'관계·키워드와 상황·요약을 초기화할까요?',
+    emptyMessage:'관계와 상황은 이미 초기 상태입니다.',
+    completeMessage:'관계와 상황을 초기화했습니다.'
+  }
+];
+
+function applyProfileReset(entries, message){
+  snapshotCards();
+  entries.forEach(([id, value]) => { document.getElementById(id).value = value; });
+  syncProfileTagEditorsFromMasters();
+  syncProfileImageRangeLabels();
+  syncCoverControlState();
+  syncDesignSummaries();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(message);
+}
+
+function resetProfileEntity(config){
+  const entries = Object.entries(config.resetValues);
+  const changed = entries.some(([id, value]) => document.getElementById(id).value !== value);
+  if(!changed){
+    showNoticeToast(config.emptyMessage || `${config.label} 프로필은 이미 초기 상태입니다.`);
+    return;
+  }
+  const prompt = config.resetPrompt || `${config.label} 프로필의 사진·이름·정보·태그를 초기화할까요?`;
+  if(!confirm(`${prompt}\n(되돌리기로 복구할 수 있습니다.)`)) return;
+  applyProfileReset(entries, config.completeMessage || `${config.label} 프로필을 초기화했습니다.`);
+}
+
+function resetProfileImage(config){
+  const entries = Object.entries(config.imageResetValues || {});
+  if(!entries.some(([id, value]) => document.getElementById(id).value !== value)){
+    showNoticeToast(`${config.label} 사진은 이미 초기 상태입니다.`);
+    return;
+  }
+  if(!confirm(`${config.label} 사진 URL과 이미지 조정을 초기화할까요?\n(되돌리기로 복구할 수 있습니다.)`)) return;
+  applyProfileReset(entries, `${config.label} 사진을 초기화했습니다.`);
+}
+
+PROFILE_ENTITY_CONFIGS.forEach(config => {
+  document.getElementById(config.resetButtonId).addEventListener('click', () => {
+    resetProfileEntity(config);
+  });
+  if(config.imageResetButtonId){
+    document.getElementById(config.imageResetButtonId).addEventListener('click', () => {
+      resetProfileImage(config);
+    });
+  }
+  const actions = document.getElementById(config.toggleId).closest('.profileSubActions');
+  if(actions){
+    actions.addEventListener('click', event => event.stopPropagation());
+    actions.addEventListener('keydown', event => event.stopPropagation());
+  }
+});
+
 PROFILE_TAG_GROUPS.forEach(group => {
   group.editorIds.forEach((id, index) => {
     const editor = document.getElementById(id);
@@ -8414,22 +9155,26 @@ PROFILE_TAG_GROUPS.forEach(group => {
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordFrom','keywordTo'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'',
   logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', logSubtitle:'',
   profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
-  keywordFrom:'', keywordTo:''
+  keywordRules:'[]'
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
-  logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false, footerOn:true, footerMinimal:false
+  logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false,
+  profileCharOn:true, profileUserOn:true, profileCommonOn:true, footerOn:true, footerMinimal:false
 });
+// 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
+// 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
+const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','narrCenter','headingCenter','dialogueCenter','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
-const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, 'logTitleOn', 'titleMinimal', 'imgOn', 'profileOn', 'profileMinimal', 'footerOn', 'footerMinimal']);
+const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
-const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'footerOn', 'footerMinimal']);
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', 'profileCommonOn', 'footerOn', 'footerMinimal']);
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
   logNumberUrl:() => previewParts().title,
@@ -8448,6 +9193,9 @@ const PREVIEW_FOCUS_MAP = {
   ypos:       () => previewParts().image,
   profileOn:  () => previewParts().profile,
   profileMinimal:() => previewParts().profile,
+  profileCharOn:() => previewParts().profile,
+  profileUserOn:() => previewParts().profile,
+  profileCommonOn:() => previewParts().profile,
   profilePlacement:() => previewParts().profile,
   profileStyle:() => previewParts().profile,
   profileOrder:() => previewParts().profile || previewParts().title,
@@ -8537,6 +9285,7 @@ function syncProfileBotLinkControl(){
     profileBotLinkInput.value = sharedBotLinkInput.value;
   }
   const enabled = document.getElementById('profileOn').checked
+    && document.getElementById('profileCharOn').checked
     && document.getElementById('profileCharName').value.trim() !== '';
   profileBotLinkInput.disabled = !enabled;
   const row = profileBotLinkInput.closest('.row');
@@ -8574,14 +9323,42 @@ function syncTitleLinkControlState(){
   });
 }
 
+function syncProfileEntityControlState(){
+  const profileOn = document.getElementById('profileOn').checked;
+  PROFILE_ENTITY_CONFIGS.forEach(config => {
+    const toggle = document.getElementById(config.toggleId);
+    const entityOn = toggle.checked;
+    const enabled = profileOn && entityOn;
+    // 상위 프로필 표시를 꺼도 하위 선택값은 바꾸지 않는다. 토글만 잠가 두었다가
+    // 프로필을 다시 켜면 BOT·USER·관계의 기존 활성 상태를 그대로 복원한다.
+    toggle.disabled = !profileOn;
+    const switchLabel = toggle.closest('.profileEntitySwitch');
+    if(switchLabel) switchLabel.title = profileOn
+      ? `${config.label} 표시 전환`
+      : '프로필 표시를 켜야 변경할 수 있습니다.';
+    const group = document.getElementById(config.groupId);
+    const body = group && group.querySelector('.profileSubBody');
+    if(body) body.classList.toggle('isEntityDisabled', !enabled);
+    config.controlIds.forEach(id => {
+      const control = document.getElementById(id);
+      if(!control) return;
+      control.disabled = !enabled;
+      const rangeEditor = document.querySelector(`.rangeEditor input[data-range="${id}"]`);
+      if(rangeEditor) rangeEditor.disabled = !enabled;
+      const row = control.closest('.row');
+      if(row) row.classList.toggle('isControlDisabled', !enabled);
+    });
+  });
+}
+
 function syncCoverControlState(){
   syncProfileOrderControls();
   syncCoverImageRangeLabels();
   syncProfileImageRangeLabels();
   const groups = [
     { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','xpos','ypos'] },
-    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','titleProfileOrderPrev','titleProfileOrderNext','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle'] },
-    { on: document.getElementById('profileOn').checked, ids: ['profileMinimal','profilePlacement','profilePlacementPrev','profilePlacementNext','profileStyle','profileStylePrev','profileStyleNext','profileProfileOrder','profileProfileOrderPrev','profileProfileOrderNext','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileCharTag1','profileCharTag2','profileCharTag3','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileUserTag1','profileUserTag2','profileUserTag3','profileRelationship','profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'] },
+    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle'] },
+    { on: document.getElementById('profileOn').checked, ids: ['profileMinimal','profilePlacement','profileStyle','profileProfileOrder','profileRelationship','profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'] },
     { on: document.getElementById('footerOn').checked, ids: ['footerMinimal','footerAuthor'] },
   ];
   groups.forEach(group => group.ids.forEach(id => {
@@ -8593,12 +9370,15 @@ function syncCoverControlState(){
     const row = el.closest('.row');
     if(row) row.classList.toggle('isControlDisabled', !group.on);
   }));
+  syncProfileEntityControlState();
+  syncProfileImageUiState();
   syncProfileBotLinkControl();
   // 표제 전체가 켜져 있어도 실제 연결 문구가 비어 있으면 해당 링크만 잠근다.
   syncTitleLinkControlState();
+  syncAllSegmentedChoiceControls();
   updateAllImageLoadStatuses();
 }
-['imgOn','logTitleOn','profileOn','footerOn'].forEach(id => {
+['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn','profileCommonOn','footerOn'].forEach(id => {
   document.getElementById(id).addEventListener('change', syncCoverControlState);
 });
 TITLE_LINK_DEPENDENCIES.forEach(({ sourceId }) => {
@@ -8627,6 +9407,34 @@ let activeTa = null; // 마지막으로 포커스된 카드 입력창 (툴바 �
 
 function cardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors textarea'));
+}
+
+// 일반 본문·대사 줄 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
+// 구조 문법 줄과 빈 줄에서는 브라우저 기본 줄바꿈을 유지한다.
+function handleSoftBreakKeydown(e){
+  if(e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  const ta = e.currentTarget;
+  if(!ta || typeof ta.selectionStart !== 'number') return;
+  const value = ta.value;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  // 여러 원문 줄을 한 번에 선택한 경우에는 구조 문법까지 지울 수 있으므로
+  // 자동 [BR] 치환을 하지 않고 브라우저의 일반 줄바꿈 동작을 유지한다.
+  if(value.slice(start, end).includes('\n')) return;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = value.indexOf('\n', end);
+  if(lineEnd < 0) lineEnd = value.length;
+  const currentLine = value.slice(lineStart, lineEnd).replace(/\[BR\]\s*$/i, '');
+  if(!currentLine.trim() || isStructuralBodyLine(currentLine)) return;
+  e.preventDefault();
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  let inserted = false;
+  try { inserted = document.execCommand('insertText', false, '[BR]\n'); } catch(err){ inserted = false; }
+  if(!inserted){
+    ta.setRangeText('[BR]\n', start, end, 'end');
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+  }
 }
 
 // 카드 입력창에 붙인 관찰자를 정리한 뒤 DOM을 비워, 반복 불러오기·초기화 시
@@ -8869,7 +9677,7 @@ function createCardEditor(value){
     showUndoToast('카드 복제됨.');
   });
   ta.addEventListener('input', () => {
-    applyActiveKeywordRuleToTextarea(ta);
+    applyActiveKeywordRulesToTextarea(ta);
     normalizeStandaloneHrInput(ta);
     // 미리보기 직접 편집이 원문 입력창으로 반영되는 동안에는 현재 미리보기 위치를
     // 유지한다. 왼쪽 입력창에서 직접 타이핑할 때만 기존 위치 연동을 실행한다.
@@ -8879,6 +9687,7 @@ function createCardEditor(value){
     if(ed.classList.contains('isCollapsed')) updatePeek();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
+  ta.addEventListener('keydown', handleSoftBreakKeydown);
   ta.addEventListener('focus', () => {
     activeTa = ta;
     decoratePreviewDirectEditors();
@@ -9053,13 +9862,7 @@ const UNDO_TOAST_DURATION_MS = 4000;
 function collectWork(){
   const fields = {};
   WORK_FIELDS.forEach(id => { fields[id] = document.getElementById(id).value; });
-  fields.logTitleOn = document.getElementById('logTitleOn').checked;
-  fields.titleMinimal = document.getElementById('titleMinimal').checked;
-  fields.imgOn = document.getElementById('imgOn').checked;
-  fields.profileOn = document.getElementById('profileOn').checked;
-  fields.profileMinimal = document.getElementById('profileMinimal').checked;
-  fields.footerOn = document.getElementById('footerOn').checked;
-  fields.footerMinimal = document.getElementById('footerMinimal').checked;
+  WORK_BOOLEAN_FIELDS.forEach(id => { fields[id] = document.getElementById(id).checked; });
   return { cards: getCards(), fields };
 }
 
@@ -9075,7 +9878,7 @@ function applyWork(data){
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
   });
   syncProfileTagEditorsFromMasters();
-  syncActiveKeywordRule();
+  renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
     document.getElementById(id).checked = fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback;
   });
@@ -9103,17 +9906,29 @@ function snapshotCards(){
   undoSnapshot = captureActionState('작업 전');
 }
 
-function showUndoToast(message, undoAction){
-  if(typeof undoAction !== 'function') recordCompletedAction(message);
+function openToast(message, undoAction, showUndoButton){
   const toast = document.getElementById('undoToast');
+  const undoButton = document.getElementById('undoBtn');
   document.getElementById('undoMsg').textContent = message;
   toastUndoAction = typeof undoAction === 'function' ? undoAction : null;
+  undoButton.hidden = !showUndoButton;
   toast.style.display = 'flex';
   clearTimeout(undoTimer);
   undoTimer = setTimeout(() => {
     toast.style.display = 'none';
     toastUndoAction = null;
   }, UNDO_TOAST_DURATION_MS);
+}
+
+function showUndoToast(message, undoAction){
+  if(typeof undoAction !== 'function') recordCompletedAction(message);
+  openToast(message, undoAction, true);
+}
+
+// 복사처럼 작업 상태를 바꾸지 않는 알림에는 되돌리기 버튼을 노출하지 않는다.
+// 그렇지 않으면 사용자가 복사 취소로 오해하고 직전 편집을 되돌릴 수 있다.
+function showNoticeToast(message){
+  openToast(message, null, false);
 }
 
 document.getElementById('undoBtn').addEventListener('click', () => {
@@ -9376,6 +10191,7 @@ document.getElementById('fsTextarea').addEventListener('input', function(){
   syncMirror(this);
   if(fsHlQuery) fsHlPaint(fsHlQuery, fsHlCur);
 });
+document.getElementById('fsTextarea').addEventListener('keydown', handleSoftBreakKeydown);
 document.getElementById('fsTextarea').addEventListener('scroll', function(){
   const hl = document.getElementById('fsHl');
   hl.scrollTop = this.scrollTop;
@@ -10137,68 +10953,133 @@ document.getElementById('nameReplaceBtn').addEventListener('click', () => {
 });
 
 // ---------- 키워드 치환 ----------
-// 이름 바꾸기와 달리 조사·인물 필드는 건드리지 않고, 활성 규칙을 기존·신규 본문에 계속 적용한다.
-function syncActiveKeywordRule(){
-  const group = document.getElementById('keywordReplaceGroup');
-  const from = document.getElementById('keywordFrom').value;
-  const to = document.getElementById('keywordTo').value;
-  group.dataset.keywordFrom = from;
-  group.dataset.keywordTo = to;
-  group.dataset.keywordReady = String(Boolean(from && from !== to));
-}
+// 여러 규칙을 저장하고 입력 순서대로 적용한다. 서로 이어지는 규칙은 되돌리기 결과가
+// 모호해지므로 같은 문구를 다른 규칙의 출발·도착점으로 중복 사용하지 않는다.
+const KEYWORD_RULE_LIMIT = 20;
+const KEYWORD_RULE_LIMIT_MESSAGE = `치환 규칙은 최대 ${KEYWORD_RULE_LIMIT}개까지 추가할 수 있습니다.`;
 
-function activeKeywordRule(){
-  const group = document.getElementById('keywordReplaceGroup');
-  if(group.dataset.keywordReady !== 'true') return null;
-  return { from:group.dataset.keywordFrom || '', to:group.dataset.keywordTo || '' };
+function keywordRules(){
+  try {
+    const parsed = JSON.parse(document.getElementById('keywordRules').value || '[]');
+    if(!Array.isArray(parsed)) return [];
+    const seenIds = new Set();
+    return parsed
+      .filter(r => r && typeof r.from === 'string' && typeof r.to === 'string')
+      .slice(0, KEYWORD_RULE_LIMIT)
+      .map((rule, index) => {
+        let id = typeof rule.id === 'string' && rule.id ? rule.id : `kr_legacy_${index}`;
+        while(seenIds.has(id)) id += `_${index}`;
+        seenIds.add(id);
+        return { id, from:rule.from, to:rule.to };
+      });
+  } catch(e){ return []; }
 }
-
-function applyActiveKeywordRuleToTextarea(ta){
-  const rule = activeKeywordRule();
-  if(!rule || !rule.from || !ta.value.includes(rule.from)) return 0;
+function saveKeywordRules(rules){
+  document.getElementById('keywordRules').value = JSON.stringify(rules);
+  renderKeywordRuleList();
+  scheduleDraftSave();
+}
+function replaceLiteralInTextarea(ta, from, to){
+  if(!from || !ta.value.includes(from)) return 0;
   const start = ta.selectionStart;
   const end = ta.selectionEnd;
-  const beforeStart = ta.value.slice(0, start).split(rule.from).join(rule.to).length;
-  const beforeEnd = ta.value.slice(0, end).split(rule.from).join(rule.to).length;
-  const count = ta.value.split(rule.from).length - 1;
-  ta.value = ta.value.split(rule.from).join(rule.to);
+  const beforeStart = ta.value.slice(0, start).split(from).join(to).length;
+  const beforeEnd = ta.value.slice(0, end).split(from).join(to).length;
+  const count = ta.value.split(from).length - 1;
+  ta.value = ta.value.split(from).join(to);
   try { ta.setSelectionRange(beforeStart, beforeEnd); } catch(e){}
   return count;
 }
-
-function activateKeywordRule(){
-  const from = document.getElementById('keywordFrom').value;
-  const to = document.getElementById('keywordTo').value;
-  const st = document.getElementById('keywordStatus');
-  syncActiveKeywordRule();
-  if(!from){ st.textContent = '자동 치환 꺼짐.'; scheduleDraftSave(); return; }
-  if(from === to){ st.textContent = '두 키워드가 같아 자동 치환하지 않음.'; scheduleDraftSave(); return; }
-  const hasMatches = cardTextareas().some(ta => ta.value.includes(from));
-  if(hasMatches) snapshotCards();
+function applyActiveKeywordRulesToTextarea(ta){
   let count = 0;
-  cardTextareas().forEach(ta => { count += applyActiveKeywordRuleToTextarea(ta); });
-  if(count){
-    render(); updateCounter();
-    showUndoToast('키워드 ' + count + '곳 자동 치환.');
-  }
-  saveDraft();
-  st.textContent = count ? `자동 치환 켜짐 · 기존 ${count}곳 변경` : '자동 치환 켜짐.';
+  keywordRules().forEach(rule => { count += replaceLiteralInTextarea(ta, rule.from, rule.to); });
+  return count;
 }
-
-document.getElementById('keywordTo').addEventListener('change', activateKeywordRule);
-document.getElementById('keywordFrom').addEventListener('change', () => {
-  const group = document.getElementById('keywordReplaceGroup');
-  if(!document.getElementById('keywordFrom').value || group.dataset.keywordReady === 'true') activateKeywordRule();
-});
+function renderKeywordRuleList(){
+  const list = document.getElementById('keywordRuleList');
+  if(!list) return;
+  list.replaceChildren();
+  const rules = keywordRules();
+  const atLimit = rules.length >= KEYWORD_RULE_LIMIT;
+  const addButton = document.getElementById('keywordAddBtn');
+  const status = document.getElementById('keywordStatus');
+  if(addButton) addButton.disabled = atLimit;
+  if(status){
+    if(atLimit) status.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
+    else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) status.textContent = '';
+  }
+  if(!rules.length){
+    const empty = document.createElement('div');
+    empty.className = 'keywordRuleEmpty';
+    empty.textContent = '활성 치환 규칙이 없습니다.';
+    list.appendChild(empty);
+    return;
+  }
+  rules.forEach(rule => {
+    const row = document.createElement('div');
+    row.className = 'keywordRuleItem';
+    const text = document.createElement('div');
+    text.className = 'keywordRuleText';
+    const from = document.createElement('b'); from.textContent = rule.from;
+    const to = document.createElement('b'); to.textContent = rule.to;
+    text.append(from, document.createTextNode(' → '), to);
+    const undo = document.createElement('button');
+    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '되돌리기';
+    undo.addEventListener('click', () => undoKeywordRule(rule.id));
+    row.append(text, undo);
+    list.appendChild(row);
+  });
+}
+function addKeywordRule(){
+  const fromEl = document.getElementById('keywordFrom');
+  const toEl = document.getElementById('keywordTo');
+  const from = fromEl.value;
+  const to = toEl.value;
+  const st = document.getElementById('keywordStatus');
+  if(!from || !to){ st.textContent = '찾을 키워드와 바꿀 키워드를 모두 입력해 주세요.'; return; }
+  if(from === to){ st.textContent = '두 키워드가 같아 치환하지 않았습니다.'; return; }
+  const rules = keywordRules();
+  if(rules.length >= KEYWORD_RULE_LIMIT){
+    st.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
+    renderKeywordRuleList();
+    return;
+  }
+  if(rules.some(r => r.from === from && r.to === to)){ st.textContent = '이미 활성화된 치환 규칙입니다.'; return; }
+  const overlaps = (a, b) => a.includes(b) || b.includes(a);
+  if(rules.some(r => [r.from, r.to].some(value => overlaps(value, from) || overlaps(value, to)))){
+    st.textContent = '기존 규칙과 문구가 겹칩니다. 각각 정확히 되돌릴 수 있도록 다른 문구를 사용해 주세요.';
+    return;
+  }
+  snapshotCards();
+  let count = 0;
+  cardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, from, to); });
+  rules.push({ id:'kr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from, to });
+  saveKeywordRules(rules);
+  fromEl.value = ''; toEl.value = ''; fromEl.focus();
+  render(); updateCounter(); saveDraft();
+  showUndoToast(`키워드 규칙 추가 · 기존 ${count}곳 변경.`);
+  st.textContent = count ? `기존 본문 ${count}곳을 바꾸고 자동 치환을 시작했습니다.` : '자동 치환 규칙을 추가했습니다.';
+}
+function undoKeywordRule(id){
+  const rules = keywordRules();
+  const rule = rules.find(r => r.id === id);
+  if(!rule) return;
+  snapshotCards();
+  let count = 0;
+  cardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, rule.to, rule.from); });
+  saveKeywordRules(rules.filter(r => r.id !== id));
+  render(); updateCounter(); saveDraft();
+  showUndoToast(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
+  document.getElementById('keywordStatus').textContent = count
+    ? `현재 본문 ${count}곳을 원래 문구로 되돌리고 규칙을 제거했습니다.`
+    : '일치하는 현재 문구가 없어 규칙만 제거했습니다.';
+}
+document.getElementById('keywordAddBtn').addEventListener('click', addKeywordRule);
 ['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
   if(e.isComposing || e.keyCode === 229) return;
-  if(e.key === 'Enter'){
-    e.preventDefault();
-    activateKeywordRule();
-    e.currentTarget.blur();
-  }
+  if(e.key === 'Enter'){ e.preventDefault(); addKeywordRule(); }
 }));
-syncActiveKeywordRule();
+renderKeywordRuleList();
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -10403,7 +11284,7 @@ function sanitizeImportedWork(data){
     fields[id] = value;
   }
   let invalidBoolean = false;
-  ['logTitleOn','titleMinimal','imgOn','profileOn','profileMinimal','footerOn','footerMinimal'].forEach(id => {
+  WORK_BOOLEAN_FIELDS.forEach(id => {
     if(source[id] !== undefined){
       if(typeof source[id] !== 'boolean') invalidBoolean = true;
       else fields[id] = source[id];
@@ -10490,8 +11371,7 @@ function renderSlotList(){
     const characterName = slotCharacterName(slot);
     const row = document.createElement('div');
     row.className = 'slotRow';
-    row.title = '클릭하면 이 작업으로 전환돼';
-    row.tabIndex = 0;
+    row.title = '';
     row.setAttribute('role', 'group');
     row.setAttribute('aria-label', `${slot.name}${characterName ? `, 캐릭터 ${characterName}` : ''} 보관함 항목`);
     const identity = document.createElement('span');
@@ -10513,26 +11393,30 @@ function renderSlotList(){
     over.type = 'button';
     over.textContent = '덮어쓰기';
     over.title = '현재 작업을 이 슬롯에 다시 저장해';
+    over.className = 'slotOverwrite';
+    const load = document.createElement('button');
+    load.type = 'button';
+    load.className = 'slotLoad';
+    load.textContent = '불러오기';
+    load.title = '이 보관함 작업을 불러오기';
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'slotDel';
     del.textContent = '×';
     del.title = '슬롯 삭제';
+    const actions = document.createElement('div');
+    actions.className = 'slotActions';
+    actions.append(load, over, del);
 
-    row.addEventListener('click', () => {
+    load.addEventListener('click', () => {
       snapshotCards();
       applyWork(JSON.parse(JSON.stringify(slot.data)));
       showUndoToast(`'${slot.name}' 불러옴.`);
       setArchiveDrawerOpen(false);
     });
-    row.addEventListener('keydown', (e) => {
-      if(e.isComposing || e.keyCode === 229 || e.target !== row) return;
-      if(e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      row.click();
-    });
     over.addEventListener('click', (e) => {
       e.stopPropagation();
+      if(!confirm(`현재 작업으로 '${slot.name}' 보관함을 덮어쓸까요?`)) return;
       const list = loadSlots();
       if(list === null){ showSlotReadError(); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
@@ -10585,8 +11469,7 @@ function renderSlotList(){
 
     row.appendChild(identity);
     row.appendChild(date);
-    row.appendChild(over);
-    row.appendChild(del);
+    row.appendChild(actions);
     container.appendChild(row);
   });
 }
@@ -10770,6 +11653,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
     document.getElementById(id).value = value;
   });
   syncProfileTagEditorsFromMasters();
+  renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, value]) => {
     document.getElementById(id).checked = value;
   });
@@ -11098,7 +11982,9 @@ document.getElementById('clearBodyBtn').addEventListener('click', () => {
 // 본문/이미지 관련 입력을 이 브라우저(localStorage)에 자동 저장해서,
 // 창을 닫거나 새로고침해도 작업 내용이 유지되게 함.
 const DRAFT_KEY = 'logGenDraft_v1';
-const DRAFT_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation'];
+// 초안과 보관함은 같은 작업 필드 스키마를 공유한다. 별도 배열을 복제하면 새 필드가
+// 한쪽 저장 경로에서 빠질 수 있으므로 WORK_FIELDS를 단일 기준으로 사용한다.
+const DRAFT_FIELDS = WORK_FIELDS;
 let draftSaveTimer = null;
 let draftDirty = false;
 let draftBaseUpdatedAt = 0;
@@ -11170,13 +12056,7 @@ function saveDraft(force = true){
     const d = {};
     DRAFT_FIELDS.forEach(id => { d[id] = document.getElementById(id).value; });
     d.cards = getCards();
-    d.logTitleOn = document.getElementById('logTitleOn').checked;
-    d.titleMinimal = document.getElementById('titleMinimal').checked;
-    d.imgOn = document.getElementById('imgOn').checked;
-    d.profileOn = document.getElementById('profileOn').checked;
-    d.profileMinimal = document.getElementById('profileMinimal').checked;
-    d.footerOn = document.getElementById('footerOn').checked;
-    d.footerMinimal = document.getElementById('footerMinimal').checked;
+    WORK_BOOLEAN_FIELDS.forEach(id => { d[id] = document.getElementById(id).checked; });
     d.style = currentStyleValues();
     d.updatedAt = Math.max(Date.now(), draftBaseUpdatedAt + 1);
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
@@ -11221,13 +12101,11 @@ function restoreDraft(){
     document.getElementById('xposVal').value = document.getElementById('xpos').value;
     document.getElementById('yposVal').value = document.getElementById('ypos').value;
     document.getElementById('imgHeightVal').value = document.getElementById('imgHeight').value;
-    if(d.logTitleOn !== undefined) document.getElementById('logTitleOn').checked = settingFlagOn(d.logTitleOn);
-    if(d.titleMinimal !== undefined) document.getElementById('titleMinimal').checked = settingFlagOn(d.titleMinimal);
-    if(d.imgOn !== undefined) document.getElementById('imgOn').checked = settingFlagOn(d.imgOn);
-    if(d.profileOn !== undefined) document.getElementById('profileOn').checked = settingFlagOn(d.profileOn);
-    if(d.profileMinimal !== undefined) document.getElementById('profileMinimal').checked = settingFlagOn(d.profileMinimal);
-    if(d.footerOn !== undefined) document.getElementById('footerOn').checked = settingFlagOn(d.footerOn);
-    if(d.footerMinimal !== undefined) document.getElementById('footerMinimal').checked = settingFlagOn(d.footerMinimal);
+    // 과거 배포본에 없던 옵션은 HTML의 현재 기본값을 유지한다. 따라서 v134 초안의
+    // BOT·USER·관계 프로필은 업그레이드 후에도 기존처럼 모두 활성 상태로 열린다.
+    WORK_BOOLEAN_FIELDS.forEach(id => {
+      if(d[id] !== undefined) document.getElementById(id).checked = settingFlagOn(d[id]);
+    });
     const legacyFoldDividerMinimal = Array.isArray(d.cards)
       && d.cards.some(card => card && typeof card === 'object' && settingFlagOn(card.foldMinimal));
     if(d.style && typeof d.style === 'object'){
@@ -11498,21 +12376,42 @@ function stepSelectOption(selectId, delta){
   document.getElementById(nextId).addEventListener('click', () => stepSelectOption(selectId, 1));
 });
 
-function stepProfileSelect(selectId, delta){
+const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder'];
+
+function syncSegmentedChoiceControl(selectId){
   const select = document.getElementById(selectId);
-  const count = select.options.length;
-  if(!count || select.disabled) return;
-  const current = select.selectedIndex >= 0 ? select.selectedIndex : 0;
-  select.selectedIndex = (current + delta + count) % count;
-  select.dispatchEvent(new Event('input', { bubbles:true }));
+  const group = document.querySelector(`[data-control="${selectId}"]`);
+  if(!select || !group) return;
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    const active = button.dataset.value === select.value;
+    button.setAttribute('aria-pressed', String(active));
+    button.disabled = select.disabled;
+  });
 }
 
-[
-  ['profilePlacement', 'profilePlacementPrev', 'profilePlacementNext'],
-  ['profileStyle', 'profileStylePrev', 'profileStyleNext']
-].forEach(([selectId, prevId, nextId]) => {
-  document.getElementById(prevId).addEventListener('click', () => stepProfileSelect(selectId, -1));
-  document.getElementById(nextId).addEventListener('click', () => stepProfileSelect(selectId, 1));
+function syncAllSegmentedChoiceControls(){
+  SEGMENTED_CHOICE_SELECT_IDS.forEach(syncSegmentedChoiceControl);
+}
+
+document.querySelectorAll('.segmentedChoice[data-control]').forEach(group => {
+  const selectId = group.dataset.control;
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    button.addEventListener('click', () => {
+      const select = document.getElementById(selectId);
+      if(!select || select.disabled || select.value === button.dataset.value) return;
+      select.value = button.dataset.value;
+      const isOrderControl = selectId === 'titleProfileOrder' || selectId === 'profileProfileOrder';
+      select.dispatchEvent(new Event(isOrderControl ? 'change' : 'input', { bubbles:true }));
+      syncSegmentedChoiceControl(selectId);
+    });
+  });
+});
+
+SEGMENTED_CHOICE_SELECT_IDS.forEach(id => {
+  const select = document.getElementById(id);
+  if(!select) return;
+  select.addEventListener('input', () => syncSegmentedChoiceControl(id));
+  select.addEventListener('change', () => syncSegmentedChoiceControl(id));
 });
 
 const PROFILE_ORDER_VALUES = ['bot-user', 'user-bot'];
@@ -11529,6 +12428,7 @@ function syncProfileOrderControls(){
   PROFILE_ORDER_CONTROL_IDS.forEach(id => {
     const select = document.getElementById(id);
     if(select && select.value !== value) select.value = value;
+    syncSegmentedChoiceControl(id);
   });
 }
 
@@ -11544,22 +12444,8 @@ function setProfileOrder(value){
   canonical.dispatchEvent(new Event('input', { bubbles:true }));
 }
 
-function stepProfileOrder(selectId, delta){
-  const select = document.getElementById(selectId);
-  if(!select || select.disabled) return;
-  const current = PROFILE_ORDER_VALUES.indexOf(normalizedProfileOrder(select.value));
-  setProfileOrder(PROFILE_ORDER_VALUES[(current + delta + PROFILE_ORDER_VALUES.length) % PROFILE_ORDER_VALUES.length]);
-}
-
 PROFILE_ORDER_CONTROL_IDS.forEach(id => {
   document.getElementById(id).addEventListener('change', event => setProfileOrder(event.target.value));
-});
-[
-  ['titleProfileOrder', 'titleProfileOrderPrev', 'titleProfileOrderNext'],
-  ['profileProfileOrder', 'profileProfileOrderPrev', 'profileProfileOrderNext']
-].forEach(([selectId, prevId, nextId]) => {
-  document.getElementById(prevId).addEventListener('click', () => stepProfileOrder(selectId, -1));
-  document.getElementById(nextId).addEventListener('click', () => stepProfileOrder(selectId, 1));
 });
 
 // 처음 누른 프리셋은 색상만 적용한다. 같은 카드를 연속해서 다시 누를 때부터
@@ -12737,9 +13623,9 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
 
 // ---------- 대표 이미지와 BOT·USER 사진 상태 확인 ----------
 const IMAGE_STATUS_CONFIGS = [
-  { inputId:'imgUrl', statusId:'imageLoadStatus', enabledId:'imgOn', showDimensions:true },
-  { inputId:'profileCharImage', statusId:'profileCharImageStatus', enabledId:'profileOn' },
-  { inputId:'profileUserImage', statusId:'profileUserImageStatus', enabledId:'profileOn' },
+  { inputId:'imgUrl', statusId:'imageLoadStatus', enabledIds:['imgOn'], showDimensions:true },
+  { inputId:'profileCharImage', statusId:'profileCharImageStatus', enabledIds:['profileOn','profileCharOn'] },
+  { inputId:'profileUserImage', statusId:'profileUserImageStatus', enabledIds:['profileOn','profileUserOn'] },
 ];
 const imageStatusTimers = new Map();
 const imageStatusTokens = new Map();
@@ -12766,20 +13652,23 @@ function probeImage(url, timeoutMs = 6000){
 async function updateSingleImageLoadStatus(config){
   const status = document.getElementById(config.statusId);
   if(!status) return;
+  const isProfileStatus = status.classList.contains('profileImageDot');
   const token = (imageStatusTokens.get(config.statusId) || 0) + 1;
   imageStatusTokens.set(config.statusId, token);
-  const enabled = document.getElementById(config.enabledId).checked;
+  const enabled = config.enabledIds.every(id => document.getElementById(id).checked);
   const raw = document.getElementById(config.inputId).value.trim();
   if(!enabled){
     status.dataset.state = 'idle';
     status.textContent = '';
     status.hidden = true;
+    status.title = '';
     return;
   }
   if(!raw){
     status.dataset.state = 'idle';
     status.textContent = '';
     status.hidden = true;
+    status.title = '';
     return;
   }
   let url;
@@ -12788,12 +13677,14 @@ async function updateSingleImageLoadStatus(config){
   } catch(e){
     status.hidden = false;
     status.dataset.state = 'error';
-    status.textContent = '주소 형식 확인 필요';
+    status.textContent = isProfileStatus ? '!' : '주소 형식 확인 필요';
+    status.title = '주소 형식 확인 필요';
     return;
   }
-  status.hidden = false;
+  status.hidden = isProfileStatus;
   status.dataset.state = 'idle';
-  status.textContent = '이미지 확인 중…';
+  status.textContent = isProfileStatus ? '' : '이미지 확인 중…';
+  status.title = isProfileStatus ? '' : status.textContent;
   const result = await probeImage(url);
   if(token !== imageStatusTokens.get(config.statusId)) return;
   if(result.ok){
@@ -12812,12 +13703,18 @@ async function updateSingleImageLoadStatus(config){
       }
     }
     status.dataset.state = 'ok';
-    status.textContent = config.showDimensions
+    const successText = config.showDimensions
       ? `정상 · ${result.width.toLocaleString()}×${result.height.toLocaleString()}`
       : '정상';
+    status.hidden = isProfileStatus;
+    status.textContent = isProfileStatus ? '' : successText;
+    status.title = isProfileStatus ? '' : successText;
   }else{
     status.dataset.state = 'error';
-    status.textContent = result.reason || '불러오기 실패';
+    const errorText = result.reason || '불러오기 실패';
+    status.hidden = false;
+    status.textContent = isProfileStatus ? '!' : errorText;
+    status.title = errorText;
   }
 }
 
@@ -13059,7 +13956,15 @@ function basicPreflightIssues(){
   ].forEach(item => {
     // 연결할 글자가 없는 동안에는 링크 입력도 비활성 상태이므로 검사 대상에서 제외한다.
     const textIds = item.textIds || [item.textId];
-    if(!textIds.some(id => document.getElementById(id).value.trim())) return;
+    const hasLinkedText = textIds.some(id => {
+      if(id === 'profileCharName'){
+        return document.getElementById('profileOn').checked
+          && document.getElementById('profileCharOn').checked
+          && document.getElementById(id).value.trim();
+      }
+      return document.getElementById(id).value.trim();
+    });
+    if(!hasLinkedText) return;
     const rawUrl = document.getElementById(item.urlId).value.trim();
     if(!rawUrl) return;
     if(!normalizeHttpLinkUrl(rawUrl)){
@@ -13213,6 +14118,7 @@ if(IS_MAC){
 
 // 초기 렌더
 restoreDraft();
+renderKeywordRuleList();
 syncProfileTagEditorsFromMasters();
 syncCoverControlState();
 if(cardTextareas().length === 0){
