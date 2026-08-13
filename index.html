@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- index 기반 개선본 v178 · 버전 GitHub 링크 추가 -->
+<!-- index 기반 개선본 v180 · 미리보기 외곽 버튼 단일 좌표·충돌 배치 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -8137,45 +8137,15 @@ const PREVIEW_CONTROL_SIZE = 27;
 function createPreviewControlButton(className, text, title){
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = className;
+  button.className = `${className} previewFloatingControl`;
   button.textContent = text;
   button.title = title;
   button.setAttribute('aria-label', title);
   return button;
 }
 
-function positionPreviewCopyButton(button){
-  const target = button._mosaicCopyTarget;
-  if(!target || !target.isConnected) return;
-  button.style.top = `${target.offsetTop + PREVIEW_CONTROL_INSET}px`;
-  button.style.left = `${target.offsetLeft + target.offsetWidth + PREVIEW_CONTROL_INSET}px`;
-}
-
-function positionPreviewProfilePlacementButton(button){
-  const target = button._mosaicProfileTarget;
-  if(!target || !target.isConnected) return;
-  const preview = document.getElementById('preview');
-  const overlappingCopy = Array.from(preview.querySelectorAll(':scope > .previewBlockCopyBtn'))
-    .find(copy => copy._mosaicCopyTarget === target);
-  const stackOffset = overlappingCopy ? overlappingCopy.offsetHeight + PREVIEW_CONTROL_GAP : 0;
-  button.style.top = `${target.offsetTop + PREVIEW_CONTROL_INSET + stackOffset}px`;
-  button.style.left = `${target.offsetLeft + target.offsetWidth + PREVIEW_CONTROL_INSET}px`;
-}
-
 function previewElementRect(element, positioningRoot){
-  const root = positioningRoot || document.getElementById('preview');
-  let top = 0;
-  let left = 0;
-  let node = element;
-  while(node && node !== root){
-    top += node.offsetTop;
-    left += node.offsetLeft;
-    node = node.offsetParent;
-  }
-  if(node === root){
-    return { top, left, width: element.offsetWidth };
-  }
-  // 서로 다른 좌표 컨텍스트가 생긴 예외적인 레이아웃에서만 화면 좌표로 보정한다.
+  const root = positioningRoot || document.getElementById('previewWrap');
   const rootRect = root.getBoundingClientRect();
   const rect = element.getBoundingClientRect();
   return {
@@ -8185,39 +8155,50 @@ function previewElementRect(element, positioningRoot){
   };
 }
 
-function positionPreviewMinimalToggleButton(button){
-  const target = button._mosaicMinimalTarget;
+function previewControlGeometry(button, positioningRoot){
+  const target = button._mosaicCopyTarget || button._mosaicProfileTarget || button._mosaicMinimalTarget;
   const anchor = button._mosaicMinimalAnchor || target;
-  if(!target || !anchor || !target.isConnected || !anchor.isConnected) return;
-  const preview = document.getElementById('preview');
-  // 버튼의 absolute 좌표는 #preview가 아니라 실제 offsetParent를 기준으로 계산한다.
-  // 미리보기 자체의 좌표만 빼면 표제 버튼이 페이지 상단에 붙는 문제가 생긴다.
-  const positioningRoot = button.offsetParent || preview;
+  if(!target || !anchor || !target.isConnected || !anchor.isConnected) return null;
   const targetRect = previewElementRect(target, positioningRoot);
   const anchorRect = previewElementRect(anchor, positioningRoot);
-  const buttonHeight = button.offsetHeight || PREVIEW_CONTROL_SIZE;
-  const left = anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET;
-  let top = targetRect.top + PREVIEW_CONTROL_INSET;
-  // 같은 오른쪽 열에서 기존 복사·이동 버튼과 실제로 겹칠 때만 그 아래로 쌓는다.
-  preview.querySelectorAll(':scope > .previewBlockCopyBtn, :scope > .previewProfilePlacementBtn').forEach(control => {
-    const controlRect = previewElementRect(control, positioningRoot);
-    const controlTop = controlRect.top;
-    const controlLeft = controlRect.left;
-    const controlHeight = control.offsetHeight || PREVIEW_CONTROL_SIZE;
-    if(!Number.isFinite(controlTop) || !Number.isFinite(controlLeft)) return;
-    const sameColumn = Math.abs(controlLeft - left) < 2;
-    const overlaps = top < controlTop + controlHeight + PREVIEW_CONTROL_GAP
-      && top + buttonHeight + PREVIEW_CONTROL_GAP > controlTop;
-    if(sameColumn && overlaps) top = controlTop + controlHeight + PREVIEW_CONTROL_GAP;
-  });
-  button.style.top = `${top}px`;
-  button.style.left = `${left}px`;
+  const priority = button.classList.contains('previewBlockCopyBtn')
+    ? 0
+    : (button.classList.contains('previewProfilePlacementBtn') ? 1 : 2);
+  return {
+    button,
+    priority,
+    desiredTop:targetRect.top + PREVIEW_CONTROL_INSET,
+    left:anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
+    height:button.offsetHeight || PREVIEW_CONTROL_SIZE
+  };
 }
 
 function layoutPreviewFloatingButtons(){
-  document.querySelectorAll('#preview > .previewBlockCopyBtn').forEach(positionPreviewCopyButton);
-  document.querySelectorAll('#preview > .previewProfilePlacementBtn').forEach(positionPreviewProfilePlacementButton);
-  document.querySelectorAll('#previewWrap > .previewMinimalToggleBtn').forEach(positionPreviewMinimalToggleButton);
+  const root = document.getElementById('previewWrap');
+  if(!root) return;
+  const controls = Array.from(root.querySelectorAll(':scope > .previewFloatingControl'))
+    .map(button => previewControlGeometry(button, root))
+    .filter(Boolean)
+    .sort((a, b) => a.desiredTop - b.desiredTop || a.priority - b.priority);
+  const placed = [];
+  controls.forEach(control => {
+    let top = control.desiredTop;
+    // 버튼 종류나 대상 DOM의 깊이와 관계없이 같은 열에서 겹치는 모든 버튼을
+    // 복사 → 이동 → 미니멀 순서로 한 번만 쌓는다.
+    placed.forEach(previous => {
+      const sameColumn = Math.abs(previous.left - control.left) < 2;
+      const overlaps = top < previous.bottom + PREVIEW_CONTROL_GAP
+        && top + control.height + PREVIEW_CONTROL_GAP > previous.top;
+      if(sameColumn && overlaps) top = previous.bottom + PREVIEW_CONTROL_GAP;
+    });
+    control.button.style.top = `${Math.round(top)}px`;
+    control.button.style.left = `${Math.round(control.left)}px`;
+    placed.push({
+      top,
+      bottom:top + control.height,
+      left:control.left
+    });
+  });
 }
 
 function previewCopySuccessMessage(label){
@@ -8227,7 +8208,7 @@ function previewCopySuccessMessage(label){
 
 function addPreviewCopyButton(target, label, getHTML, successMessage){
   if(!target) return;
-  const preview = document.getElementById('preview');
+  const previewWrap = document.getElementById('previewWrap');
   const button = createPreviewControlButton('previewBlockCopyBtn', '⧉', `${label} HTML 복사`);
   button._mosaicCopyTarget = target;
   button.addEventListener('click', event => {
@@ -8256,8 +8237,7 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
       }, 1600);
     });
   });
-  preview.appendChild(button);
-  positionPreviewCopyButton(button);
+  previewWrap.appendChild(button);
 }
 
 function decoratePreviewCopyButtons(){
@@ -8329,8 +8309,7 @@ function decoratePreviewProfilePlacementButton(){
       ? '프로필을 최상단 독립으로 이동했습니다.'
       : '프로필을 표지 아래로 이동했습니다.');
   });
-  document.getElementById('preview').appendChild(button);
-  positionPreviewProfilePlacementButton(button);
+  document.getElementById('previewWrap').appendChild(button);
 }
 
 function addPreviewMinimalToggleButton(target, anchor, inputId, label){
@@ -8351,7 +8330,6 @@ function addPreviewMinimalToggleButton(target, anchor, inputId, label){
     showUndoToast(`${label} 미니멀을 ${enabled ? '적용' : '해제'}했습니다.`);
   });
   document.getElementById('previewWrap').appendChild(button);
-  positionPreviewMinimalToggleButton(button);
 }
 
 function addPreviewCardDividerToggleButton(cardEl, titleEl){
@@ -8377,11 +8355,9 @@ function addPreviewCardDividerToggleButton(cardEl, titleEl){
       : '모든 카드 제목 구분선을 숨겼습니다.');
   });
   document.getElementById('previewWrap').appendChild(button);
-  positionPreviewMinimalToggleButton(button);
 }
 
 function decoratePreviewMinimalToggleButtons(){
-  document.querySelectorAll('#previewWrap > .previewMinimalToggleBtn').forEach(button => button.remove());
   const parts = previewParts();
   addPreviewMinimalToggleButton(parts.title, parts.title, 'titleMinimal', '표제');
   addPreviewMinimalToggleButton(parts.profile, parts.profile, 'profileMinimal', '프로필');
@@ -8409,6 +8385,9 @@ if(previewCopyResizeObserver){
 // 현재 설정 또는 미리 만들어 둔 HTML로 미리보기를 다시 그림.
 function renderPreview(prebuiltHTML){
   const preview = document.getElementById('preview');
+  // 모든 외곽 버튼은 #previewWrap의 형제 요소다. 미리보기 HTML을 교체해도 남기 때문에
+  // 새 대상을 연결하기 전에 한 번에 제거해 오래된 좌표·이벤트 참조를 남기지 않는다.
+  document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
   preview.classList.add('previewRefreshing');
   hideBlockToolbar();
   // 카드 번호와 카드 안쪽 순번을 함께 기록한다. 전체 details 순번만 쓰면 앞 카드가
@@ -8447,6 +8426,9 @@ function renderPreview(prebuiltHTML){
   decoratePreviewCopyButtons();
   decoratePreviewProfilePlacementButton();
   decoratePreviewMinimalToggleButtons();
+  // 새 버튼이 기본 CSS 좌표(top:8px)에 한 프레임이라도 남지 않게 즉시 배치하고,
+  // 이미지·웹폰트·줄바꿈이 확정되는 다음 프레임에 한 번 더 보정한다.
+  layoutPreviewFloatingButtons();
   requestAnimationFrame(() => {
     layoutPreviewFloatingButtons();
     preview.classList.remove('previewRefreshing');
