@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- index 기반 개선본 v183 · 표시 버전 v1.4.1.2 -->
+<!-- index 기반 개선본 v200 · 표시 버전 v1.4.2 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2781,6 +2781,36 @@
     border-color: var(--line-strong);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
   }
+  /* URL은 내용 설정을 보조하는 메타 정보다. 대표 이미지·프로필 사진·이름 링크·
+     표제 링크 모두 같은 낮은 위계로 묶고, 값이 채워져도 일반 텍스트보다 조용하게 보인다. */
+  #tabCover input[type="url"] {
+    color: var(--help-ink-strong);
+    background: var(--bg-subtle);
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  #tabCover input[type="url"]:not(:placeholder-shown):not(:focus) {
+    color: var(--help-ink-strong);
+    background: var(--bg-subtle);
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  #tabCover input[type="url"]:focus {
+    color: var(--help-ink-strong);
+    background: #fff;
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  #tabCover input[type="url"]::placeholder {
+    color: color-mix(in srgb, var(--help-ink) 72%, var(--bg-panel));
+    opacity: 1;
+  }
+  #tabCover .row:has(input[type="url"]) > label {
+    color: var(--ink-soft);
+  }
+  #tabCover .row:has(input[type="url"]):has(input[type="url"]:placeholder-shown) > label {
+    color: var(--help-ink);
+  }
   /* 상단 프로필의 긴 입력 목록을 기능별 얇은 하위 아코디언으로 구분한다. */
   #profileGroup .profileSubFold {
     position: relative;
@@ -3910,7 +3940,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.1.2 GitHub 저장소 열기">v1.4.1.2</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.2 GitHub 저장소 열기">v1.4.2</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -4014,6 +4044,14 @@
         <div class="row">
           <label for="subCharUrl">BOT 링크</label>
           <input type="url" id="subCharUrl" maxlength="8192" placeholder="https://…">
+        </div>
+        <div class="row">
+          <label for="subUserUrl">USER 링크</label>
+          <input type="url" id="subUserUrl" maxlength="8192" placeholder="https://…">
+        </div>
+        <div class="row">
+          <label for="logSubtitleUrl">부제 링크</label>
+          <input type="url" id="logSubtitleUrl" maxlength="8192" placeholder="https://…">
         </div>
       </div>
     </details>
@@ -4134,6 +4172,10 @@
       <div class="row">
         <label for="profileUserName">이름</label>
         <input type="text" id="profileUserName" maxlength="100" placeholder="표시 이름">
+      </div>
+      <div class="row">
+        <label for="profileUserUrl">링크</label>
+        <input type="url" id="profileUserUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
       </div>
       <div class="row profileTagsRow">
         <label id="profileUserTagsLabel">태그</label>
@@ -4262,7 +4304,7 @@
       <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 옵션 3–5는 출력에서 자동 줄바꿈</p>
       <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
       <p class="hint"><b>속마음:</b> <code>'이 부분'</code> → 강조 색상 · 기울임 없음</p>
-      <p class="hint"><b>굵게:</b> <code>__이 부분__</code> · 겹쳐 쓰기 <code>__*둘 다*__</code></p>
+      <p class="hint"><b>굵게:</b> <code>**이 부분**</code> 또는 <code>__이 부분__</code> · 굵게 + 강조 <code>***둘 다***</code> 또는 <code>__*둘 다*__</code></p>
       <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
       <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
@@ -4786,7 +4828,7 @@
     </div>
     <div class="editorToolbar fmtBar" data-scope="fs" id="fsToolbar">
       <span class="tbGroup">
-        <button type="button" class="fmtBtn" data-tfmt="bold" title="선택 부분 굵게 (__…__)  ·  Ctrl+B"><b>B</b></button>
+        <button type="button" class="fmtBtn" data-tfmt="bold" title="선택 부분 굵게 (**…**)  ·  Ctrl+B"><b>B</b></button>
         <button type="button" class="fmtBtn" data-tfmt="emphasis" title="선택 부분 강조 (*…*)  ·  Ctrl+I"><i>I</i></button>
         <button type="button" class="fmtBtn" data-tfmt="center" title="이 줄 가운데 정렬 ([C])  ·  Ctrl+E">C</button>
       </span>
@@ -4847,7 +4889,7 @@
 </div>
 
 <div id="selToolbar" role="toolbar" aria-label="선택한 글자 서식">
-  <button type="button" data-fmt="bold" title="굵게 (__...__)"><b>B</b></button>
+  <button type="button" data-fmt="bold" title="굵게 (**...** 또는 __...__)"><b>B</b></button>
   <button type="button" data-fmt="emphasis" title="강조 (*...*)"><i>I</i></button>
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
 </div>
@@ -4929,7 +4971,7 @@ function normalizeHttpLinkUrl(value){
 }
 
 // 아카라이브의 기본 링크색·밑줄이 표제 스타일을 덮어쓰지 못하도록
-// a와 내부 span 양쪽에 현재 글자 속성을 직접 고정한다.
+// a와 내부 span 양쪽에 링크가 없을 때와 동일한 글자색·서식을 직접 고정한다.
 function buildStylePreservingLink(contentHTML, rawUrl, color){
   const href = normalizeHttpLinkUrl(rawUrl);
   if(!href) return contentHTML;
@@ -5070,7 +5112,8 @@ function safeHexColor(value, fallback){
   return normalized || fallback || '#555555';
 }
 
-// 인라인 서식: __...__ -> 굵게, *...* -> 강조(기울임 + 강조색),
+// 인라인 서식: **...** / __...__ -> 굵게, ***...*** -> 굵게 + 강조,
+// *...* -> 강조(기울임 + 강조색),
 // '...' -> 속마음(기울임 없이 같은 강조색). 둥근 작은따옴표는 normalizeQuotes에서 통일된다.
 function processInline(text, emphasisColor, options){
   const literalSingleQuotes = !!(options && options.literalSingleQuotes);
@@ -5082,14 +5125,19 @@ function processInline(text, emphasisColor, options){
   // style 값이 대사로 오인되는 일을 막는다.
   const em = content => `<em style='${emphasisStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
   const thought = content => `<span data-mosaic-thought='true' style='${thoughtStyle}'>'${content}'</span>`;
-  let content = escapeTextHTML(normalizeQuotes(String(text)))
-    .replace(/__(.+?)__/g, '<strong>$1</strong>');
+  let content = escapeTextHTML(normalizeQuotes(String(text)));
   if(!literalSingleQuotes){
     // 여는 따옴표 바로 앞이 글자·숫자인 영문 축약형(It's, don't)은 건드리지 않는다.
     // 닫는 따옴표 뒤에는 조사나 문장부호가 바로 이어져도 속마음으로 인식한다.
     content = content.replace(/(^|[^\p{L}\p{N}])'([^'\n]+?)'/gu, (m, prefix, inner) => prefix + thought(inner));
   }
-  return content.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
+  // 별표 문법은 속마음 따옴표를 모두 처리한 뒤 HTML로 바꾼다. 생성된 style 속성의
+  // 작은따옴표가 속마음 문법으로 다시 해석되는 일을 막고, *** → ** → * 순서를 지킨다.
+  return content
+    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, (m, inner) => `<strong>${em(inner)}</strong>`)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
 }
 
 // Shift+Enter로 만든 같은 문단 내 줄바꿈. 일반 줄을 합치는 단계에서만 이 토큰을
@@ -5528,7 +5576,9 @@ function getSettings(){
     subChar: document.getElementById('subChar').value,
     subCharUrl: normalizeProtocolRelativeUrl(document.getElementById('subCharUrl').value),
     subUser: document.getElementById('subUser').value,
+    subUserUrl: normalizeProtocolRelativeUrl(document.getElementById('subUserUrl').value),
     logSubtitle: document.getElementById('logSubtitle').value,
+    logSubtitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logSubtitleUrl').value),
     profileOn: document.getElementById('profileOn').checked,
     profileMinimal: document.getElementById('profileMinimal').checked,
     profileCharOn: document.getElementById('profileCharOn').checked,
@@ -5868,12 +5918,20 @@ function buildTitleBlock(settings, hasImg){
     settings.subCharUrl,
     pal.caption
   );
-  const processedSu = processInline(su, settings.emphasisColor);
+  const processedSu = buildStylePreservingLink(
+    processInline(su, settings.emphasisColor),
+    settings.subUserUrl,
+    pal.caption
+  );
   const orderedNameHTML = settings.profileOrder === 'user-bot'
     ? [su ? processedSu : '', sc ? processedSc : '']
     : [sc ? processedSc : '', su ? processedSu : ''];
   const coupleHTML = orderedNameHTML.filter(Boolean).join(' × ');
-  const freeHTML = processInline(free, settings.emphasisColor);
+  const freeHTML = buildStylePreservingLink(
+    processInline(free, settings.emphasisColor),
+    settings.logSubtitleUrl,
+    pal.caption
+  );
   const subHTML = coupleHTML && freeHTML
     ? `${coupleHTML} · ${freeHTML}`
     : (coupleHTML || freeHTML);
@@ -6051,9 +6109,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       ? ''
       : `<p style="margin:0 0 3px; color:${softBodyTextColor(settings, profile.color)}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${profile.role}</p>`;
     const profileNameHTML = multiline(profile.name);
-    const linkedProfileNameHTML = profile.role === 'BOT'
-      ? buildStylePreservingLink(profileNameHTML, settings.subCharUrl, profile.color)
-      : profileNameHTML;
+    const profileLinkUrl = profile.role === 'BOT'
+      ? settings.subCharUrl
+      : (profile.role === 'USER' ? settings.subUserUrl : '');
+    const linkedProfileNameHTML = buildStylePreservingLink(profileNameHTML, profileLinkUrl, profile.color);
     const name = profile.name
       ? `<p style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${linkedProfileNameHTML}</p>`
       : '';
@@ -6467,11 +6526,11 @@ let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
 // 미리보기 글자를 드래그하면 작은 도구막대가 뜨고, 굵게/강조를 본문에 바로 적용함.
 // 이미 서식이 걸린 부분을 고르면 해당 버튼이 켜지고, 다시 누르면 서식이 해제된다.
 // 최상위 문단(접기 블록 밖)만 대상으로 하며, 선택한 글자를 원본 줄에서 찾아 마커로 감싼다.
-const FMT_WRAP = { bold: '__', emphasis: '*' };
+const FMT_WRAP = { bold: '**', emphasis: '*' };
 const FMT_TAG = { bold: 'STRONG', emphasis: 'EM' };
 const FMT_RE = {
-  bold: /__(.+?)__/g,
-  emphasis: /(?<!\*)\*([^*\n]+?)\*(?!\*)/g
+  bold: /__(.+?)__|\*\*(.+?)\*\*/g,
+  emphasis: /\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)/g
 };
 const CENTER_RE = /^(>\s?)?\[C\]\s*/i;   // 줄 맨 앞 또는 인용 뒤의 [C]
 let selCtx = null;
@@ -6486,7 +6545,9 @@ function stripMarkers(s){
 }
 
 function formatMatchContent(fmt, match){
-  return match[1];
+  // ***글***에서 강조만 해제할 때 굵기는 남겨 **글**로 되돌린다.
+  if(fmt === 'emphasis' && match[0].startsWith('***')) return `**${match[1]}**`;
+  return match[1] !== undefined ? match[1] : match[2];
 }
 
 // buildParagraph/assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
@@ -7380,7 +7441,7 @@ function previewSelectionDetails(el, formatNode){
 }
 
 // 브라우저가 contenteditable 내부에 자체 <b>/<i>를 넣더라도 DOM에만 남겨두지 않고
-// 반드시 대응하는 본문 원문 줄의 __...__ / *...* 문법으로 변환한다.
+// 반드시 대응하는 본문 원문 줄의 **...** / *...* 문법으로 변환한다.
 function applyPreviewFormatToSource(el, descriptor, fmt, details){
   if(previewDirectEditCommitting || !descriptor || descriptor.type !== 'body' || !details) return false;
   const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
@@ -7901,7 +7962,7 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
     };
     const finish = (newLine, label) => {
       // 미리보기를 다시 그릴 때 기존 contenteditable이 blur되며 평문을 재저장하면
-      // 방금 넣은 __...__ / *...* 마커가 지워진다. 서식 작업 동안 blur 저장을 잠근다.
+      // 방금 넣은 **...** / *...* 마커가 지워진다. 서식 작업 동안 blur 저장을 잠근다.
       previewDirectEditCommitting = true;
       try {
         snapshotCards();
@@ -8985,6 +9046,8 @@ function syncDesignSummaries(){
   const dialogue = selectedControlText('dlgStyle');
   const spacing = selectedControlText('spacingMode');
   const width = selectedControlText('cardWidth');
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  document.getElementById('widthDesktopBtn').textContent = `데스크톱 ${cardWidth}`;
   document.getElementById('typographyDesignSummary').textContent =
     `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
   const parallelLayout = selectedControlText('parallelTranslationLayout');
@@ -9009,9 +9072,14 @@ function syncDesignSummaries(){
     const activeProfileBotName = document.getElementById('profileOn').checked
       && document.getElementById('profileCharOn').checked
       && document.getElementById('profileCharName').value.trim();
+    const activeProfileUserName = document.getElementById('profileOn').checked
+      && document.getElementById('profileUserOn').checked
+      && document.getElementById('profileUserName').value.trim();
     if(document.getElementById('logNumber').value.trim() && document.getElementById('logNumberUrl').value.trim()) linked.push('메모');
     if(document.getElementById('logTitle').value.trim() && document.getElementById('logTitleUrl').value.trim()) linked.push('제목');
     if((document.getElementById('subChar').value.trim() || activeProfileBotName) && document.getElementById('subCharUrl').value.trim()) linked.push('BOT');
+    if((document.getElementById('subUser').value.trim() || activeProfileUserName) && document.getElementById('subUserUrl').value.trim()) linked.push('USER');
+    if(document.getElementById('logSubtitle').value.trim() && document.getElementById('logSubtitleUrl').value.trim()) linked.push('부제');
     titleLinkSummary.textContent = linked.length ? linked.join(' · ') : '미설정';
   }
 
@@ -9084,7 +9152,7 @@ const PROFILE_ENTITY_CONFIGS = [
   },
   {
     label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn', imageResetButtonId:'profileUserImageResetBtn',
-    controlIds:['profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
+    controlIds:['profileUserName','profileUserUrl','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
     resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' },
     imageResetValues:{ profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
   },
@@ -9170,7 +9238,7 @@ PROFILE_TAG_GROUPS.forEach(group => {
 
 // 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여줌
 // (이 도구가 로컬 파일로 열려있을 때 미리보기에서 못 불러오는 경우 방지)
-['imgUrl','profileCharImage','profileUserImage','logNumberUrl','logTitleUrl','subCharUrl'].forEach(id => {
+['imgUrl','profileCharImage','profileUserImage','logNumberUrl','logTitleUrl','subCharUrl','subUserUrl','logSubtitleUrl'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     const input = document.getElementById(id);
     const url = normalizeProtocolRelativeUrl(input.value);
@@ -9183,11 +9251,11 @@ PROFILE_TAG_GROUPS.forEach(group => {
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'',
-  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', logSubtitle:'',
+  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', subUserUrl:'', logSubtitle:'', logSubtitleUrl:'',
   profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
   keywordRules:'[]'
 });
@@ -9211,7 +9279,9 @@ const PREVIEW_FOCUS_MAP = {
   subChar:    () => previewParts().title,
   subCharUrl: () => previewParts().title,
   subUser:    () => previewParts().title,
+  subUserUrl: () => previewParts().title,
   logSubtitle:() => previewParts().title,
+  logSubtitleUrl:() => previewParts().title,
   logTitleOn: () => previewParts().title,
   titleMinimal:() => previewParts().title,
   imgOn:      () => previewParts().image,
@@ -9300,12 +9370,16 @@ const TITLE_LINK_DEPENDENCIES = [
   { sourceId:'logNumber', linkId:'logNumberUrl' },
   { sourceId:'logTitle', linkId:'logTitleUrl' },
   { sourceId:'subChar', linkId:'subCharUrl' },
+  { sourceId:'subUser', linkId:'subUserUrl' },
+  { sourceId:'logSubtitle', linkId:'logSubtitleUrl' },
 ];
 
-// 표제와 상단 프로필은 하나의 BOT 링크 값을 공유한다. 화면에는 각 문맥에 맞는
-// 입력칸을 제공하되 저장·내보내기 데이터는 기존 subCharUrl 하나만 유지한다.
+// 표제와 상단 프로필은 BOT·USER별로 하나의 링크 값을 공유한다. 화면에는 각 문맥에 맞는
+// 입력칸을 제공하되 저장·내보내기 데이터는 subCharUrl·subUserUrl에 한 번씩만 유지한다.
 const profileBotLinkInput = document.getElementById('profileCharUrl');
 const sharedBotLinkInput = document.getElementById('subCharUrl');
+const profileUserLinkInput = document.getElementById('profileUserUrl');
+const sharedUserLinkInput = document.getElementById('subUserUrl');
 
 function syncProfileBotLinkControl(){
   if(!profileBotLinkInput || !sharedBotLinkInput) return;
@@ -9336,6 +9410,37 @@ if(profileBotLinkInput && sharedBotLinkInput){
   });
   sharedBotLinkInput.addEventListener('input', syncProfileBotLinkControl);
   document.getElementById('profileCharName').addEventListener('input', syncProfileBotLinkControl);
+}
+
+function syncProfileUserLinkControl(){
+  if(!profileUserLinkInput || !sharedUserLinkInput) return;
+  if(profileUserLinkInput.value !== sharedUserLinkInput.value){
+    profileUserLinkInput.value = sharedUserLinkInput.value;
+  }
+  const enabled = document.getElementById('profileOn').checked
+    && document.getElementById('profileUserOn').checked
+    && document.getElementById('profileUserName').value.trim() !== '';
+  profileUserLinkInput.disabled = !enabled;
+  const row = profileUserLinkInput.closest('.row');
+  if(row) row.classList.toggle('isControlDisabled', !enabled);
+}
+
+if(profileUserLinkInput && sharedUserLinkInput){
+  profileUserLinkInput.addEventListener('input', () => {
+    if(sharedUserLinkInput.value === profileUserLinkInput.value) return;
+    sharedUserLinkInput.value = profileUserLinkInput.value;
+    sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+  profileUserLinkInput.addEventListener('change', () => {
+    const normalized = normalizeProtocolRelativeUrl(profileUserLinkInput.value);
+    profileUserLinkInput.value = normalized;
+    if(sharedUserLinkInput.value !== normalized){
+      sharedUserLinkInput.value = normalized;
+      sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  });
+  sharedUserLinkInput.addEventListener('input', syncProfileUserLinkControl);
+  document.getElementById('profileUserName').addEventListener('input', syncProfileUserLinkControl);
 }
 
 function syncTitleLinkControlState(){
@@ -9385,7 +9490,7 @@ function syncCoverControlState(){
   syncProfileImageRangeLabels();
   const groups = [
     { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','xpos','ypos'] },
-    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle'] },
+    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'] },
     { on: document.getElementById('profileOn').checked, ids: ['profileMinimal','profilePlacement','profileStyle','profileProfileOrder','profileRelationship','profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'] },
     { on: document.getElementById('footerOn').checked, ids: ['footerMinimal','footerAuthor'] },
   ];
@@ -9401,6 +9506,7 @@ function syncCoverControlState(){
   syncProfileEntityControlState();
   syncProfileImageUiState();
   syncProfileBotLinkControl();
+  syncProfileUserLinkControl();
   // 표제 전체가 켜져 있어도 실제 연결 문구가 비어 있으면 해당 링크만 잠근다.
   syncTitleLinkControlState();
   syncAllSegmentedChoiceControls();
@@ -9825,7 +9931,7 @@ function createCardEditor(value){
 
   const fmtGroup = document.createElement('div');
   fmtGroup.className = 'cardFmtBar';
-  [['bold',`선택 부분 굵게 (__…__)  ·  ${MOD_KEY}+B`],
+  [['bold',`선택 부분 굵게 (**…**)  ·  ${MOD_KEY}+B`],
    ['emphasis',`선택 부분 강조 (*…*)  ·  ${MOD_KEY}+I`],
    ['center',`이 줄 가운데 정렬 ([C])  ·  ${MOD_KEY}+E`]].forEach(([f, tip]) => {
     const btn = document.createElement('button');
@@ -10077,7 +10183,8 @@ function applyTextareaFormat(ta, fmt){
   } else {
     const wrap = FMT_WRAP[fmt];
     const sel = val.slice(s, e);
-    const wraps = [wrap];
+    // 새 굵기는 **로 적용하되, 기존 __ 문법도 같은 버튼으로 해제할 수 있게 유지한다.
+    const wraps = fmt === 'bold' ? [wrap, '__'] : [wrap];
     let removed = false;
     for(const candidate of wraps){
       const escaped = candidate.replace(/[*]/g, '\\$&');
@@ -11305,7 +11412,7 @@ function sanitizeImportedWork(data){
       const position = Number(value);
       if(!Number.isFinite(position) || position < 0 || position > 100) return null;
     }
-    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage' || id === 'logNumberUrl' || id === 'logTitleUrl' || id === 'subCharUrl')
+    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage' || id === 'logNumberUrl' || id === 'logTitleUrl' || id === 'subCharUrl' || id === 'subUserUrl' || id === 'logSubtitleUrl')
       ? 8192
       : (id === 'extraChars' ? 50000 : 5000);
     if(value.length > limit) return null;
@@ -11649,7 +11756,7 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
 document.getElementById('newLogBtn').addEventListener('click', () => {
   snapshotCards();
   // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
-  ['imgUrl','logNumber','logNumberUrl','logTitleUrl','subChar','subCharUrl','subUser','logSubtitle'].forEach(id => { document.getElementById(id).value = ''; });
+  ['imgUrl','logNumber','logNumberUrl','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('logTitle').value = '';
   document.getElementById('imgOn').checked = false;
   document.getElementById('logTitleOn').checked = false;
@@ -13953,9 +14060,10 @@ function basicPreflightIssues(){
       issues.push({ severity:'warn', message:`카드 ${cardIndex + 1}이 비어 있습니다.`, cardIndex, lineIndex:0 });
       return;
     }
-    const strongMarkers = (card.body.match(/__/g) || []).length;
-    if(strongMarkers % 2){
-      issues.push({ severity:'error', message:`카드 ${cardIndex + 1}의 굵게(__) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
+    const underscoreStrongMarkers = (card.body.match(/__/g) || []).length;
+    const asteriskStrongMarkers = (card.body.match(/\*\*/g) || []).length;
+    if(underscoreStrongMarkers % 2 || asteriskStrongMarkers % 2){
+      issues.push({ severity:'error', message:`카드 ${cardIndex + 1}의 굵게(** 또는 __) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
     }
     const withoutStrong = card.body.replace(/__/g, '');
     const emphasisMarkers = (withoutStrong.match(/(?<!\\)\*/g) || []).length;
@@ -13980,14 +14088,17 @@ function basicPreflightIssues(){
   [
     { urlId:'logNumberUrl', textId:'logNumber', label:'메모' },
     { urlId:'logTitleUrl', textId:'logTitle', label:'제목' },
-    { urlId:'subCharUrl', textIds:['subChar','profileCharName'], label:'BOT 이름' }
+    { urlId:'subCharUrl', textIds:['subChar','profileCharName'], label:'BOT 이름' },
+    { urlId:'subUserUrl', textIds:['subUser','profileUserName'], label:'USER 이름' },
+    { urlId:'logSubtitleUrl', textId:'logSubtitle', label:'부제' }
   ].forEach(item => {
     // 연결할 글자가 없는 동안에는 링크 입력도 비활성 상태이므로 검사 대상에서 제외한다.
     const textIds = item.textIds || [item.textId];
     const hasLinkedText = textIds.some(id => {
-      if(id === 'profileCharName'){
+      if(id === 'profileCharName' || id === 'profileUserName'){
+        const entityToggleId = id === 'profileCharName' ? 'profileCharOn' : 'profileUserOn';
         return document.getElementById('profileOn').checked
-          && document.getElementById('profileCharOn').checked
+          && document.getElementById(entityToggleId).checked
           && document.getElementById(id).value.trim();
       }
       return document.getElementById(id).value.trim();
@@ -13996,10 +14107,11 @@ function basicPreflightIssues(){
     const rawUrl = document.getElementById(item.urlId).value.trim();
     if(!rawUrl) return;
     if(!normalizeHttpLinkUrl(rawUrl)){
-      const targetId = item.urlId === 'subCharUrl'
-        && !document.getElementById('logTitleOn').checked
-        ? 'profileCharUrl'
-        : item.urlId;
+      let targetId = item.urlId;
+      if(!document.getElementById('logTitleOn').checked){
+        if(item.urlId === 'subCharUrl') targetId = 'profileCharUrl';
+        if(item.urlId === 'subUserUrl') targetId = 'profileUserUrl';
+      }
       issues.push({ severity:'error', message:`${item.label} 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`, targetId });
     }
   });
