@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- index 기반 개선본 v200 · 표시 버전 v1.4.2 -->
+<!-- index 기반 개선본 v201 · 표시 버전 v1.4.2.1 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -2267,7 +2267,7 @@
   #previewWrap {
     position: relative;
     width: 100%;
-    max-width: 800px;
+    max-width: 750px;
     transition: max-width .18s ease;
   }
   #previewToolbar {
@@ -2415,8 +2415,7 @@
     outline: none !important;
     box-shadow: none !important;
   }
-  body.sidebarFieldActive #selToolbar,
-  body.sidebarFieldActive #blockToolbar {
+  body.sidebarFieldActive #selToolbar {
     display: none !important;
   }
   /* 미리보기를 새 DOM으로 교체하는 한 프레임 동안 포커스 경계가 번쩍이지 않게 한다. */
@@ -3940,7 +3939,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.2 GitHub 저장소 열기">v1.4.2</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.4.2.1 GitHub 저장소 열기">v1.4.2.1</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -5120,10 +5119,12 @@ function processInline(text, emphasisColor, options){
   const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
   // 게시판의 전역 스타일이나 상위 나레이션 색상이 선택한 강조색을 덮지 못하게 한다.
   const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important;`;
+  // 기울어진 마지막 획이 다음 글자에 달라붙어 보이지 않도록 약 1px만 띄운다.
+  const emphasisOuterStyle = `${emphasisStyle} margin-right:0.08em;`;
   const thoughtStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:normal !important;`;
   // 이후 단계가 본문의 큰따옴표 대사만 찾으므로, 생성 마크업 속성은 작은따옴표를 써서
   // style 값이 대사로 오인되는 일을 막는다.
-  const em = content => `<em style='${emphasisStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
+  const em = content => `<em style='${emphasisOuterStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
   const thought = content => `<span data-mosaic-thought='true' style='${thoughtStyle}'>'${content}'</span>`;
   let content = escapeTextHTML(normalizeQuotes(String(text)));
   if(!literalSingleQuotes){
@@ -5299,7 +5300,8 @@ function buildParagraph(rawLine, settings, opts){
     // 장면 전환용 장식 구분선 (✦ ✦ ✦) — [HR]보다 무게감 있는 전환에 사용
     // letter-spacing은 마지막 글자 뒤에도 붙어 장식이 왼쪽으로 치우쳐 보이므로
     // 같은 크기의 왼쪽 패딩으로 시각적 중심을 보정한다(실제 이동량은 절반인 5px).
-    return `    <div data-mosaic-generated="true" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${pal.ornament}; font-size:12px; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
+    const sceneOrnament = mixHex(pal.ornament, pal.cardBg, 0.24);
+    return `    <div data-mosaic-generated="true" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${sceneOrnament}; font-size:12px; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
   }
 
   // 가운데 정렬 접두어를 다른 본문 문법보다 먼저 해석해 [C] # 제목처럼 함께 쓸 수 있게 함.
@@ -5342,7 +5344,7 @@ function buildParagraph(rawLine, settings, opts){
     // 카드의 첫 요소면 위 마진을 없앰 (카드 안쪽 여백과 겹쳐 위쪽만 넓어 보이는 것 방지).
     // 아카라이브가 <img>를 <p>로 감싸며 붙이는 기본 여백도 line-height/font-size 0으로 눌러줌.
     const imgMt = opts.isFirst ? 0 : Math.round(22 * sm);
-    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dii" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
+    return `    <div style="margin:${imgMt}px 0 ${Math.round(22*sm)}px 0; line-height:0; font-size:0; text-align:center;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dib" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
   }
 
   // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
@@ -6428,15 +6430,19 @@ function buildCard(settings){
         : '';
       const visibleFoldTitle = foldTitle.trim() || autoFoldTitle;
       const minimalFoldTitle = settingFlagOn(settings.foldTitleMinimal);
+      // 제목이 비어 ✦ ✦ ✦만 보이는 카드 헤더는 일반 제목 장식보다 아주 살짝 연하게 둔다.
+      const foldOrnamentColor = visibleFoldTitle
+        ? pal.ornament
+        : mixHex(pal.ornament, pal.cardBg, 0.12);
       const foldTitleHTML = visibleFoldTitle
         ? processInline(visibleFoldTitle, settings.emphasisColor)
-        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px;">✦</span>`;
       const foldLeftOrnament = minimalFoldTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-right:14px;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px; margin-right:14px;">✦</span>`;
       const foldRightOrnament = minimalFoldTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px; margin-left:14px;">✦</span>`;
       const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
       const foldBodyPadding = foldDividerMinimal
         ? `clamp(12px,2.5vw,16px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
@@ -6685,17 +6691,25 @@ function lineSearchProjection(line){
   }
 
   // 인라인 서식 기호는 보이지 않지만 내용의 원문 인덱스는 그대로 유지한다.
-  const bold = /__(.+?)__/g;
-  while((m = bold.exec(normalized)) !== null){
-    mask(m.index, m.index + 2);
-    mask(m.index + m[0].length - 2, m.index + m[0].length);
-  }
-  const emphasis = /(?<!\*)\*([^*\n]+?)\*(?!\*)/g;
-  while((m = emphasis.exec(normalized)) !== null){
-    mask(m.index, m.index + 1);
-    mask(m.index + m[0].length - 1, m.index + m[0].length);
-  }
+  // 미리보기 직접 편집에서도 출력 파서와 같은 ** / __ / *** 문법을 사용한다.
+  maskInlineFormatMarkers(normalized, mask);
   return chars.join('');
+}
+
+function maskInlineFormatMarkers(value, mask){
+  const normalized = String(value);
+  [
+    { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
+    { re:/\*\*([^*\n]+?)\*\*/g, width:2 },
+    { re:/__(.+?)__/g, width:2 },
+    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
+  ].forEach(({ re, width }) => {
+    let match;
+    while((match = re.exec(normalized)) !== null){
+      mask(match.index, match.index + width);
+      mask(match.index + match[0].length - width, match.index + match[0].length);
+    }
+  });
 }
 
 // 상태창은 출력할 때 `|` 양옆 공백을 통일하므로 화면 문자열의 길이가 원문과 달라질 수 있다.
@@ -6769,6 +6783,8 @@ function prepareSourceRangeReplacement(line, sourceRange){
   const raw = String(line);
   const remove = new Set();
   [
+    { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
+    { re:/\*\*([^*\n]+?)\*\*/g, width:2 },
     { re:/__(.+?)__/g, width:2 },
     { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
   ].forEach(({ re, width }) => {
@@ -6821,6 +6837,12 @@ function hideBlockToolbar(){
 
 function showBlockToolbar(ctx){
   hideSelToolbar();
+  // 구분선·이미지의 mousedown은 드래그 판별을 위해 기본 포커스 이동을 막는다.
+  // 그 결과 왼쪽 입력창 포커스 상태가 남아 #blockToolbar가 CSS로 숨겨질 수 있으므로,
+  // 미리보기 블록 메뉴를 열기 직전에 사이드바 포커스를 명시적으로 해제한다.
+  const active = document.activeElement;
+  if(active && active.closest && active.closest('#sidebar')) active.blur();
+  document.body.classList.remove('sidebarFieldActive');
   blockCtx = ctx;
   const bar = document.getElementById('blockToolbar');
   const isImage = ctx.type === 'img';
@@ -7112,20 +7134,10 @@ function findBlockSource(node){
 function inlineEditProjection(value){
   const normalized = normalizeQuotes(String(value));
   const chars = normalized.split('');
-  let match;
   const mask = (start, end) => {
     for(let i = start; i < end && i < chars.length; i++) chars[i] = '\u0000';
   };
-  const bold = /__(.+?)__/g;
-  while((match = bold.exec(normalized)) !== null){
-    mask(match.index, match.index + 2);
-    mask(match.index + match[0].length - 2, match.index + match[0].length);
-  }
-  const emphasis = /(?<!\*)\*([^*\n]+?)\*(?!\*)/g;
-  while((match = emphasis.exec(normalized)) !== null){
-    mask(match.index, match.index + 1);
-    mask(match.index + match[0].length - 1, match.index + match[0].length);
-  }
+  maskInlineFormatMarkers(normalized, mask);
   return chars.join('');
 }
 
@@ -7166,7 +7178,7 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection){
   const inserted = next.slice(prefix, next.length - suffix);
   return (raw.slice(0, replaceStart) + inserted + raw.slice(replaceEnd))
     .replace(/____/g, '')
-    .replace(/\*\*/g, '');
+    .replace(/\*\*\*\*/g, '');
 }
 
 function replacePreviewBodyLine(rawLine, nextVisible){
@@ -7220,6 +7232,38 @@ function descriptorSourceRange(descriptor, line, text, occurrence){
     if(descriptor && descriptor.segmented) return null;
   }
   return findSourceRange(line, text, occurrence, false);
+}
+
+// [BR] 문단은 여러 원문 줄이 미리보기의 한 블록으로 합쳐진다. 선택한 글자가
+// 첫 줄이 아닌 경우에도 결합 순서대로 각 원문 줄의 후보를 세어 실제 줄과 범위를 찾는다.
+function descriptorSelectionSource(descriptor, text, occurrence){
+  if(!descriptor || !descriptor.ta) return null;
+  const lines = descriptor.ta.value.split('\n');
+  const rawStart = descriptor.raw;
+  const rawEnd = Math.max(rawStart, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : rawStart);
+  if(descriptor.softBreak && rawEnd > rawStart){
+    let remaining = Math.max(0, occurrence || 0);
+    for(let raw = rawStart; raw <= rawEnd; raw++){
+      const line = lines[raw];
+      if(line === undefined) continue;
+      const ranges = findAllSourceRanges(line, text, false);
+      if(remaining < ranges.length){
+        return { raw, range:ranges[remaining], occurrence:remaining, sourceBounds:null, segmented:false };
+      }
+      remaining -= ranges.length;
+    }
+    return null;
+  }
+  const line = lines[rawStart];
+  if(line === undefined) return null;
+  const range = descriptorSourceRange(descriptor, line, text, occurrence);
+  return range ? {
+    raw:rawStart,
+    range,
+    occurrence,
+    sourceBounds:descriptor.sourceBounds || null,
+    segmented:!!descriptor.segmented
+  } : null;
 }
 
 function revealCoverControl(ids){
@@ -7448,10 +7492,12 @@ function applyPreviewFormatToSource(el, descriptor, fmt, details){
   if(!owningContext || owningContext.ta !== descriptor.ta) return false;
   const ta = descriptor.ta;
   const lines = ta ? ta.value.split('\n') : [];
-  const line = lines[descriptor.raw];
+  const resolved = descriptorSelectionSource(descriptor, details.text, details.occurrence);
+  if(!resolved) return false;
+  const raw = resolved.raw;
+  const line = lines[raw];
   if(line === undefined) return false;
-  const sourceRange = descriptorSourceRange(descriptor, line, details.text, details.occurrence);
-  if(!sourceRange) return false;
+  const sourceRange = resolved.range;
   const wrap = FMT_WRAP[fmt];
   if(!wrap) return false;
 
@@ -7477,7 +7523,7 @@ function applyPreviewFormatToSource(el, descriptor, fmt, details){
   previewDirectEditCommitting = true;
   try {
     snapshotCards();
-    lines[descriptor.raw] = nextLine;
+    lines[raw] = nextLine;
     ta.value = lines.join('\n');
     activeTa = ta;
     ta.dispatchEvent(new Event('input', { bubbles:true }));
@@ -7905,23 +7951,24 @@ document.getElementById('preview').addEventListener('mouseup', () => {
       const el = activeFormatEl(range.startContainer, FMT_TAG[fmt], src.block);
       active[fmt] = el ? el.textContent : null;
     });
-    // 가운데 정렬은 줄 단위 — 원본 줄에 [C]가 있으면 켜짐
-    const srcLine = src.ta.value.split('\n')[src.raw] || '';
-    active.center = CENTER_RE.test(srcLine) ? 'on' : null;
     const sourceDescriptor = directDescriptor && directDescriptor.type === 'body'
       ? directDescriptor
       : src;
-    const sourceRange = descriptorSourceRange(sourceDescriptor, srcLine, text, occurrence);
-    if(!sourceRange){ hideSelToolbar(); return; }
+    const resolved = descriptorSelectionSource(sourceDescriptor, text, occurrence);
+    if(!resolved){ hideSelToolbar(); return; }
+    // [BR] 문단의 가운데 정렬은 결합 문단 전체를 제어하므로 첫 원문 줄을 기준으로 한다.
+    const centerRaw = sourceDescriptor.softBreak ? sourceDescriptor.raw : resolved.raw;
+    const centerLine = src.ta.value.split('\n')[centerRaw] || '';
+    active.center = CENTER_RE.test(centerLine) ? 'on' : null;
 
-    selCtx = { ta:src.ta, raw:src.raw, text, occurrence, active, sourceRange };
+    selCtx = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
     if(positionSyncEnabled()) revealInEditor(
       src.ta,
-      src.raw,
+      resolved.raw,
       text,
-      occurrence,
-      sourceDescriptor.sourceBounds || null,
-      !!sourceDescriptor.segmented
+      resolved.occurrence,
+      resolved.sourceBounds,
+      resolved.segmented
     );
     const bar = document.getElementById('selToolbar');
     bar.querySelectorAll('button').forEach(b => {
@@ -7947,7 +7994,7 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
     if(!selCtx) return;
-    const { ta, raw, text, occurrence, active, sourceRange:capturedRange } = selCtx;
+    const { ta, raw, centerRaw = raw, text, occurrence, active, sourceRange:capturedRange } = selCtx;
     const fmt = btn.dataset.fmt;
     const wrap = FMT_WRAP[fmt];
     const lines = ta.value.split('\n');
@@ -7960,13 +8007,13 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       setTimeout(() => { st.textContent = ''; }, 3500);
       hideSelToolbar();
     };
-    const finish = (newLine, label) => {
+    const finish = (newLine, label, targetRaw = raw) => {
       // 미리보기를 다시 그릴 때 기존 contenteditable이 blur되며 평문을 재저장하면
       // 방금 넣은 **...** / *...* 마커가 지워진다. 서식 작업 동안 blur 저장을 잠근다.
       previewDirectEditCommitting = true;
       try {
         snapshotCards();
-        lines[raw] = newLine;
+        lines[targetRaw] = newLine;
         ta.value = lines.join('\n');
         hideSelToolbar();
         window.getSelection().removeAllRanges();
@@ -7982,14 +8029,16 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
 
     // 가운데 정렬: 줄 단위로 [C] 붙이기/떼기 (인용 `> ` 뒤에 삽입)
     if(fmt === 'center'){
+      const centerLine = lines[centerRaw];
+      if(centerLine === undefined){ hideSelToolbar(); return; }
       let newLine;
       if(active.center){
-        newLine = line.replace(CENTER_RE, (m, q) => (q || ''));
-        return finish(newLine, '가운데 정렬 해제.');
+        newLine = centerLine.replace(CENTER_RE, (m, q) => (q || ''));
+        return finish(newLine, '가운데 정렬 해제.', centerRaw);
       }
-      const qm = line.match(/^>(?!>)\s?/);
-      newLine = qm ? qm[0] + '[C] ' + line.slice(qm[0].length) : '[C] ' + line;
-      return finish(newLine, '가운데 정렬 적용.');
+      const qm = centerLine.match(/^>(?!>)\s?/);
+      newLine = qm ? qm[0] + '[C] ' + centerLine.slice(qm[0].length) : '[C] ' + centerLine;
+      return finish(newLine, '가운데 정렬 적용.', centerRaw);
     }
 
     // 이미 서식이 걸린 부분 → 해제
@@ -8575,6 +8624,37 @@ function bindSeparatorInteraction(target, dragCtx, menuCtx){
   target.addEventListener('contextmenu', e => e.preventDefault());
 }
 
+function previewSeparatorType(block){
+  if(!block || block.dataset.mosaicGenerated !== 'true' || block.tagName !== 'DIV') return null;
+  if(block.style.height === '1px') return 'hr';
+  if(block.textContent.trim() === '✦ ✦ ✦' && block.style.letterSpacing) return 'hr2';
+  return null;
+}
+
+function bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx){
+  if(!block || block.dataset.mosaicSeparatorEditBound === 'true') return;
+  block.dataset.mosaicSeparatorEditBound = 'true';
+  if(type === 'hr'){
+    // 1px 선 자체 대신 충분히 넓은 투명 클릭 영역을 사용한다.
+    block.style.position = 'relative';
+    const hit = document.createElement('div');
+    hit.dataset.mosaicSeparatorHit = 'true';
+    hit.style.cssText = `position:absolute; z-index:2; left:0; right:0; top:-15px; height:32px; cursor:${dragCtx ? 'grab' : 'pointer'}; user-select:none;`;
+    hit.title = dragCtx
+      ? '클릭해서 변경/삭제 · 드래그로 이동'
+      : '클릭해서 변경/삭제';
+    bindSeparatorInteraction(hit, dragCtx, menuCtx);
+    block.appendChild(hit);
+    return;
+  }
+  block.style.cursor = dragCtx ? 'grab' : 'pointer';
+  block.style.userSelect = 'none';
+  block.title = dragCtx
+    ? '클릭해서 변경/삭제 · 드래그로 이동'
+    : '클릭해서 변경/삭제';
+  bindSeparatorInteraction(block, dragCtx, menuCtx);
+}
+
 // 최상위 이미지·구분선·장면 전환은 드래그 이동도 지원한다.
 // 접기 안쪽 이미지는 구조를 깨지 않도록 이동은 막고 클릭 편집만 연결한다.
 function enableBlockDrag(preview){
@@ -8640,11 +8720,38 @@ function enableBlockDrag(preview){
       });
     };
 
+    // 접기 내부의 구분선·장면 전환도 출력 순서와 원문 순서로 연결한다.
+    // 최상위 요소만 대상으로 삼던 기존 매핑에서 빠진 항목은 클릭 편집만 허용하고,
+    // 접기 구조를 깨뜨릴 수 있는 드래그 이동은 막는다.
+    const bindRemainingBodySeparators = () => {
+      const sourceSeparators = [];
+      ta.value.split('\n').forEach((line, raw) => {
+        const token = line.trim().toUpperCase();
+        if(token === '[HR]') sourceSeparators.push({ raw, type:'hr' });
+        else if(token === '[HR2]') sourceSeparators.push({ raw, type:'hr2' });
+      });
+      const previewSeparators = Array.from(bodyDiv.querySelectorAll('[data-mosaic-generated="true"]'))
+        .map(block => ({ block, type:previewSeparatorType(block) }))
+        .filter(item => item.type);
+      if(sourceSeparators.length !== previewSeparators.length) return;
+      previewSeparators.forEach((item, index) => {
+        const source = sourceSeparators[index];
+        if(source.type !== item.type || item.block.dataset.mosaicSeparatorEditBound === 'true') return;
+        bindSeparatorBlockInteraction(item.block, item.type, null, {
+          block:item.block,
+          ta,
+          raw:source.raw,
+          type:item.type
+        });
+      });
+    };
+
     // 표제 블록은 카드 밖이므로 본문 자식 = [문단들..., (마지막 카드면 꼬리말)]
     let blocks = Array.from(bodyDiv.children);
     if(blocks.length === map.length + 1) blocks = blocks.slice(0, -1); // 꼬리말 제외
     if(blocks.length !== map.length){
       bindRemainingBodyImages();
+      bindRemainingBodySeparators();
       return;
     }
 
@@ -8663,18 +8770,8 @@ function enableBlockDrag(preview){
       const dragCtx = { block, blocks, map, ta, srcIndex:i, label, type };
       const menuCtx = { block, ta, raw:info.startRaw, type };
 
-      if(isHr){
-        // 구분선은 높이가 1px이라 잡기 어려우므로, 미리보기에만 보이지 않는 손잡이를 덧댐
-        block.style.position = 'relative';
-        const hit = document.createElement('div');
-        hit.style.cssText = 'position:absolute; left:0; right:0; top:-11px; height:24px; cursor:grab;';
-        hit.title = '클릭해서 변경/삭제 · 드래그로 이동';
-        bindSeparatorInteraction(hit, dragCtx, menuCtx);
-        block.appendChild(hit);
-      } else if(isHr2){
-        block.style.cursor = 'grab';
-        block.title = '클릭해서 변경/삭제 · 드래그로 이동';
-        bindSeparatorInteraction(block, dragCtx, menuCtx);
+      if(isHr || isHr2){
+        bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx);
       } else {
         block.dataset.mosaicImageEditBound = 'true';
         block.style.cursor = 'grab';
@@ -8683,6 +8780,7 @@ function enableBlockDrag(preview){
       }
     });
     bindRemainingBodyImages();
+    bindRemainingBodySeparators();
   });
 }
 
@@ -9041,6 +9139,13 @@ function selectedControlText(id){
   return option ? option.textContent.replace(/\s*\([^)]*\)\s*$/, '') : '';
 }
 
+function syncDesktopPreviewWidth(){
+  const desktopButton = document.getElementById('widthDesktopBtn');
+  if(!desktopButton || !desktopButton.classList.contains('active')) return;
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
+}
+
 function syncDesignSummaries(){
   const font = selectedControlText('textFont');
   const dialogue = selectedControlText('dlgStyle');
@@ -9048,6 +9153,7 @@ function syncDesignSummaries(){
   const width = selectedControlText('cardWidth');
   const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
   document.getElementById('widthDesktopBtn').textContent = `데스크톱 ${cardWidth}`;
+  syncDesktopPreviewWidth();
   document.getElementById('typographyDesignSummary').textContent =
     `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
   const parallelLayout = selectedControlText('parallelTranslationLayout');
@@ -12278,11 +12384,11 @@ function restoreDraft(){
 
 // ---------- 미리보기 폭 토글 (데스크톱/모바일) ----------
 document.getElementById('widthDesktopBtn').addEventListener('click', () => {
-  document.getElementById('previewWrap').style.maxWidth = '800px';
   document.getElementById('widthDesktopBtn').classList.add('active');
   document.getElementById('widthMobileBtn').classList.remove('active');
   document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
   document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
+  syncDesktopPreviewWidth();
 });
 document.getElementById('widthMobileBtn').addEventListener('click', () => {
   document.getElementById('previewWrap').style.maxWidth = '380px';
