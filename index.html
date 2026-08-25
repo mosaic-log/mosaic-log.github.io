@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.5.1 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.5.2 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -53,6 +53,7 @@
     border-right: 1px solid var(--line);
     padding: 0 24px 40px 24px;   /* 상단 패딩은 고정 헤더가 대신 가짐 */
     overflow-y: auto;
+    overflow-anchor: none;       /* 오른쪽 미리보기 재배치가 왼쪽 작업 위치를 밀지 않게 */
     overscroll-behavior: contain;  /* 끝에 닿아도 미리보기로 스크롤이 넘어가지 않게 */
     height: 100vh;
     position: sticky;
@@ -60,6 +61,13 @@
     container-type: inline-size;
     container-name: sidebar;
   }
+  /* 데스크톱 좌우 반전은 하나의 상태로 패널·경계선·리사이저 방향을 함께 바꾼다. */
+  body.layoutMirrored #sidebar {
+    order: 2;
+    border-right: 0;
+    border-left: 1px solid var(--line);
+  }
+  body.layoutMirrored #previewArea { order: 1; }
   /* 상단 고정 헤더 (제목 + 탭) */
   #sidebarTop {
     position: sticky;
@@ -184,6 +192,12 @@
     box-shadow:10px 0 28px rgba(35,32,28,.10);
   }
   #archiveDrawer[hidden] { display:none; }
+  body.layoutMirrored #archiveDrawer {
+    inset: 0 0 0 auto;
+    border-right: 0;
+    border-left: 1px solid var(--line);
+    box-shadow: -10px 0 28px rgba(35,32,28,.10);
+  }
   .archiveDrawerHead { display:flex; align-items:center; justify-content:space-between; min-height:38px; margin-bottom:10px; }
   .archiveDrawerTitle { font-size:18px; font-weight:800; }
   #archiveCloseBtn { width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); font-size:18px; }
@@ -354,6 +368,31 @@
     line-height: 1;
     text-align: center;
     user-select: none;
+  }
+  .subtitleSepButton {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    min-height: 24px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-subtle);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    transition: border-color .14s ease, background-color .14s ease, color .14s ease;
+  }
+  .subtitleSepButton:hover:not(:disabled),
+  .subtitleSepButton:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel));
+    color: var(--accent);
+  }
+  .subtitleSepButton:disabled {
+    opacity: .42;
+    cursor: default;
   }
   /* 표제의 선택 기능은 본 입력 흐름을 방해하지 않도록 얇은 하위 접기로 분리한다. */
   .titleLinkFold {
@@ -1537,6 +1576,10 @@
   .previewSyncText { flex:none; padding-right:14px; opacity:0; font-size:11.5px; font-weight:700; white-space:nowrap; transition:opacity .12s ease; }
   .previewSyncFloat:hover .previewSyncText,
   .previewSyncFloat:focus-within .previewSyncText { opacity:1; }
+  body.layoutMirrored .previewSyncFloat {
+    right:auto;
+    left:20px;
+  }
   #fsHl .searchHit {
     display: inline;
     margin: 0;
@@ -2052,6 +2095,9 @@
     border-radius: 10px;
     box-shadow: 0 5px 18px rgba(0,0,0,0.30);
   }
+  body.layoutMirrored #undoToast {
+    left: calc((100vw - var(--sidebar-w, 460px)) / 2);
+  }
   #undoMsg { min-width: 0; overflow-wrap: anywhere; }
   #undoBtn {
     border: 1px solid rgba(255,255,255,0.56);
@@ -2395,6 +2441,10 @@
   }
   #sidebarResizer:hover::after,
   #sidebarResizer.dragging::after { background: var(--line-strong); }
+  body.layoutMirrored #sidebarResizer {
+    left: auto;
+    right: calc(var(--sidebar-w, 460px) - 4px);
+  }
   body.resizingSidebar { cursor: col-resize; user-select: none; }
 
   /* ---------- 미리보기 ---------- */
@@ -2407,12 +2457,14 @@
     justify-content: center;
     align-items: flex-start;
     overflow-y: auto;
+    overflow-anchor: none;       /* 출력 DOM 교체 직후에는 아래의 위치 연동 좌표만 사용 */
     overscroll-behavior: contain;
     background: var(--bg-app);
     color: #212529;
     color-scheme: light;
     transition: background-color .16s ease, color .16s ease;
   }
+  body.layoutMirrored #previewArea { padding: 36px 32px 72px 52px; }
   #previewWrap {
     position: relative;
     width: 100%;
@@ -2483,11 +2535,13 @@
     border-color: #5a5e64;
     color: #f1f1f1;
   }
-  body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn {
+  body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn,
+  body.previewFullscreen #previewArea.previewArcaDark .layoutMirrorBtn {
     border-color: #484b50;
     color: #c5c8cc;
   }
-  body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn:hover {
+  body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn:hover,
+  body.previewFullscreen #previewArea.previewArcaDark .layoutMirrorBtn:hover {
     background: #292b2f;
     color: #fff;
   }
@@ -2503,7 +2557,8 @@
     margin-left: calc(-1 * var(--preview-comment-outset, 0px)) !important;
     margin-right: calc(-1 * var(--preview-comment-outset, 0px)) !important;
   }
-  .previewFullscreenBtn {
+  .previewFullscreenBtn,
+  .layoutMirrorBtn {
     width:30px;
     height:30px;
     padding:0;
@@ -2514,7 +2569,13 @@
     font-size:16px;
     line-height:1;
   }
-  .previewFullscreenBtn:hover { background:var(--bg-field); color:var(--ink); }
+  .previewFullscreenBtn:hover,
+  .layoutMirrorBtn:hover { background:var(--bg-field); color:var(--ink); }
+  .layoutMirrorBtn.active {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    background: color-mix(in srgb, var(--accent) 9%, var(--bg-panel));
+    color: var(--accent);
+  }
   body.previewFullscreen { overflow:hidden; }
   body.previewFullscreen #sidebar,
   body.previewFullscreen #sidebarResizer { display:none; }
@@ -2532,7 +2593,8 @@
   body.previewFullscreen #previewWrap { max-width:980px; }
   body.previewFullscreen #previewWrap > .previewFloatingControl,
   body.previewFullscreen #previewSyncFloat,
-  body.previewFullscreen .previewSyncFloat { display:none !important; }
+  body.previewFullscreen .previewSyncFloat,
+  body.previewFullscreen .layoutMirrorBtn { display:none !important; }
   body.previewFullscreen #preview { filter:none; }
   body.previewFullscreen #previewArea,
   body.previewFullscreen #previewArea *,
@@ -2918,6 +2980,12 @@
   }
   .settingsForm .segmentedChoice button:disabled { cursor: default; }
 
+  /* 크레딧 배치는 프로필과 같은 분할 버튼 위계를 쓰되 보조 설정답게 조금 낮게 둔다. */
+  #creditGroup .creditPlacementChoice button {
+    min-height: 30px;
+    font-size: 10.5px;
+  }
+
   /* 디자인 탭의 세 영역은 연한 헤더 띠와 넉넉한 여백으로 나눈다. */
   #tabDesign > .designFold {
     margin-bottom: 20px;
@@ -3094,6 +3162,25 @@
   }
   #tabCover .row:has(input[type="url"]) > label { color: var(--ink-soft); }
   #tabCover .row:has(input[type="url"]):has(input[type="url"]:placeholder-shown) > label { color: var(--help-ink); }
+  /* 프로필 이미지 주소만 다른 URL보다 한 단계 잘 보이게 해 이미지 설정임을 빠르게 구분한다.
+     대표 이미지 주소는 상단의 공통 URL 규칙을 따라 차분한 회색조로 유지한다. */
+  #profileGroup #profileCharImage,
+  #profileGroup #profileUserImage,
+  #profileGroup #profileCharImage:not(:placeholder-shown):not(:focus),
+  #profileGroup #profileUserImage:not(:placeholder-shown):not(:focus) {
+    color: color-mix(in srgb, var(--accent) 78%, var(--ink-soft));
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel));
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+  }
+  #profileGroup #profileCharImage:focus,
+  #profileGroup #profileUserImage:focus {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 4%, #fff);
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--line-strong));
+  }
+  #profileGroup .profileImageRow > label {
+    color: color-mix(in srgb, var(--accent) 82%, var(--ink-soft));
+  }
   /* 상단 프로필의 긴 입력 목록을 기능별 얇은 하위 아코디언으로 구분한다. */
   #profileGroup .profileSubFold {
     position: relative;
@@ -3381,6 +3468,111 @@
   #titleMinimal,
   #profileMinimal,
   #footerMinimal { accent-color: #85837f; }
+  #creditGroup .creditEditorList {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  #creditGroup .creditEditorRow {
+    display: grid;
+    grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr) auto;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg-subtle);
+  }
+  #creditGroup .creditEditorRow input {
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  #creditGroup .creditUrlInput { grid-column: 1 / 3; }
+  #creditGroup .creditRowActions {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    display: grid;
+    grid-template-columns: repeat(2, 30px);
+    gap: 4px;
+    align-self: stretch;
+  }
+  #creditGroup .creditRowActions button {
+    min-width: 0;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+  #creditGroup .creditRowActions button:hover:not(:disabled) { background: var(--bg-panel); color: var(--ink-soft); }
+  #creditGroup .creditDeleteBtn { grid-column: 1 / 3; }
+  #creditGroup .creditAddBtn {
+    width: 100%;
+    min-height: 36px;
+    margin-top: 2px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+  #creditGroup .creditAddBtn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--ink-soft); }
+  #creditGroup .creditControlsDisabled { opacity: .42; }
+  #creditGroup .creditControlsDisabled button:hover { background: transparent; color: var(--ink-faint); }
+  #creditGroup .creditPresetSection {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  #creditGroup .creditPresetLabel {
+    margin-bottom: 7px;
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  #creditGroup .creditPresetLoadRow,
+  #creditGroup .creditPresetSaveRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  #creditGroup .creditPresetSaveRow { grid-template-columns: minmax(0, 1fr) auto; }
+  #creditGroup .creditPresetLoadRow select,
+  #creditGroup .creditPresetSaveRow input,
+  #creditGroup .creditPresetLoadRow button,
+  #creditGroup .creditPresetSaveRow button {
+    min-width: 0;
+    height: 34px;
+    font-size: 12px;
+  }
+  #creditGroup .creditPresetLoadRow button,
+  #creditGroup .creditPresetSaveRow button {
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg-field);
+    color: var(--ink-soft);
+  }
+  #creditGroup .creditPresetLoadRow button:hover:not(:disabled),
+  #creditGroup .creditPresetSaveRow button:hover:not(:disabled) {
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+  #creditGroup #creditPresetDeleteBtn { color: var(--ink-faint); }
+  #creditGroup #creditPresetStatus {
+    min-height: 1.4em;
+    margin-top: 5px;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+  }
   @media (max-width: 760px) {
     #tabCover .coverFold .foldBody {
       max-width: 100%;
@@ -3399,6 +3591,11 @@
       margin-left: 8px;
       padding-left: 8px;
     }
+    #creditGroup .creditEditorRow { grid-template-columns: minmax(0, 1fr) auto; }
+    #creditGroup .creditLabelInput,
+    #creditGroup .creditValueInput,
+    #creditGroup .creditUrlInput { grid-column: 1; }
+    #creditGroup .creditRowActions { grid-column: 2; grid-row: 1 / 4; }
   }
 
   /* ---------- 버튼 위계 ---------- */
@@ -3652,6 +3849,17 @@
       border-right: none;
       border-bottom: 1px solid var(--line);
     }
+    body.layoutMirrored #sidebar {
+      order:initial;
+      border-left:none;
+      border-right:none;
+    }
+    body.layoutMirrored #archiveDrawer {
+      inset:0 auto 0 0;
+      border-right:1px solid var(--line);
+      border-left:0;
+      box-shadow:10px 0 28px rgba(35,32,28,.10);
+    }
     #previewArea { height: auto; overflow: visible; overscroll-behavior: auto; }
     #sidebarTop {
       margin: 0 -16px;
@@ -3686,16 +3894,20 @@
     }
     #bodyEditorToolbar::-webkit-scrollbar { display: none; }
     .editorToolbar .tbGroup { flex: none; }
-    #previewArea { padding: 22px 48px 52px 12px; }
+    #previewArea,
+    body.layoutMirrored #previewArea { padding: 22px 48px 52px 12px; }
     #previewWrap { max-width: 100% !important; }
     #previewToolbar { margin-bottom: 8px; }
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
+    .layoutMirrorBtn { display:none; }
+    body.layoutMirrored .previewSyncFloat { left:auto; right:12px; }
     #undoToast {
       left: 50%;
       bottom: 14px;
       max-width: calc(100vw - 24px);
     }
+    body.layoutMirrored #undoToast { left:50%; }
     .settingsForm { --settings-label-w: 68px; --settings-row-gap: 8px; }
   }
 
@@ -3959,6 +4171,9 @@
   body.labFocus #bodyInputGroup > .foldBody > .counterRow,
   body.labFocus #tabBody > .bodyFold:not(#bodyInputGroup) { display:none !important; }
   body.labFocus #sidebar { border-right: 1px solid var(--line); }
+  @media (min-width: 681px) {
+    body.layoutMirrored.labFocus #sidebar { border-right:0; border-left:1px solid var(--line); }
+  }
   body.labFocus #focusModeBtn { color: var(--accent); border-color: var(--accent); }
   body.labFocus #bodyEditorToolbar { top: 8px; }
 
@@ -4230,7 +4445,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.1 GitHub 저장소 열기">v1.5.1</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.2 GitHub 저장소 열기">v1.5.2</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -4303,7 +4518,8 @@
       <label id="subtitleLabel">부제</label>
       <span class="subtitleLine" role="group" aria-labelledby="subtitleLabel">
         <input type="text" id="subChar" aria-label="봇" placeholder="봇">
-        <span class="subtitleSep">×</span>
+        <button type="button" class="subtitleSep subtitleSepButton" id="subtitleCoupleSeparatorBtn" aria-label="이름 구분 기호 × · 눌러서 &amp;로 변경" title="이름 구분 기호를 &amp;로 변경">×</button>
+        <input type="hidden" id="subtitleCoupleSeparator" value="×">
         <input type="text" id="subUser" aria-label="유저" placeholder="유저">
         <span class="subtitleSep subtitleDot">·</span>
         <input type="text" id="logSubtitle" aria-label="자유 부제" placeholder="예: Log #1">
@@ -4354,7 +4570,7 @@
       <details class="profileSubFold" id="profileBaseGroup" open>
         <summary class="profileSubHead"><span class="profileSubTitle">기본 설정</span><span class="profileSubMeta" id="profileBaseSummary"></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
-      <p class="group-desc">표지 아래 또는 최상단에 봇과 유저 소개</p>
+      <p class="group-desc">최상단 또는 표지 아래에 봇과 유저 소개</p>
       <div class="row">
         <label><input type="checkbox" id="profileOn"> 프로필 표시</label>
       </div>
@@ -4365,12 +4581,12 @@
       <div class="row segmentedChoiceRow">
         <label id="profilePlacementLabel">배치</label>
         <select id="profilePlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
-          <option value="below" selected>표지 아래</option>
           <option value="top">최상단 독립</option>
+          <option value="below" selected>표지 아래</option>
         </select>
         <span class="segmentedChoice isTwo" data-control="profilePlacement" role="group" aria-labelledby="profilePlacementLabel">
-          <button type="button" data-value="below" aria-pressed="true">표지 아래</button>
           <button type="button" data-value="top" aria-pressed="false">최상단</button>
+          <button type="button" data-value="below" aria-pressed="true">표지 아래</button>
         </span>
       </div>
       <div class="row segmentedChoiceRow">
@@ -4409,7 +4625,7 @@
         <input type="text" id="profileCharName" maxlength="100" placeholder="표시 이름">
       </div>
       <div class="row">
-        <label for="profileCharUrl">링크</label>
+        <label for="profileCharUrl">BOT 링크</label>
         <input type="url" id="profileCharUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
       </div>
       <div class="row profileTagsRow">
@@ -4426,9 +4642,9 @@
         <textarea id="profileCharDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
       <div class="row profileImageRow">
-        <label for="profileCharImage">사진</label>
+        <label for="profileCharImage">이미지 URL</label>
         <div class="profileImageField">
-          <input type="url" id="profileCharImage" maxlength="8192" placeholder="이미지 URL">
+          <input type="url" id="profileCharImage" maxlength="8192" placeholder="프로필 이미지 URL">
           <span class="imageLoadStatus profileImageDot" id="profileCharImageStatus" data-state="idle" aria-live="polite" hidden></span>
           <button type="button" class="profileImageAdjustBtn" id="profileCharImageAdjustBtn" aria-label="BOT 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="profileCharImageAdjustPanel">⚙︎</button>
         </div>
@@ -4464,7 +4680,7 @@
         <input type="text" id="profileUserName" maxlength="100" placeholder="표시 이름">
       </div>
       <div class="row">
-        <label for="profileUserUrl">링크</label>
+        <label for="profileUserUrl">USER 링크</label>
         <input type="url" id="profileUserUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
       </div>
       <div class="row profileTagsRow">
@@ -4481,9 +4697,9 @@
         <textarea id="profileUserDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
       <div class="row profileImageRow">
-        <label for="profileUserImage">사진</label>
+        <label for="profileUserImage">이미지 URL</label>
         <div class="profileImageField">
-          <input type="url" id="profileUserImage" maxlength="8192" placeholder="이미지 URL">
+          <input type="url" id="profileUserImage" maxlength="8192" placeholder="프로필 이미지 URL">
           <span class="imageLoadStatus profileImageDot" id="profileUserImageStatus" data-state="idle" aria-live="polite" hidden></span>
           <button type="button" class="profileImageAdjustBtn" id="profileUserImageAdjustBtn" aria-label="USER 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="profileUserImageAdjustPanel">⚙︎</button>
         </div>
@@ -4546,6 +4762,47 @@
       <div class="row">
         <label for="footerAuthor">작성자</label>
         <input type="text" class="miniInput" id="footerAuthor" placeholder="이름">
+      </div>
+    </div>
+  </details>
+
+  <details class="group foldGroup coverFold settingsForm" id="creditGroup">
+    <summary class="group-title foldHead"><span class="coverFoldTitle">크레딧</span><span class="coverFoldMeta" id="creditCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <div class="foldBody">
+      <p class="group-desc">로그 최상단 또는 최하단의 모델·링크·메모</p>
+      <div class="row">
+        <label><input type="checkbox" id="creditOn"> 크레딧 표시</label>
+      </div>
+      <input type="hidden" id="creditItems" value="[]">
+      <div id="creditEditorArea" class="creditControlsDisabled" aria-disabled="true">
+        <div class="row segmentedChoiceRow">
+          <label id="creditPlacementLabel">배치</label>
+          <select id="creditPlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
+            <option value="top">최상단</option>
+            <option value="bottom" selected>최하단</option>
+          </select>
+          <span class="segmentedChoice isTwo creditPlacementChoice" data-control="creditPlacement" role="group" aria-labelledby="creditPlacementLabel">
+            <button type="button" data-value="top" aria-pressed="false">최상단</button>
+            <button type="button" data-value="bottom" aria-pressed="true">최하단</button>
+          </span>
+        </div>
+        <div id="creditEditorList" class="creditEditorList" aria-label="크레딧 항목"></div>
+        <button type="button" id="creditAddBtn" class="creditAddBtn">+ 항목 추가</button>
+        <div class="creditPresetSection">
+          <div class="creditPresetLabel">크레딧 항목 프리셋</div>
+          <div class="creditPresetLoadRow">
+            <select id="creditPresetSelect" aria-label="저장한 크레딧 항목 프리셋">
+              <option value="">저장된 프리셋 선택</option>
+            </select>
+            <button type="button" id="creditPresetLoadBtn" disabled>불러오기</button>
+            <button type="button" id="creditPresetDeleteBtn" disabled>삭제</button>
+          </div>
+          <div class="creditPresetSaveRow">
+            <input type="text" id="creditPresetName" maxlength="80" placeholder="프리셋 이름" aria-label="크레딧 항목 프리셋 이름">
+            <button type="button" id="creditPresetSaveBtn" disabled>저장</button>
+          </div>
+          <div id="creditPresetStatus" role="status" aria-live="polite"></div>
+        </div>
       </div>
     </div>
   </details>
@@ -5111,6 +5368,7 @@
           <button type="button" id="widthDesktopBtn" class="active" aria-pressed="true">데스크톱 750</button>
           <button type="button" id="widthMobileBtn" aria-pressed="false">모바일 380</button>
         </span>
+        <button type="button" class="layoutMirrorBtn" id="layoutMirrorBtn" aria-pressed="false" title="설정과 미리보기 좌우 반전">⇄</button>
         <button type="button" class="previewFullscreenBtn" id="previewFullscreenBtn" aria-pressed="false" title="전체화면 미리보기">⛶</button>
       </span>
     </div>
@@ -5295,6 +5553,10 @@ function escapeTextHTML(s){
 
 function escapeAttr(s){
   return escapeHTML(s);
+}
+
+function normalizeSubtitleCoupleSeparator(value){
+  return value === '&' ? '&' : '×';
 }
 
 // 사용자 링크는 절대 http(s) 주소만 허용한다. 이미지 주소와 같은 방식으로
@@ -5484,14 +5746,22 @@ function safeHexColor(value, fallback){
 function processInline(text, emphasisColor, options){
   const literalSingleQuotes = !!(options && options.literalSingleQuotes);
   const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
-  // 게시판의 전역 스타일이나 상위 나레이션 색상이 선택한 강조색을 덮지 못하게 한다.
-  const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important;`;
+  // 모바일 게시판이 em/strong에 직접 지정하는 크기·색상·행간을 이기도록 인라인
+  // 서식 태그 자체가 가장 가까운 문단의 타이포그래피를 명시적으로 상속한다.
+  const inlineTypographyLock = `font-size:inherit !important; line-height:inherit !important; font-family:inherit !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;`;
+  const inheritedColorLock = `color:inherit !important; -webkit-text-fill-color:inherit !important;`;
+  const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important; font-weight:inherit !important; ${inlineTypographyLock}`;
+  const strongStyle = `${inheritedColorLock} font-style:inherit !important; font-weight:700 !important; ${inlineTypographyLock}`;
   // 기울어진 마지막 획이 다음 글자에 달라붙어 보이지 않도록 약 1px만 띄운다.
   const emphasisOuterStyle = `${emphasisStyle} margin-right:0.08em;`;
-  const thoughtStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:normal !important;`;
+  // 굵은 획과 기울어진 마지막 획이 겹치면 다음 글자에 더 가까워 보이므로
+  // 굵게+이태릭 조합에만 약 0.5pt 상당의 간격을 추가한다.
+  const strongEmphasisOuterStyle = `${emphasisStyle} margin-right:0.12em;`;
+  const thoughtStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:normal !important; font-weight:inherit !important; ${inlineTypographyLock}`;
   // 이후 단계가 본문의 큰따옴표 대사만 찾으므로, 생성 마크업 속성은 작은따옴표를 써서
   // style 값이 대사로 오인되는 일을 막는다.
-  const em = content => `<em style='${emphasisOuterStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
+  const em = (content, combined = false) => `<em style='${combined ? strongEmphasisOuterStyle : emphasisOuterStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
+  const strong = content => `<strong style='${strongStyle}'>${content}</strong>`;
   const thought = content => `<span data-mosaic-thought='true' style='${thoughtStyle}'>'${content}'</span>`;
   let content = escapeTextHTML(normalizeQuotes(String(text)));
   if(!literalSingleQuotes){
@@ -5502,9 +5772,9 @@ function processInline(text, emphasisColor, options){
   // 별표 문법은 속마음 따옴표를 모두 처리한 뒤 HTML로 바꾼다. 생성된 style 속성의
   // 작은따옴표가 속마음 문법으로 다시 해석되는 일을 막고, *** → ** → * 순서를 지킨다.
   return content
-    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, (m, inner) => `<strong>${em(inner)}</strong>`)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, (m, inner) => strong(em(inner, true)))
+    .replace(/\*\*(.+?)\*\*/g, (m, inner) => strong(inner))
+    .replace(/__(.+?)__/g, (m, inner) => strong(inner))
     .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
 }
 
@@ -5569,17 +5839,25 @@ function statusAccentBackground(settings){
 }
 
 // 카드 배경색에서 구조색(대사 박스 배경/구분선/테두리/소제목/캡션)을 자동 파생.
-// 배경이 밝으면 검정 쪽으로, 어두우면 흰색 쪽으로 혼합해서 어떤 색을 골라도 조화롭고 읽기 좋게 유지됨.
+// 외곽선은 기존 중성 회색 구조색을 유지한다. 내부선만 강조(보조)색이 유효할 때
+// 아주 옅게 섞어 카드의 경계보다 낮은 위계로 보이게 한다. 어두운 배경에서는
+// 같은 농도가 덜 보이므로 혼합량을 2% 높이고, 보조색이 없으면 기존 회색으로 돌아간다.
 function tonePalette(settings){
-  const bg = settings.bgColor || '#ffffff';
+  const bg = safeHexColor(settings.bgColor, '#ffffff');
   const isLight = textColorFor(bg) !== '#ffffff'; // 밝은 배경이면 어두운 구조색
   const to = isLight ? '#000000' : '#ffffff';
+  const structuralAccent = typeof settings.emphasisColor === 'string'
+    ? normalizeHex(settings.emphasisColor)
+    : null;
+  const shellBorder = mixHex(bg, to, isLight ? 0.10 : 0.12);
+  const divider = structuralAccent
+    ? mixHex(bg, structuralAccent, isLight ? 0.11 : 0.13)
+    : mixHex(bg, to, isLight ? 0.13 : 0.15);
   return {
     cardBg: bg,
     boxBg: mixHex(bg, to, isLight ? 0.045 : 0.07),
-    divider: mixHex(bg, to, isLight ? 0.13 : 0.15),
-    cardBorder: mixHex(bg, to, isLight ? 0.13 : 0.15),
-    headingBorder: mixHex(bg, to, isLight ? 0.08 : 0.10),
+    divider,
+    shellBorder,
     ornament: mixHex(bg, to, isLight ? 0.28 : 0.42),
     caption: mixHex(bg, to, isLight ? 0.38 : 0.52),
     heading: {
@@ -5673,11 +5951,11 @@ function buildParagraph(rawLine, settings, opts){
   }
 
   if(upper === '[HR2]'){
-    // 장면 전환용 장식 구분선 (✦ ✦ ✦) — [HR]보다 무게감 있는 전환에 사용
+    // 장면 전환용 장식 구분선 (✦ ✦ ✦). 모양은 유지하되 [HR]과 같은
+    // 내부 구분선 색상을 직접 사용해 테마와 보조색 변화가 동일하게 반영되게 한다.
     // letter-spacing은 마지막 글자 뒤에도 붙어 장식이 왼쪽으로 치우쳐 보이므로
     // 같은 크기의 왼쪽 패딩으로 시각적 중심을 보정한다(실제 이동량은 절반인 5px).
-    const sceneOrnament = mixHex(pal.ornament, pal.cardBg, 0.24);
-    return `    <div data-mosaic-generated="true" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${sceneOrnament}; font-size:12px; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
+    return `    <div data-mosaic-generated="true" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${pal.divider}; font-size:12px; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
   }
 
   // 가운데 정렬 접두어를 다른 본문 문법보다 먼저 해석해 [C] # 제목처럼 함께 쓸 수 있게 함.
@@ -5918,6 +6196,261 @@ function buildParagraph(rawLine, settings, opts){
   }
 }
 
+const MAX_CREDIT_ITEMS = 20;
+
+function normalizeCreditItems(value){
+  let source = value;
+  if(typeof source === 'string'){
+    try { source = JSON.parse(source || '[]'); }
+    catch(e){ source = []; }
+  }
+  if(!Array.isArray(source)) return [];
+  return source.slice(0, MAX_CREDIT_ITEMS).map(item => {
+    const row = item && typeof item === 'object' ? item : {};
+    return {
+      label:String(row.label || '').slice(0, 80),
+      value:String(row.value || '').slice(0, 500),
+      url:String(row.url || '').slice(0, 8192)
+    };
+  });
+}
+
+function creditItemsFromEditor(){
+  return Array.from(document.querySelectorAll('#creditEditorList .creditEditorRow')).map(row => ({
+    label:row.querySelector('.creditLabelInput').value,
+    value:row.querySelector('.creditValueInput').value,
+    url:row.querySelector('.creditUrlInput').value
+  }));
+}
+
+function storedCreditItems(){
+  return normalizeCreditItems(document.getElementById('creditItems').value);
+}
+
+function setStoredCreditItems(items, dispatch){
+  const field = document.getElementById('creditItems');
+  field.value = JSON.stringify(normalizeCreditItems(items));
+  if(dispatch) field.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+function syncCreditItemsField(){
+  setStoredCreditItems(creditItemsFromEditor(), true);
+}
+
+function renderCreditItemsEditor(){
+  const list = document.getElementById('creditEditorList');
+  if(!list) return;
+  const stored = storedCreditItems();
+  const items = stored.length ? stored : [{ label:'', value:'', url:'' }];
+  list.replaceChildren();
+  items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'creditEditorRow';
+    row.dataset.creditIndex = String(index);
+
+    const label = document.createElement('input');
+    label.type = 'text';
+    label.id = `creditLabel${index}`;
+    label.className = 'creditLabelInput';
+    label.maxLength = 80;
+    label.placeholder = '항목명 · 예: Model';
+    label.setAttribute('aria-label', `크레딧 ${index + 1} 항목명`);
+    label.value = item.label;
+
+    const value = document.createElement('input');
+    value.type = 'text';
+    value.id = `creditValue${index}`;
+    value.className = 'creditValueInput';
+    value.maxLength = 500;
+    value.placeholder = '내용';
+    value.setAttribute('aria-label', `크레딧 ${index + 1} 내용`);
+    value.value = item.value;
+
+    const url = document.createElement('input');
+    url.type = 'url';
+    url.id = `creditUrl${index}`;
+    url.className = 'creditUrlInput';
+    url.maxLength = 8192;
+    url.placeholder = '연결 URL · 선택';
+    url.setAttribute('aria-label', `크레딧 ${index + 1} 링크`);
+    url.value = item.url;
+
+    const actions = document.createElement('div');
+    actions.className = 'creditRowActions';
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.textContent = '↑';
+    up.title = '항목을 위로';
+    up.setAttribute('aria-label', `크레딧 ${index + 1} 위로 이동`);
+    up.disabled = index === 0;
+    const down = document.createElement('button');
+    down.type = 'button';
+    down.textContent = '↓';
+    down.title = '항목을 아래로';
+    down.setAttribute('aria-label', `크레딧 ${index + 1} 아래로 이동`);
+    down.disabled = index === items.length - 1;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'creditDeleteBtn';
+    remove.textContent = '×';
+    remove.title = '항목 삭제';
+    remove.setAttribute('aria-label', `크레딧 ${index + 1} 삭제`);
+    actions.append(up, down, remove);
+
+    [label, value, url].forEach(input => input.addEventListener('input', syncCreditItemsField));
+    url.addEventListener('change', () => {
+      const normalized = normalizeProtocolRelativeUrl(url.value);
+      if(url.value !== normalized) url.value = normalized;
+      syncCreditItemsField();
+    });
+    up.addEventListener('click', () => moveCreditItem(index, -1));
+    down.addEventListener('click', () => moveCreditItem(index, 1));
+    remove.addEventListener('click', () => deleteCreditItem(index));
+    row.append(label, value, url, actions);
+    list.appendChild(row);
+  });
+  syncCreditControlState();
+}
+
+function addCreditItem(){
+  const items = creditItemsFromEditor();
+  if(items.length >= MAX_CREDIT_ITEMS){
+    showNoticeToast(`크레딧은 최대 ${MAX_CREDIT_ITEMS}개까지 추가할 수 있습니다.`);
+    return;
+  }
+  snapshotCards();
+  items.push({ label:'', value:'', url:'' });
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  const next = document.querySelector('#creditEditorList .creditEditorRow:last-child .creditLabelInput');
+  if(next) next.focus();
+  showUndoToast('크레딧 항목을 추가했습니다.');
+}
+
+function moveCreditItem(index, delta){
+  const items = creditItemsFromEditor();
+  const target = index + delta;
+  if(target < 0 || target >= items.length) return;
+  snapshotCards();
+  [items[index], items[target]] = [items[target], items[index]];
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  showUndoToast('크레딧 항목 순서를 변경했습니다.');
+}
+
+function deleteCreditItem(index){
+  const items = creditItemsFromEditor();
+  if(index < 0 || index >= items.length) return;
+  snapshotCards();
+  items.splice(index, 1);
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  showUndoToast('크레딧 항목을 삭제했습니다.');
+}
+
+const CREDIT_PRESET_KEY = 'mosaicCreditItemPresets_v1';
+const MAX_CREDIT_PRESETS = 50;
+
+function sanitizeCreditPresetList(value){
+  if(!Array.isArray(value)) return [];
+  return value.slice(0, MAX_CREDIT_PRESETS).map((preset, index) => {
+    if(!preset || typeof preset !== 'object' || Array.isArray(preset)) return null;
+    const name = typeof preset.name === 'string' ? preset.name.trim().slice(0, 80) : '';
+    if(!name || !Array.isArray(preset.items)) return null;
+    const items = normalizeCreditItems(preset.items)
+      .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
+    if(!items.length) return null;
+    const id = typeof preset.id === 'string' && preset.id
+      ? preset.id.slice(0, 120)
+      : `credit-preset-${index}-${name.toLowerCase()}`;
+    return { id, name, items, updatedAt:Number(preset.updatedAt) || 0 };
+  }).filter(Boolean);
+}
+
+function loadCreditPresets(){
+  try { return sanitizeCreditPresetList(JSON.parse(localStorage.getItem(CREDIT_PRESET_KEY) || '[]')); }
+  catch(e){ return []; }
+}
+
+function saveCreditPresets(presets){
+  try {
+    localStorage.setItem(CREDIT_PRESET_KEY, JSON.stringify(sanitizeCreditPresetList(presets)));
+    return true;
+  }catch(e){
+    showNoticeToast('크레딧 프리셋을 저장하지 못했습니다.');
+    return false;
+  }
+}
+
+function syncCreditPresetControls(){
+  const enabled = document.getElementById('creditOn').checked;
+  const selected = document.getElementById('creditPresetSelect').value !== '';
+  const hasName = document.getElementById('creditPresetName').value.trim() !== '';
+  document.getElementById('creditPresetLoadBtn').disabled = !enabled || !selected;
+  document.getElementById('creditPresetDeleteBtn').disabled = !enabled || !selected;
+  document.getElementById('creditPresetSaveBtn').disabled = !enabled || !hasName;
+}
+
+function renderCreditPresetOptions(selectedId){
+  const select = document.getElementById('creditPresetSelect');
+  const presets = loadCreditPresets();
+  const preferred = selectedId !== undefined ? selectedId : select.value;
+  select.replaceChildren(new Option('저장된 프리셋 선택', ''));
+  presets.forEach(preset => select.appendChild(new Option(preset.name, preset.id)));
+  select.value = presets.some(preset => preset.id === preferred) ? preferred : '';
+  syncCreditPresetControls();
+}
+
+function saveCurrentCreditPreset(){
+  const nameInput = document.getElementById('creditPresetName');
+  const name = nameInput.value.trim();
+  if(!name) return;
+  const items = normalizeCreditItems(creditItemsFromEditor())
+    .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
+  if(!items.length){
+    showNoticeToast('저장할 크레딧 항목이 없습니다.');
+    return;
+  }
+  const presets = loadCreditPresets();
+  const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
+  if(!existing && presets.length >= MAX_CREDIT_PRESETS){
+    showNoticeToast(`크레딧 프리셋은 최대 ${MAX_CREDIT_PRESETS}개까지 저장할 수 있습니다.`);
+    return;
+  }
+  const id = existing ? existing.id : `credit-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const next = existing
+    ? presets.map(preset => preset.id === id ? { id, name, items, updatedAt:Date.now() } : preset)
+    : [...presets, { id, name, items, updatedAt:Date.now() }];
+  if(!saveCreditPresets(next)) return;
+  renderCreditPresetOptions(id);
+  document.getElementById('creditPresetStatus').textContent = existing ? '같은 이름의 프리셋을 덮어썼습니다.' : '항목 프리셋을 저장했습니다.';
+  showNoticeToast(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
+}
+
+function loadSelectedCreditPreset(){
+  const id = document.getElementById('creditPresetSelect').value;
+  const preset = loadCreditPresets().find(item => item.id === id);
+  if(!preset) return;
+  snapshotCards();
+  setStoredCreditItems(preset.items, true);
+  renderCreditItemsEditor();
+  document.getElementById('creditPresetName').value = preset.name;
+  document.getElementById('creditPresetStatus').textContent = '크레딧 항목만 불러왔습니다.';
+  syncCreditPresetControls();
+  showUndoToast(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
+}
+
+function deleteSelectedCreditPreset(){
+  const id = document.getElementById('creditPresetSelect').value;
+  const presets = loadCreditPresets();
+  const preset = presets.find(item => item.id === id);
+  if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제할까요?`)) return;
+  if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
+  renderCreditPresetOptions('');
+  document.getElementById('creditPresetStatus').textContent = '항목 프리셋을 삭제했습니다.';
+  showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
+}
+
 function getSettings(){
   const textFont = document.getElementById('textFont').value;
   return {
@@ -5954,6 +6487,9 @@ function getSettings(){
     footerOn: document.getElementById('footerOn').checked,
     footerMinimal: document.getElementById('footerMinimal').checked,
     footerAuthor: document.getElementById('footerAuthor').value,
+    creditOn: document.getElementById('creditOn').checked,
+    creditPlacement: normalizeCreditPlacement(document.getElementById('creditPlacement').value),
+    creditItems: storedCreditItems(),
     logTitleOn: document.getElementById('logTitleOn').checked,
     titleMinimal: document.getElementById('titleMinimal').checked,
     logNumber: document.getElementById('logNumber').value,
@@ -5964,6 +6500,7 @@ function getSettings(){
     subCharUrl: normalizeProtocolRelativeUrl(document.getElementById('subCharUrl').value),
     subUser: document.getElementById('subUser').value,
     subUserUrl: normalizeProtocolRelativeUrl(document.getElementById('subUserUrl').value),
+    subtitleCoupleSeparator: normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value),
     logSubtitle: document.getElementById('logSubtitle').value,
     logSubtitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logSubtitleUrl').value),
     profileOn: document.getElementById('profileOn').checked,
@@ -6021,7 +6558,7 @@ function buildImageBlock(settings){
   const W = parseInt(settings.cardWidth) || 750;
   const outerBorder = settings.cardBorderOn === false
     ? ''
-    : `border-left:1px solid ${pal.headingBorder}; border-right:1px solid ${pal.headingBorder}; border-top:1px solid ${pal.headingBorder};`;
+    : `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-top:1px solid ${pal.shellBorder};`;
   return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
 `;
 }
@@ -6041,7 +6578,7 @@ function foldDividerStyle(minimal, palette){
   // 우선해 아카라이브에서 접힌 본문이 다시 보일 수 있다.
   const stableLayout = 'box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; clear:both;';
   if(settingFlagOn(minimal)) return `${stableLayout} border-top:none;`;
-  return `${stableLayout} border-top:1px solid ${palette.headingBorder};`;
+  return `${stableLayout} border-top:1px solid ${palette.divider};`;
 }
 
 // 접기 블록 (<details>/<summary>) — 스크립트 없이 동작하는 순수 HTML 토글.
@@ -6056,7 +6593,7 @@ function buildFold(title, innerHTML, settings){
     : '';
   const bodyDivider = foldDividerStyle(bodyMinimal, pal);
   const bodyTopPadding = bodyMinimal ? 20 : 16;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.headingBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -6073,7 +6610,7 @@ function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
     : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
   const bodyDivider = foldDividerStyle(bodyMinimal, pal);
   const bodyTopPadding = bodyMinimal ? 22 : 18;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.headingBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -6314,7 +6851,7 @@ function buildTitleBlock(settings, hasImg){
   if(!settings.logTitleOn) return '';
   const num = (settings.logNumber || '').trim();
   const title = (settings.logTitle || '').trim();
-  // 부제 = [캐릭터 × 유저] · [자유 부제] — 한쪽만 있으면 그것만, 둘 다 있으면 · 로 연결
+  // 부제 = [캐릭터 ×/& 유저] · [자유 부제] — 한쪽만 있으면 그것만, 둘 다 있으면 · 로 연결
   const sc = (settings.subChar || '').trim();
   const su = (settings.subUser || '').trim();
   const free = (settings.logSubtitle || '').trim();
@@ -6337,7 +6874,8 @@ function buildTitleBlock(settings, hasImg){
   const orderedNameHTML = settings.profileOrder === 'user-bot'
     ? [su ? processedSu : '', sc ? processedSc : '']
     : [sc ? processedSc : '', su ? processedSu : ''];
-  const coupleHTML = orderedNameHTML.filter(Boolean).join(' × ');
+  const coupleSeparator = escapeTextHTML(normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
+  const coupleHTML = orderedNameHTML.filter(Boolean).join(` ${coupleSeparator} `);
   const freeHTML = buildStylePreservingLink(
     processInline(free, settings.emphasisColor),
     settings.logSubtitleUrl,
@@ -6354,11 +6892,11 @@ function buildTitleBlock(settings, hasImg){
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
   const showOuterBorder = settings.cardBorderOn !== false;
   const sideBorders = showOuterBorder
-    ? `border-left:1px solid ${pal.headingBorder}; border-right:1px solid ${pal.headingBorder};`
+    ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder};`
     : '';
   const topEdge = hasImg
     ? ``
-    : `${showOuterBorder ? `border-top:1px solid ${pal.headingBorder};` : ''} border-radius:16px 16px 0 0;`;
+    : `${showOuterBorder ? `border-top:1px solid ${pal.shellBorder};` : ''} border-radius:16px 16px 0 0;`;
   // 미니멀 표제는 바로 아래 프로필과 하나의 카드처럼 이어지므로 하단 여백을 줄인다.
   // 일반 표제의 기존 간격은 그대로 유지한다.
   const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
@@ -6424,9 +6962,9 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   const showOuterBorder = settings.cardBorderOn !== false;
   const border = showOuterBorder
     ? (connectedAbove
-        ? `border-left:1px solid ${pal.headingBorder}; border-right:1px solid ${pal.headingBorder}; border-bottom:1px solid ${pal.headingBorder}; ${removeTopDivider ? '' : `border-top:1px solid ${pal.headingBorder};`}`
-        : `border:1px solid ${pal.headingBorder};`)
-    : (connectedAbove && !removeTopDivider ? `border-top:1px solid ${pal.headingBorder};` : '');
+        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-bottom:1px solid ${pal.shellBorder}; ${removeTopDivider ? '' : `border-top:1px solid ${pal.divider};`}`
+        : `border:1px solid ${pal.shellBorder};`)
+    : (connectedAbove && !removeTopDivider ? `border-top:1px solid ${pal.divider};` : '');
   const radius = connectedAbove ? '0 0 16px 16px' : '16px';
   const showcase = settings.profileStyle === 'showcase';
   const large = settings.profileStyle === 'portrait' || showcase;
@@ -6668,7 +7206,9 @@ function buildFooter(settings){
   const author = (settings.footerAuthor || '').trim();
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  const footerColor = settings.footerMinimal ? mixHex(pal.cardBg, pal.caption, 0.65) : pal.caption;
+  const footerColor = settings.footerMinimal
+    ? mixHex(pal.cardBg, pal.caption, 0.65)
+    : mixHex(pal.cardBg, pal.caption, 0.90);
   const dividerStyle = settings.footerMinimal ? '' : `border-top:1px solid ${pal.divider};`;
   // 미니멀은 선만 없애고 기존 선 아래의 여백은 유지해 본문과 너무 가까워지지 않게 한다.
   const topPadding = 14;
@@ -6681,6 +7221,53 @@ function buildFooter(settings){
   const toolLink = `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
   const authorText = author ? ` <span style="color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
   return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:${topPadding}px; ${dividerStyle} text-align:center; color:${footerColor}; font-size:${footerFontSize}px !important; line-height:1.5 !important; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${toolLink}${authorText}</div>\n`;
+}
+
+function buildCreditLink(contentHTML, rawUrl, color){
+  const href = normalizeHttpLinkUrl(rawUrl);
+  if(!href) return contentHTML;
+  const style = `color:${color} !important; -webkit-text-fill-color:${color} !important; text-decoration:underline !important; text-underline-offset:2px; font-family:inherit !important; font-size:inherit !important; font-weight:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;`;
+  return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
+}
+
+function normalizeCreditPlacement(value){
+  return value === 'top' ? 'top' : 'bottom';
+}
+
+function buildCredit(settings){
+  if(!settings.creditOn) return '';
+  const items = normalizeCreditItems(settings.creditItems).map(item => ({
+    label:item.label.trim(),
+    value:item.value.trim(),
+    url:normalizeHttpLinkUrl(item.url)
+  })).filter(item => item.label || item.value);
+  if(!items.length) return '';
+
+  const pal = tonePalette(settings);
+  const cardWidth = parseInt(settings.cardWidth) || 750;
+  const creditWidth = Math.min(380, cardWidth);
+  const darkBackground = textColorFor(pal.cardBg) === '#ffffff';
+  const creditBg = mixHex(pal.cardBg, safeHexColor(settings.emphasisColor, pal.caption), darkBackground ? 0.12 : 0.055);
+  const labelColor = mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
+  const valueColor = mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
+  const font = fontStack(settings.narrFont);
+  const creditPadding = '9px 14px 3px';
+  const rows = items.map(item => {
+    const labelText = escapeTextHTML(item.label);
+    const valueText = escapeTextHTML(item.value);
+    const linkedValue = item.url
+      ? buildCreditLink(valueText || labelText, item.url, valueColor)
+      : (valueText || labelText);
+    if(!item.label || !item.value){
+      return `<div style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
+    }
+    return `<div style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${labelText}</div><div style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
+  }).join('');
+
+  const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
+    ? '0 auto 18px'
+    : '18px auto 0';
+  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:1px solid ${pal.shellBorder}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
 }
 
 // 코멘트는 본문 문법을 해석하지 않되, Shift+Enter가 남긴 줄 끝 [BR]만
@@ -6885,20 +7472,20 @@ function buildCard(settings){
     const noTopLine = connected && ((hasTitle && settings.titleMinimal) || (hasImg && !hasTitle));
     const showOuterBorder = settings.cardBorderOn !== false;
     // 표제 밴드와 본문 카드가 하나의 카드처럼 보이도록 외곽선은
-    // 모두 표제·이미지에 쓰는 연한 중성 구조색으로 통일한다.
-    const shellOuterColor = pal.headingBorder;
+    // 모두 표제·이미지에 쓰는 옅은 보조색 외곽선으로 통일한다.
+    const shellOuterColor = pal.shellBorder;
     let borderCss = '';
     if(showOuterBorder){
       if(noTopLine){
         borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor};`;
       }else if(connected){
-        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; border-top:1px solid ${pal.headingBorder};`;
+        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; border-top:1px solid ${pal.divider};`;
       }else{
         borderCss = `border:1px solid ${shellOuterColor};`;
       }
     } else if(connected && !noTopLine){
       // 이미지·표제와 카드 사이의 선은 외곽선이 아니라 내부 경계이므로 유지한다.
-      borderCss = `border-top:1px solid ${pal.headingBorder};`;
+      borderCss = `border-top:1px solid ${pal.divider};`;
     }
     const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
 
@@ -6966,9 +7553,13 @@ ${bodyHTML}${footer}  </div>
     block.type === 'comment' ? renderedComments.get(sourceIndex) : renderedCards.get(sourceIndex)
   ).filter(Boolean);
 
-  // 꼬리말은 마지막으로 보이는 본문 카드에만 붙는다. 모든 본문 카드를 숨기면
-  // 꼬리말도 함께 숨기되 입력값과 표시 설정 자체는 그대로 보존한다.
-  const output = recognitionImg + topProfileBlock + imgBlock + titleBand + attachedProfileBlock + orderedBody.join('\n');
+  // 꼬리말은 마지막 본문 카드 안에 붙인다. 크레딧은 최상단 또는 전체 카드 흐름
+  // 뒤의 독립 블록으로 둔다. 숨김 대표 썸네일은 시각 요소가 아니므로 항상 먼저 둔다.
+  const credit = buildCredit(settings);
+  const creditAtTop = normalizeCreditPlacement(settings.creditPlacement) === 'top';
+  const topCredit = creditAtTop ? credit : '';
+  const bottomCredit = creditAtTop ? '' : credit;
+  const output = recognitionImg + topCredit + topProfileBlock + imgBlock + titleBand + attachedProfileBlock + orderedBody.join('\n') + bottomCredit;
   return lockOutputTypographyForArca(output);
 }
 
@@ -7529,8 +8120,8 @@ function previewSourceBlocks(cardEl){
     && cardEl.firstElementChild.tagName === 'SUMMARY' ? cardEl.firstElementChild : null;
   return Array.from(cardEl.querySelectorAll('p, summary, div')).filter(el => {
     if(el === cardSummary) return false;
-    if(el.matches('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
-    if(el.closest('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.matches('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.closest('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
     if(el.tagName === 'DIV' && el.querySelector('p, summary, div')) return false;
     return el.textContent.trim() !== '';
   });
@@ -7616,7 +8207,7 @@ function sourceDisplayEntries(ta){
 // 이 순서 매핑은 접기 내부·접기 제목까지 포함해 최상위 블록만 보던 누락을 피한다.
 function findBlockSource(node){
   const originEl = node && node.nodeType === 1 ? node : node && node.parentElement;
-  if(!originEl || originEl.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-generated="true"]')) return null;
+  if(!originEl || originEl.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return null;
   const ctx = previewCardContexts().find(item => item.cardEl.contains(node));
   if(!ctx) return null;
   const blocks = previewSourceBlocks(ctx.cardEl);
@@ -7864,13 +8455,15 @@ function commitPreviewDirectEdit(el, descriptor){
         const currentNames = document.getElementById('profileOrder').value === 'user-bot'
           ? [document.getElementById('subUser').value, document.getElementById('subChar').value]
           : [document.getElementById('subChar').value, document.getElementById('subUser').value];
+        const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
         coupleText = currentNames
-          .filter(value => value.trim()).join(' × ');
+          .filter(value => value.trim()).join(` ${separator} `);
         freeText = document.getElementById('logSubtitle').value;
       }
     }
     if(ids.includes('subChar') && ids.includes('subUser')){
-      const divider = coupleText.match(/\s+×\s+|×/);
+      const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+      const divider = coupleText.match(new RegExp(`\\s+${escRe(separator)}\\s+|${escRe(separator)}`));
       if(divider){
         const at = divider.index;
         const first = coupleText.slice(0, at).trim();
@@ -7883,8 +8476,8 @@ function commitPreviewDirectEdit(el, descriptor){
           values.subUser = second;
         }
       }else{
-        // 보호 기호를 우회해 ×가 사라져도 두 입력값을 합치지 않는다.
-        // 기존 값을 그대로 보존해 `WARREN 카나타 × 카나타`처럼 중복되는 회귀를 막는다.
+        // 보호 기호를 우회해 구분 기호가 사라져도 두 입력값을 합치지 않는다.
+        // 기존 값을 그대로 보존해 두 이름이 중복되는 회귀를 막는다.
         values.subChar = document.getElementById('subChar').value;
         values.subUser = document.getElementById('subUser').value;
       }
@@ -8108,13 +8701,15 @@ function protectPreviewSubtitleDividers(el, keys){
   if(!el || !Array.isArray(keys) || !keys.length) return;
   let text = el.textContent;
   if(keys.includes('subtitle-couple-divider')){
-    const spacedAt = text.indexOf(' × ');
-    const offset = spacedAt >= 0 ? spacedAt + 1 : text.indexOf('×');
-    wrapPreviewTextTokenAt(el, offset, '×', 'subtitle-couple-divider', '이름 구분 기호');
+    const token = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+    const spacedAt = text.indexOf(` ${token} `);
+    const offset = spacedAt >= 0 ? spacedAt + 1 : text.indexOf(token);
+    wrapPreviewTextTokenAt(el, offset, token, 'subtitle-couple-divider', '이름 구분 기호');
   }
   if(keys.includes('subtitle-free-divider')){
     text = el.textContent;
-    const coupleAt = text.indexOf('×');
+    const coupleToken = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+    const coupleAt = text.indexOf(coupleToken);
     const spacedAt = text.indexOf(' · ', coupleAt >= 0 ? coupleAt + 1 : 0);
     const offset = spacedAt >= 0 ? spacedAt + 1 : text.indexOf('·', coupleAt >= 0 ? coupleAt + 1 : 0);
     wrapPreviewTextTokenAt(el, offset, '·', 'subtitle-free-divider', '자유 부제 구분 기호');
@@ -8879,6 +9474,8 @@ function previewControlGeometry(button, positioningRoot){
   if(!target || !anchor || !target.isConnected || !anchor.isConnected) return null;
   const targetRect = previewElementRect(target, positioningRoot);
   const anchorRect = previewElementRect(anchor, positioningRoot);
+  const buttonWidth = button.offsetWidth || PREVIEW_CONTROL_SIZE;
+  const mirrored = isDesktopLayoutMirrored();
   const priority = button.classList.contains('previewBlockCopyBtn')
     ? 0
     : (button.classList.contains('previewProfilePlacementBtn') ? 1 : 2);
@@ -8886,7 +9483,9 @@ function previewControlGeometry(button, positioningRoot){
     button,
     priority,
     desiredTop:targetRect.top + PREVIEW_CONTROL_INSET,
-    left:anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
+    left:mirrored
+      ? anchorRect.left - PREVIEW_CONTROL_INSET - buttonWidth
+      : anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
     height:button.offsetHeight || PREVIEW_CONTROL_SIZE
   };
 }
@@ -8974,6 +9573,7 @@ function previewCopyLabel(labels){
 function previewTopLevelCopyLabel(element, visibleCardNumbers, visibleCommentNumbers){
   if(element.dataset.mosaicProfile === 'true') return '프로필';
   if(element.dataset.mosaicCoverImage === 'true' || element.dataset.mosaicTitle === 'true') return '표지';
+  if(element.dataset.mosaicCredit === 'true') return '크레딧';
   if(element.hasAttribute('data-mosaic-comment-index')){
     const sourceIndex = Number(element.dataset.mosaicCommentIndex);
     return `코멘트 ${visibleCommentNumbers.get(sourceIndex) || 1}`;
@@ -9137,6 +9737,29 @@ function decoratePreviewProfilePlacementButton(){
   document.getElementById('previewWrap').appendChild(button);
 }
 
+function decoratePreviewCreditPlacementButton(){
+  const credit = previewParts().credit;
+  if(!credit) return;
+  const placement = document.getElementById('creditPlacement');
+  if(!placement || placement.disabled) return;
+  const atTop = normalizeCreditPlacement(placement.value) === 'top';
+  const title = atTop ? '크레딧을 최하단으로 이동' : '크레딧을 최상단으로 이동';
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  button._mosaicProfileTarget = credit;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const next = atTop ? 'bottom' : 'top';
+    placement.value = next;
+    placement.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(next === 'top'
+      ? '크레딧을 최상단으로 이동했습니다.'
+      : '크레딧을 최하단으로 이동했습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
 function addPreviewMinimalToggleButton(target, anchor, inputId, label){
   const input = document.getElementById(inputId);
   if(!target || !input) return;
@@ -9251,6 +9874,7 @@ function renderPreview(prebuiltHTML){
   decoratePreviewDirectEditors();
   decoratePreviewCopyButtons();
   decoratePreviewProfilePlacementButton();
+  decoratePreviewCreditPlacementButton();
   decoratePreviewMinimalToggleButtons();
   // 새 버튼이 기본 CSS 좌표(top:8px)에 한 프레임이라도 남지 않게 즉시 배치하고,
   // 이미지·웹폰트·줄바꿈이 확정되는 다음 프레임에 한 번 더 보정한다.
@@ -9587,7 +10211,7 @@ document.addEventListener('keydown', (event) => {
 // 미리보기 최상위 구성요소 분류: 이미지 밴드 / 표제 밴드 / 프로필 / 카드들
 function previewParts(){
   const preview = document.getElementById('preview');
-  const parts = { image: null, title: null, profile: null, cards: [], comments: [] };
+  const parts = { image: null, title: null, profile: null, credit: null, cards: [], comments: [] };
   Array.from(preview.children).forEach(el => {
     // 대표 이미지 목록 인식용 숨김 썸네일을 표제 밴드로 오인하지 않는다.
     if(el.hidden || el.getAttribute('aria-hidden') === 'true') return;
@@ -9596,6 +10220,7 @@ function previewParts(){
     if(el.tagName === 'DETAILS'){ parts.cards.push(el); return; }
     if(el.tagName !== 'DIV') return;                       // 숨김 썸네일 <p>
     if(el.dataset.mosaicProfile === 'true'){ parts.profile = el; return; }
+    if(el.dataset.mosaicCredit === 'true'){ parts.credit = el; return; }
     if(el.dataset.mosaicCoverImage === 'true'){ parts.image = el; return; }
     if(el.dataset.mosaicTitle === 'true'){ parts.title = el; return; }
     if(el.style.backgroundImage){ parts.image = el; return; }
@@ -9612,13 +10237,26 @@ function isStackedLayout(){
   return window.matchMedia('(max-width: 680px)').matches;
 }
 
-// 화면 밖일 때만 부드럽게 스크롤 (이미 보이면 건드리지 않음)
+// 화면 밖일 때만 오른쪽 미리보기 컨테이너 안에서 부드럽게 스크롤한다.
+// Element.scrollIntoView()는 모든 상위 스크롤 영역과 뷰포트를 함께 조정할 수 있어,
+// 좌우 분할 화면에서는 미리보기 변화가 왼쪽 사이드바 위치까지 흔드는 원인이 된다.
 function scrollPreviewIfNeeded(el, force){
   if(!el || isStackedLayout()) return;
+  const previewArea = document.getElementById('previewArea');
+  if(!previewArea || !previewArea.contains(el)) return;
+  const areaRect = previewArea.getBoundingClientRect();
   const r = el.getBoundingClientRect();
   const margin = 40;
-  const visible = r.top >= margin && r.bottom <= window.innerHeight - margin;
-  if(force || !visible) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const visibleTop = areaRect.top + margin;
+  const visibleBottom = areaRect.bottom - margin;
+  const visible = r.top >= visibleTop && r.bottom <= visibleBottom;
+  if(!force && visible) return;
+  const current = previewArea.scrollTop;
+  const relativeTop = r.top - areaRect.top + current;
+  const centeredTop = relativeTop - Math.max(0, (previewArea.clientHeight - r.height) / 2);
+  const maxScroll = Math.max(0, previewArea.scrollHeight - previewArea.clientHeight);
+  const next = Math.max(0, Math.min(maxScroll, centeredTop));
+  previewArea.scrollTo({ top:next, behavior:'smooth' });
 }
 
 // 특정 카드/줄에 해당하는 미리보기 블록 찾기
@@ -9902,6 +10540,11 @@ function syncDesignSummaries(){
   document.getElementById('footerCoverSummary').textContent = footerOn
     ? `표시 · ${document.getElementById('footerMinimal').checked ? '미니멀' : '일반'}`
     : '숨김';
+  const creditOn = document.getElementById('creditOn').checked;
+  const creditCount = storedCreditItems().filter(item => item.label.trim() || item.value.trim()).length;
+  document.getElementById('creditCoverSummary').textContent = creditOn
+    ? `표시 · ${selectedControlText('creditPlacement')} · ${creditCount}개 항목`
+    : '숨김';
 }
 
 function normalizeProtocolRelativeUrl(value){
@@ -10053,19 +10696,39 @@ PROFILE_TAG_GROUPS.forEach(group => {
   });
 });
 
+const subtitleCoupleSeparatorInput = document.getElementById('subtitleCoupleSeparator');
+const subtitleCoupleSeparatorBtn = document.getElementById('subtitleCoupleSeparatorBtn');
+function syncSubtitleCoupleSeparatorControl(){
+  const separator = normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
+  subtitleCoupleSeparatorInput.value = separator;
+  subtitleCoupleSeparatorBtn.textContent = separator;
+  const next = separator === '×' ? '&' : '×';
+  subtitleCoupleSeparatorBtn.setAttribute('aria-label', `이름 구분 기호 ${separator} · 눌러서 ${next}로 변경`);
+  subtitleCoupleSeparatorBtn.title = `이름 구분 기호를 ${next}로 변경`;
+}
+subtitleCoupleSeparatorInput.addEventListener('input', syncSubtitleCoupleSeparatorControl);
+subtitleCoupleSeparatorBtn.addEventListener('click', () => {
+  if(subtitleCoupleSeparatorBtn.disabled) return;
+  snapshotCards();
+  subtitleCoupleSeparatorInput.value = subtitleCoupleSeparatorInput.value === '×' ? '&' : '×';
+  subtitleCoupleSeparatorInput.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast(`이름 구분 기호를 ${subtitleCoupleSeparatorInput.value}로 변경했습니다.`);
+});
+syncSubtitleCoupleSeparatorControl();
+
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','subtitleCoupleSeparator','logSubtitle','logSubtitleUrl','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
-  charName:'', userName:'', extraChars:'[]', footerAuthor:'',
-  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', subUserUrl:'', logSubtitle:'', logSubtitleUrl:'',
+  charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
+  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', subUserUrl:'', subtitleCoupleSeparator:'×', logSubtitle:'', logSubtitleUrl:'',
   profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
   keywordRules:'[]'
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
   logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false,
-  profileCharOn:true, profileUserOn:true, profileCommonOn:true, footerOn:true, footerMinimal:false
+  profileCharOn:true, profileUserOn:true, profileCommonOn:true, footerOn:true, footerMinimal:false, creditOn:false
 });
 // 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
 // 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
@@ -10074,7 +10737,7 @@ const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','d
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
-const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', 'profileCommonOn', 'footerOn', 'footerMinimal']);
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', 'profileCommonOn', 'footerOn', 'footerMinimal', 'creditOn', 'creditPlacement']);
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
   logNumberUrl:() => previewParts().title,
@@ -10084,6 +10747,7 @@ const PREVIEW_FOCUS_MAP = {
   subCharUrl: () => previewParts().title,
   subUser:    () => previewParts().title,
   subUserUrl: () => previewParts().title,
+  subtitleCoupleSeparator:() => previewParts().title,
   logSubtitle:() => previewParts().title,
   logSubtitleUrl:() => previewParts().title,
   logTitleOn: () => previewParts().title,
@@ -10132,6 +10796,9 @@ const PREVIEW_FOCUS_MAP = {
     const body = previewCardBody(last);
     return body ? body.lastElementChild : last;
   },
+  creditOn: () => previewParts().credit,
+  creditPlacement: () => previewParts().credit,
+  creditItems: () => previewParts().credit,
 };
 
 function normalizeCommentWidth(value){
@@ -10402,6 +11069,7 @@ function syncProfileEntityControlState(){
 
 function syncCoverControlState(){
   syncProfileOrderControls();
+  syncSubtitleCoupleSeparatorControl();
   syncCoverImageRangeLabels();
   syncProfileImageRangeLabels();
   const groups = [
@@ -10419,6 +11087,7 @@ function syncCoverControlState(){
     const row = el.closest('.row');
     if(row) row.classList.toggle('isControlDisabled', !group.on);
   }));
+  subtitleCoupleSeparatorBtn.disabled = !document.getElementById('logTitleOn').checked;
   syncProfileEntityControlState();
   syncProfileImageUiState();
   syncProfileBotLinkControl();
@@ -10427,10 +11096,35 @@ function syncCoverControlState(){
   syncTitleLinkControlState();
   syncAllSegmentedChoiceControls();
   updateAllImageLoadStatuses();
+  syncCreditControlState();
 }
-['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn','profileCommonOn','footerOn'].forEach(id => {
+function syncCreditControlState(){
+  const on = document.getElementById('creditOn').checked;
+  const area = document.getElementById('creditEditorArea');
+  if(!area) return;
+  area.classList.toggle('creditControlsDisabled', !on);
+  area.setAttribute('aria-disabled', String(!on));
+  area.querySelectorAll('input, select, button').forEach(control => { control.disabled = !on; });
+  if(on){
+    const rows = Array.from(area.querySelectorAll('.creditEditorRow'));
+    rows.forEach((row, index) => {
+      const buttons = row.querySelectorAll('.creditRowActions button');
+      if(buttons[0]) buttons[0].disabled = index === 0;
+      if(buttons[1]) buttons[1].disabled = index === rows.length - 1;
+    });
+  }
+  syncSegmentedChoiceControl('creditPlacement');
+  syncCreditPresetControls();
+}
+['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn','profileCommonOn','footerOn','creditOn'].forEach(id => {
   document.getElementById(id).addEventListener('change', syncCoverControlState);
 });
+document.getElementById('creditAddBtn').addEventListener('click', addCreditItem);
+document.getElementById('creditPresetSelect').addEventListener('change', syncCreditPresetControls);
+document.getElementById('creditPresetName').addEventListener('input', syncCreditPresetControls);
+document.getElementById('creditPresetLoadBtn').addEventListener('click', loadSelectedCreditPreset);
+document.getElementById('creditPresetSaveBtn').addEventListener('click', saveCurrentCreditPreset);
+document.getElementById('creditPresetDeleteBtn').addEventListener('click', deleteSelectedCreditPreset);
 TITLE_LINK_DEPENDENCIES.forEach(({ sourceId }) => {
   document.getElementById(sourceId).addEventListener('input', syncTitleLinkControlState);
 });
@@ -11262,7 +11956,7 @@ let undoTimer = null;
 let toastUndoAction = null;
 const UNDO_TOAST_DURATION_MS = 4000;
 
-// 작업 전체(카드 + 표제/이미지/이름/꼬리말)를 담는 헬퍼 — 보관함 슬롯과 되돌리기가 공유
+// 작업 전체(카드 + 표제/이미지/이름/꼬리말/크레딧)를 담는 헬퍼 — 보관함 슬롯과 되돌리기가 공유
 function collectWork(){
   const fields = {};
   WORK_FIELDS.forEach(id => { fields[id] = document.getElementById(id).value; });
@@ -11281,6 +11975,7 @@ function applyWork(data){
   WORK_FIELDS.forEach(id => {
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
   });
+  renderCreditItemsEditor();
   syncProfileTagEditorsFromMasters();
   renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
@@ -11310,6 +12005,14 @@ function snapshotCards(){
   undoSnapshot = captureActionState('작업 전');
 }
 
+function dismissToast(){
+  const toast = document.getElementById('undoToast');
+  toast.style.display = 'none';
+  clearTimeout(undoTimer);
+  undoTimer = null;
+  toastUndoAction = null;
+}
+
 function openToast(message, undoAction, showUndoButton){
   const toast = document.getElementById('undoToast');
   const undoButton = document.getElementById('undoBtn');
@@ -11318,10 +12021,7 @@ function openToast(message, undoAction, showUndoButton){
   undoButton.hidden = !showUndoButton;
   toast.style.display = 'flex';
   clearTimeout(undoTimer);
-  undoTimer = setTimeout(() => {
-    toast.style.display = 'none';
-    toastUndoAction = null;
-  }, UNDO_TOAST_DURATION_MS);
+  undoTimer = setTimeout(dismissToast, UNDO_TOAST_DURATION_MS);
 }
 
 function showUndoToast(message, undoAction){
@@ -11336,16 +12036,22 @@ function showNoticeToast(message){
 }
 
 document.getElementById('undoBtn').addEventListener('click', () => {
-  document.getElementById('undoToast').style.display = 'none';
-  clearTimeout(undoTimer);
   const undoAction = toastUndoAction;
-  toastUndoAction = null;
+  dismissToast();
   if(undoAction){
     undoAction();
     return;
   }
   goActionHistory(-1);
 });
+
+// 토스트 밖의 화면을 누르면 즉시 닫는다. pointerdown 캡처 단계에서 기존
+// 토스트만 정리하므로, 이어지는 click이 새 알림을 띄우는 동작은 방해하지 않는다.
+document.addEventListener('pointerdown', event => {
+  const toast = document.getElementById('undoToast');
+  if(toast.style.display !== 'flex' || toast.contains(event.target)) return;
+  dismissToast();
+}, true);
 
 // 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
 // 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
@@ -11946,7 +12652,7 @@ function pvHighlightBlock(block, query){
   while(walker.nextNode()){
     node = walker.currentNode;
     const parent = node.parentElement;
-    if(!node.data || (parent && parent.closest('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"], [data-mosaic-footer="true"], [data-mosaic-card-title="true"]'))) continue;
+    if(!node.data || (parent && parent.closest('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-card-title="true"]'))) continue;
     nodes.push(node);
   }
   if(!nodes.length) return [];
@@ -12685,8 +13391,10 @@ function sanitizeImportedWork(data){
     if(typeof source[id] !== 'string' && typeof source[id] !== 'number') return null;
     const value = String(source[id]);
     if(id === 'profilePlacement' && !['below','top'].includes(value)) return null;
+    if(id === 'creditPlacement' && !['top','bottom'].includes(value)) return null;
     if(id === 'profileStyle' && !['compact','portrait','showcase'].includes(value)) return null;
     if(id === 'profileOrder' && !['bot-user','user-bot'].includes(value)) return null;
+    if(id === 'subtitleCoupleSeparator' && !['×','&'].includes(value)) return null;
     if(id === 'profileCharScale' || id === 'profileUserScale'){
       const scale = Number(value);
       if(!Number.isFinite(scale) || scale < 100 || scale > 300) return null;
@@ -12697,7 +13405,7 @@ function sanitizeImportedWork(data){
     }
     const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage' || id === 'logNumberUrl' || id === 'logTitleUrl' || id === 'subCharUrl' || id === 'subUserUrl' || id === 'logSubtitleUrl')
       ? 8192
-      : (id === 'extraChars' ? 50000 : 5000);
+      : ((id === 'extraChars' || id === 'creditItems') ? 200000 : 5000);
     if(value.length > limit) return null;
     fields[id] = value;
   }
@@ -12714,6 +13422,20 @@ function sanitizeImportedWork(data){
       const cleanChars = sanitizeExtraCharList(JSON.parse(fields.extraChars));
       if(!cleanChars) return null;
       fields.extraChars = JSON.stringify(cleanChars);
+    }
+    catch(e){ return null; }
+  }
+  if(fields.creditItems !== undefined){
+    try {
+      const items = JSON.parse(fields.creditItems);
+      if(!Array.isArray(items) || items.length > MAX_CREDIT_ITEMS) return null;
+      const cleaned = items.map(item => {
+        if(!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('invalid credit item');
+        if(typeof item.label !== 'string' || typeof item.value !== 'string' || typeof item.url !== 'string') throw new Error('invalid credit fields');
+        if(item.label.length > 80 || item.value.length > 500 || item.url.length > 8192) throw new Error('credit field too long');
+        return { label:item.label, value:item.value, url:item.url };
+      });
+      fields.creditItems = JSON.stringify(cleaned);
     }
     catch(e){ return null; }
   }
@@ -13179,6 +13901,52 @@ document.querySelectorAll('details.foldGroup').forEach(el => {
 
 // ---------- 사이드바 폭 조절 ----------
 // 드래그해서 왼쪽 작업 영역 폭을 바꾸고, 그 값을 브라우저에 기억한다.
+const LAYOUT_MIRROR_KEY = 'mosaicLayoutMirrored_v1';
+const layoutMirrorBtn = document.getElementById('layoutMirrorBtn');
+
+function isDesktopLayoutMirrored(){
+  return document.body.classList.contains('layoutMirrored')
+    && window.matchMedia('(min-width: 681px)').matches;
+}
+
+function syncLayoutMirrorUi(){
+  const mirrored = document.body.classList.contains('layoutMirrored');
+  const title = mirrored
+    ? '기본 배치로 되돌리기 · 설정 왼쪽, 미리보기 오른쪽'
+    : '좌우 반전 · 미리보기 왼쪽, 설정 오른쪽';
+  layoutMirrorBtn.classList.toggle('active', mirrored);
+  layoutMirrorBtn.setAttribute('aria-pressed', String(mirrored));
+  layoutMirrorBtn.setAttribute('aria-label', title);
+  layoutMirrorBtn.title = title;
+  const handle = document.getElementById('sidebarResizer');
+  if(handle){
+    const side = mirrored ? '오른쪽' : '왼쪽';
+    handle.setAttribute('aria-label', `${side} 설정 영역 너비 조절`);
+    handle.title = `드래그해서 ${side} 설정 영역 폭을 조절해 (더블클릭하면 기본값)`;
+  }
+}
+
+function setLayoutMirrored(on, save){
+  document.body.classList.toggle('layoutMirrored', !!on);
+  syncLayoutMirrorUi();
+  if(save){
+    try { localStorage.setItem(LAYOUT_MIRROR_KEY, on ? 'on' : 'off'); }
+    catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 배치는 유지 */ }
+  }
+  requestAnimationFrame(() => {
+    syncPreviewCommentOutset();
+    layoutPreviewFloatingButtons();
+  });
+}
+
+try { setLayoutMirrored(localStorage.getItem(LAYOUT_MIRROR_KEY) === 'on', false); }
+catch(e){ setLayoutMirrored(false, false); }
+
+layoutMirrorBtn.addEventListener('click', () => {
+  if(!window.matchMedia('(min-width: 681px)').matches) return;
+  setLayoutMirrored(!document.body.classList.contains('layoutMirrored'), true);
+});
+
 const SIDEBAR_KEY = 'logGenSidebarW_v1';
 const SIDEBAR_DEFAULT = 460;
 const SIDEBAR_MIN = 340;
@@ -13230,7 +13998,8 @@ function setSidebarWidth(px, save){
 
   bar.addEventListener('pointermove', (e) => {
     if(!dragging || e.pointerId !== activePointerId) return;
-    setSidebarWidth(e.clientX, false);
+    const width = isDesktopLayoutMirrored() ? window.innerWidth - e.clientX : e.clientX;
+    setSidebarWidth(width, false);
   });
 
   bar.addEventListener('pointerup', finishDrag);
@@ -13244,7 +14013,8 @@ function setSidebarWidth(px, save){
     e.preventDefault();
     if(e.key === 'Home') return setSidebarWidth(SIDEBAR_DEFAULT, true);
     const current = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10) || SIDEBAR_DEFAULT;
-    setSidebarWidth(current + (e.key === 'ArrowRight' ? 20 : -20), true);
+    const visualDelta = e.key === 'ArrowRight' ? 20 : -20;
+    setSidebarWidth(current + (isDesktopLayoutMirrored() ? -visualDelta : visualDelta), true);
   });
 })();
 
@@ -13833,7 +14603,7 @@ function stepSelectOption(selectId, delta){
   document.getElementById(nextId).addEventListener('click', () => stepSelectOption(selectId, 1));
 });
 
-const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder'];
+const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder', 'creditPlacement'];
 
 function syncSegmentedChoiceControl(selectId){
   const select = document.getElementById(selectId);
@@ -14409,8 +15179,8 @@ function goActionHistory(delta){
   actionIndex = target;
   const state = actionHistory[actionIndex];
   undoSnapshot = null;
-  clearTimeout(undoTimer);
-  document.getElementById('undoToast').style.display = 'none';
+  imageHistorySession = null;
+  dismissToast();
   applyWork(cloneHistoryValue(state.work));
   applyStyleValues(cloneHistoryValue(state.style));
   currentPresetName = null;
@@ -14429,7 +15199,7 @@ document.getElementById('redoStyleBtn').addEventListener('click', () => goAction
 // 검색어·프리셋 이름 같은 임시 UI 입력은 제외하고 실제 작업값만 감시한다.
 const HISTORY_WORK_IDS = new Set([
   ...WORK_FIELDS, ...STYLE_FIELDS,
-  'logTitleOn', 'titleMinimal', 'imgOn', 'profileOn', 'profileMinimal', 'footerOn', 'footerMinimal'
+  'logTitleOn', 'titleMinimal', 'imgOn', 'profileOn', 'profileMinimal', 'footerOn', 'footerMinimal', 'creditOn'
 ]);
 function isHistoryAffectingInput(el){
   if(!el || el.nodeType !== 1) return false;
@@ -14443,6 +15213,68 @@ document.addEventListener('input', (e) => {
   actionHistory = actionHistory.slice(0, actionIndex + 1);
   updateHistoryButtons();
 }, true);
+
+// 대표 이미지와 BOT·USER 프로필 이미지는 URL뿐 아니라 크기·위치까지 하나의 편집
+// 단계로 기록한다. range 드래그나 URL 타이핑 중간값을 매번 쌓지 않고, 포커스를
+// 얻은 시점의 상태와 현재 상태 두 항목만 유지해 되돌리기 버튼을 즉시 활성화한다.
+const IMAGE_HISTORY_IDS = new Set([
+  'imgOn', 'imgUrl', 'imgHeight', 'xpos', 'ypos',
+  'profileCharImage', 'profileCharScale', 'profileCharX', 'profileCharY',
+  'profileUserImage', 'profileUserScale', 'profileUserX', 'profileUserY'
+]);
+let imageHistorySession = null;
+
+function imageHistoryLabel(id){
+  if(id.startsWith('profileChar')) return 'BOT 프로필 이미지 변경';
+  if(id.startsWith('profileUser')) return 'USER 프로필 이미지 변경';
+  return '대표 이미지 변경';
+}
+
+document.addEventListener('focusin', event => {
+  const target = event.target;
+  if(!target || !IMAGE_HISTORY_IDS.has(target.id)) return;
+  imageHistorySession = {
+    id: target.id,
+    before: captureActionState(`${imageHistoryLabel(target.id)} 전`),
+    afterIndex: -1
+  };
+});
+
+document.addEventListener('input', event => {
+  const target = event.target;
+  if(!target || !IMAGE_HISTORY_IDS.has(target.id)) return;
+  const label = imageHistoryLabel(target.id);
+  if(!imageHistorySession || imageHistorySession.id !== target.id){
+    // 키보드 포커스 없이 스크립트가 실제 입력 이벤트를 보낸 경우에도 안전하게 기록한다.
+    imageHistorySession = {
+      id: target.id,
+      before: actionIndex >= 0
+        ? cloneHistoryValue(actionHistory[actionIndex])
+        : captureActionState(`${label} 전`),
+      afterIndex: -1
+    };
+  }
+  const after = captureActionState(label);
+  if(actionStateEqual(imageHistorySession.before, after)){
+    updateHistoryButtons();
+    return;
+  }
+  if(imageHistorySession.afterIndex === actionIndex && actionIndex >= 0){
+    actionHistory[actionIndex] = cloneHistoryValue(after);
+    actionHistory[actionIndex].label = label;
+  } else {
+    pushActionState(imageHistorySession.before, `${label} 전`);
+    pushActionState(after, label);
+    imageHistorySession.afterIndex = actionIndex;
+  }
+  updateHistoryButtons();
+}, true);
+
+document.addEventListener('focusout', event => {
+  if(imageHistorySession && event.target && event.target.id === imageHistorySession.id){
+    imageHistorySession = null;
+  }
+});
 
 // 본문 입력의 기본 실행 취소와 충돌하지 않는 작업 단위 단축키.
 document.addEventListener('keydown', (e) => {
@@ -15488,6 +16320,18 @@ function basicPreflightIssues(){
       issues.push({ severity:'error', message:`${item.label} 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`, targetId });
     }
   });
+  if(document.getElementById('creditOn').checked){
+    storedCreditItems().forEach((item, index) => {
+      const rawUrl = item.url.trim();
+      if(rawUrl && !normalizeHttpLinkUrl(rawUrl)){
+        issues.push({
+          severity:'error',
+          message:`크레딧 ${index + 1}의 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`,
+          targetId:`creditUrl${index}`
+        });
+      }
+    });
+  }
   if(document.getElementById('charSpeakerOn').checked && !document.getElementById('charName').value.trim()){
     issues.push({ severity:'warn', message:'빈 {{char}} 이름은 {{char}} 변수로 출력됩니다.', targetId:'charName' });
   }
@@ -15634,6 +16478,8 @@ if(IS_MAC){
 
 // 초기 렌더
 restoreDraft();
+renderCreditItemsEditor();
+renderCreditPresetOptions();
 renderKeywordRuleList();
 syncProfileTagEditorsFromMasters();
 syncCoverControlState();
