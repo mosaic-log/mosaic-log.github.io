@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.5.2 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.5.3 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -491,7 +491,8 @@
   }
   /* 표지·디자인 탭 셀렉트: 기본 화살표를 같은 위치의 작은 캐럿으로 통일 */
   #tabCover .row select,
-  #tabDesign .row select {
+  #tabDesign .row select,
+  #creditPresetSelect {
     -webkit-appearance: none;
     appearance: none;
     padding-right: 34px;
@@ -991,7 +992,7 @@
   }
   #bodyInputGroup > .foldBody > .editorToolbar { justify-content: center; }
   #bodyInputGroup > .foldBody > .editorToolbar button, #fsToolbar button {
-    font-size: 11.5px;
+    font-size: 10.5px;
     min-height: var(--control-sm);
     padding: 0 10px;
     border: 1px solid transparent;
@@ -1037,6 +1038,53 @@
     border-color: transparent;
     background: var(--bg-muted);
   }
+  #bodyEditorToolbar .separatorInsertSplit {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    flex: none;
+    overflow: hidden;
+    border-radius: 6px;
+  }
+  #bodyInputGroup > .foldBody > #bodyEditorToolbar .separatorInsertSplit > button {
+    padding-right: 7px;
+    border-radius: 6px 0 0 6px;
+  }
+  #bodyEditorToolbar .separatorInsertSelect {
+    width: 24px;
+    min-width: 24px;
+    min-height: 28px;
+    padding: 0;
+    appearance: none;
+    border: 0;
+    border-radius: 0 6px 6px 0;
+    background: transparent;
+    color: transparent;
+    font-size: 0;
+    cursor: pointer;
+  }
+  #bodyEditorToolbar .separatorInsertSelect:hover { background: var(--bg-muted); }
+  #bodyEditorToolbar .separatorInsertSelect:focus-visible {
+    outline: 2px solid var(--ink-faint);
+    outline-offset: -2px;
+  }
+  #bodyEditorToolbar .separatorInsertSelect:disabled { cursor: default; opacity: .45; }
+  #bodyEditorToolbar .separatorInsertSelect option {
+    color: var(--ink);
+    font-size: 12px;
+  }
+  #bodyEditorToolbar .separatorInsertSplit::after {
+    content: '⋯';
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    color: var(--ink-faint);
+    font-size: 15px;
+    line-height: 1;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+  #bodyEditorToolbar .separatorInsertSplit:has(.separatorInsertSelect:disabled)::after { opacity: .45; }
 
   /* ---------- 본문 카운터 ---------- */
   .counterRow {
@@ -2893,14 +2941,18 @@
     grid-column: 3;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-self: stretch;
+    align-self: center;
     width: 100%;
+    height: var(--control-h);
     min-width: 0;
   }
   .settingsForm .selectCycleStepper button {
+    box-sizing: border-box;
     min-width: 0;
+    height: 100%;
+    min-height: 0;
     padding: 0;
-    border: 1px solid var(--line-strong);
+    border: 1px solid var(--line);
     border-radius: 7px 0 0 7px;
     background: var(--bg-field);
     color: var(--ink-soft);
@@ -2914,7 +2966,7 @@
   .settingsForm .selectCycleStepper button:hover {
     position: relative;
     z-index: 1;
-    border-color: var(--ink-faint);
+    border-color: var(--line-strong);
     background: var(--bg-muted);
     color: var(--ink);
   }
@@ -2935,19 +2987,21 @@
   .settingsForm .segmentedChoice {
     grid-column: 2;
     display: grid;
-    align-self: stretch;
+    align-self: center;
     width: 100%;
+    height: 29px;
     min-width: 0;
     overflow: hidden;
     border: 1px solid var(--line-strong);
     border-radius: 8px;
-    background: var(--bg-field);
+    background: var(--bg-panel);
   }
   .settingsForm .segmentedChoice.isTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settingsForm .segmentedChoice.isThree { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .settingsForm .segmentedChoice button {
     min-width: 0;
-    min-height: var(--control-h);
+    height: 27px;
+    min-height: 27px;
     padding: 0 8px;
     border: 0;
     border-left: 1px solid var(--line);
@@ -2955,14 +3009,14 @@
     background: transparent;
     color: var(--ink-soft);
     font-size: 11px;
-    font-weight: 400;
-    line-height: 1.2;
+    font-weight: 500;
+    line-height: 1;
     white-space: nowrap;
   }
   .settingsForm .segmentedChoice.isThree button {
     padding-right: 6px;
     padding-left: 6px;
-    font-size: 10.5px;
+    font-size: 11px;
   }
   .settingsForm .segmentedChoice button:first-child { border-left: 0; }
   .settingsForm .segmentedChoice button:hover:not(:disabled) {
@@ -2974,7 +3028,7 @@
   .settingsForm .segmentedChoice button[aria-pressed="true"] {
     position: relative;
     z-index: 1;
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg-field));
+    background: color-mix(in srgb, var(--accent) 13%, var(--bg-panel));
     color: var(--accent);
   }
   .settingsForm .segmentedChoice button:focus-visible {
@@ -2985,11 +3039,7 @@
   }
   .settingsForm .segmentedChoice button:disabled { cursor: default; }
 
-  /* 크레딧 배치는 프로필과 같은 분할 버튼 위계를 쓰되 보조 설정답게 조금 낮게 둔다. */
-  #creditGroup .creditPlacementChoice button {
-    min-height: 30px;
-    font-size: 10.5px;
-  }
+  /* 프로필·크레딧 등 모든 N열 선택은 문단 설정과 같은 높이와 글자 위계를 쓴다. */
 
   /* 디자인 탭의 세 영역은 연한 헤더 띠와 넉넉한 여백으로 나눈다. */
   #tabDesign > .designFold {
@@ -3185,6 +3235,18 @@
   }
   #profileGroup .profileImageRow > label {
     color: color-mix(in srgb, var(--accent) 82%, var(--ink-soft));
+  }
+  /* 프로필에서 사용하던 작고 옅은 예시 문구 위계를 모든 입력창으로 확장한다.
+     실제 입력 글자도 같은 크기로 맞추되 각 입력의 기존 글자색·배경·테두리는 유지한다. */
+  input[placeholder],
+  textarea[placeholder] {
+    font-size: 11.5px !important;
+  }
+  input[placeholder]::placeholder,
+  textarea[placeholder]::placeholder {
+    color: color-mix(in srgb, var(--help-ink) 78%, var(--bg-panel)) !important;
+    font-size: 11.5px !important;
+    opacity: 1;
   }
   /* 상단 프로필의 긴 입력 목록을 기능별 얇은 하위 아코디언으로 구분한다. */
   #profileGroup .profileSubFold {
@@ -3557,9 +3619,18 @@
     font-size: 15px !important;
   }
   #creditGroup .creditDeleteBtn:hover:not(:disabled) { background:#fff8f8 !important; color:#9a5148 !important; }
-  #creditGroup .creditEditorRow.isCreditDragging { opacity: .42; }
-  #creditGroup .creditEditorRow.creditDropBefore { box-shadow: inset 0 2px 0 var(--accent); }
-  #creditGroup .creditEditorRow.creditDropAfter { box-shadow: inset 0 -2px 0 var(--accent); }
+  #creditGroup .creditEditorRow.isCreditDragging {
+    opacity: .44;
+    box-shadow: none;
+  }
+  #creditGroup .creditDropMarker {
+    height: 3px;
+    margin: -2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 72%, white);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+    pointer-events: none;
+  }
   #creditGroup .creditAddBtn {
     width: 100%;
     min-height: 36px;
@@ -4490,6 +4561,40 @@
       padding: 0 10px 0 12px;
     }
   }
+
+  /* ---------- 전체 UI 글자 밀도 ----------
+     설정값과 같은 위계의 라벨·버튼만 입력창 크기에 맞추고,
+     탭·아코디언 제목과 아이콘 전용 컨트롤의 크기·터치 영역은 유지한다. */
+  #sidebar .tabPanel label,
+  #sidebar .row > label,
+  #tabDesign .typographyGroup .titleBoldLabel,
+  #sidebar select {
+    font-size: 11.5px !important;
+  }
+  #sidebar button:where(:not(.tabBtn):not(.fmtBtn):not(.miniCtl):not(.delCardBtn):not(.subtitleSepButton):not(.profileResetIconBtn):not(.profileImageAdjustBtn):not(.presetMenuBtn):not(.creditDeleteBtn):not(#archiveCloseBtn)) {
+    font-size: 11.5px !important;
+  }
+  #sidebar .styleHistoryBtns button { font-size: 15px !important; }
+  #sidebar .settingsForm .selectCycleStepper button { font-size: 17px !important; }
+  #sidebar #bodyEditorToolbar button { font-size: 10.5px !important; }
+  #sidebar #copyBtn { font-size: 12.5px !important; }
+
+  /* 카드·코멘트·크레딧의 순서 이동은 아이콘만 남긴다.
+     값 순환 스테퍼와 검색 탐색 버튼은 조작 묶음이 보이도록 테두리를 유지한다. */
+  #sidebar .itemMoveBtn {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  #sidebar .itemMoveBtn:hover:not(:disabled) {
+    border-color: transparent !important;
+    background: var(--bg-muted) !important;
+  }
+  #sidebar .itemMoveBtn:focus-visible {
+    border-color: transparent !important;
+    outline: 2px solid var(--ink-faint);
+    outline-offset: 1px;
+  }
 </style>
 </head>
 <body>
@@ -4497,7 +4602,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.2 GitHub 저장소 열기">v1.5.2</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.3 GitHub 저장소 열기">v1.5.3</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -4877,10 +4982,15 @@
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
-        <button type="button" id="insertHrBtn" title="얇은 구분선">구분선</button>
-        <button type="button" id="insertHr2Btn" title="장면 전환 장식">장면 전환</button>
-        <button type="button" id="insertHr3Btn" title="부드러운 호흡 구분">호흡</button>
-        <button type="button" id="insertGapBtn" title="기호 없는 넓은 여백">여백</button>
+        <span class="separatorInsertSplit">
+          <button type="button" id="insertHrBtn" title="얇은 구분선 [HR] 삽입">구분선</button>
+          <select id="separatorInsertSelect" class="separatorInsertSelect" aria-label="다른 구분 요소 삽입" title="장면 전환·호흡·넓은 여백 선택">
+            <option value="" selected disabled>다른 구분 요소</option>
+            <option value="hr2">장면 전환</option>
+            <option value="hr3">호흡</option>
+            <option value="gap">넓은 여백</option>
+          </select>
+        </span>
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
@@ -4908,7 +5018,7 @@
       <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 옵션 3–5는 출력에서 자동 줄바꿈</p>
       <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
       <p class="hint"><b>속마음:</b> <code>'이 부분'</code> → 강조 색상 · 기울임 없음</p>
-      <p class="hint"><b>굵게:</b> <code>**이 부분**</code> 또는 <code>__이 부분__</code> · 굵게 + 강조 <code>***둘 다***</code> 또는 <code>__*둘 다*__</code></p>
+      <p class="hint"><b>굵게:</b> <code>**이 부분**</code> · 굵게 + 강조 <code>***둘 다***</code></p>
       <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
       <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
       <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
@@ -5212,7 +5322,7 @@
 <div class="tabPanel" id="tabTheme" role="tabpanel" aria-labelledby="tabBtnTheme">
 
   <details class="group foldGroup themeFold" id="comboGroup">
-    <summary class="group-title foldHead"><span class="themeFoldTitle">추천 프리셋</span><span class="themeFoldMeta">색상 조합</span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="themeFoldTitle">추천 프리셋</span><span class="themeFoldMeta" id="recommendedPresetStatus">색상 조합</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
       <div class="comboFamilyFilters" id="comboFamilyFilters" role="group" aria-label="추천 프리셋 색상 계열"></div>
       <div id="comboList"></div>
@@ -5222,7 +5332,10 @@
   <details class="group foldGroup themeFold themeSavedGroup" id="savedPresetGroup">
     <summary class="group-title foldHead">
       <span class="themeFoldTitle">내 프리셋</span>
-      <span class="themeFoldMeta"><span id="presetLibraryCount" aria-live="polite">0</span>개</span>
+      <span class="themeFoldMeta">
+        <span id="savedPresetActiveName" hidden></span>
+        <span id="savedPresetCountWrap"><span id="presetLibraryCount" aria-live="polite">0</span>개</span>
+      </span>
       <span class="foldArrow" aria-hidden="true"></span>
     </summary>
     <div class="foldBody">
@@ -5524,7 +5637,7 @@
       <span><code>&gt;&gt;</code> {{char}}</span>
       <span><code>&lt;&lt;</code> {{user}}</span>
       <span><code>[이름]</code> 다른 인물</span>
-      <span><code>__굵게__</code></span>
+      <span><code>**굵게**</code></span>
       <span><code>*강조*</code></span>
       <span><code>'속마음'</code></span>
       <span><code># 소제목</code></span>
@@ -5542,7 +5655,7 @@
 </div>
 
 <div id="selToolbar" role="toolbar" aria-label="선택한 글자 서식">
-  <button type="button" data-fmt="bold" title="굵게 (**...** 또는 __...__)"><b>B</b></button>
+  <button type="button" data-fmt="bold" title="굵게 (**...**)"><b>B</b></button>
   <button type="button" data-fmt="emphasis" title="강조 (*...*)"><i>I</i></button>
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
 </div>
@@ -5938,15 +6051,15 @@ function tonePalette(settings){
   // 내용 장식선과 꼬리말은 카드 연결선과 역할이 다르므로 별도 토큰으로 둔다.
   // divider를 직접 연하게 만들면 표지·프로필·연결 카드의 경계까지 흐려진다.
   const contentDivider = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.10 : 0.12)
-    : mixHex(bg, to, isLight ? 0.11 : 0.13);
+    ? mixHex(bg, structuralAccent, isLight ? 0.11 : 0.13)
+    : mixHex(bg, to, isLight ? 0.12 : 0.14);
   const sceneOrnament = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.13 : 0.15)
-    : mixHex(bg, to, isLight ? 0.14 : 0.16);
+    ? mixHex(bg, structuralAccent, isLight ? 0.14 : 0.16)
+    : mixHex(bg, to, isLight ? 0.15 : 0.17);
   // 점은 면적이 작아 같은 색도 더 흐리게 보이므로 HR3 전용으로 대비를 조금 높인다.
   const breathOrnament = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.18 : 0.20)
-    : mixHex(bg, to, isLight ? 0.19 : 0.21);
+    ? mixHex(bg, structuralAccent, isLight ? 0.19 : 0.21)
+    : mixHex(bg, to, isLight ? 0.20 : 0.22);
   const caption = mixHex(bg, to, isLight ? 0.38 : 0.52);
   // 꼬리말은 항상 구분선 없는 미니멀 서명이므로 caption보다 한 단계 연하게 둔다.
   const footerText = mixHex(bg, caption, 0.65);
@@ -6054,9 +6167,11 @@ function buildParagraph(rawLine, settings, opts){
   if(upper === '[HR2]'){
     // 장면 전환용 장식 구분선 (✦ ✦ ✦). 모양은 유지하되 [HR]과 같은
     // 장면 전환 전용 색상을 사용해 테마와 보조색은 따르되 선보다 부드럽게 보이게 한다.
+    // 기준 크기는 기존 12px을 유지하고, 아카라이브 모바일 앱의 텍스트 자동 축소가
+    // 장식에만 적용되지 않도록 이 요소 자체에 크기와 text-size-adjust를 직접 고정한다.
     // letter-spacing은 마지막 글자 뒤에도 붙어 장식이 왼쪽으로 치우쳐 보이므로
     // 같은 크기의 왼쪽 패딩으로 시각적 중심을 보정한다(실제 이동량은 절반인 5px).
-    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr2" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${pal.sceneOrnament}; font-size:12px; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr2" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${pal.sceneOrnament}; font-size:12px !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
   }
 
   if(upper === '[HR3]'){
@@ -6309,11 +6424,15 @@ function buildParagraph(rawLine, settings, opts){
 
 const MAX_CREDIT_ITEMS = 20;
 let creditDragIndex = null;
+let creditDropMarker = null;
 
 function clearCreditDragUi(){
   document.querySelectorAll('#creditEditorList .creditEditorRow').forEach(row => {
-    row.classList.remove('isCreditDragging', 'creditDropBefore', 'creditDropAfter');
+    row.classList.remove('isCreditDragging');
+    row.removeAttribute('aria-grabbed');
   });
+  if(creditDropMarker) creditDropMarker.remove();
+  creditDropMarker = null;
   creditDragIndex = null;
 }
 
@@ -6330,6 +6449,21 @@ function reorderCreditItem(from, insertionIndex){
   renderCreditItemsEditor();
   showUndoToast('크레딧 항목 순서를 변경했습니다.');
   return true;
+}
+
+function finishCreditItemDrop(event){
+  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const list = document.getElementById('creditEditorList');
+  const children = Array.from(list.children);
+  const insertionIndex = children
+    .slice(0, children.indexOf(creditDropMarker))
+    .filter(child => child.classList && child.classList.contains('creditEditorRow'))
+    .length;
+  const from = creditDragIndex;
+  clearCreditDragUi();
+  reorderCreditItem(from, insertionIndex);
 }
 
 function normalizeCreditItems(value){
@@ -6424,12 +6558,14 @@ function renderCreditItemsEditor(){
     moveGroup.className = 'creditMoveGroup';
     const up = document.createElement('button');
     up.type = 'button';
+    up.className = 'itemMoveBtn';
     up.textContent = '↑';
     up.title = '항목을 위로';
     up.setAttribute('aria-label', `크레딧 ${index + 1} 위로 이동`);
     up.disabled = index === 0;
     const down = document.createElement('button');
     down.type = 'button';
+    down.className = 'itemMoveBtn';
     down.textContent = '↓';
     down.title = '항목을 아래로';
     down.setAttribute('aria-label', `크레딧 ${index + 1} 아래로 이동`);
@@ -6449,30 +6585,30 @@ function renderCreditItemsEditor(){
         return;
       }
       creditDragIndex = index;
+      creditDropMarker = document.createElement('div');
+      creditDropMarker.className = 'creditDropMarker';
+      creditDropMarker.setAttribute('aria-hidden', 'true');
       row.classList.add('isCreditDragging');
+      row.setAttribute('aria-grabbed', 'true');
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', String(index));
     });
     header.addEventListener('dragend', clearCreditDragUi);
     row.addEventListener('dragover', event => {
-      if(creditDragIndex === null || creditDragIndex === index) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-      document.querySelectorAll('#creditEditorList .creditEditorRow').forEach(itemRow => {
-        itemRow.classList.remove('creditDropBefore', 'creditDropAfter');
-      });
-      const rect = row.getBoundingClientRect();
-      row.classList.add(event.clientY >= rect.top + rect.height / 2 ? 'creditDropAfter' : 'creditDropBefore');
-    });
-    row.addEventListener('drop', event => {
       if(creditDragIndex === null) return;
+      // 끌던 항목으로 다시 돌아오면 앞서 가리키던 위치를 취소한다. 표시선이
+      // 다른 자리에 남은 채 원래 항목에서 놓여 뜻밖의 순서 변경이 되는 것을 막는다.
+      if(creditDragIndex === index){
+        if(creditDropMarker && creditDropMarker.isConnected) creditDropMarker.remove();
+        return;
+      }
       event.preventDefault();
+      if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
       const rect = row.getBoundingClientRect();
-      const insertionIndex = index + (event.clientY >= rect.top + rect.height / 2 ? 1 : 0);
-      const from = creditDragIndex;
-      clearCreditDragUi();
-      reorderCreditItem(from, insertionIndex);
+      if(event.clientY >= rect.top + rect.height / 2) row.after(creditDropMarker);
+      else row.before(creditDropMarker);
     });
+    row.addEventListener('drop', finishCreditItemDrop);
 
     [label, value, url].forEach(input => input.addEventListener('input', syncCreditItemsField));
     url.addEventListener('change', () => {
@@ -6492,6 +6628,13 @@ function renderCreditItemsEditor(){
   });
   syncCreditControlState();
 }
+
+document.getElementById('creditEditorList').addEventListener('dragover', event => {
+  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
+  event.preventDefault();
+  if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+});
+document.getElementById('creditEditorList').addEventListener('drop', finishCreditItemDrop);
 
 function addCreditItem(){
   const items = creditItemsFromEditor();
@@ -7316,8 +7459,15 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   // flex-wrap 없이 inline-block의 자연 줄바꿈을 사용한다. 두 칸이 최소 폭을 확보하지
   // 못하는 순간 두 번째 프로필이 다음 줄로 이동한다.
   const profileBreakpoint = (showcase ? 280 : 300) * Math.min(2, profiles.length);
+  // 프로필 두 칸의 padding-bottom은 좁은 화면에서 다음 줄과의 간격을 만든다.
+  // 표지와 연결되지 않고 관계·상황도 없는 단독 프로필에서는 마지막 줄 아래에도
+  // 그 간격이 남으므로, 묶음의 음수 여백으로 한 번 상쇄해 바깥 위아래 여백을 맞춘다.
+  const standaloneProfileOnly = !connectedAbove && !relationship && !situation;
+  const standaloneProfileBottomCompensation = standaloneProfileOnly && profiles.length > 1
+      ? `margin-bottom:-${profileGap}px;`
+      : '';
   const profileItemsRow = profileItems
-    ? `<div data-mosaic-profile-items="true" data-mosaic-profile-breakpoint="${profileBreakpoint}" style="box-sizing:border-box; width:100%; ${showcase ? 'max-width:560px; display:inline-block; vertical-align:top;' : 'display:block;'} text-align:center; font-size:0; white-space:normal;">${profileItems}</div>`
+    ? `<div data-mosaic-profile-items="true" data-mosaic-profile-breakpoint="${profileBreakpoint}" style="box-sizing:border-box; width:100%; ${showcase ? 'max-width:560px; display:inline-block; vertical-align:top;' : 'display:block;'} ${standaloneProfileBottomCompensation} text-align:center; font-size:0; white-space:normal;">${profileItems}</div>`
     : '';
   // 아카라이브는 display:flex는 남기면서 justify-content를 무력화하는 경우가 있어
   // 포트레이트 묶음 전체가 왼쪽으로 치우친다. flex를 완전히 제거하고 게시판에서도
@@ -7378,7 +7528,9 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   // 빈 공간을 압축한다. 나머지 프로필 카드의 패딩은 기존 값을 유지한다.
   const outerPadding = connectedAbove && compactTopSpacing
     ? 'padding:10px 18px 16px; padding:clamp(9px,2vw,11px) clamp(14px,3.5vw,20px) clamp(14px,3vw,18px);'
-    : 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);';
+    : (standaloneProfileOnly
+        ? 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);'
+        : 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);');
   return `<div data-mosaic-profile="true" style="display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto 20px; ${border} border-radius:${radius}; background-color:${pal.cardBg}; ${outerPadding}"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
 }
 
@@ -7553,6 +7705,33 @@ function lockOutputTypographyForArca(html){
       if(child.tagName !== 'BR') lockDialogueTree(child, effectiveColor, effectiveSize);
     });
   };
+  // 모바일 게시판이 strong/em/span에 별도 크기를 주더라도 굵게·기울임·속마음이
+  // 문단의 설정 크기에서 작아지지 않도록 가장 가까운 명시 크기를 짧은 서식 트리에 고정한다.
+  const nearestConcreteSize = element => {
+    let current = element;
+    while(current && current !== template.content){
+      if(current.style){
+        const size = current.style.getPropertyValue('font-size').trim();
+        if(isConcreteSize(size)) return size;
+      }
+      current = current.parentElement;
+    }
+    return '';
+  };
+  const lockInlineFormatTree = root => {
+    const inheritedSize = nearestConcreteSize(root.parentElement);
+    if(!inheritedSize) return;
+    const visit = (element, parentSize) => {
+      if(!element || !element.style) return;
+      const declaredSize = element.style.getPropertyValue('font-size').trim();
+      const effectiveSize = isConcreteSize(declaredSize) ? declaredSize : parentSize;
+      if(effectiveSize) element.style.setProperty('font-size', effectiveSize, 'important');
+      Array.from(element.children).forEach(child => {
+        if(child.tagName !== 'BR') visit(child, effectiveSize);
+      });
+    };
+    visit(root, inheritedSize);
+  };
   Array.from(template.content.children).forEach(element => {
     // 코멘트는 게시판 기본 글자로 보이게 하는 블록이므로 잠금 대상에서 완전히 제외한다.
     if(element.hasAttribute('data-mosaic-comment-index')) return;
@@ -7562,6 +7741,7 @@ function lockOutputTypographyForArca(html){
     }
     lockDeclaredTypography(element);
     element.querySelectorAll('[style]').forEach(lockDeclaredTypography);
+    element.querySelectorAll('strong, em, [data-mosaic-thought="true"]').forEach(lockInlineFormatTree);
     element.querySelectorAll('[data-mosaic-dialogue="true"], [data-mosaic-speaker-label="true"]').forEach(dialogue => {
       dialogue.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
       dialogue.style.setProperty('text-size-adjust', '100%', 'important');
@@ -7804,6 +7984,7 @@ let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
 const FMT_WRAP = { bold: '**', emphasis: '*' };
 const FMT_TAG = { bold: 'STRONG', emphasis: 'EM' };
 const FMT_RE = {
+  // 새 입력은 **만 만들지만, 기존 로그의 __ 굵기도 읽고 해제할 수 있게 남긴다.
   bold: /__(.+?)__|\*\*(.+?)\*\*/g,
   emphasis: /\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)/g
 };
@@ -10615,6 +10796,9 @@ function normalizeHex(raw){
     const normalized = normalizeHex(hexInput.value);
     if(normalized){
       colorInput.value = normalized;
+      // HEX 입력은 연결된 color input의 input 이벤트를 자동으로 만들지 않는다.
+      // 프리셋 출처 요약도 실제 색상과 동시에 다시 판정한다.
+      updateOverwriteBtn();
       render();
       scheduleDraftSave();
       commitStyleHistory(false);
@@ -11418,7 +11602,7 @@ function bodyCardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
 }
 
-const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','insertHr2Btn','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
+const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
 function syncBodyOnlyToolbarAvailability(event){
   const focused = event && event.target && event.target.matches('#cardEditors textarea')
     ? event.target
@@ -11837,10 +12021,10 @@ function createCardEditor(value){
   const right = document.createElement('div');
   right.className = 'headRight';
   const upBtn = document.createElement('button');
-  upBtn.type = 'button'; upBtn.className = 'miniCtl'; upBtn.textContent = '↑'; upBtn.title = '카드를 위로';
+  upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '카드를 위로';
   upBtn.setAttribute('aria-label', '카드를 위로 이동');
   const downBtn = document.createElement('button');
-  downBtn.type = 'button'; downBtn.className = 'miniCtl'; downBtn.textContent = '↓'; downBtn.title = '카드를 아래로';
+  downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '카드를 아래로';
   downBtn.setAttribute('aria-label', '카드를 아래로 이동');
   const foldLabel = document.createElement('label');
   foldLabel.className = 'foldChk';
@@ -12106,8 +12290,8 @@ function createCommentEditor(value){
   left.append(collapseBtn, visibilityBtn, num);
   const right = document.createElement('div'); right.className = 'headRight';
   const arrows = document.createElement('span'); arrows.className = 'arrowGroup';
-  const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'miniCtl'; upBtn.textContent = '↑'; upBtn.title = '코멘트를 위로'; upBtn.setAttribute('aria-label', '코멘트를 위로 이동');
-  const downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.className = 'miniCtl'; downBtn.textContent = '↓'; downBtn.title = '코멘트를 아래로'; downBtn.setAttribute('aria-label', '코멘트를 아래로 이동');
+  const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '코멘트를 위로'; upBtn.setAttribute('aria-label', '코멘트를 위로 이동');
+  const downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '코멘트를 아래로'; downBtn.setAttribute('aria-label', '코멘트를 아래로 이동');
   const autoExpandBtn = document.createElement('button');
   autoExpandBtn.type = 'button'; autoExpandBtn.className = 'miniCtl autoExpandBtn'; autoExpandBtn.textContent = '펼침';
   autoExpandBtn.title = '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
@@ -13163,16 +13347,12 @@ document.getElementById('insertHrBtn').addEventListener('click', () => {
   insertIntoBody('[HR]', '', '', '구분선 삽입.');
 });
 
-document.getElementById('insertHr2Btn').addEventListener('click', () => {
-  insertIntoBody('[HR2]', '', '', '장면 전환 삽입.');
-});
-
-document.getElementById('insertHr3Btn').addEventListener('click', () => {
-  insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.');
-});
-
-document.getElementById('insertGapBtn').addEventListener('click', () => {
-  insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.');
+document.getElementById('separatorInsertSelect').addEventListener('change', (event) => {
+  const type = event.target.value;
+  event.target.value = '';
+  if(type === 'hr2') insertIntoBody('[HR2]', '', '', '장면 전환 삽입.');
+  else if(type === 'hr3') insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.');
+  else if(type === 'gap') insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.');
 });
 
 document.getElementById('insertImgBtn').addEventListener('click', () => {
@@ -15126,6 +15306,12 @@ function renderComboList(){
 
 let currentPresetName = null;
 
+// 추천 색상·저장 프리셋을 적용한 뒤 값을 직접 바꾸면 선택 맥락은 저장 버튼을 위해
+// 유지하되, 접힌 요약에서는 더 이상 '적용 중'으로 표시하지 않는다.
+SAVED_PRESET_FIELDS.forEach(id => {
+  document.getElementById(id).addEventListener('input', updateOverwriteBtn);
+});
+
 function currentStyleValues(){
   const v = {};
   STYLE_FIELDS.forEach(id => {
@@ -16012,20 +16198,52 @@ document.addEventListener('click', (e) => {
   document.querySelectorAll('#presetList .presetMenuBtn').forEach(btn => { btn.setAttribute('aria-expanded', 'false'); });
 });
 
-// 선택된 프리셋이 있을 때만 '덮어쓰기' 버튼을 활성화
+function currentAppliedThemeSource(){
+  const currentValues = currentSavedPresetValues();
+  if(currentPresetName){
+    const presets = loadPresets();
+    const selected = presets && presets.find(p => p.name === currentPresetName);
+    if(selected && savedPresetStateEqual(selected.values, currentValues)){
+      return { kind:'saved', name:currentPresetName };
+    }
+  }
+  if(currentComboName){
+    const combo = COLOR_COMBOS.find(item => item.name === currentComboName);
+    const sameColors = combo && THEME_COLOR_FIELDS.every(id =>
+      String(combo.v[id]).toLowerCase() === String(currentValues[id]).toLowerCase()
+    );
+    if(sameColors) return { kind:'recommended', name:currentComboName };
+  }
+  return { kind:'direct', name:'' };
+}
+
+// 선택된 내 프리셋이 있을 때만 '덮어쓰기' 버튼을 활성화한다. 접힌 세 영역은
+// 출처와 현재 상태를 나눠 보여 같은 프리셋 이름이 반복되지 않게 한다.
 function updateOverwriteBtn(){
   const btn = document.getElementById('overwritePresetBtn');
   const status = document.getElementById('themeCurrentStatus');
   const appliedName = document.getElementById('currentThemeAppliedName');
+  const recommendedStatus = document.getElementById('recommendedPresetStatus');
+  const savedActiveName = document.getElementById('savedPresetActiveName');
+  const savedCountWrap = document.getElementById('savedPresetCountWrap');
   if(!btn) return;
   btn.disabled = !currentPresetName;
   btn.textContent = '변경사항 저장';
-  const activeName = currentPresetName || currentComboName;
-  if(appliedName) appliedName.textContent = activeName || '직접 편집';
+  const source = currentAppliedThemeSource();
+  if(appliedName) appliedName.textContent = source.kind === 'direct' ? '직접 편집' : source.name;
+  if(recommendedStatus) recommendedStatus.textContent = source.kind === 'recommended'
+    ? `${source.name} · 적용 중`
+    : '색상 조합';
+  if(savedActiveName){
+    savedActiveName.hidden = source.kind !== 'saved';
+    savedActiveName.textContent = source.kind === 'saved' ? `${source.name} · 적용 중` : '';
+  }
+  if(savedCountWrap) savedCountWrap.hidden = source.kind === 'saved';
   const styleIndex = DIALOG_STYLE_CYCLE.indexOf(document.getElementById('dlgStyle').value);
-  if(status) status.textContent = activeName
-    ? `${activeName} · 대사 옵션 ${styleIndex >= 0 ? styleIndex + 1 : 1}`
-    : '직접 편집 중';
+  const optionLabel = `대사 옵션 ${styleIndex >= 0 ? styleIndex + 1 : 1}`;
+  if(status) status.textContent = source.kind === 'direct'
+    ? `직접 편집 · ${optionLabel}`
+    : optionLabel;
 }
 
 
@@ -16540,7 +16758,7 @@ function basicPreflightIssues(){
     const underscoreStrongMarkers = (card.body.match(/__/g) || []).length;
     const asteriskStrongMarkers = (card.body.match(/\*\*/g) || []).length;
     if(underscoreStrongMarkers % 2 || asteriskStrongMarkers % 2){
-      issues.push({ severity:'error', message:`${blockLabel}의 굵게(** 또는 __) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
+      issues.push({ severity:'error', message:`${blockLabel}의 굵게 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
     }
     const withoutStrong = card.body.replace(/__/g, '');
     const emphasisMarkers = (withoutStrong.match(/(?<!\\)\*/g) || []).length;
