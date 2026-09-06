@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.5.3 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.5.4 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -470,13 +470,14 @@
   /* 본문 조절 슬라이더는 기능 묶음별 색으로 빠르게 구분한다. */
   #narrSize,
   #narrLine {
-    accent-color: #3f7055;
+    accent-color: #315f48;
   }
   #dlgSize,
   #dlgLine {
     accent-color: #66865c;
   }
-  #paragraphGap {
+  #paragraphGap,
+  #softBreakSpacing {
     accent-color: #717674;
   }
   #titleSize,
@@ -579,12 +580,12 @@
   .helpFold summary, .syntaxHelp summary {
     display: flex;
     align-items: center;
-    min-height: 28px;
-    font-size: 11.5px;
-    color: var(--help-ink);
+    min-height: 26px;
+    font-size: 10.5px;
+    color: color-mix(in srgb, var(--help-ink) 70%, var(--bg-panel));
     cursor: pointer;
     user-select: none;
-    font-weight: 600;
+    font-weight: 500;
     list-style: none;
   }
   .helpFold summary::-webkit-details-marker, .syntaxHelp summary::-webkit-details-marker { display: none; }
@@ -592,24 +593,47 @@
     content: '';
     display: inline-block;
     flex: none;
-    width: 8px;
-    height: 8px;
-    margin: 0 7px 0 0;
-    opacity: .72;
+    width: 7px;
+    height: 7px;
+    margin: 0 6px 0 0;
+    opacity: .58;
     background:
-      linear-gradient(var(--help-ink), var(--help-ink)) center / 8px 1px no-repeat,
-      linear-gradient(var(--help-ink), var(--help-ink)) center / 1px 8px no-repeat;
+      linear-gradient(currentColor, currentColor) center / 7px 1px no-repeat,
+      linear-gradient(currentColor, currentColor) center / 1px 7px no-repeat;
   }
   .helpFold[open] summary::before, .syntaxHelp[open] summary::before {
-    background: linear-gradient(var(--help-ink), var(--help-ink)) center / 8px 1px no-repeat;
+    background: linear-gradient(currentColor, currentColor) center / 7px 1px no-repeat;
   }
-  .helpFold summary:hover, .syntaxHelp summary:hover { color: var(--help-ink-strong); }
+  .helpFold summary:hover, .syntaxHelp summary:hover { color: var(--help-ink); }
   .helpFold[open], .syntaxHelp[open] { padding: 0 10px 10px; background: var(--bg-subtle); }
-  .helpFold[open] summary, .syntaxHelp[open] summary { min-height: 28px; }
-  .helpFold > .hint, .syntaxHelp > .hint { margin: 7px 0 0; }
-  .helpFold > .hint, .syntaxHelp > .hint { color: var(--help-ink); }
-  .helpFold > .hint b, .syntaxHelp > .hint b,
-  .helpFold > .hint code, .syntaxHelp > .hint code { color: var(--help-ink-strong); }
+  .helpFold[open] summary, .syntaxHelp[open] summary { min-height: 26px; }
+  .helpFold > .hint { margin: 7px 0 0; color: var(--help-ink); }
+  .helpFold > .hint b,
+  .helpFold > .hint code { color: var(--help-ink-strong); }
+  .syntaxHelp .syntaxHelpSection {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  }
+  .syntaxHelp .syntaxHelpSection:first-of-type {
+    margin-top: 6px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .syntaxHelp .syntaxHelpSectionTitle {
+    margin: 0 0 8px;
+    color: var(--help-ink-strong);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .syntaxHelp .syntaxHelpSection > .hint {
+    margin: 8px 0 0;
+    color: var(--help-ink);
+  }
+  .syntaxHelp .syntaxHelpSection > .hint:first-of-type { margin-top: 0; }
+  .syntaxHelp .syntaxHelpSection > .hint b,
+  .syntaxHelp .syntaxHelpSection > .hint code { color: var(--help-ink-strong); }
   /* 닫힌 details의 자식에 display를 지정하면 기본 숨김이 풀리므로 명시적으로 숨김 */
   details.helpFold:not([open]) > *:not(summary),
   details.syntaxHelp:not([open]) > *:not(summary) { display: none; }
@@ -797,16 +821,16 @@
   }
   .presetRow button.secondary:hover { border-color: var(--ink-faint); background: var(--bg-field); }
 
-  /* 이름 바꾸기: 짧은 이름 입력 + 오른쪽 분할 실행 버튼 */
+  /* 이름 바꾸기·키워드 치환: 입력창 옆에 가벼운 텍스트 실행 버튼을 둔다. */
   #tabBody .nameReplaceRow {
     display: grid;
     grid-template-columns: minmax(150px, 1fr) auto;
     gap: 8px;
-    align-items: stretch;
+    align-items: center;
   }
   #tabBody .nameReplaceRow.keywordAutoRow { grid-template-columns:minmax(150px, 1fr) auto; }
   #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
-  #tabBody .keywordRuleEmpty { padding:9px 10px; border:1px dashed var(--line); border-radius:7px; color:var(--ink-faint); font-size:11.5px; text-align:center; }
+  #tabBody .keywordRuleEmpty { padding:4px 2px 2px; color:var(--ink-faint); font-size:11px; text-align:left; }
   #tabBody .keywordRuleItem { display:flex; align-items:center; gap:8px; min-height:36px; padding:6px 8px 6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg-panel); }
   #tabBody .keywordRuleText { flex:1; min-width:0; overflow:hidden; color:var(--ink-soft); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
   #tabBody .keywordRuleText b { color:var(--ink); font-weight:650; }
@@ -835,112 +859,178 @@
     line-height: 1;
   }
   #tabBody .nameActionGroup {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 112px;
+    display: inline-flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px;
+    width: auto;
   }
   #tabBody .nameActionGroup button {
-    width: 100%;
-    height: var(--control-h);
+    width: auto;
+    min-width: 50px;
+    height: 26px;
     margin: 0;
-    padding: 0 11px;
-    border: 1px solid var(--line-strong);
-    border-radius: 8px 0 0 8px;
-    background: var(--bg-panel);
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
     color: var(--ink-soft);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 500;
+    font-family: inherit;
     white-space: nowrap;
+    cursor: pointer;
   }
-  #tabBody .nameActionGroup button + button {
-    margin-left: -1px;
-    border-radius: 0 8px 8px 0;
+  #tabBody .nameActionGroup #nameReplaceBtn,
+  #tabBody .nameActionGroup #keywordAddBtn {
+    color: var(--accent);
   }
-  /* 키워드 치환처럼 실행 버튼이 하나뿐인 행은 분할 버튼의 빈 오른쪽 칸을 만들지 않는다. */
-  #tabBody .keywordAutoRow .nameActionGroup {
-    grid-template-columns: minmax(0, 1fr);
-    /* 이름 바꾸기의 찾기/바꾸기 분할 버튼 한 칸(112px ÷ 2)과 같은 폭 */
-    width: 56px;
+  #tabBody .nameActionGroup button:hover:not(:disabled) {
+    background: color-mix(in srgb,var(--ink) 5%,transparent);
+    color: var(--ink);
   }
-  #tabBody .keywordAutoRow .nameActionGroup button:only-child {
-    border-radius: 8px;
+  #tabBody .nameActionGroup #nameReplaceBtn:hover:not(:disabled),
+  #tabBody .nameActionGroup #keywordAddBtn:hover:not(:disabled) {
+    background: color-mix(in srgb,var(--accent) 10%,transparent);
+    color: var(--accent);
   }
-  #tabBody .nameActionGroup button:hover {
-    position: relative;
-    border-color: var(--ink-faint);
-    background: var(--bg-field);
+  #tabBody .nameActionGroup button:active:not(:disabled) {
+    background: color-mix(in srgb,var(--accent) 18%,transparent);
+  }
+  #tabBody .nameActionGroup button:disabled {
+    background: transparent;
+    color: var(--ink-faint);
+    opacity: .45;
+    cursor: default;
   }
   @container sidebar (max-width: 380px) {
     #tabBody .nameReplaceRow { grid-template-columns: 1fr; }
-    #tabBody .nameActionGroup { width: 100%; }
+    #tabBody .nameActionGroup { width: auto; justify-self: end; }
   }
   /* 문단 옵션은 항목별 선택 행으로 보여준다. */
   #paragraphSettingsGroup .paragraphCheckList { display:flex; flex-direction:column; gap:0; margin:0; }
-  #paragraphSettingsGroup .paragraphControlRow {
+  #paragraphSettingsGroup .paragraphCenterRows {
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    margin:2px 0 12px;
+  }
+  #paragraphSettingsGroup .paragraphCenterLine {
     display:grid;
-    grid-template-columns:minmax(82px, .7fr) minmax(0, 2fr);
+    grid-template-columns:minmax(82px,1fr) auto;
     align-items:center;
     gap:10px;
     min-height:28px;
-    margin:0 0 8px;
-    padding:0;
+  }
+  #paragraphSettingsGroup .paragraphCenterCategory {
+    color:var(--ink-faint);
+    font-size:10.5px;
+  }
+  #paragraphSettingsGroup .paragraphCenterOptions {
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:2px 14px;
+    min-width:0;
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice {
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:0;
+    cursor:pointer;
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice input {
+    position:absolute;
+    width:1px;
+    height:1px;
+    opacity:0;
+    pointer-events:none;
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice span,
+  #paragraphSettingsGroup .paragraphSegmented button {
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    height:26px;
+    padding:0 3px;
     color:var(--ink-soft);
     font-size:11.5px;
-  }
-  #paragraphSettingsGroup .paragraphControlLabel { flex:0 0 auto; }
-  #paragraphSettingsGroup .paragraphSegmented {
-    display:grid;
-    grid-auto-flow:column;
-    grid-auto-columns:minmax(0,1fr);
-    width:100%;
-    min-width:0;
-    overflow:hidden;
-    border:1px solid var(--line-strong);
-    border-radius:8px;
-    background:var(--bg-panel);
-  }
-  #paragraphSettingsGroup .paragraphSegmented button {
-    height:27px;
-    min-height:27px;
-    padding:0 8px;
-    border:0;
-    border-left:1px solid var(--line);
-    background:transparent;
-    color:var(--ink-soft);
-    font-size:11px;
     font-weight:500;
     line-height:1;
     font-family:inherit;
-    cursor:pointer;
+    transition:color .16s ease;
   }
-  #paragraphSettingsGroup .paragraphSegmented button:first-child { border-left:0; }
-  #paragraphSettingsGroup .paragraphSegmented button[aria-pressed="true"] {
-    background:color-mix(in srgb,var(--accent) 13%,var(--bg-panel));
+  #paragraphSettingsGroup .paragraphCenterChoice span::after,
+  #paragraphSettingsGroup .paragraphSegmented button::after {
+    content:"";
+    position:absolute;
+    right:3px;
+    bottom:2px;
+    left:3px;
+    height:1px;
+    background:currentColor;
+    opacity:0;
+    transform:scaleX(.45);
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice:hover span {
+    color:var(--ink);
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice input:checked + span {
     color:var(--accent);
   }
-  #paragraphSettingsGroup .paragraphSegmented button:not([aria-pressed="true"]):hover:not(:disabled) { background:var(--bg-muted); }
-  /* 표지 탭과 같은 방식으로 행 전체의 대비만 낮춰 선택 구조는 그대로 읽히게 한다. */
-  #paragraphSettingsGroup .paragraphControlRow.isControlDisabled { opacity:.42; }
-  #paragraphSettingsGroup .paragraphSegmented button:disabled { cursor:default; }
-  #paragraphSettingsGroup .paragraphCheckRow {
-    display:flex;
-    align-items:center;
-    min-height:34px;
-    margin:0;
-    gap:8px;
+  #paragraphSettingsGroup .paragraphCenterChoice input:checked + span::after,
+  #paragraphSettingsGroup .paragraphSegmented button[aria-pressed="true"]::after {
+    opacity:.72;
+    transform:scaleX(1);
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice input:focus-visible + span {
+    outline:2px solid color-mix(in srgb,var(--accent) 52%,transparent);
+    outline-offset:2px;
+    border-radius:3px;
+  }
+  #paragraphSettingsGroup .paragraphCenterChoice.isControlDisabled { opacity:.42; cursor:default; }
+  #paragraphSettingsGroup .paragraphCenterChoice.isControlDisabled:hover span {
     color:var(--ink-soft);
-    font-size:11.5px;
-    font-weight:400;
+  }
+  #paragraphSettingsGroup .paragraphSegmented {
+    display:inline-flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:14px;
+    width:auto;
+    min-width:0;
+    background:transparent;
+  }
+  #paragraphSettingsGroup .paragraphSegmented button {
+    min-height:26px;
+    padding:0 3px;
+    border:0;
+    background:transparent;
     cursor:pointer;
   }
-  #paragraphSettingsGroup .paragraphCheckList > .paragraphCheckRow { margin-bottom:8px; }
+  #paragraphSettingsGroup .paragraphSegmented button[aria-pressed="true"] {
+    color:var(--accent);
+  }
+  #paragraphSettingsGroup .paragraphSegmented button:not([aria-pressed="true"]):hover:not(:disabled) {
+    color:var(--ink);
+  }
+  #paragraphSettingsGroup .paragraphSegmented button:focus-visible {
+    outline:2px solid color-mix(in srgb,var(--accent) 52%,transparent);
+    outline-offset:2px;
+    border-radius:3px;
+  }
+  #paragraphSettingsGroup .paragraphCenterLine.isControlDisabled { opacity:.42; }
+  #paragraphSettingsGroup .paragraphSegmented button:disabled { cursor:default; }
   #paragraphSettingsGroup .paragraphSectionDivider {
     height:1px;
     margin:4px 0 12px;
     background:var(--line);
   }
-  #paragraphSettingsGroup .paragraphCheckRow input { flex:none; margin:0; }
-  #paragraphSettingsGroup .paragraphCheckRow:hover { color:var(--ink); }
   #paragraphSettingsGroup input.paragraphHiddenInput {
     position:absolute;
     width:1px;
@@ -949,7 +1039,9 @@
     pointer-events:none;
   }
   @container sidebar (max-width:380px) {
-    #paragraphSettingsGroup .paragraphControlRow { grid-template-columns:1fr; align-items:stretch; gap:5px; }
+    #paragraphSettingsGroup .paragraphCenterLine { grid-template-columns:minmax(72px,1fr) auto; gap:8px; }
+    #paragraphSettingsGroup .paragraphCenterOptions { gap:2px 10px; }
+    #paragraphSettingsGroup .paragraphSegmented { gap:10px; }
   }
   #savePresetBtn {
     border-color: var(--ink);
@@ -1536,6 +1628,12 @@
     color: var(--ink-soft);
     text-transform: uppercase;
   }
+  .cardEditorHead .cardNum[data-position-link="true"] { cursor: pointer; }
+  .cardEditorHead .cardNum[data-position-link="true"]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
   .cardEditorHead .headRight {
     display: flex;
     align-items: center;
@@ -1821,7 +1919,8 @@
     /* 검색 중 상단 고정: 스크롤해도 검색·대치 줄이 화면 위에 남음 */
     position: sticky;
     top: 0;
-    z-index: 20;
+    /* 카드별 우측 조작 버튼(z-index:40)과 겹칠 때 검색창을 앞에 표시 */
+    z-index: 50;
     background: var(--bg-app);
     padding: 8px;
     margin: -4px -4px 10px -4px;
@@ -1834,7 +1933,7 @@
   #pvSearchBox input { box-sizing:border-box; height:var(--pv-control-h); width:150px; padding:6px 11px; font-size:11.5px; }
   #pvFindInput, #pvReplInput { flex:1 1 180px; min-width:120px; width:auto !important; }
   #pvScopeSelect { box-sizing:border-box; flex:0 0 126px; width:126px; height:var(--pv-control-h); padding:0 28px 0 10px; font-size:11.5px; }
-  .pvNavGroup, .pvReplaceActions { display: inline-flex; flex: none; }
+  .pvNavGroup, .pvReplaceActions { display:inline-flex; align-items:center; gap:2px; flex:none; }
   #pvReplaceRow {
     padding: 0;
     border: none;
@@ -1843,20 +1942,21 @@
   #pvSearchBox button {
     font-size: 11.5px;
     box-sizing:border-box;
-    height:var(--pv-control-h);
-    border: 1px solid var(--line-strong);
-    background: var(--bg-panel);
+    height:30px;
+    border:0;
+    background:transparent;
     color: var(--ink-soft);
-    border-radius: 7px;
+    border-radius:999px;
+    font-family:inherit;
   }
-  #pvSearchBox .pvIconBtn { width:34px; padding:0; flex:none; }
-  #pvSearchBox .pvActBtn { padding: 0 9px; }
-  .pvNavGroup .pvIconBtn, .pvReplaceActions .pvActBtn { border-radius: 0 !important; margin-left: -1px; }
-  .pvNavGroup > :first-child, .pvReplaceActions > :first-child { margin-left: 0; border-radius: 7px 0 0 7px !important; }
-  .pvNavGroup > :last-child, .pvReplaceActions > :last-child { border-radius: 0 7px 7px 0 !important; }
-  #pvFindCloseBtn { border-color: transparent !important; background: transparent !important; color: var(--ink-faint) !important; }
+  #pvSearchBox .pvIconBtn { width:30px; padding:0; flex:none; }
+  #pvSearchBox .pvActBtn { padding:0 9px; color:var(--accent); white-space:nowrap; }
+  #pvFindCloseBtn { background:transparent !important; color:var(--ink-faint) !important; }
   #pvFindCloseBtn:hover { background: var(--bg-field) !important; color: var(--ink) !important; }
-  #pvSearchBox button:hover { background: var(--bg-field); color: var(--ink); }
+  #pvSearchBox button:hover:not(:disabled) { background:color-mix(in srgb,var(--ink) 5%,transparent); color:var(--ink); }
+  #pvSearchBox .pvActBtn:hover:not(:disabled) { background:color-mix(in srgb,var(--accent) 10%,transparent); color:var(--accent); }
+  #pvSearchBox button:active:not(:disabled) { background:color-mix(in srgb,var(--accent) 17%,transparent); }
+  #pvSearchBox button:disabled { background:transparent; color:var(--ink-faint); opacity:.45; }
   #pvFindCount {
     min-width: 38px;
     padding: 3px 7px;
@@ -2791,6 +2891,12 @@
     cursor: default;
     user-select: none;
   }
+  #preview [data-mosaic-card-title-position-link="true"] { cursor: pointer; }
+  #preview [data-mosaic-card-title-position-link="true"]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
   #preview [data-preview-protected-token] {
     cursor: default;
     user-select: none;
@@ -2971,7 +3077,7 @@
     color: var(--ink);
   }
 
-  /* 프로필 기본 설정: 짧은 선택지는 드롭다운보다 한눈에 비교되는 분할 버튼으로 표시한다. */
+  /* 프로필 기본 설정: 짧은 선택지는 드롭다운보다 한눈에 비교되는 텍스트 선택으로 표시한다. */
   #profileGroup .profileConfigurationLabel {
     margin: 16px 0 7px;
     color: var(--ink-soft);
@@ -2984,62 +3090,79 @@
   .settingsForm .segmentedChoiceSource {
     display: none;
   }
-  .settingsForm .segmentedChoice {
+  /* 표지 탭의 단일 선택은 문단 설정과 같은 텍스트·밑줄 방식으로 통일한다. */
+  #tabCover .settingsForm .segmentedChoice {
     grid-column: 2;
-    display: grid;
+    display: flex;
+    align-items: center;
     align-self: center;
-    width: 100%;
-    height: 29px;
+    justify-content: flex-end;
+    justify-self: end;
+    gap: 14px;
+    width: auto;
+    height: 26px;
     min-width: 0;
-    overflow: hidden;
-    border: 1px solid var(--line-strong);
-    border-radius: 8px;
-    background: var(--bg-panel);
-  }
-  .settingsForm .segmentedChoice.isTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .settingsForm .segmentedChoice.isThree { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .settingsForm .segmentedChoice button {
-    min-width: 0;
-    height: 27px;
-    min-height: 27px;
-    padding: 0 8px;
+    overflow: visible;
     border: 0;
-    border-left: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+  }
+  #tabCover .settingsForm .segmentedChoice button {
+    position: relative;
+    width: auto;
+    height: 26px;
+    min-height: 26px;
+    min-width: 0;
+    padding: 0 3px;
+    border: 0;
     border-radius: 0;
     background: transparent;
     color: var(--ink-soft);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
     line-height: 1;
+    font-family: inherit;
     white-space: nowrap;
+    cursor: pointer;
   }
-  .settingsForm .segmentedChoice.isThree button {
-    padding-right: 6px;
-    padding-left: 6px;
-    font-size: 11px;
+  #tabCover .settingsForm .segmentedChoice button::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    left: 3px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0;
+    transform: scaleX(.45);
+    transition: opacity .16s ease, transform .16s ease;
   }
-  .settingsForm .segmentedChoice button:first-child { border-left: 0; }
-  .settingsForm .segmentedChoice button:hover:not(:disabled) {
-    position: relative;
-    z-index: 1;
-    background: var(--bg-muted);
+  #tabCover .settingsForm .segmentedChoice button:hover:not(:disabled) {
+    background: transparent;
     color: var(--ink);
   }
-  .settingsForm .segmentedChoice button[aria-pressed="true"] {
-    position: relative;
-    z-index: 1;
-    background: color-mix(in srgb, var(--accent) 13%, var(--bg-panel));
+  #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"] {
+    background: transparent;
     color: var(--accent);
   }
-  .settingsForm .segmentedChoice button:focus-visible {
-    position: relative;
-    z-index: 2;
-    outline: 2px solid var(--ink-faint);
-    outline-offset: -2px;
+  #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"]::after {
+    opacity: .72;
+    transform: scaleX(1);
   }
-  .settingsForm .segmentedChoice button:disabled { cursor: default; }
-
-  /* 프로필·크레딧 등 모든 N열 선택은 문단 설정과 같은 높이와 글자 위계를 쓴다. */
+  #tabCover .settingsForm .segmentedChoice button:focus-visible {
+    outline: 2px solid color-mix(in srgb,var(--accent) 52%,transparent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  #tabCover .settingsForm .segmentedChoice button:disabled {
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: default;
+  }
+  #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"]:disabled {
+    background: transparent;
+    color: var(--accent);
+  }
 
   /* 디자인 탭의 세 영역은 연한 헤더 띠와 넉넉한 여백으로 나눈다. */
   #tabDesign > .designFold {
@@ -3361,7 +3484,7 @@
     transition: transform .14s ease, background .14s ease;
   }
   #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack {
-    border-color: color-mix(in srgb, var(--accent) 42%, var(--line-strong));
+    border-color: color-mix(in srgb, var(--accent) 28%, var(--bg-field));
     background: color-mix(in srgb, var(--accent) 14%, var(--bg-field));
   }
   #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack::after {
@@ -3534,6 +3657,15 @@
   }
   #titleMinimal,
   #profileMinimal { accent-color: #85837f; }
+  #creditGroup .creditConfigurationSection {
+    margin-top: 14px;
+  }
+  #creditGroup .creditPlacementRow {
+    margin-bottom: 16px;
+  }
+  #creditGroup .creditItemsSection {
+    min-width: 0;
+  }
   #creditGroup .creditEditorList {
     display: grid;
     gap: 0;
@@ -3645,57 +3777,142 @@
   #creditGroup .creditControlsDisabled { opacity: .42; }
   #creditGroup .creditControlsDisabled button:hover { background: transparent; color: var(--ink-faint); }
   #creditGroup .creditPresetSection {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
+    display: block;
+    margin-top: 14px;
+    padding-top: 7px;
+    border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   }
-  #creditGroup .creditPresetLabel {
-    margin-bottom: 7px;
-    color: var(--ink-faint);
-    font-size: 11.5px;
-    font-weight: 600;
+  #creditGroup .creditPresetSummary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 28px;
+    margin: 0;
+    padding: 0 2px;
+    list-style: none;
+    color: var(--help-ink);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.35;
+    cursor: pointer;
+    user-select: none;
+  }
+  #creditGroup .creditPresetSummary::-webkit-details-marker { display: none; }
+  #creditGroup .creditPresetSummary::after {
+    content: "+";
+    flex: none;
+    margin-left: 12px;
+    color: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  #creditGroup .creditPresetSection[open] > .creditPresetSummary::after { content: "−"; }
+  #creditGroup .creditPresetSummary:hover { color: var(--ink-faint); }
+  #creditGroup .creditControlsDisabled .creditPresetSummary {
+    color: var(--help-ink);
+    cursor: default;
+    pointer-events: none;
+  }
+  #creditGroup .creditPresetControls {
+    width: min(360px, 100%);
+    min-width: 0;
+    margin: 4px 0 0 auto;
   }
   #creditGroup .creditPresetLoadRow,
   #creditGroup .creditPresetSaveRow {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 6px;
-    margin-top: 6px;
+    gap: 4px;
+    margin-top: 0;
   }
-  #creditGroup .creditPresetSaveRow { grid-template-columns: minmax(0, 1fr) auto; }
+  #creditGroup .creditPresetSaveRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-top: 4px;
+  }
   #creditGroup .creditPresetLoadRow select,
   #creditGroup .creditPresetSaveRow input,
   #creditGroup .creditPresetLoadRow button,
   #creditGroup .creditPresetSaveRow button {
     min-width: 0;
-    height: 34px;
-    font-size: 12px;
   }
   #creditGroup .creditPresetLoadRow select,
   #creditGroup .creditPresetSaveRow input {
     box-sizing: border-box;
+    height: 32px;
     padding-left: 12px;
+    border-color: color-mix(in srgb, var(--line) 82%, transparent);
+    background-color: color-mix(in srgb, var(--bg-field) 72%, var(--bg-panel));
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    box-shadow: none;
   }
-  #creditGroup .creditPresetLoadRow select { padding-right: 30px; }
+  #creditGroup .creditPresetSaveRow input[type="text"]:not(:placeholder-shown):not(:focus) {
+    border-color: color-mix(in srgb, var(--line) 82%, transparent);
+    background-color: color-mix(in srgb, var(--bg-field) 72%, var(--bg-panel));
+    color: var(--ink-faint);
+  }
+  #creditGroup .creditPresetLoadRow select:focus,
+  #creditGroup .creditPresetSaveRow input[type="text"]:focus {
+    border-color: var(--line-strong);
+    background-color: var(--bg-field);
+    color: var(--ink-soft);
+    box-shadow: none;
+  }
+  #creditGroup .creditPresetSaveRow input::placeholder { color: var(--help-ink); }
+  #creditGroup .creditPresetLoadRow select {
+    padding-right: 30px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--help-ink) 50%),
+      linear-gradient(135deg, var(--help-ink) 50%, transparent 50%);
+  }
   #creditGroup .creditPresetLoadRow button,
   #creditGroup .creditPresetSaveRow button {
+    min-width: 50px;
+    height: 26px;
     padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--bg-field);
-    color: var(--ink-soft);
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--help-ink);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
   }
   #creditGroup .creditPresetLoadRow button:hover:not(:disabled),
   #creditGroup .creditPresetSaveRow button:hover:not(:disabled) {
-    border-color: var(--line-strong);
-    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--ink-soft);
   }
-  #creditGroup #creditPresetDeleteBtn { color: var(--ink-faint); }
-  #creditGroup #creditPresetStatus {
-    min-height: 1.4em;
-    margin-top: 5px;
+  #creditGroup #creditPresetDeleteBtn {
+    border-color: transparent;
+    background: transparent;
+    color: #b47770;
+  }
+  #creditGroup #creditPresetDeleteBtn:hover:not(:disabled) {
+    border-color: transparent;
+    background: #fff3f1;
+    color: #a45d56;
+  }
+  #creditGroup .creditPresetLoadRow button:active:not(:disabled),
+  #creditGroup .creditPresetSaveRow button:active:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  #creditGroup #creditPresetDeleteBtn:active:not(:disabled) {
+    background: #f8e7e4;
+  }
+  #creditGroup .creditPresetLoadRow button:disabled,
+  #creditGroup .creditPresetSaveRow button:disabled {
+    border: 0;
+    background: transparent;
     color: var(--ink-faint);
-    font-size: 10.5px;
+    opacity: .45;
+    cursor: default;
+  }
+  #creditGroup #creditPresetDeleteBtn:disabled {
+    border-color: transparent;
+    background: transparent;
+    color: var(--ink-faint);
   }
   @media (max-width: 760px) {
     #tabCover .coverFold .foldBody {
@@ -4387,38 +4604,67 @@
     font-size: 9.5px;
     pointer-events: none;
   }
-  #tabDesign .typographyGroup .titleStyleRow {
-    grid-template-columns: var(--design-label-width) minmax(0, 1fr) var(--design-value-width);
+  #tabDesign #softBreakSpacingStage {
+    pointer-events: none;
+    cursor: default;
   }
-  #tabDesign .typographyGroup .titleBoldRow {
-    display: grid;
-    grid-template-columns: var(--design-label-width) minmax(0, 1fr) var(--design-value-width);
-    align-items: center;
-    column-gap: 16px;
-    min-height: 32px;
-    margin-top: 2px;
-  }
-  #tabDesign .typographyGroup .titleBoldLabel {
-    color: var(--ink-soft);
-    font-size: 12.5px;
-  }
-  #tabDesign .typographyGroup .titleBoldOptions {
-    grid-column: 2 / -1;
+  #tabDesign #softBreakSpacingVal {
     display: flex;
     align-items: center;
-    gap: 20px;
+    justify-content: flex-end;
+    white-space: nowrap;
   }
-  #tabDesign .typographyGroup .titleBoldOptions .compactCheck {
-    display: inline-flex;
+  #tabDesign .typographyGroup .typographySubsection {
+    display: block;
+    margin: 8px 0 0;
+    padding: 5px 0 0;
+    border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  }
+  #tabDesign .typographyGroup .typographySubsectionSummary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 30px;
+    margin: 0;
+    padding: 0 2px;
+    list-style: none;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.35;
+    cursor: pointer;
+    user-select: none;
+  }
+  #tabDesign .typographyGroup .typographySubsectionSummary::-webkit-details-marker { display: none; }
+  #tabDesign .typographyGroup .typographySubsectionSummary::after {
+    content: "+";
+    flex: none;
+    margin-left: 12px;
+    color: var(--help-ink);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  #tabDesign .typographyGroup .typographySubsection[open] > .typographySubsectionSummary::after { content: "−"; }
+  #tabDesign .typographyGroup .typographySubsectionSummary:hover { color: var(--ink); }
+  #tabDesign .typographyGroup .typographySubsectionBody { padding: 4px 0 1px; }
+  #tabDesign .typographyGroup .titleStyleRow {
+    grid-template-columns: var(--design-label-width) minmax(0, 1fr) var(--design-value-width) auto;
+    column-gap: 10px;
+  }
+  #tabDesign .typographyGroup .titleRowBold {
+    grid-column: 4;
+    display: flex;
     align-items: center;
     gap: 6px;
     min-height: 30px;
     margin: 0;
     color: var(--ink-soft);
     font-size: 11.5px;
+    white-space: nowrap;
     cursor: pointer;
   }
-  #tabDesign .typographyGroup .titleBoldOptions input {
+  #tabDesign .typographyGroup .titleRowBold input {
     margin: 0;
   }
   #tabDesign .designCheckList {
@@ -4470,7 +4716,7 @@
     #tabDesign .designFold .row,
     #tabDesign #speakerGroup #speakerNames .row { column-gap: 9px; }
     #tabDesign .dialogueCheckList { column-gap: 9px; }
-    #tabDesign .typographyGroup .titleBoldRow { column-gap: 9px; }
+    #tabDesign .typographyGroup .titleStyleRow { column-gap: 7px; }
   }
   /* 테마 탭도 표지·디자인 탭과 같은 아코디언 카드 체계를 사용한다. */
   #tabTheme > .themeFold {
@@ -4567,7 +4813,6 @@
      탭·아코디언 제목과 아이콘 전용 컨트롤의 크기·터치 영역은 유지한다. */
   #sidebar .tabPanel label,
   #sidebar .row > label,
-  #tabDesign .typographyGroup .titleBoldLabel,
   #sidebar select {
     font-size: 11.5px !important;
   }
@@ -4602,7 +4847,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.3 GitHub 저장소 열기">v1.5.3</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.5.4 GitHub 저장소 열기">v1.5.4</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -4688,7 +4933,7 @@
         <option value="bot-user" selected>BOT → USER</option>
         <option value="user-bot">USER → BOT</option>
       </select>
-      <span class="segmentedChoice isTwo" data-control="titleProfileOrder" role="group" aria-labelledby="titleProfileOrderLabel">
+      <span class="segmentedChoice" data-control="titleProfileOrder" role="group" aria-labelledby="titleProfileOrderLabel">
         <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
         <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
       </span>
@@ -4741,7 +4986,7 @@
           <option value="top">최상단 독립</option>
           <option value="below" selected>표지 아래</option>
         </select>
-        <span class="segmentedChoice isTwo" data-control="profilePlacement" role="group" aria-labelledby="profilePlacementLabel">
+        <span class="segmentedChoice" data-control="profilePlacement" role="group" aria-labelledby="profilePlacementLabel">
           <button type="button" data-value="top" aria-pressed="false">최상단</button>
           <button type="button" data-value="below" aria-pressed="true">표지 아래</button>
         </span>
@@ -4753,7 +4998,7 @@
           <option value="portrait">클래식</option>
           <option value="showcase">포트레이트</option>
         </select>
-        <span class="segmentedChoice isThree" data-control="profileStyle" role="group" aria-labelledby="profileStyleLabel">
+        <span class="segmentedChoice" data-control="profileStyle" role="group" aria-labelledby="profileStyleLabel">
           <button type="button" data-value="compact" aria-pressed="true">미니</button>
           <button type="button" data-value="portrait" aria-pressed="false">클래식</button>
           <button type="button" data-value="showcase" aria-pressed="false">포트레이트</button>
@@ -4765,7 +5010,7 @@
           <option value="bot-user" selected>BOT → USER</option>
           <option value="user-bot">USER → BOT</option>
         </select>
-        <span class="segmentedChoice isTwo" data-control="profileProfileOrder" role="group" aria-labelledby="profileProfileOrderLabel">
+        <span class="segmentedChoice" data-control="profileProfileOrder" role="group" aria-labelledby="profileProfileOrderLabel">
           <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
           <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
         </span>
@@ -4929,33 +5174,38 @@
       </div>
       <input type="hidden" id="creditItems" value="[]">
       <div id="creditEditorArea" class="creditControlsDisabled" aria-disabled="true">
-        <div class="row segmentedChoiceRow">
-          <label id="creditPlacementLabel">배치</label>
-          <select id="creditPlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
-            <option value="top">최상단</option>
-            <option value="bottom" selected>최하단</option>
-          </select>
-          <span class="segmentedChoice isTwo creditPlacementChoice" data-control="creditPlacement" role="group" aria-labelledby="creditPlacementLabel">
-            <button type="button" data-value="top" aria-pressed="false">최상단</button>
-            <button type="button" data-value="bottom" aria-pressed="true">최하단</button>
-          </span>
-        </div>
-        <div id="creditEditorList" class="creditEditorList" aria-label="크레딧 항목"></div>
-        <button type="button" id="creditAddBtn" class="creditAddBtn">+ 항목 추가</button>
-        <div class="creditPresetSection">
-          <div class="creditPresetLabel">크레딧 프리셋</div>
-          <div class="creditPresetLoadRow">
-            <select id="creditPresetSelect" aria-label="저장한 크레딧 항목 프리셋">
-              <option value="">저장된 프리셋 선택</option>
+        <div class="creditConfigurationSection">
+          <div class="row segmentedChoiceRow creditPlacementRow">
+            <label id="creditPlacementLabel">배치</label>
+            <select id="creditPlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
+              <option value="top">최상단</option>
+              <option value="bottom" selected>최하단</option>
             </select>
-            <button type="button" id="creditPresetLoadBtn" disabled>불러오기</button>
-            <button type="button" id="creditPresetDeleteBtn" disabled>삭제</button>
+            <span class="segmentedChoice" data-control="creditPlacement" role="group" aria-labelledby="creditPlacementLabel">
+              <button type="button" data-value="top" aria-pressed="false">최상단</button>
+              <button type="button" data-value="bottom" aria-pressed="true">최하단</button>
+            </span>
           </div>
-          <div class="creditPresetSaveRow">
-            <input type="text" id="creditPresetName" maxlength="80" placeholder="프리셋 이름" aria-label="크레딧 항목 프리셋 이름">
-            <button type="button" id="creditPresetSaveBtn" disabled>저장</button>
+          <div class="creditItemsSection">
+            <div id="creditEditorList" class="creditEditorList" aria-label="크레딧 항목"></div>
+            <button type="button" id="creditAddBtn" class="creditAddBtn">+ 항목 추가</button>
           </div>
-          <div id="creditPresetStatus" role="status" aria-live="polite"></div>
+          <details class="creditPresetSection">
+            <summary class="creditPresetSummary">프리셋</summary>
+            <div class="creditPresetControls">
+              <div class="creditPresetLoadRow">
+                <select id="creditPresetSelect" aria-label="저장한 크레딧 항목 프리셋">
+                  <option value="">저장된 프리셋 선택</option>
+                </select>
+                <button type="button" id="creditPresetLoadBtn" disabled>불러오기</button>
+                <button type="button" id="creditPresetDeleteBtn" disabled>삭제</button>
+              </div>
+              <div class="creditPresetSaveRow">
+                <input type="text" id="creditPresetName" maxlength="80" placeholder="프리셋 이름" aria-label="크레딧 항목 프리셋 이름">
+                <button type="button" id="creditPresetSaveBtn" disabled>저장</button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>
@@ -5014,27 +5264,39 @@
       <p class="hint"><b>한 번 클릭:</b> 본문 이미지 삭제·비율·캡션 · 구분 요소 변경·삭제</p>
     </details>
     <details class="syntaxHelp">
-      <summary>입력 문법 안내 (펼치기)</summary>
-      <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 옵션 3–5는 출력에서 자동 줄바꿈</p>
-      <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
-      <p class="hint"><b>속마음:</b> <code>'이 부분'</code> → 강조 색상 · 기울임 없음</p>
-      <p class="hint"><b>굵게:</b> <code>**이 부분**</code> · 굵게 + 강조 <code>***둘 다***</code></p>
-      <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
-      <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
-      <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
-      <p class="hint"><b>위치 맞추기:</b> 표지·본문 입력 → 해당 미리보기 · 미리보기 선택 → 해당 입력 줄 · 필요 시 끄기</p>
-      <p class="hint"><b>문단 구분:</b> <code>---</code> → <code>[HR]</code> 선 · <code>[HR2]</code> ✦ ✦ ✦ · <code>[HR3]</code> 호흡(· · ·) · <code>[GAP]</code> 넓은 여백</p>
-      <p class="hint"><b>카드 접기:</b> 헤더의 <b>접기 카드</b> 체크 · <b>✦ 제목 ✦</b> 표지 · 빈 제목 <b>✦ ✦ ✦</b> · 대표 이미지·표제 상시 노출</p>
-      <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
-      <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
-      <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> · 같거나 큰 소제목 전까지 자동 접기</p>
-      <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
-      <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> · 이름: <b>테마 &gt; 현재 테마</b>에 자동 등록</p>
-      <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> · 편지·문자·시스템 메시지용 · <code>&gt;&gt;</code>와 구분</p>
-      <p class="hint"><b>상태창:</b> 줄 전체를 <code>[ 내용 | 내용 ]</code>으로 입력 · 바깥 대괄호는 숨기고 연한 보조색 배경으로 출력</p>
-      <p class="hint"><b>가운데 정렬:</b> 줄 맨 앞 <code>[C] </code> · 소제목과 조합 <code>[C] # 제목</code></p>
-      <p class="hint"><b>소제목:</b> 맨 앞 <code>#</code> 개수로 크기 결정 · <code>#</code> 최대 → <code>####</code> 최소</p>
-      <p class="hint"><b>색 덮어쓰기:</b> 줄 맨 앞 <code>{#색상코드}</code> · 예: <code>{#009966}&gt;&gt;"초록 대사"</code></p>
+      <summary>입력 문법 도움말</summary>
+      <div class="syntaxHelpSection">
+        <div class="syntaxHelpSectionTitle">글자와 대사</div>
+        <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 옵션 3–5는 출력에서 자동 줄바꿈</p>
+        <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
+        <p class="hint"><b>속마음:</b> <code>'이 부분'</code> → 강조 색상 · 기울임 없음</p>
+        <p class="hint"><b>굵게:</b> <code>**이 부분**</code> · 굵게 + 강조 <code>***둘 다***</code></p>
+        <p class="hint"><b>제3·제4 인물:</b> <code>[카일]"내가 갈게."</code> · 이름: <b>테마 &gt; 현재 테마</b>에 자동 등록</p>
+        <p class="hint"><b>색 덮어쓰기:</b> 줄 맨 앞 <code>{#색상코드}</code> · 예: <code>{#009966}&gt;&gt;"초록 대사"</code></p>
+      </div>
+      <div class="syntaxHelpSection">
+        <div class="syntaxHelpSectionTitle">문단과 표현</div>
+        <p class="hint"><b>가운데 정렬:</b> 줄 맨 앞 <code>[C] </code> · 소제목·인용·접기 제목과 조합 가능</p>
+        <p class="hint"><b>소제목:</b> 맨 앞 <code>#</code> 개수로 크기 결정 · <code>#</code> 최대 → <code>####</code> 최소</p>
+        <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> · 편지·문자·시스템 메시지용 · <code>&gt;&gt;</code>와 구분</p>
+        <p class="hint"><b>상태창:</b> 줄 전체를 <code>[ 내용 | 내용 ]</code>으로 입력 · 바깥 대괄호는 숨기고 연한 보조색 배경으로 출력</p>
+        <p class="hint"><b>문단 구분:</b> <code>---</code> → <code>[HR]</code> 선 · <code>[HR2]</code> ✦ ✦ ✦ · <code>[HR3]</code> 호흡(· · ·) · <code>[GAP]</code> 넓은 여백</p>
+      </div>
+      <div class="syntaxHelpSection">
+        <div class="syntaxHelpSectionTitle">접기와 이미지</div>
+        <p class="hint"><b>카드 접기:</b> 헤더의 <b>접기 카드</b> 체크 · <b>✦ 제목 ✦</b> 표지 · 빈 제목 <b>✦ ✦ ✦</b> · 대표 이미지·표제 상시 노출</p>
+        <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
+        <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
+        <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> · 같거나 큰 소제목 전까지 자동 접기</p>
+        <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
+      </div>
+      <div class="syntaxHelpSection">
+        <div class="syntaxHelpSectionTitle">편집 도구</div>
+        <p class="hint"><b>단축키:</b> <code>Ctrl+B</code> 굵게 · <code>Ctrl+I</code> 강조 · <code>Ctrl+E</code> 가운데 정렬 (본문 입력창에서)</p>
+        <p class="hint"><b>검색·대치:</b> <code>Ctrl+F</code> 미리보기 검색·대치 (전체 화면 편집 중엔 본문 검색·대치)</p>
+        <p class="hint"><b>미리보기 선택:</b> 글자 드래그 → 도구막대 · 굵게/강조 적용·해제 · 적용 기능 선택 표시</p>
+        <p class="hint"><b>위치 맞추기:</b> 표지·본문 입력 → 해당 미리보기 · 미리보기 선택 → 해당 입력 줄 · 필요 시 끄기</p>
+      </div>
     </details>
     </div>
   </details>
@@ -5042,50 +5304,51 @@
   <details class="group foldGroup bodyFold" id="paragraphSettingsGroup">
     <summary class="group-title foldHead"><span class="bodyFoldTitle">문단 설정</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <p class="group-desc">카드 본문과 코멘트의 정렬 방식</p>
       <div class="paragraphCheckList">
-        <label class="paragraphCheckRow"><input type="checkbox" id="narrIndent"><span>첫 줄 들여쓰기</span></label>
-        <div class="paragraphControlRow">
-          <span class="paragraphControlLabel">나레이션</span>
-          <div class="paragraphSegmented" role="group" aria-label="나레이션 정렬">
-            <button type="button" id="narrAlignDefault" aria-pressed="true">기본</button>
-            <button type="button" id="narrAlignJustify" aria-pressed="false">양쪽</button>
-            <button type="button" id="narrAlignCenter" aria-pressed="false">가운데</button>
+        <div class="paragraphCenterLine" id="narrIndentRow">
+          <span class="paragraphCenterCategory">들여쓰기</span>
+          <div class="paragraphSegmented" role="group" aria-label="첫 줄 들여쓰기">
+            <button type="button" id="narrIndentNone" aria-pressed="true">없음</button>
+            <button type="button" id="narrIndentFirst" aria-pressed="false">첫 줄</button>
           </div>
-          <input class="paragraphHiddenInput" type="checkbox" id="narrJustify" tabindex="-1"><input class="paragraphHiddenInput" type="checkbox" id="narrCenter" tabindex="-1">
-        </div>
-        <div class="paragraphControlRow">
-          <span class="paragraphControlLabel">대사</span>
-          <div class="paragraphSegmented" role="group" aria-label="대사 정렬">
-            <button type="button" id="dialogueAlignDefault" aria-pressed="true">기본</button>
-            <button type="button" id="dialogueAlignCenter" aria-pressed="false">가운데</button>
-          </div>
-          <input class="paragraphHiddenInput" type="checkbox" id="dialogueCenter" tabindex="-1">
-        </div>
-        <div class="paragraphControlRow" id="markdownAlignRow">
-          <span class="paragraphControlLabel">마크다운</span>
-          <div class="paragraphSegmented" role="group" aria-label="마크다운 정렬">
-            <button type="button" id="headingAlignDefault" aria-pressed="true">기본</button>
-            <button type="button" id="headingAlignCenter" aria-pressed="false">가운데</button>
-          </div>
-          <input class="paragraphHiddenInput" type="checkbox" id="headingCenter" tabindex="-1">
+          <input class="paragraphHiddenInput" type="checkbox" id="narrIndent" tabindex="-1" aria-hidden="true">
         </div>
         <div class="paragraphSectionDivider" aria-hidden="true"></div>
-        <div class="paragraphControlRow" id="commentWidthRow">
-          <span class="paragraphControlLabel">코멘트 폭</span>
-          <div class="paragraphSegmented" role="group" aria-label="코멘트 폭">
-            <button type="button" id="commentWidthDefault" aria-pressed="true">기본</button>
-            <button type="button" id="commentWidthCard" aria-pressed="false">카드에 맞춤</button>
+        <div class="paragraphCenterRows" role="group" aria-label="가운데 정렬">
+          <div class="paragraphCenterLine">
+            <span class="paragraphCenterCategory">본문 가운데</span>
+            <div class="paragraphCenterOptions">
+              <label class="paragraphCenterChoice"><input type="checkbox" id="narrCenter"><span>나레이션</span></label>
+              <label class="paragraphCenterChoice"><input type="checkbox" id="dialogueCenter"><span>대사</span></label>
+              <label class="paragraphCenterChoice" id="quoteAlignRow"><input type="checkbox" id="quoteCenter"><span>인용</span></label>
+            </div>
           </div>
-          <input class="paragraphHiddenInput" type="hidden" id="commentWidth" value="default">
+          <div class="paragraphCenterLine">
+            <span class="paragraphCenterCategory">제목 가운데</span>
+            <div class="paragraphCenterOptions">
+              <label class="paragraphCenterChoice" id="markdownAlignRow"><input type="checkbox" id="headingCenter"><span>마크다운</span></label>
+              <label class="paragraphCenterChoice" id="bodyFoldTitleAlignRow"><input type="checkbox" id="bodyFoldTitleCenter"><span>접기 제목</span></label>
+            </div>
+          </div>
         </div>
-        <div class="paragraphControlRow" id="commentAlignRow">
-          <span class="paragraphControlLabel">코멘트 정렬</span>
-          <div class="paragraphSegmented" role="group" aria-label="코멘트 정렬">
-            <button type="button" id="commentAlignLeft" aria-pressed="true">기본</button>
-            <button type="button" id="commentAlignCenter" aria-pressed="false">가운데</button>
+        <div class="paragraphSectionDivider" aria-hidden="true"></div>
+        <div class="paragraphCenterRows" role="group" aria-label="코멘트 설정">
+          <div class="paragraphCenterLine" id="commentWidthRow">
+            <span class="paragraphCenterCategory">코멘트 폭</span>
+            <div class="paragraphSegmented" role="group" aria-label="코멘트 폭">
+              <button type="button" id="commentWidthDefault" aria-pressed="true">기본</button>
+              <button type="button" id="commentWidthCard" aria-pressed="false">카드 폭</button>
+            </div>
+            <input class="paragraphHiddenInput" type="hidden" id="commentWidth" value="default">
           </div>
-          <input class="paragraphHiddenInput" type="hidden" id="commentAlign" value="left">
+          <div class="paragraphCenterLine" id="commentAlignRow">
+            <span class="paragraphCenterCategory">코멘트 정렬</span>
+            <div class="paragraphSegmented" role="group" aria-label="코멘트 정렬">
+              <button type="button" id="commentAlignLeft" aria-pressed="true">기본</button>
+              <button type="button" id="commentAlignCenter" aria-pressed="false">가운데</button>
+            </div>
+            <input class="paragraphHiddenInput" type="hidden" id="commentAlign" value="left">
+          </div>
         </div>
       </div>
     </div>
@@ -5188,29 +5451,38 @@
       <input type="range" id="dlgLine" value="1.7" step="0.05" min="1" max="3">
       <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgLineVal" data-range="dlgLine" value="1.7" aria-label="대사 줄간격 직접 입력"></span>
     </div>
-    <div class="row">
-      <label for="paragraphGap">단락 간격</label>
-      <input type="range" id="paragraphGap" value="20" step="2" min="8" max="40">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" value="20" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
-    </div>
-    <div class="typeSectionLabel designSectionLabel">제목</div>
-    <div class="row titleStyleRow">
-      <label for="titleSize">표제 제목</label>
-      <input type="range" id="titleSize" value="21" step="1" min="16" max="36">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
-    </div>
-    <div class="row titleStyleRow">
-      <label for="foldTitleSize">카드 제목</label>
-      <input type="range" id="foldTitleSize" value="16" step="1" min="11" max="24">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="카드 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
-    </div>
-    <div class="titleBoldRow" role="group" aria-label="제목 굵기">
-      <span class="titleBoldLabel">굵게</span>
-      <div class="titleBoldOptions">
-        <label class="compactCheck"><input type="checkbox" id="titleBold" checked> 표제</label>
-        <label class="compactCheck"><input type="checkbox" id="foldTitleBold" checked> 카드</label>
+    <details class="typographySubsection" id="typographySpacingSection">
+      <summary class="typographySubsectionSummary">간격</summary>
+      <div class="typographySubsectionBody">
+        <div class="row">
+          <label for="paragraphGap">단락 간격</label>
+          <input type="range" id="paragraphGap" value="20" step="2" min="8" max="40">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" value="20" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
+        </div>
+        <div class="row">
+          <label for="softBreakSpacing" title="Shift+Enter · [BR] 간격">줄바꿈 간격</label>
+          <input type="range" id="softBreakSpacing" value="0" step="1" min="0" max="2" aria-valuetext="기본" title="Shift+Enter · [BR] 간격">
+          <span class="rangeEditor" id="softBreakSpacingStage"><output class="rangeval" id="softBreakSpacingVal" for="softBreakSpacing">기본</output></span>
+        </div>
       </div>
-    </div>
+    </details>
+    <details class="typographySubsection" id="typographyTitleSection">
+      <summary class="typographySubsectionSummary">제목</summary>
+      <div class="typographySubsectionBody">
+        <div class="row titleStyleRow">
+          <label for="titleSize">표제 제목</label>
+          <input type="range" id="titleSize" value="21" step="1" min="16" max="36">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+          <label class="titleRowBold"><input type="checkbox" id="titleBold" checked><span>굵게</span></label>
+        </div>
+        <div class="row titleStyleRow">
+          <label for="foldTitleSize">카드 제목</label>
+          <input type="range" id="foldTitleSize" value="16" step="1" min="11" max="24">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="카드 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+          <label class="titleRowBold"><input type="checkbox" id="foldTitleBold" checked><span>굵게</span></label>
+        </div>
+      </div>
+    </details>
     </div>
   </details>
 
@@ -5277,15 +5549,27 @@
     <div class="foldBody">
     <div class="designSectionLabel">카드</div>
     <div class="row selectCycleRow">
-      <label for="spacingMode">카드 여백</label>
+      <label for="spacingMode">내용 간격</label>
       <select id="spacingMode">
         <option value="compact">촘촘</option>
         <option value="normal" selected>기본</option>
         <option value="relaxed">넉넉</option>
       </select>
-      <span class="selectCycleStepper" role="group" aria-label="카드 여백 이전·다음">
-        <button type="button" id="spacingModePrev" aria-label="이전 카드 여백" title="이전 카드 여백">‹</button>
-        <button type="button" id="spacingModeNext" aria-label="다음 카드 여백" title="다음 카드 여백">›</button>
+      <span class="selectCycleStepper" role="group" aria-label="내용 간격 이전·다음">
+        <button type="button" id="spacingModePrev" aria-label="이전 내용 간격" title="이전 내용 간격">‹</button>
+        <button type="button" id="spacingModeNext" aria-label="다음 내용 간격" title="다음 내용 간격">›</button>
+      </span>
+    </div>
+    <div class="row selectCycleRow">
+      <label for="cardPadding">안쪽 여백</label>
+      <select id="cardPadding">
+        <option value="normal" selected>기본</option>
+        <option value="wide">넓게</option>
+        <option value="max">최대</option>
+      </select>
+      <span class="selectCycleStepper" role="group" aria-label="안쪽 여백 이전·다음">
+        <button type="button" id="cardPaddingPrev" aria-label="이전 안쪽 여백" title="이전 안쪽 여백">‹</button>
+        <button type="button" id="cardPaddingNext" aria-label="다음 안쪽 여백" title="다음 안쪽 여백">›</button>
       </span>
     </div>
     <div class="row selectCycleRow">
@@ -5953,7 +6237,15 @@ function processInline(text, emphasisColor, options){
 // 만들기 때문에 사용자가 직접 입력한 HTML이나 구조 문법과 섞이지 않는다.
 const SOFT_BREAK_TOKEN = '\uE200';
 function processBodyInline(text, emphasisColor, options){
-  return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join('<br>');
+  const mode = normalizeSoftBreakSpacing(options && options.softBreakSpacing);
+  if(mode === 'normal') return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join('<br>');
+  const extra = mode === 'wide' ? 0.55 : 0.2;
+  // line-height에 다시 높이를 더하면 기본→여유가 과하게 뛰고 다음 단계 차이는 작아진다.
+  // 줄 사이에 정확한 높이의 빈 블록만 넣어 세 단계의 체감 차이를 일정하게 만든다.
+  // 큰따옴표 대사 탐지보다 먼저 삽입되므로 속성에는 작은따옴표를 써서 생성 마크업이
+  // 사용자 대사로 오인되지 않게 한다.
+  const softBreak = `<br><span data-mosaic-generated='true' aria-hidden='true' style='display:block; width:100%; height:${extra}em; overflow:hidden; font-size:inherit; line-height:0;'></span>`;
+  return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join(softBreak);
 }
 
 // 배경색 밝기에 따라 읽기 좋은 글자색(흰/검)을 자동 선택 (옵션2 배경 강조용)
@@ -6084,7 +6376,7 @@ function tonePalette(settings){
 }
 
 
-// 여백 밀도 배율 (문단 간격/대사 여백/구분선 여백을 세트로 조절)
+// 내용 간격 배율 (문단 간격/대사 여백/구분선 여백을 세트로 조절)
 function spacingMult(settings){
   if(settings.spacingMode === 'compact') return 0.7;
   if(settings.spacingMode === 'relaxed') return 1.35;
@@ -6095,6 +6387,39 @@ function spacingMult(settings){
 function paragraphGapPx(settings){
   const gap = Number(settings.paragraphGap);
   return Number.isFinite(gap) ? Math.min(40, Math.max(8, gap)) : 20;
+}
+
+function normalizeCardPadding(value){
+  return ['normal','wide','max'].includes(String(value)) ? String(value) : 'normal';
+}
+
+// 카드 테두리와 콘텐츠 사이의 좌우 여백. 모바일에서는 본문 폭을 과도하게
+// 줄이지 않도록 각 단계의 최솟값을 유지하면서 화면 폭에 맞춰 증가시킨다.
+function cardHorizontalPadding(settings){
+  const mode = normalizeCardPadding(settings && settings.cardPadding);
+  if(mode === 'wide') return 'clamp(20px,5vw,32px)';
+  if(mode === 'max') return 'clamp(24px,7vw,44px)';
+  return 'clamp(16px,4vw,22px)';
+}
+
+function normalizeSoftBreakSpacing(value){
+  const raw = String(value === undefined || value === null ? '' : value);
+  if(['normal','relaxed','wide'].includes(raw)) return raw;
+  return ['normal','relaxed','wide'][Math.min(2, Math.max(0, Number.parseInt(raw, 10) || 0))];
+}
+
+function softBreakSpacingControlValue(value){
+  return String(['normal','relaxed','wide'].indexOf(normalizeSoftBreakSpacing(value)));
+}
+
+function syncSoftBreakSpacingControl(){
+  const range = document.getElementById('softBreakSpacing');
+  const output = document.getElementById('softBreakSpacingVal');
+  if(!range || !output) return;
+  const mode = normalizeSoftBreakSpacing(range.value);
+  const labels = { normal:'기본', relaxed:'여유', wide:'넓게' };
+  output.textContent = labels[mode];
+  range.setAttribute('aria-valuetext', labels[mode]);
 }
 
 // 한 줄 전체가 대괄호로 감싸지고 내부에 |가 있으면 상태창으로 인식한다.
@@ -6241,7 +6566,10 @@ function buildParagraph(rawLine, settings, opts){
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight };
     const marginBottom = Math.round((opts.extraBottom ? 36 : 14) * sm);
-    const marginTop = Math.round((opts.extraTop ? 36 : (level === 1 ? 4 : 20)) * sm);
+    // 카드 첫 출력 제목은 #만 2px, ##~####는 0px로 붙이고,
+    // 본문 중간 제목은 단계와 관계없이 20px로 통일한다.
+    const firstHeadingTop = level === 1 ? 2 : 0;
+    const marginTop = Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm);
     const align = (forceCenter || settings.headingCenter) ? 'text-align:center; ' : '';
     return `    <p style="margin:${marginTop}px 0 ${marginBottom}px 0; ${align}color:${pal.heading[level]}; font-size:${HEADING.size}px; font-weight:${HEADING.weight}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${text}</p>\n`;
   }
@@ -6256,10 +6584,10 @@ function buildParagraph(rawLine, settings, opts){
     // 인용은 앞뒤로 넉넉히 띄워 본문과 확실히 분리 (구분선 인접 시엔 HR 여백 우선)
     const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap;
     const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : baseParagraphGap);
-    const quoteAlign = forceCenter ? 'center' : 'left';
+    const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
     const quoteBg = pal.boxBg;
     const quoteText = softBodyTextColor(settings, safeHexColor(settings.narrColor, pal.caption));
-    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processBodyInline(qInner, settings.emphasisColor)}</div>\n`;
+    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processBodyInline(qInner, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</div>\n`;
   }
 
   let overrideColor = null;
@@ -6285,9 +6613,7 @@ function buildParagraph(rawLine, settings, opts){
   // 보이는 문단 구분 요소 바로 앞/뒤는 여백을 더 띄워 단락 구분을 직관적으로 보여줌
   const HR_GAP = Math.round(36 * sm);
   const mt = opts.extraTop ? HR_GAP : 0;
-  const narrationAlign = settings.narrCenter
-    ? 'text-align:center; '
-    : (settings.narrJustify ? 'text-align:justify; ' : '');
+  const narrationAlign = settings.narrCenter ? 'text-align:center; ' : '';
 
   if(isDialogue){
     let color;
@@ -6351,10 +6677,10 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
       const txtColor = soft ? color : textColorFor(bgColor);
-      return wrapDialogue(`      <p data-mosaic-dialogue="true" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor)}</span>${parallelTranslationHtml}</p>\n`);
+      return wrapDialogue(`      <p data-mosaic-dialogue="true" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>${parallelTranslationHtml}</p>\n`);
     }
 
-    const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor);
+    const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
     const dialogueBodyHtml = parallelDialogue && parallelTranslationMode === 'inline'
       ? `<span style="display:block;">${dialogueHtml}${parallelTranslationHtml}</span>`
       : `<span style="display:block;">${dialogueHtml}</span>${parallelTranslationHtml}`;
@@ -6382,7 +6708,7 @@ function buildParagraph(rawLine, settings, opts){
           : (speaker === 'user' ? settings.userColor : settings.charColor));
     // 병행 번역을 임시 토큰으로 보호하고 사용자 글자를 안전한 HTML로 만든 뒤 대사 강조를 합친다.
     const preparedParallel = prepareMixedParallelTranslations(line, settings, baseColor);
-    let content = processBodyInline(preparedParallel.line, settings.emphasisColor);
+    let content = processBodyInline(preparedParallel.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
 
     // 옵션1·2에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
     // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
@@ -6747,7 +7073,6 @@ function saveCurrentCreditPreset(){
     : [...presets, { id, name, items, updatedAt:Date.now() }];
   if(!saveCreditPresets(next)) return;
   renderCreditPresetOptions(id);
-  document.getElementById('creditPresetStatus').textContent = existing ? '같은 이름의 프리셋을 덮어썼습니다.' : '항목 프리셋을 저장했습니다.';
   showNoticeToast(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
 }
 
@@ -6759,7 +7084,6 @@ function loadSelectedCreditPreset(){
   setStoredCreditItems(preset.items, true);
   renderCreditItemsEditor();
   document.getElementById('creditPresetName').value = preset.name;
-  document.getElementById('creditPresetStatus').textContent = '크레딧 항목만 불러왔습니다.';
   syncCreditPresetControls();
   showUndoToast(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
 }
@@ -6771,7 +7095,6 @@ function deleteSelectedCreditPreset(){
   if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제할까요?`)) return;
   if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
   renderCreditPresetOptions('');
-  document.getElementById('creditPresetStatus').textContent = '항목 프리셋을 삭제했습니다.';
   showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
 }
 
@@ -6851,15 +7174,18 @@ function getSettings(){
     profileRelationship: document.getElementById('profileRelationship').value,
     profileSituation: document.getElementById('profileSituation').value,
     paragraphGap: document.getElementById('paragraphGap').value,
+    softBreakSpacing: normalizeSoftBreakSpacing(document.getElementById('softBreakSpacing').value),
     spacingMode: document.getElementById('spacingMode').value,
+    cardPadding: normalizeCardPadding(document.getElementById('cardPadding').value),
     cardWidth: document.getElementById('cardWidth').value,
     cardBorderOn: document.getElementById('cardBorderOn').checked,
     bgColor: document.getElementById('bgColor').value,
     narrIndent: document.getElementById('narrIndent').checked,
-    narrJustify: document.getElementById('narrJustify').checked,
     narrCenter: document.getElementById('narrCenter').checked,
     headingCenter: document.getElementById('headingCenter').checked,
     dialogueCenter: document.getElementById('dialogueCenter').checked,
+    quoteCenter: document.getElementById('quoteCenter').checked,
+    bodyFoldTitleCenter: document.getElementById('bodyFoldTitleCenter').checked,
     commentWidth: normalizeCommentWidth(document.getElementById('commentWidth').value),
     commentAlign: normalizeCommentAlign(document.getElementById('commentAlign').value),
   };
@@ -6906,9 +7232,10 @@ function foldDividerStyle(minimal, palette){
 
 // 접기 블록 (<details>/<summary>) — 스크립트 없이 동작하는 순수 HTML 토글.
 // 배경 칩 없이 테두리와 제목 줄만으로 구성한 미니멀 스타일.
-function buildFold(title, innerHTML, settings){
+function buildFold(title, innerHTML, settings, forceCenter){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
+  const inlinePadding = cardHorizontalPadding(settings);
   const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
   const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
   const ornament = (!titleMinimal || !title.trim())
@@ -6916,7 +7243,8 @@ function buildFold(title, innerHTML, settings){
     : '';
   const bodyDivider = foldDividerStyle(bodyMinimal, pal);
   const bodyTopPadding = bodyMinimal ? 20 : 16;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px 16px; font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  const align = (forceCenter || settings.bodyFoldTitleCenter) ? 'text-align:center; ' : '';
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -6924,8 +7252,9 @@ function buildFold(title, innerHTML, settings){
 function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
+  const inlinePadding = cardHorizontalPadding(settings);
   const spec = headingSpec(level);
-  const align = (forceCenter || settings.headingCenter) ? 'text-align:center; ' : '';
+  const align = (forceCenter || settings.bodyFoldTitleCenter) ? 'text-align:center; ' : '';
   const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
   const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
   const ornament = titleMinimal
@@ -6933,7 +7262,7 @@ function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
     : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
   const bodyDivider = foldDividerStyle(bodyMinimal, pal);
   const bodyTopPadding = bodyMinimal ? 22 : 18;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px 16px; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px 16px 14px 16px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -6974,17 +7303,19 @@ function isStructuralBodyLine(line){
 }
 
 // [BR]로 이어지는 두 원문 줄을 실제 한 문단으로 합친다.
-// 인용문은 다음 줄의 `>`를 문단 문법으로 한 번만 남겨, 인용 상자 안의 줄바꿈으로 처리한다.
+// 인용문은 첫 줄의 `>`만 문단 문법으로 남긴다. 새 입력은 다음 줄에 `>`를 붙이지
+// 않지만, 이전 버전이 저장한 `> ` 연속 줄도 같은 결과가 되도록 함께 받아들인다.
 function combineSoftBreakPair(left, right){
   const leftText = String(left);
   const rightText = String(right);
   if(!leftText.trim() || !rightText.trim()) return null;
 
-  const quoteLeft = leftText.match(/^(\s*>(?!>)\s?)(.*)$/);
+  // [C]는 인용문보다 먼저 해석되는 정렬 접두어다. 따라서 `[C] > 인용`도
+  // 일반 `> 인용`과 같은 문단으로 결합하되, 첫 줄의 [C]와 >는 그대로 보존한다.
+  const quoteLeft = leftText.match(/^(\s*(?:\[C\]\s*)?>(?!>)\s?)(.*)$/i);
   if(quoteLeft){
-    const quoteRight = rightText.match(/^\s*>(?!>)\s?(.*)$/);
-    // Shift+Enter가 만든 다음 줄은 `>`로 시작하지만, 이전 수동 입력과의 호환을 위해
-    // 구조 문법이 아닌 평문도 같은 인용문의 연속 줄로 받아들인다.
+    const quoteRight = rightText.match(/^\s*(?:\[C\]\s*)?>(?!>)\s?(.*)$/i);
+    // 이전 버전의 자동 `>`와 새 버전의 평문 연속 줄을 모두 같은 인용문으로 처리한다.
     if(!quoteRight && (/^\s*(?:>>|<<)/.test(rightText) || isStructuralBodyLine(rightText))) return null;
     const continuation = quoteRight ? quoteRight[1] : rightText;
     if(!continuation.trim()) return null;
@@ -7093,7 +7424,7 @@ function assembleBody(lines, settings){
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
   let bodyHTML = '';
-  let manualBuf = null, manualTitle = '';   // [접기 제목] ... [/접기]
+  let manualBuf = null, manualTitle = '', manualForceCenter = false;   // [접기 제목] ... [/접기]
   let headBuf = null, headTitle = '', headLevel = 0, headForceCenter = false; // #> 제목 (다음 같은/큰 소제목까지)
 
   const push = (html) => {
@@ -7103,8 +7434,9 @@ function assembleBody(lines, settings){
   };
   const closeManual = () => {
     if(manualBuf === null) return;
-    const html = buildFold(manualTitle, manualBuf, settings);
+    const html = buildFold(manualTitle, manualBuf, settings, manualForceCenter);
     manualBuf = null;
+    manualForceCenter = false;
     push(html);
   };
   const closeHead = () => {
@@ -7118,9 +7450,10 @@ function assembleBody(lines, settings){
     const centeredSyntax = /^\[C\]\s*/i.test(line);
     const structuralLine = centeredSyntax ? line.replace(/^\[C\]\s*/i, '') : line;
     // ----- 수동 접기 열기 -----
-    const openMatch = line.match(/^\[접기(?:\s+(.+?))?\]$/);
+    const openMatch = structuralLine.match(/^\[접기(?:\s+(.+?))?\]$/);
     if(openMatch && manualBuf === null){
       manualTitle = (openMatch[1] || '접기').trim();
+      manualForceCenter = centeredSyntax;
       manualBuf = '';
       return;
     }
@@ -7159,8 +7492,10 @@ function assembleBody(lines, settings){
     // 연속 대사: 이 줄과 다음 줄이 모두 대사 단독 줄이면 간격을 좁혀 대화 리듬을 살림
     const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
       && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
-    // 카드 본문의 맨 첫 요소인지 (접기 블록 안은 제외 — 그쪽은 자체 여백을 가짐)
-    const isFirst = i === 0 && manualBuf === null && headBuf === null;
+    // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
+    // 무시되는 닫기 마커가 있어도 첫 소제목의 위 여백이 다시 커지지 않게 한다.
+    // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
+    const isFirst = bodyHTML === '' && manualBuf === null && headBuf === null;
     const isLast = i === renderLines.length - 1;
     push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus }));
   });
@@ -7227,8 +7562,9 @@ function buildTitleBlock(settings, hasImg){
   // 미니멀 표제는 바로 아래 프로필과 하나의 카드처럼 이어지므로 하단 여백을 줄인다.
   // 일반 표제의 기존 간격은 그대로 유지한다.
   const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
+  const inlinePadding = cardHorizontalPadding(settings);
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div data-mosaic-title="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px clamp(16px,4vw,22px) ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+  return `<div data-mosaic-title="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
 `;
 }
 
@@ -7380,6 +7716,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     ? Math.max(baseProfileCardHeight, ...profiles.map(estimateProfileCardHeight))
     : baseProfileCardHeight;
   const profileItems = profiles.map((profile, profileIndex) => {
+    const profileFieldPrefix = profile.role === 'BOT' ? 'profileChar' : 'profileUser';
     const textAlign = showcase ? 'center' : (profile.image ? 'left' : 'center');
     const role = settings.profileMinimal
       ? ''
@@ -7390,7 +7727,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       : (profile.role === 'USER' ? settings.subUserUrl : '');
     const linkedProfileNameHTML = buildStylePreservingLink(profileNameHTML, profileLinkUrl, profile.color);
     const name = profile.name
-      ? `<p style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${linkedProfileNameHTML}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${linkedProfileNameHTML}</p>`
       : '';
     const tagsList = formatTags(profile.tags);
     const chipBg = accentTint(settings.bgColor, profile.color);
@@ -7398,10 +7735,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     // 구분 요소까지 정리해 하나의 span으로 합칠 수 있다. 칩과 칩 목록을 각각 독립 div로
     // 만들면 인라인 서식 병합이 블록 경계를 넘을 수 없어 세 칩의 배경과 간격이 보존된다.
     const tags = tagsList.length
-      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map(tag => `<div style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(`#${tag}`, settings.emphasisColor)}</div>`).join('')}</div>`
+      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(`#${tag}`, settings.emphasisColor)}</div>`).join('')}</div>`
       : '';
     const desc = profile.desc
-      ? `<p style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${softBodyTextColor(settings, profile.color)}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${multiline(profile.desc)}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${softBodyTextColor(settings, profile.color)}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${multiline(profile.desc)}</p>`
       : '';
     const text = `${role}${name}${tags}${desc}`;
     const responsiveMinWidth = showcase ? 280 : 300;
@@ -7421,7 +7758,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     const itemPaddingLeft = profiles.length > 1 && profileIndex > 0 ? responsiveHalfGap : '0px';
     const itemPaddingRight = profiles.length > 1 && profileIndex < profiles.length - 1 ? responsiveHalfGap : '0px';
     const itemOuterStyle = `box-sizing:border-box; width:100%; width:${responsiveItemWidth}; min-width:0; max-width:100%; display:inline-block; vertical-align:top; padding-left:${itemPaddingLeft}; padding-right:${itemPaddingRight}; padding-bottom:${profiles.length > 1 ? profileGap : 0}px;`;
-    const wrapProfileItem = content => `<div data-mosaic-profile-item="true" style="${itemOuterStyle}">${content}</div>`;
+    const wrapProfileItem = content => `<div data-mosaic-profile-item="true" data-mosaic-profile-role="${profile.role.toLowerCase()}" style="${itemOuterStyle}">${content}</div>`;
     if(!profile.image){
       // iOS WebView는 width:100%인 CSS table 자체에 좌우 패딩이 있으면 그 패딩을
       // 표 폭 바깥에 다시 더해 내용을 오른쪽으로 민다. 패딩은 일반 block에 두고,
@@ -7436,7 +7773,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     const imageY = safePosition(profile.y);
     const imagePosition = `${imageX}% ${imageY}%`;
     const imageRadius = showcase ? '12px' : (large ? '10px' : '50%');
-    const image = `<div aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
+    const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
     if(showcase){
       const showcaseContent = `${image}<div style="box-sizing:border-box; width:100%; margin-top:10px; font-family:${fontStack(settings.narrFont)}; text-align:center;">${text}</div>`;
       if(showcaseHasMixedImages){
@@ -7484,7 +7821,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     .filter(Boolean)
     .slice(0, 3);
   const relationshipDots = relationshipItems
-    .map(item => multiline(item))
+    .map((item, index) => `<span data-mosaic-profile-field="profileRelationship${index + 1}">${multiline(item)}</span>`)
     .join(`<span aria-hidden="true" style="margin:0 5px;">·</span>`);
   const relationshipTextLength = relationshipItems
     .map(item => stripMarkers(item))
@@ -7505,7 +7842,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     ? `<div style="box-sizing:border-box; width:100%; margin:0; padding:0; border:0; text-align:center; background-color:transparent; background-image:linear-gradient(to right, ${minimalLineColor}, ${minimalLineColor}); background-position:center center; background-repeat:no-repeat; background-size:100% 0.5px;"><span style="box-sizing:border-box; display:inline-block; ${minimalRelationshipMaxWidth} margin:0; padding:0 8px; border:0; background-color:${pal.cardBg} !important; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center; ${minimalRelationshipWrap}">${relationshipDots}</span></div>`
     : '';
   const minimalSituationRow = situation
-    ? `<p style="margin:${relationship ? 8 : 0}px 0 0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p>`
+    ? `<p data-mosaic-profile-field="profileSituation" style="margin:${relationship ? 8 : 0}px 0 0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p>`
     : '';
 
   const commonItems = settings.profileMinimal
@@ -7517,7 +7854,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
           ? `<div style="width:100%;"><div style="box-sizing:border-box; width:100%; padding:10px 14px 11px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word; font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 6px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">RELATIONSHIP</p><p style="margin:0; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center;">${relationshipDots}</p></div></div>`
           : '',
         situation
-          ? `<div style="width:100%; margin-top:${relationship ? 10 : 0}px;"><div style="box-sizing:border-box; width:100%; padding:12px 14px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 5px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">SITUATION</p><p style="margin:0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p></div></div></div>`
+          ? `<div style="width:100%; margin-top:${relationship ? 10 : 0}px;"><div style="box-sizing:border-box; width:100%; padding:12px 14px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 5px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">SITUATION</p><p data-mosaic-profile-field="profileSituation" style="margin:0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p></div></div></div>`
           : ''
       ].join('');
 
@@ -7570,10 +7907,11 @@ function normalizeCreditPlacement(value){
 
 function buildCredit(settings){
   if(!settings.creditOn) return '';
-  const items = normalizeCreditItems(settings.creditItems).map(item => ({
+  const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
     label:item.label.trim(),
     value:item.value.trim(),
-    url:normalizeHttpLinkUrl(item.url)
+    url:normalizeHttpLinkUrl(item.url),
+    sourceIndex
   })).filter(item => item.label || item.value);
   if(!items.length) return '';
 
@@ -7601,9 +7939,10 @@ function buildCredit(settings){
       ? buildCreditLink(valueText || labelText, item.url, valueColor)
       : (valueText || labelText);
     if(!item.label || !item.value){
-      return `<div style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
+      const field = item.value ? 'value' : 'label';
+      return `<div data-mosaic-credit-row="${item.sourceIndex}" data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="${field}" style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
     }
-    return `<div style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${labelText}</div><div style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
+    return `<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${labelText}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
   }).join('');
 
   const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
@@ -7824,6 +8163,7 @@ function buildCard(settings){
   );
 
   const foldDividerMinimal = settingFlagOn(settings.foldDividerMinimal);
+  const cardInlinePadding = cardHorizontalPadding(settings);
   let blankFoldNumber = 0;
   const cards = cardList.map((card, idx) => {
     const isFirst = idx === 0;
@@ -7884,9 +8224,9 @@ function buildCard(settings){
         : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px; margin-left:14px;">✦</span>`;
       const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
       const foldBodyPadding = foldDividerMinimal
-        ? `clamp(12px,2.5vw,16px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
-        : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
-      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
+        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
+      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </details>`;
@@ -7903,16 +8243,16 @@ ${bodyHTML}${footer}  </div>
         : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:12px; margin-left:14px;">✦</span>`;
       const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
       const cardBodyPadding = foldDividerMinimal
-        ? `clamp(12px,2.5vw,16px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`
-        : `clamp(20px,4vw,24px) clamp(16px,4vw,22px) clamp(24px,5vw,30px)`;
+        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
       return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
-  <div data-mosaic-card-title="true" style="padding:26px clamp(16px,4vw,22px); text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
+  <div data-mosaic-card-title="true" style="padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
   <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;
     }
     return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
-  <div style="box-sizing:border-box; padding:clamp(20px,4vw,26px) clamp(16px,4vw,22px) clamp(24px,5vw,30px);">
+  <div style="box-sizing:border-box; padding:clamp(20px,4vw,26px) ${cardInlinePadding} clamp(24px,5vw,30px);">
 ${bodyHTML}${footer}  </div>
 </div>`;
   });
@@ -8045,15 +8385,19 @@ function sourceProjectionMeta(line){
   }
 
   // 수동 접기 제목: 대괄호와 '접기'만 숨기고 사용자가 쓴 제목은 보이게 둔다.
-  const fold = rest.match(/^\[접기(?:\s+(.+?))?\]\s*$/);
+  const fold = rest.match(/^(?:\[C\]\s*)?\[접기(?:\s+(.+?))?\]\s*$/i);
   if(fold){
     if(!fold[1]){
       hide(offset, normalized.length);
       return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
     }
-    const titleAt = rest.indexOf(fold[1]);
+    // 제목 문자열이 [C]나 [접기] 문법 안의 글자와 같아도 첫 일치 위치를 잘못
+    // 선택하지 않도록, 문법 접두어의 실제 길이로 제목 시작점을 계산한다.
+    const titlePrefix = rest.match(/^(?:\[C\]\s*)?\[접기\s+/i);
+    const titleAt = titlePrefix ? titlePrefix[0].length : rest.indexOf(fold[1]);
+    const visibleTitle = fold[1].trim();
     hide(offset, offset + titleAt);
-    hide(offset + titleAt + fold[1].length, normalized.length);
+    hide(offset + titleAt + visibleTitle.length, normalized.length);
     return { normalized, hidden, start: offset + titleAt, maskInlineSpeakers:false };
   }
 
@@ -8090,7 +8434,9 @@ function sourceProjectionMeta(line){
   // 일반 소제목과 소제목 접기는 접두어 뒤 제목을 그대로 출력한다.
   const heading = rest.match(/^(#{1,4})>?\s+(.+)$/);
   if(heading){
-    const textAt = rest.indexOf(heading[2]);
+    // 제목이 # 자체로 시작해도 마커를 제목으로 오인하지 않게 접두어 길이를 사용한다.
+    const headingPrefix = rest.match(/^#{1,4}>?\s+/);
+    const textAt = headingPrefix ? headingPrefix[0].length : rest.indexOf(heading[2]);
     hide(offset, offset + textAt);
     return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
   }
@@ -8524,7 +8870,7 @@ function sourceDisplayEntries(ta){
     let line = sourceLines[raw];
     const trimmed = line.trim();
     if(!trimmed) continue;
-    if(/^\[접기\]\s*$/.test(trimmed)){
+    if(/^(?:\[C\]\s*)?\[접기\]\s*$/i.test(trimmed)){
       result.push({ raw, editable:false });
       continue;
     }
@@ -8628,7 +8974,7 @@ function inlineEditProjection(value){
 
 // 보이는 글자만 비교해 바뀐 구간을 원문에 되돌린다.
 // [C], >, #, 화자, 색상, 굵게·강조 마커처럼 화면에 안 보이는 문법은 그대로 둔다.
-function replaceVisibleUsingProjection(rawValue, nextVisible, projection){
+function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preserveLineBreaks = false){
   const raw = String(rawValue);
   const projected = projection === undefined ? lineSearchProjection(raw) : projection;
   const rawIndexes = [];
@@ -8638,7 +8984,12 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection){
     oldVisible += projected[i];
     rawIndexes.push(i);
   }
-  const next = normalizeQuotes(String(nextVisible)).replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+  const normalizedNext = normalizeQuotes(String(nextVisible))
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n?/g, '\n');
+  const next = preserveLineBreaks
+    ? normalizedNext.replace(/[ \t]*\n[ \t]*/g, '\n').replace(/\n{2,}/g, '\n').trim()
+    : normalizedNext.replace(/\s*\n\s*/g, ' ').trim();
   if(next === oldVisible.trim()) return raw;
   if(!next) return '';
 
@@ -8774,6 +9125,69 @@ function revealCoverControl(ids){
   });
 }
 
+function revealProfileControl(id){
+  const input = document.getElementById(id);
+  if(!input) return;
+  const coverTab = document.getElementById('tabBtnCover');
+  if(coverTab && !coverTab.classList.contains('active')) coverTab.click();
+  const profileGroup = document.getElementById('profileGroup');
+  if(profileGroup) profileGroup.open = true;
+  const subgroupId = id.startsWith('profileChar')
+    ? 'profileCharGroup'
+    : (id.startsWith('profileUser') ? 'profileUserGroup' : 'profileCommonGroup');
+  const subgroup = document.getElementById(subgroupId);
+  if(subgroup) subgroup.open = true;
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !input.isConnected) return;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTop = document.getElementById('sidebarTop');
+    const target = input.closest('.row') || input;
+    const targetRect = target.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sidebarRect.top;
+    const desiredTop = Math.max(sidebarRect.top + 12, headerBottom + 20);
+    if(targetRect.top < desiredTop || targetRect.bottom > sidebarRect.bottom - 12){
+      sidebar.scrollTop += targetRect.top - desiredTop;
+    }
+    target.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => { if(target.isConnected) target.style.boxShadow = ''; }, 900);
+  });
+}
+
+function creditEditorInput(index, field){
+  if(!Number.isInteger(index) || index < 0) return null;
+  const row = document.querySelector(`#creditEditorList .creditEditorRow[data-credit-index="${index}"]`);
+  if(!row) return null;
+  const selector = field === 'label' ? '.creditLabelInput'
+    : (field === 'url' ? '.creditUrlInput' : '.creditValueInput');
+  return row.querySelector(selector);
+}
+
+function revealCreditControl(index, field){
+  const input = creditEditorInput(index, field);
+  if(!input) return;
+  const coverTab = document.getElementById('tabBtnCover');
+  if(coverTab && !coverTab.classList.contains('active')) coverTab.click();
+  const creditGroup = document.getElementById('creditGroup');
+  if(creditGroup) creditGroup.open = true;
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !input.isConnected) return;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTop = document.getElementById('sidebarTop');
+    const row = input.closest('.creditEditorRow');
+    const target = row || input;
+    const targetRect = target.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sidebarRect.top;
+    const desiredTop = Math.max(sidebarRect.top + 12, headerBottom + 20);
+    if(targetRect.top < desiredTop || targetRect.bottom > sidebarRect.bottom - 12){
+      sidebar.scrollTop += targetRect.top - desiredTop;
+    }
+    input.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => { if(input.isConnected) input.style.boxShadow = ''; }, 900);
+  });
+}
+
 // 위치 맞추기가 켜져 있으면 미리보기 직접 편집도 기존 양방향 연결에 참여한다.
 // 포커스는 미리보기에 둔 채 왼쪽 탭·카드·원문 줄만 찾아 보여준다.
 function syncDirectEditPosition(el, descriptor){
@@ -8788,6 +9202,14 @@ function syncDirectEditPosition(el, descriptor){
   }
   if(descriptor.type === 'coverSubtitle'){
     revealCoverControl(descriptor.ids);
+    return;
+  }
+  if(descriptor.type === 'profile'){
+    revealProfileControl(descriptor.id);
+    return;
+  }
+  if(descriptor.type === 'credit'){
+    revealCreditControl(descriptor.index, descriptor.field);
     return;
   }
   if(descriptor.type === 'body'){
@@ -8808,7 +9230,7 @@ function syncDirectEditPosition(el, descriptor){
 
 function commitPreviewDirectEdit(el, descriptor){
   if(previewDirectEditCommitting) return;
-  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment';
+  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
   const next = previewEditableText(el, preservesLineBreaks);
   if(descriptor.type === 'cover'){
     const input = document.getElementById(descriptor.id);
@@ -8889,6 +9311,46 @@ function commitPreviewDirectEdit(el, descriptor){
     if(trigger) trigger.dispatchEvent(new Event('input', { bubbles:true }));
     showUndoToast('미리보기에서 부제 수정.');
     previewDirectEditCommitting = false;
+    return;
+  }
+
+  if(descriptor.type === 'profile'){
+    const input = document.getElementById(descriptor.id);
+    if(!input) return;
+    const visible = descriptor.normalizeTag ? normalizeProfileTag(next) : next;
+    const updated = replaceVisibleUsingProjection(
+      input.value,
+      visible,
+      inlineEditProjection(input.value),
+      descriptor.multiline === true
+    );
+    if(updated === input.value) return;
+    previewDirectEditCommitting = true;
+    try {
+      snapshotCards();
+      input.value = updated;
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+      showUndoToast('미리보기에서 프로필 수정.');
+    } finally {
+      previewDirectEditCommitting = false;
+    }
+    return;
+  }
+
+  if(descriptor.type === 'credit'){
+    const input = creditEditorInput(descriptor.index, descriptor.field);
+    if(!input) return;
+    const updated = String(next).slice(0, Number(input.maxLength) > 0 ? Number(input.maxLength) : 500);
+    if(updated === input.value) return;
+    previewDirectEditCommitting = true;
+    try {
+      snapshotCards();
+      input.value = updated;
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+      showUndoToast(`미리보기에서 크레딧 ${descriptor.field === 'label' ? '항목명' : '내용'} 수정.`);
+    } finally {
+      previewDirectEditCommitting = false;
+    }
     return;
   }
 
@@ -9118,6 +9580,23 @@ function previewSelectionOffsets(el){
   return { start:beforeStart.toString().length, end:beforeEnd.toString().length };
 }
 
+// contenteditable 문단의 시작에서 Backspace, 끝에서 Delete를 누르면 브라우저가
+// 이웃 문단 DOM을 합칠 수 있다. 그 상태에서 blur 저장이 실행되면 현재 문단이 아닌
+// 인용문의 마지막 줄이나 구분선 너머 문단까지 수정 범위로 오인할 수 있으므로,
+// 문단 경계를 넘는 삭제만 막고 문단 내부 선택 삭제는 그대로 허용한다.
+function previewBoundaryDeleteBlocked(el, inputType){
+  // 모바일 편집기와 단어·행 단위 삭제도 같은 경계를 넘을 수 있다.
+  const direction = String(inputType).match(/^delete(?:Content|Word|SoftLine|HardLine)(Backward|Forward)$/i);
+  if(!direction) return false;
+  const selection = previewSelectionOffsets(el);
+  if(!selection || selection.start !== selection.end) return false;
+  const fullRange = document.createRange();
+  fullRange.selectNodeContents(el);
+  const length = fullRange.toString().length;
+  if(direction[1].toLowerCase() === 'backward') return selection.start === 0;
+  return selection.start === length;
+}
+
 function subtitleDividerEditBlocked(el, inputType){
   const dividers = Array.from(el.querySelectorAll('[data-preview-protected-token]'));
   const selection = previewSelectionOffsets(el);
@@ -9139,13 +9618,14 @@ function subtitleDividerEditBlocked(el, inputType){
 
 function enablePreviewDirectEditor(el, descriptor, label){
   if(!el || el.dataset.previewDirectEdit === 'true') return;
+  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
   el.dataset.previewDirectEdit = 'true';
   el.dataset.previewEditType = descriptor.type;
   previewDirectEditDescriptors.set(el, descriptor);
   el.setAttribute('contenteditable', 'plaintext-only');
   el.setAttribute('role', 'textbox');
   el.setAttribute('aria-label', label);
-  el.setAttribute('title', descriptor.type === 'body' || descriptor.type === 'comment'
+  el.setAttribute('title', preservesLineBreaks
     ? '미리보기에서 수정 · Enter 저장 · Shift+Enter 같은 문단 줄바꿈 · Esc 취소'
     : '미리보기에서 수정 · Enter 저장 · Esc 취소');
   // 미리보기는 교정 화면이 아니므로 브라우저·확장 프로그램의 빨간 맞춤법 밑줄을 표시하지 않는다.
@@ -9163,18 +9643,22 @@ function enablePreviewDirectEditor(el, descriptor, label){
   let cancelled = false;
   let focusValue = '';
   const syncChangedHighlight = () => {
-    if(previewEditableText(el, descriptor.type === 'body' || descriptor.type === 'comment') !== focusValue){
+    if(previewEditableText(el, preservesLineBreaks) !== focusValue){
       el.dataset.previewEditChanged = 'true';
     }else{
       delete el.dataset.previewEditChanged;
     }
   };
   el.addEventListener('focus', () => {
-    focusValue = previewEditableText(el, descriptor.type === 'body' || descriptor.type === 'comment');
+    focusValue = previewEditableText(el, preservesLineBreaks);
     delete el.dataset.previewEditChanged;
     syncDirectEditPosition(el, descriptor);
   });
   el.addEventListener('beforeinput', e => {
+    if(previewBoundaryDeleteBlocked(el, e.inputType || '')){
+      e.preventDefault();
+      return;
+    }
     if(descriptor.protectedSubtitleTokens && subtitleDividerEditBlocked(el, e.inputType || '')){
       e.preventDefault();
       return;
@@ -9191,7 +9675,10 @@ function enablePreviewDirectEditor(el, descriptor, label){
   el.addEventListener('paste', e => {
     e.preventDefault();
     if(descriptor.protectedSubtitleTokens && subtitleDividerEditBlocked(el, 'insertFromPaste')) return;
-    const plain = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\s*\n\s*/g, ' ');
+    const pasted = (e.clipboardData || window.clipboardData).getData('text/plain');
+    const plain = preservesLineBreaks
+      ? pasted.replace(/\r\n?/g, '\n')
+      : pasted.replace(/\s*\n\s*/g, ' ');
     document.execCommand('insertText', false, plain);
   });
   el.addEventListener('cut', e => {
@@ -9211,6 +9698,13 @@ function enablePreviewDirectEditor(el, descriptor, label){
   });
   el.addEventListener('keydown', e => {
     if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Backspace' || e.key === 'Delete'){
+      const inputType = e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
+      if(previewBoundaryDeleteBlocked(el, inputType)){
+        e.preventDefault();
+        return;
+      }
+    }
     const shortcut = (e.metaKey || e.ctrlKey) && !e.altKey ? e.key.toLowerCase() : '';
     if(shortcut === 'b' || shortcut === 'i'){
       e.preventDefault();
@@ -9223,7 +9717,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
     if(e.key === 'Enter'){
       e.preventDefault();
-      if(e.shiftKey && (descriptor.type === 'body' || descriptor.type === 'comment')){
+      if(e.shiftKey && preservesLineBreaks){
         const selection = window.getSelection();
         if(selection && selection.rangeCount){
           const range = selection.getRangeAt(0);
@@ -9252,7 +9746,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     if(cancelled) return;
     // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
     // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
-    if(previewEditableText(el, descriptor.type === 'body' || descriptor.type === 'comment') === focusValue){
+    if(previewEditableText(el, preservesLineBreaks) === focusValue){
       delete el.dataset.previewEditChanged;
       return;
     }
@@ -9291,6 +9785,103 @@ function bindHeadingLevelInteraction(block, ctx){
     if(block.isConnected) showBlockToolbar(ctx);
   });
   block.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+const PROFILE_DIRECT_EDIT_LABELS = Object.freeze({
+  profileCharName:'BOT 이름 수정',
+  profileCharDesc:'BOT 소개 수정',
+  profileUserName:'USER 이름 수정',
+  profileUserDesc:'USER 소개 수정',
+  profileRelationship1:'관계·키워드 1 수정',
+  profileRelationship2:'관계·키워드 2 수정',
+  profileRelationship3:'관계·키워드 3 수정',
+  profileSituation:'상황·요약 수정'
+});
+
+function decoratePreviewProfileEditors(){
+  if(!previewDirectEditReady) return;
+  const profile = previewParts().profile;
+  if(!profile) return;
+  profile.querySelectorAll('[data-mosaic-profile-field]').forEach(field => {
+    const id = field.dataset.mosaicProfileField;
+    const input = document.getElementById(id);
+    if(!input) return;
+    const isTag = /(?:Tag|Relationship)\d$/.test(id);
+    const multiline = input.tagName === 'TEXTAREA';
+    enablePreviewDirectEditor(field, {
+      type:'profile',
+      id,
+      multiline,
+      normalizeTag:isTag
+    }, PROFILE_DIRECT_EDIT_LABELS[id] || (isTag ? '프로필 태그 수정' : '프로필 내용 수정'));
+    // 이름에 연결 URL이 있어도 미리보기에서는 편집을 우선하고 페이지를 이탈하지 않는다.
+    field.querySelectorAll('a').forEach(link => {
+      link.removeAttribute('href');
+      link.removeAttribute('target');
+      link.tabIndex = -1;
+      link.addEventListener('click', event => event.preventDefault());
+    });
+  });
+
+  profile.querySelectorAll('[data-mosaic-profile-image-field]').forEach(image => {
+    const id = image.dataset.mosaicProfileImageField;
+    image.removeAttribute('aria-hidden');
+    image.tabIndex = 0;
+    image.setAttribute('role', 'button');
+    image.setAttribute('aria-label', '왼쪽의 프로필 이미지 설정으로 이동');
+    image.title = '클릭하면 왼쪽의 프로필 이미지 설정으로 이동';
+    image.style.cursor = 'pointer';
+    const reveal = () => { if(positionSyncEnabled()) revealProfileControl(id); };
+    image.addEventListener('click', reveal);
+    image.addEventListener('keydown', event => {
+      if(event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      reveal();
+    });
+  });
+
+  // 역할명이나 카드의 빈 부분을 눌러도 해당 BOT/USER 설정 묶음을 찾을 수 있게 한다.
+  profile.querySelectorAll('[data-mosaic-profile-role]').forEach(item => {
+    item.addEventListener('click', event => {
+      if(event.target.closest('[data-mosaic-profile-field], [data-mosaic-profile-image-field]')) return;
+      const id = item.dataset.mosaicProfileRole === 'user' ? 'profileUserName' : 'profileCharName';
+      if(positionSyncEnabled()) revealProfileControl(id);
+    });
+  });
+}
+
+function decoratePreviewCreditEditors(){
+  if(!previewDirectEditReady) return;
+  const credit = previewParts().credit;
+  if(!credit) return;
+  const fields = Array.from(credit.querySelectorAll('[data-mosaic-credit-index][data-mosaic-credit-field]'));
+  fields.forEach(field => {
+    const index = Number(field.dataset.mosaicCreditIndex);
+    const fieldName = field.dataset.mosaicCreditField;
+    if(!Number.isInteger(index) || !['label','value'].includes(fieldName)) return;
+    if(!creditEditorInput(index, fieldName)) return;
+    enablePreviewDirectEditor(field, {
+      type:'credit',
+      index,
+      field:fieldName
+    }, `크레딧 ${index + 1} ${fieldName === 'label' ? '항목명' : '내용'} 수정`);
+    // 연결 URL은 왼쪽에서 관리하고, 미리보기에서는 항목 내용 편집을 우선한다.
+    field.querySelectorAll('a').forEach(link => {
+      link.removeAttribute('href');
+      link.removeAttribute('target');
+      link.tabIndex = -1;
+      link.addEventListener('click', event => event.preventDefault());
+    });
+  });
+
+  // 항목의 여백을 눌러도 대응하는 왼쪽 입력 묶음을 찾을 수 있게 한다.
+  credit.addEventListener('click', event => {
+    if(event.target.closest('[data-mosaic-credit-index][data-mosaic-credit-field]')) return;
+    if(!positionSyncEnabled()) return;
+    const row = event.target.closest('[data-mosaic-credit-row]');
+    const index = row ? Number(row.dataset.mosaicCreditRow) : Number(fields[0] && fields[0].dataset.mosaicCreditIndex);
+    if(Number.isInteger(index)) revealCreditControl(index, 'label');
+  });
 }
 
 function decoratePreviewDirectEditors(){
@@ -9371,6 +9962,60 @@ function decoratePreviewDirectEditors(){
         rawEnd:entry.rawEnd
       }, '코멘트 문단 수정');
     });
+  });
+}
+
+// 미리보기의 카드 제목을 누르면 왼쪽의 원본 카드 편집기를 보여준다.
+// summary의 기본 접기/펼치기 동작은 막지 않으며, 미리보기 쪽 포커스도 빼앗지 않는다.
+function revealPreviewCardTitleEditor(ctx){
+  if(!positionSyncEnabled() || !ctx || !ctx.ed) return;
+  const editor = ctx.ed;
+  const ta = ctx.ta;
+  const bodyTab = document.getElementById('tabBtnBody');
+  if(bodyTab && !bodyTab.classList.contains('active')) bodyTab.click();
+  ensureBodyInputGroupOpen();
+  if(editor.classList.contains('isCollapsed')){
+    const collapse = editor.querySelector('.collapseCtl');
+    if(collapse) collapse.click();
+  }
+  if(ta){
+    activeTa = ta;
+    syncBodyOnlyToolbarAvailability({ target:ta });
+  }
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !editor.isConnected) return;
+    scrollCardIntoSidebar(editor);
+    editor.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => {
+      if(editor.isConnected) editor.style.boxShadow = '';
+    }, 900);
+  });
+}
+
+function decoratePreviewCardTitlePositionLinks(){
+  previewCardContexts().forEach(ctx => {
+    const titleEl = ctx.cardEl.tagName === 'DETAILS'
+      ? ctx.cardEl.querySelector(':scope > summary')
+      : ctx.cardEl.querySelector(':scope > [data-mosaic-card-title="true"]');
+    if(!titleEl) return;
+    titleEl.dataset.mosaicCardTitlePositionLink = 'true';
+    titleEl.title = '클릭하면 왼쪽의 해당 카드로 이동';
+    const activate = event => {
+      if(event.target.closest('a, button, input, select, textarea')) return;
+      revealPreviewCardTitleEditor(ctx);
+    };
+    titleEl.addEventListener('click', activate);
+    // summary는 자체 키보드 동작을 유지하고, 일반 카드 제목에만 같은 접근성을 더한다.
+    if(titleEl.tagName !== 'SUMMARY'){
+      titleEl.tabIndex = 0;
+      titleEl.setAttribute('role', 'button');
+      titleEl.setAttribute('aria-label', '왼쪽의 해당 카드로 이동');
+      titleEl.addEventListener('keydown', event => {
+        if(event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        revealPreviewCardTitleEditor(ctx);
+      });
+    }
   });
 }
 
@@ -9655,7 +10300,7 @@ function topLevelMap(entries){
     let line = e.text;
     let structuralLine = line.replace(/^\[C\]\s*/i, '');
 
-    const openMatch = line.match(/^\[접기(?:\s+(.+?))?\]$/);
+    const openMatch = structuralLine.match(/^\[접기(?:\s+(.+?))?\]$/);
     if(openMatch && !manual){ manual = true; manualStart = e.raw; return; }
 
     if(/^\[\/접기\]$/.test(line)){
@@ -9909,6 +10554,14 @@ function layoutPreviewFloatingButtons(){
       left:control.left
     });
   });
+}
+
+// 검색창처럼 미리보기 위쪽 형제가 나타나거나 사라지면 대상 카드의 실제 좌표가
+// 즉시 달라진다. 현재 프레임과 브라우저가 레이아웃을 확정한 다음 프레임에 한 번씩
+// 다시 계산해 외곽 조작 버튼이 이전 좌표에 남지 않도록 한다.
+function refreshPreviewFloatingButtonLayout(){
+  layoutPreviewFloatingButtons();
+  requestAnimationFrame(layoutPreviewFloatingButtons);
 }
 
 // 데스크톱 미리보기에서는 카드보다 넓은 게시글 영역을 계산해 기본 코멘트가
@@ -10252,6 +10905,7 @@ const previewCopyResizeObserver = typeof ResizeObserver === 'function'
   : null;
 if(previewCopyResizeObserver){
   previewCopyResizeObserver.observe(document.getElementById('preview'));
+  previewCopyResizeObserver.observe(document.getElementById('pvSearchBox'));
 }
 
 // 현재 설정 또는 미리 만들어 둔 HTML로 미리보기를 다시 그림.
@@ -10296,6 +10950,9 @@ function renderPreview(prebuiltHTML){
   enableBlockDrag(preview);
   if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
   decoratePreviewDirectEditors();
+  decoratePreviewProfileEditors();
+  decoratePreviewCreditEditors();
+  decoratePreviewCardTitlePositionLinks();
   decoratePreviewCopyButtons();
   decoratePreviewProfilePlacementButton();
   decoratePreviewCreditPlacementButton();
@@ -10725,6 +11382,25 @@ function previewBlockFor(ta, raw){
   return blocks[Math.min(best, blocks.length - 1)] || cardEl;
 }
 
+// 카드 편집기의 헤더·제목 입력은 본문 줄 좌표가 없으므로 카드 시작점을 직접 찾는다.
+// 접기 카드는 summary, 일반 제목 카드는 제목, 제목이 비어 있으면 카드 자체를 대상으로 한다.
+function previewCardStartForEditor(editor){
+  if(!editor || editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return null;
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  const sourceIndex = editors.indexOf(editor);
+  if(sourceIndex < 0) return null;
+  const cardEl = previewParts().cards.find(card => Number(card.dataset.mosaicCardIndex) === sourceIndex);
+  if(!cardEl) return null;
+  if(cardEl.tagName === 'DETAILS') return cardEl.querySelector(':scope > summary') || cardEl;
+  return cardEl.querySelector(':scope > [data-mosaic-card-title="true"]') || cardEl;
+}
+
+function scrollPreviewToCardEditor(editor){
+  if(!positionSyncEnabled()) return;
+  const target = previewCardStartForEditor(editor);
+  if(target) scrollPreviewIfNeeded(target, true);
+}
+
 // 입력창에서 커서가 있는 줄을 미리보기에서 보여줌
 function focusPreviewOnCaret(ta){
   if(!ta || !positionSyncEnabled()) return;
@@ -10894,6 +11570,7 @@ function syncTypographyRangeLabels(){
     // 직접 입력 중에는 "1." 같은 소수점 입력 중간값을 덮어쓰지 않는다.
     if(input && label && label !== document.activeElement) label.value = input.value;
   });
+  syncSoftBreakSpacingControl();
 }
 
 // 슬라이더와 숫자 입력을 양방향으로 연결해 빠른 조절과 정확한 입력을 모두 지원한다.
@@ -10934,6 +11611,7 @@ function syncDesignSummaries(){
   const font = selectedControlText('textFont');
   const dialogue = selectedControlText('dlgStyle');
   const spacing = selectedControlText('spacingMode');
+  const padding = selectedControlText('cardPadding');
   const width = selectedControlText('cardWidth');
   const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
   document.getElementById('widthDesktopBtn').textContent = `데스크톱 ${cardWidth}`;
@@ -10944,7 +11622,7 @@ function syncDesignSummaries(){
   document.getElementById('dialogueDesignSummary').textContent =
     `${dialogue} · 병행 ${parallelLayout}`;
   document.getElementById('layoutDesignSummary').textContent =
-    `${spacing} · ${width} · 외곽선 ${document.getElementById('cardBorderOn').checked ? '켬' : '끔'}`;
+    `내용 ${spacing} · 안쪽 ${padding} · ${width} · 외곽선 ${document.getElementById('cardBorderOn').checked ? '켬' : '끔'}`;
 
   const imageOn = document.getElementById('imgOn').checked;
   document.getElementById('imageCoverSummary').textContent = imageOn
@@ -11184,7 +11862,7 @@ const WORK_BOOLEAN_DEFAULTS = Object.freeze({
 // 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
 // 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
 const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
-const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrJustify','narrCenter','headingCenter','dialogueCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
+const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','spacingMode','cardPadding','cardWidth','cardBorderOn','bgColor','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
@@ -11192,6 +11870,45 @@ const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'pro
 function previewVisibleFooterElement(){
   const footer = document.querySelector('#preview [data-mosaic-footer="true"]');
   return footer && footer.getClientRects().length ? footer : null;
+}
+
+function previewProfileRoleTarget(role){
+  return document.querySelector(`#preview [data-mosaic-profile-role="${role}"]`) || previewParts().profile;
+}
+
+function previewProfileFieldTarget(id){
+  let targetId = id;
+  if(id === 'profileCharTags'){
+    targetId = /^profileCharTag[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileCharTag1';
+  }else if(id === 'profileUserTags'){
+    targetId = /^profileUserTag[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileUserTag1';
+  }else if(id === 'profileRelationship'){
+    targetId = /^profileRelationship[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileRelationship1';
+  }
+  return document.querySelector(`#preview [data-mosaic-profile-field="${targetId}"]`)
+    || document.querySelector(`#preview [data-mosaic-profile-image-field="${targetId}"]`)
+    || previewParts().profile;
+}
+
+function previewCreditFieldTarget(index, field){
+  if(!Number.isInteger(index) || index < 0) return previewParts().credit;
+  const credit = previewParts().credit;
+  if(!credit) return null;
+  const preferredField = field === 'label' ? 'label' : 'value';
+  return credit.querySelector(`[data-mosaic-credit-index="${index}"][data-mosaic-credit-field="${preferredField}"]`)
+    || credit.querySelector(`[data-mosaic-credit-index="${index}"]`)
+    || credit;
+}
+
+function activeCreditPreviewTarget(){
+  const id = document.activeElement && document.activeElement.id;
+  const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
+  if(!match) return previewParts().credit;
+  const field = match[1] === 'Label' ? 'label' : 'value';
+  return previewCreditFieldTarget(Number(match[2]), field);
 }
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
@@ -11214,28 +11931,28 @@ const PREVIEW_FOCUS_MAP = {
   ypos:       () => previewParts().image,
   profileOn:  () => previewParts().profile,
   profileMinimal:() => previewParts().profile,
-  profileCharOn:() => previewParts().profile,
-  profileUserOn:() => previewParts().profile,
+  profileCharOn:() => previewProfileRoleTarget('bot'),
+  profileUserOn:() => previewProfileRoleTarget('user'),
   profileCommonOn:() => previewParts().profile,
   profilePlacement:() => previewParts().profile,
   profileStyle:() => previewParts().profile,
   profileOrder:() => previewParts().profile || previewParts().title,
-  profileCharImage:() => previewParts().profile,
-  profileCharScale:() => previewParts().profile,
-  profileCharX:() => previewParts().profile,
-  profileCharY:() => previewParts().profile,
-  profileCharName: () => previewParts().profile,
-  profileCharDesc: () => previewParts().profile,
-  profileCharTags: () => previewParts().profile,
-  profileUserImage:() => previewParts().profile,
-  profileUserScale:() => previewParts().profile,
-  profileUserX:() => previewParts().profile,
-  profileUserY:() => previewParts().profile,
-  profileUserName: () => previewParts().profile,
-  profileUserDesc: () => previewParts().profile,
-  profileUserTags: () => previewParts().profile,
-  profileRelationship:() => previewParts().profile,
-  profileSituation:() => previewParts().profile,
+  profileCharImage:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharScale:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharX:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharY:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharName: () => previewProfileFieldTarget('profileCharName'),
+  profileCharDesc: () => previewProfileFieldTarget('profileCharDesc'),
+  profileCharTags: () => previewProfileFieldTarget('profileCharTags'),
+  profileUserImage:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserScale:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserX:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserY:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserName: () => previewProfileFieldTarget('profileUserName'),
+  profileUserDesc: () => previewProfileFieldTarget('profileUserDesc'),
+  profileUserTags: () => previewProfileFieldTarget('profileUserTags'),
+  profileRelationship:() => previewProfileFieldTarget('profileRelationship'),
+  profileSituation:() => previewProfileFieldTarget('profileSituation'),
   // 숨긴 뒤에는 대체 대상으로 마지막 카드 전체를 반환하지 않는다.
   // 큰 카드를 중앙 정렬하며 미리보기 스크롤이 튀는 것을 막고,
   // 다시 표시한 경우에도 접힌 카드 안이라면 스크롤하거나 카드를 열지 않는다.
@@ -11243,7 +11960,7 @@ const PREVIEW_FOCUS_MAP = {
   footerAuthor: () => previewVisibleFooterElement(),
   creditOn: () => previewParts().credit,
   creditPlacement: () => previewParts().credit,
-  creditItems: () => previewParts().credit,
+  creditItems: () => activeCreditPreviewTarget(),
 };
 
 function normalizeCommentWidth(value){
@@ -11259,37 +11976,61 @@ function hasMarkdownCardContent(){
     if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
     const textarea = editor.querySelector('textarea');
     if(!textarea) return false;
-    // 일반 소제목(# 제목)과 소제목 접기(#> 제목), 선택적 [C] 접두어를 같은 문법으로 본다.
-    return /^(?:\s*\[C\]\s*)?\s*#{1,4}>?\s+\S/im.test(textarea.value);
+    // #> 접기 소제목은 아래의 '접기 제목' 정렬이 담당한다. 일반 소제목만 감지해
+    // 접기 소제목밖에 없을 때 효과 없는 마크다운 버튼이 활성화되지 않게 한다.
+    return /^(?:\s*\[C\]\s*)?\s*#{1,4}\s+\S/im.test(textarea.value);
   });
 }
 
-function syncParagraphControlAvailability(rowId, buttonIds, enabled, disabledTitle){
+function hasQuoteCardContent(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
+    if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
+    const textarea = editor.querySelector('textarea');
+    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*>(?!>)\s*(?:\[C\]\s*)?\S/im.test(textarea.value));
+  });
+}
+
+function hasBodyFoldTitleContent(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
+    if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
+    const textarea = editor.querySelector('textarea');
+    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*(?:\[접기(?:\s+.*?)?\]|#{1,4}>\s+\S)/im.test(textarea.value));
+  });
+}
+
+function syncParagraphControlAvailability(rowId, controlIds, enabled, disabledTitle){
   const row = document.getElementById(rowId);
   row.classList.toggle('isControlDisabled', !enabled);
   row.setAttribute('aria-disabled', String(!enabled));
-  buttonIds.map(id => document.getElementById(id)).forEach(button => {
-    button.disabled = !enabled;
-    button.setAttribute('aria-disabled', String(!enabled));
-    button.title = enabled ? '' : disabledTitle;
+  row.title = enabled ? '' : disabledTitle;
+  controlIds.map(id => document.getElementById(id)).forEach(control => {
+    control.disabled = !enabled;
+    control.setAttribute('aria-disabled', String(!enabled));
   });
 }
 
 function syncParagraphSettingsUI(){
-  const state = id => document.getElementById(id).checked;
   const press = (id, value) => document.getElementById(id).setAttribute('aria-pressed', String(value));
-  press('narrAlignDefault', !state('narrJustify') && !state('narrCenter'));
-  press('narrAlignJustify', state('narrJustify'));
-  press('narrAlignCenter', state('narrCenter'));
-  press('headingAlignDefault', !state('headingCenter'));
-  press('headingAlignCenter', state('headingCenter'));
-  press('dialogueAlignDefault', !state('dialogueCenter'));
-  press('dialogueAlignCenter', state('dialogueCenter'));
+  const narrIndent = document.getElementById('narrIndent').checked;
+  press('narrIndentNone', !narrIndent);
+  press('narrIndentFirst', narrIndent);
   syncParagraphControlAvailability(
     'markdownAlignRow',
-    ['headingAlignDefault','headingAlignCenter'],
+    ['headingCenter'],
     hasMarkdownCardContent(),
     '카드에 마크다운 소제목을 입력하면 설정할 수 있습니다.'
+  );
+  syncParagraphControlAvailability(
+    'quoteAlignRow',
+    ['quoteCenter'],
+    hasQuoteCardContent(),
+    '카드에 인용문을 입력하면 설정할 수 있습니다.'
+  );
+  syncParagraphControlAvailability(
+    'bodyFoldTitleAlignRow',
+    ['bodyFoldTitleCenter'],
+    hasBodyFoldTitleContent(),
+    '카드에 본문 접기를 입력하면 설정할 수 있습니다.'
   );
   const commentWidth = normalizeCommentWidth(document.getElementById('commentWidth').value);
   const commentAlign = normalizeCommentAlign(document.getElementById('commentAlign').value);
@@ -11325,24 +12066,17 @@ function setParagraphOptions(nextState){
     else input.value = next;
     changed.push(input);
   });
-  // 여러 선택값이 함께 바뀌는 나레이션 정렬도 한 번만 렌더·저장한다.
+  // 한 번의 선택 변경은 한 번만 렌더·저장한다.
   syncParagraphSettingsUI();
   if(changed.length) changed[0].dispatchEvent(new Event('input', { bubbles:true }));
 }
 
-document.getElementById('narrAlignDefault').addEventListener('click', () => {
-  setParagraphOptions({ narrJustify:false, narrCenter:false });
+document.getElementById('narrIndentNone').addEventListener('click', () => {
+  setParagraphOptions({ narrIndent:false });
 });
-document.getElementById('narrAlignJustify').addEventListener('click', () => {
-  setParagraphOptions({ narrJustify:true, narrCenter:false });
+document.getElementById('narrIndentFirst').addEventListener('click', () => {
+  setParagraphOptions({ narrIndent:true });
 });
-document.getElementById('narrAlignCenter').addEventListener('click', () => {
-  setParagraphOptions({ narrJustify:false, narrCenter:true });
-});
-document.getElementById('headingAlignDefault').addEventListener('click', () => setParagraphOptions({ headingCenter:false }));
-document.getElementById('headingAlignCenter').addEventListener('click', () => setParagraphOptions({ headingCenter:true }));
-document.getElementById('dialogueAlignDefault').addEventListener('click', () => setParagraphOptions({ dialogueCenter:false }));
-document.getElementById('dialogueAlignCenter').addEventListener('click', () => setParagraphOptions({ dialogueCenter:true }));
 document.getElementById('commentWidthDefault').addEventListener('click', () => {
   setParagraphOptions({ commentWidth:'default' });
 });
@@ -11362,9 +12096,6 @@ document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').
   // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
   if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
   el.addEventListener('input', () => {
-    // 나레이션의 양쪽 정렬과 가운데 정렬은 동시에 적용될 수 없으므로 마지막 선택만 유지한다.
-    if(el.id === 'narrCenter' && el.checked) document.getElementById('narrJustify').checked = false;
-    if(el.id === 'narrJustify' && el.checked) document.getElementById('narrCenter').checked = false;
     syncParagraphSettingsUI();
     syncTypographyRangeLabels();
     syncDesignSummaries();
@@ -11381,6 +12112,36 @@ document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').
     scheduleDraftSave();
     if(el.id && STYLE_FIELDS.includes(el.id)) commitStyleHistory(false);
   });
+});
+
+// 값이 바뀌기 전에도 프로필 입력칸을 클릭하는 즉시 오른쪽의 대응 요소를 보여준다.
+document.getElementById('profileGroup').addEventListener('focusin', event => {
+  if(!positionSyncEnabled()) return;
+  const id = event.target && event.target.id;
+  if(!id) return;
+  let target = null;
+  if(/^(?:profileCharTag|profileUserTag|profileRelationship)[1-3]$/.test(id)){
+    target = previewProfileFieldTarget(id);
+  }else if(id === 'profileCharUrl'){
+    target = previewProfileFieldTarget('profileCharName');
+  }else if(id === 'profileUserUrl'){
+    target = previewProfileFieldTarget('profileUserName');
+  }else if(PREVIEW_FOCUS_MAP[id]){
+    target = PREVIEW_FOCUS_MAP[id]();
+  }
+  if(target) scrollPreviewIfNeeded(target, true);
+});
+
+// 크레딧 입력을 선택하면 같은 항목의 미리보기 글자를 보여준다. URL은 별도의
+// 출력 글자가 없으므로 해당 항목의 내용(없으면 항목명)을 대상으로 삼는다.
+document.getElementById('creditGroup').addEventListener('focusin', event => {
+  if(!positionSyncEnabled()) return;
+  const id = event.target && event.target.id;
+  const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
+  if(!match) return;
+  const field = match[1] === 'Label' ? 'label' : 'value';
+  const target = previewCreditFieldTarget(Number(match[2]), field);
+  if(target) scrollPreviewIfNeeded(target, true);
 });
 
 ['foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber'].forEach(id => {
@@ -11550,6 +12311,16 @@ function syncCreditControlState(){
   area.classList.toggle('creditControlsDisabled', !on);
   area.setAttribute('aria-disabled', String(!on));
   area.querySelectorAll('input, select, button').forEach(control => { control.disabled = !on; });
+  const presetSummary = area.querySelector('.creditPresetSummary');
+  if(presetSummary){
+    presetSummary.setAttribute('aria-disabled', String(!on));
+    presetSummary.tabIndex = on ? 0 : -1;
+    if(!on){
+      const presetSection = presetSummary.closest('.creditPresetSection');
+      if(presetSection) presetSection.open = false;
+      if(document.activeElement === presetSummary) presetSummary.blur();
+    }
+  }
   if(on){
     const rows = Array.from(area.querySelectorAll('.creditEditorRow'));
     rows.forEach((row, index) => {
@@ -11618,8 +12389,9 @@ function syncBodyOnlyToolbarAvailability(event){
 document.getElementById('cardEditors').addEventListener('focusin', syncBodyOnlyToolbarAvailability);
 
 // 일반 본문·대사·인용문 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
-// 인용문의 다음 원문 줄에는 `>`를 이어 붙이고, 나머지 구조 문법 줄과 빈 줄에서는
-// 브라우저 기본 줄바꿈을 유지한다.
+// 인용문도 다음 원문 줄에 `>`를 자동으로 붙이지 않는다. combineSoftBreakPair가
+// 앞줄의 인용 문맥을 이어받으므로 [C]와 함께 써도 한 인용 블록으로 안전하게 출력된다.
+// 구조 문법 줄과 빈 줄에서는 브라우저 기본 줄바꿈을 유지한다.
 function handleSoftBreakKeydown(e){
   if(e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
   const ta = e.currentTarget;
@@ -11634,12 +12406,13 @@ function handleSoftBreakKeydown(e){
   let lineEnd = value.indexOf('\n', end);
   if(lineEnd < 0) lineEnd = value.length;
   const currentLine = value.slice(lineStart, lineEnd).replace(/\[BR\]\s*$/i, '');
-  const isQuoteLine = /^\s*>(?!>)\s?\S/.test(currentLine);
+  const semanticCurrentLine = currentLine.replace(/^\s*\[C\]\s*/i, '');
+  const isQuoteLine = /^\s*>(?!>)\s?\S/.test(semanticCurrentLine);
   if(!currentLine.trim() || (isStructuralBodyLine(currentLine) && !isQuoteLine)) return;
   e.preventDefault();
   ta.focus();
   ta.setSelectionRange(start, end);
-  const insertion = isQuoteLine ? '[BR]\n> ' : '[BR]\n';
+  const insertion = '[BR]\n';
   let inserted = false;
   try { inserted = document.execCommand('insertText', false, insertion); } catch(err){ inserted = false; }
   if(!inserted){
@@ -11847,7 +12620,7 @@ const cardEditorContainer = document.getElementById('cardEditors');
 cardEditorContainer.addEventListener('pointerdown', event => {
   // 헤더 버튼을 누른 채 포인터를 바깥에서 놓아도 draggable 속성이 고착되지 않도록
   // 카드별 속성을 바꾸지 않고 이번 포인터 동작만 컨테이너 상태로 차단한다.
-  cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select');
+  cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select, .cardEditorHead .cardNum');
 });
 document.addEventListener('pointerup', () => { cardEditorDragState.blockedByControl = false; });
 document.addEventListener('pointercancel', () => { cardEditorDragState.blockedByControl = false; });
@@ -11994,6 +12767,11 @@ function createCardEditor(value){
   visibilityBtn.innerHTML = '<span class="visibilityIcon visibilityVisibleIcon" aria-hidden="true">○</span><span class="visibilityIcon visibilityHiddenIcon" aria-hidden="true">⊘</span>';
   const num = document.createElement('span');
   num.className = 'cardNum';
+  num.dataset.positionLink = 'true';
+  num.tabIndex = 0;
+  num.setAttribute('role', 'button');
+  num.title = '미리보기에서 이 카드 위치 보기';
+  num.setAttribute('aria-label', '미리보기에서 이 카드 위치 보기');
   const fsBtn = document.createElement('button');
   fsBtn.type = 'button';
   fsBtn.className = 'miniCtl fsBtn';
@@ -12146,10 +12924,10 @@ function createCardEditor(value){
   const updatePeek = () => {
     const first = ta.value.split('\n').map(l => l.trim()).find(l => l !== '') || '';
     const plain = first
+      .replace(/^\[C\]\s*/i, '')
       .replace(/^#{1,4}>?\s*/, '')
       .replace(/^>{1,2}\s*/, '')
       .replace(/^<<\s*/, '')
-      .replace(/^\[C\]\s*/i, '')
       .replace(/^\[[^\]]{1,24}\]\s*/, '')
       .replace(/__|\*/g, '');
     peek.textContent = plain || '(빈 카드)';
@@ -12208,7 +12986,19 @@ function createCardEditor(value){
     foldUndoPrepared = false;
   });
   requestAnimationFrame(syncFoldUi);
-  foldTitleInput.addEventListener('input', refresh);
+  const showCardInPreview = () => scrollPreviewToCardEditor(ed);
+  num.addEventListener('click', showCardInPreview);
+  num.addEventListener('keydown', event => {
+    if(event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    showCardInPreview();
+  });
+  foldTitleInput.addEventListener('focus', showCardInPreview);
+  foldTitleInput.addEventListener('click', showCardInPreview);
+  foldTitleInput.addEventListener('input', () => {
+    focusPreviewOn(() => previewCardStartForEditor(ed));
+    refresh();
+  });
 
   del.addEventListener('click', () => {
     const cardCount = document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor)').length;
@@ -13208,6 +13998,7 @@ function openPreviewSearch(){
   input.focus();
   input.select();
   pvApplySearch(false);
+  refreshPreviewFloatingButtonLayout();
 }
 
 function closePreviewSearch(){
@@ -13216,6 +14007,7 @@ function closePreviewSearch(){
   box.style.display = 'none';
   pvClearHits();
   document.getElementById('pvFindCount').textContent = '';
+  refreshPreviewFloatingButtonLayout();
 }
 
 // ---------- 미리보기 대치 ----------
@@ -14350,6 +15142,20 @@ document.querySelectorAll('details.foldGroup').forEach(el => {
   });
 });
 
+// 글자 설정 안의 보조 항목도 서로 독립적으로 열고 닫으며 상태를 기억한다.
+const TYPOGRAPHY_SUBSECTION_KEY = 'logGenTypographySubsection_v1';
+document.querySelectorAll('details.typographySubsection').forEach(el => {
+  const key = TYPOGRAPHY_SUBSECTION_KEY + ':' + el.id;
+  try {
+    const saved = localStorage.getItem(key);
+    if(saved === 'open') el.setAttribute('open', '');
+    else if(saved === 'closed') el.removeAttribute('open');
+  } catch(e){}
+  el.addEventListener('toggle', () => {
+    try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
+  });
+});
+
 // ---------- 사이드바 폭 조절 ----------
 // 드래그해서 왼쪽 작업 영역 폭을 바꾸고, 그 값을 브라우저에 기억한다.
 const LAYOUT_MIRROR_KEY = 'mosaicLayoutMirrored_v1';
@@ -14567,20 +15373,26 @@ function updateCounter(){
 
   // 긴 문단 감지 (공백 제외 300자 초과) — 소제목/구분선 줄은 제외
   const longCount = bodyParaList.filter(l => {
-    const u = l.toUpperCase();
-    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}\s/.test(l) || statusLineContent(l) !== null) return false;
-    return l.replace(/\s/g, '').length > 300;
+    const structuralLine = l.replace(/^\[C\]\s*/i, '');
+    const u = structuralLine.toUpperCase();
+    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u)
+       || /^#{1,4}>?\s/.test(structuralLine)
+       || /^\[IMG\s/i.test(structuralLine)
+       || /^\[\/?접기(?:\s|\])/i.test(structuralLine)
+       || statusLineContent(structuralLine) !== null) return false;
+    return structuralLine.replace(/\s/g, '').length > 300;
   }).length;
   const longNote = longCount > 0 ? ` · 긴 문단 ${longCount}개 (나눠 쓰면 읽기 편해)` : '';
 
   // 대사/서술/강조 구성비 (강조 글자는 서술에서 빼 중복 없이 합계 100%로 계산)
   let dlgC = 0, emphasisC = 0, narrC = 0;
   bodyParaList.forEach(l => {
-    const u = l.toUpperCase();
-    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}>?\s/.test(l) || /^\[IMG\s/i.test(l)
-       || statusLineContent(l) !== null
-       || /^\[접기/.test(l) || /^\[\/접기\]$/.test(l)) return;
-    let body = normalizeQuotes(l);
+    const structuralLine = l.replace(/^\[C\]\s*/i, '');
+    const u = structuralLine.toUpperCase();
+    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}>?\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
+       || statusLineContent(structuralLine) !== null
+       || /^\[접기/.test(structuralLine) || /^\[\/접기\]$/.test(structuralLine)) return;
+    let body = normalizeQuotes(structuralLine);
     const cm = body.match(/^\{(#?[0-9A-Fa-f]{3,8})\}\s*/);
     if(cm) body = body.slice(cm[0].length).trim();
     body = stripSpeaker(body, settings).line;
@@ -14947,10 +15759,10 @@ const THEME_COLOR_FIELDS = ['bgColor', 'narrColor', 'emphasisColor', 'charColor'
 const SAVED_PRESET_FIELDS = [...THEME_COLOR_FIELDS, 'dlgStyle'];
 const DEFAULT_STYLE = {
   textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
-  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20',
+  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', softBreakSpacing: '0',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrJustify: false, narrCenter: false, headingCenter: false, dialogueCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
+  spacingMode: 'normal', cardPadding: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 };
 
 // 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
@@ -15048,6 +15860,7 @@ function stepSelectOption(selectId, delta){
   ['textFont', 'textFontPrev', 'textFontNext'],
   ['parallelTranslationLayout', 'parallelLayoutPrev', 'parallelLayoutNext'],
   ['spacingMode', 'spacingModePrev', 'spacingModeNext'],
+  ['cardPadding', 'cardPaddingPrev', 'cardPaddingNext'],
   ['cardWidth', 'cardWidthPrev', 'cardWidthNext']
 ].forEach(([selectId, prevId, nextId]) => {
   document.getElementById(prevId).addEventListener('click', () => stepSelectOption(selectId, -1));
@@ -15368,7 +16181,14 @@ function applyStyleValues(v){
     else if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
   }
   if(values.paragraphGap === undefined) values.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(values.softBreakSpacing === undefined) values.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  // 누락값·rev43의 `좁게`·손상된 로컬 초안 값은 현재 기본 단계로 통일한다.
+  values.cardPadding = normalizeCardPadding(values.cardPadding);
+  // rev1의 문자열 저장값(normal/relaxed/wide)도 현재 3단계 range 값으로 변환한다.
+  values.softBreakSpacing = softBreakSpacingControlValue(values.softBreakSpacing);
   if(values.narrCenter === undefined) values.narrCenter = DEFAULT_STYLE.narrCenter;
+  if(values.quoteCenter === undefined) values.quoteCenter = DEFAULT_STYLE.quoteCenter;
+  if(values.bodyFoldTitleCenter === undefined) values.bodyFoldTitleCenter = DEFAULT_STYLE.bodyFoldTitleCenter;
   // 단일 선택이었던 작업본의 코멘트 배치값도 폭·정렬 두 축으로 안전하게 변환한다.
   if(values.commentWidth === undefined){
     values.commentWidth = values.commentLayout === 'card' ? 'card' : DEFAULT_STYLE.commentWidth;
@@ -15392,10 +16212,6 @@ function applyStyleValues(v){
       el.value = values[id];
     }
   });
-  // 이전 저장값이나 외부 프리셋에 두 정렬이 함께 켜져 있어도 가운데 정렬을 우선해 안전하게 정규화한다.
-  if(document.getElementById('narrCenter').checked && document.getElementById('narrJustify').checked){
-    document.getElementById('narrJustify').checked = false;
-  }
   syncParagraphSettingsUI();
   syncTypographyRangeLabels();
   syncDesignSummaries();
@@ -15838,6 +16654,11 @@ function sanitizeImportedPreset(preset){
     sourceValues.commentAlign = sourceValues.commentLayout === 'center' ? 'center' : DEFAULT_STYLE.commentAlign;
   }
   if(sourceValues.paragraphGap === undefined) sourceValues.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(sourceValues.softBreakSpacing === undefined) sourceValues.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  if(sourceValues.cardPadding === undefined) sourceValues.cardPadding = DEFAULT_STYLE.cardPadding;
+  if(sourceValues.cardPadding === 'narrow') sourceValues.cardPadding = DEFAULT_STYLE.cardPadding;
+  if(!['0','1','2','normal','relaxed','wide'].includes(String(sourceValues.softBreakSpacing))) return null;
+  sourceValues.softBreakSpacing = softBreakSpacingControlValue(sourceValues.softBreakSpacing);
   let found = 0;
   for(const id of STYLE_FIELDS){
     if(sourceValues[id] === undefined) continue;
@@ -16586,23 +17407,27 @@ function navigatorItemsForCard(card, index){
   lines.forEach((raw, lineIndex) => {
     const line = raw.trim();
     if(!line) return;
-    const heading = line.match(/^(#{1,4})>?\s+(.+)$/);
+    const structuralLine = line.replace(/^\[C\]\s*/i, '');
+    const heading = structuralLine.match(/^(#{1,4})>?\s+(.+)$/);
     if(heading){
       items.push({ lineIndex, label:`${'·'.repeat(heading[1].length)} ${stripMarkers(heading[2]).trim()}` });
       return;
     }
-    if(line.toUpperCase() === '[HR]') items.push({ lineIndex, label:'— 구분선' });
-    else if(line.toUpperCase() === '[HR2]') items.push({ lineIndex, label:'✦ 장면 전환' });
-    else if(line.toUpperCase() === '[HR3]') items.push({ lineIndex, label:'··· 호흡' });
-    else if(line.toUpperCase() === '[GAP]') items.push({ lineIndex, label:'↕ 넓은 여백' });
-    else if(statusLineContent(line) !== null) items.push({ lineIndex, label:'◌ 상태창' });
-    else if(/^\[IMG\s/i.test(line)) items.push({ lineIndex, label:'▧ 본문 이미지' });
-    else if(/^\[접기/i.test(line)) items.push({ lineIndex, label:`＋ ${line.replace(/^\[접기\s*|\]$/g, '').trim() || '접기'}` });
+    if(structuralLine.toUpperCase() === '[HR]') items.push({ lineIndex, label:'— 구분선' });
+    else if(structuralLine.toUpperCase() === '[HR2]') items.push({ lineIndex, label:'✦ 장면 전환' });
+    else if(structuralLine.toUpperCase() === '[HR3]') items.push({ lineIndex, label:'··· 호흡' });
+    else if(structuralLine.toUpperCase() === '[GAP]') items.push({ lineIndex, label:'↕ 넓은 여백' });
+    else if(statusLineContent(structuralLine) !== null) items.push({ lineIndex, label:'◌ 상태창' });
+    else if(/^\[IMG\s/i.test(structuralLine)) items.push({ lineIndex, label:'▧ 본문 이미지' });
+    else if(/^\[접기/i.test(structuralLine)) items.push({ lineIndex, label:`＋ ${structuralLine.replace(/^\[접기\s*|\]$/g, '').trim() || '접기'}` });
   });
   if(!items.length){
     const firstLine = lines.findIndex(line => line.trim());
     if(firstLine >= 0){
-      const summary = stripMarkers(lines[firstLine]).replace(/^>{1,2}\s*/, '').trim();
+      const summary = stripMarkers(lines[firstLine])
+        .replace(/^\s*\[C\]\s*/i, '')
+        .replace(/^>{1,2}\s*/, '')
+        .trim();
       items.push({ lineIndex:firstLine, label:summary.slice(0, 48) || `카드 ${index + 1}` });
     }
   }
@@ -16625,7 +17450,7 @@ function buildDocumentNavigator(){
     title.className = 'docNavCardTitle';
     const firstHeading = card.body
       .split('\n')
-      .map(line => line.trim().match(/^#{1,4}>?\s+(.+)$/))
+      .map(line => line.trim().replace(/^\[C\]\s*/i, '').match(/^#{1,4}>?\s+(.+)$/))
       .find(Boolean);
     const cardNavigatorTitle = String(card.foldTitle || '').trim();
     const navigatorTitle = cardNavigatorTitle
@@ -16765,7 +17590,7 @@ function basicPreflightIssues(){
     if(emphasisMarkers % 2){
       issues.push({ severity:'error', message:`${blockLabel}의 강조(*) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
     }
-    const openFolds = (card.body.match(/^\[접기(?:[^\]]*)\]\s*$/gmi) || []).length;
+    const openFolds = (card.body.match(/^(?:\[C\]\s*)?\[접기(?:[^\]]*)\]\s*$/gmi) || []).length;
     const closeFolds = (card.body.match(/^\[\/접기\]\s*$/gmi) || []).length;
     if(openFolds !== closeFolds){
       issues.push({ severity:'warn', message:`${blockLabel}의 일부 접기 시작·끝 개수가 다릅니다.`, cardIndex, lineIndex:0 });
