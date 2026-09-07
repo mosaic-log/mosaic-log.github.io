@@ -1,0 +1,12219 @@
+// 맥이면 ⌘, 그 외에는 Ctrl 로 표기 (동작은 둘 다 인식)
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
+
+
+function fontStack(key){
+  const stacks = {
+    notoSerif: "'Noto Serif KR','Nanum Myeongjo',AppleMyungjo,Batang,serif",
+    notoSans: "'Noto Sans KR','Nanum Gothic','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif",
+    pretendard: "'Pretendard Variable',Pretendard,'Noto Sans KR','Nanum Gothic','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif"
+  };
+  return stacks[key] || stacks.pretendard;
+}
+
+// 웹폰트는 선택되는 순간 한글 글리프까지 명시적으로 불러온 뒤 미리보기를 다시 그린다.
+// file://로 열었을 때 첫 렌더가 대체 글꼴로 굳어 보이는 현상을 방지한다.
+async function loadSelectedWebFont(selectId){
+  if(!document.fonts || !document.fonts.load) return;
+  const key = document.getElementById(selectId).value;
+  try {
+    await document.fonts.load(`16px ${fontStack(key)}`, '가나다라마바사 대사와 나레이션');
+    renderPreview();
+  } catch(e){ /* 로컬 글꼴이나 네트워크 미연결 시 기존 대체 글꼴 유지 */ }
+}
+
+function escapeHTML(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// HTML 본문 텍스트용 이스케이프. 따옴표는 글자로 안전하므로 보존해 대사 파싱과 함께 쓸 수 있게 함.
+function escapeTextHTML(s){
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s){
+  return escapeHTML(s);
+}
+
+function normalizeSubtitleCoupleSeparator(value){
+  return ['×', '&', '·'].includes(value) ? value : '×';
+}
+
+// 사용자 링크는 절대 http(s) 주소만 허용한다. 이미지 주소와 같은 방식으로
+// https:를 보완하고, 그 외 스킴은 출력하지 않아 javascript: 주입을 막는다.
+function normalizeHttpLinkUrl(value){
+  const normalized = normalizeProtocolRelativeUrl(value);
+  if(!normalized) return '';
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '';
+  } catch(e){
+    return '';
+  }
+}
+
+// 아카라이브의 기본 링크색·밑줄이 표제 스타일을 덮어쓰지 못하도록
+// a와 내부 span 양쪽에 현재 글자 속성을 직접 고정한다.
+function buildStylePreservingLink(contentHTML, rawUrl, color){
+  const href = normalizeHttpLinkUrl(rawUrl);
+  if(!href) return contentHTML;
+  const style = `color:${color} !important; -webkit-text-fill-color:${color} !important; text-decoration:none !important; border:0 !important; border-bottom:none !important; background:none !important; box-shadow:none !important; font-family:inherit !important; font-size:inherit !important; font-weight:inherit !important; font-style:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;`;
+  return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
+}
+
+// style="background-image:url('…')" 안에서 URL이 CSS 문자열을 벗어나지 않게 함.
+function escapeCssUrl(s){
+  const cssSafe = String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n\f]/g, '');
+  return cssSafe.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 둥근(스마트) 따옴표를 곧은 따옴표로 통일 — AI 출력에 섞여 오는 \u201C\u201D \u2018\u2019 때문에
+// 대사 인식이 실패하는 것을 방지 (파싱 시 자동 적용되므로 원문은 그대로 둬도 됨)
+function normalizeQuotes(text){
+  return text
+    .replace(/[\u201C\u201D\u301D\u301E\u2033]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\uFF07]/g, "'");
+}
+
+// 같은 입력 줄의 `"대사" (번역)`, `"대사" ("번역")`,
+// `'속마음' (번역)`, `'속마음' ('번역')`을 병행 구문으로 찾는다.
+// 작은따옴표 원문은 병행 번역만 붙이고 대사로 승격하지 않는다. 추가 괄호가
+// 들어오면 범위를 추측하지 않고 일반 문장으로 남긴다.
+function parallelDialogueSegments(line){
+  // 이 함수가 직접 호출되는 경로에서도 스마트 따옴표가 빠짐없이 처리되게 한다.
+  // 따옴표 정규화는 글자 수가 바뀌지 않아 미리보기 편집 위치 계산에도 안전하다.
+  const source = normalizeQuotes(String(line));
+  const pattern = /((?:"[^"\r\n]*"|'[^'\r\n]*'))([ \t]*)([（(])([ \t]*)([^()（）\r\n]+?)([ \t]*)([)）])/g;
+  const segments = [];
+  let match;
+  while((match = pattern.exec(source))){
+    if((match[3] === '(' && match[7] !== ')') || (match[3] === '（' && match[7] !== '）')) continue;
+    segments.push({
+      start: match.index,
+      end: pattern.lastIndex,
+      original: match[1],
+      betweenOriginalAndGroup: match[2],
+      translationGroup: match[3] + match[4] + match[5] + match[6] + match[7]
+    });
+  }
+  return segments;
+}
+
+function resolvedParallelTranslationMode(settings){
+  if(!settings.parallelTranslationSoft) return 'plain';
+  const selected = settings.parallelTranslationLayout || 'auto';
+  // 불러온 이전 자료나 내부 호출에서 두 값이 어긋나도 `미적용`을 우선한다.
+  if(selected === 'off') return 'plain';
+  if(selected === 'inline' || selected === 'stack') return selected;
+  return ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+}
+
+// 문단 전체가 정확히 하나의 병행 구문일 때 사용하는 정보.
+function parallelDialogueParts(line){
+  const source = normalizeQuotes(String(line)).trim();
+  const segments = parallelDialogueSegments(source);
+  return segments.length === 1 && segments[0].start === 0 && segments[0].end === source.length
+    ? segments[0]
+    : null;
+}
+
+// 카드·대사 표현 방식·문단 종류와 무관하게 번역 크기를 같은 기준으로 계산한다.
+// 큰따옴표 대사는 대사 크기, 작은따옴표 속마음은 본문 크기의 90%를 사용한다.
+function parallelTranslationSize(settings, thoughtParallel){
+  const fallback = thoughtParallel ? 13.5 : 14;
+  const rawSize = thoughtParallel ? settings.narrSize : settings.dlgSize;
+  return Math.max(9, Math.round((parseFloat(rawSize) || fallback) * 0.9 * 10) / 10);
+}
+
+// 병행 번역 HTML은 순수 대사와 서술 혼합 문단이 모두 이 함수만 사용한다.
+// 작은따옴표 속마음은 사용자가 아래쓰기를 골라도 반드시 이어쓴다.
+function parallelTranslationHTML(segment, settings, color, requestedMode){
+  const thoughtParallel = segment.original.startsWith("'");
+  const mode = thoughtParallel ? 'inline' : requestedMode;
+  const size = parallelTranslationSize(settings, thoughtParallel);
+  // 번역 괄호 안의 작은따옴표는 속마음 문법이 아니라 번역 표기의 일부다.
+  // 글자로 보존해야 바깥 병행 번역의 보조색·축소 크기를 그대로 유지한다.
+  const content = processInline(segment.translationGroup, settings.emphasisColor, { literalSingleQuotes:true });
+  const textColor = parallelTranslationTextColor(settings, color);
+  if(mode === 'inline'){
+    return `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="inline" style="color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
+  }
+  return `<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
+}
+
+// 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 원문의 서식을 적용한다.
+// 완성된 강조 HTML에 나중에 번역 span을 복원해 속성 따옴표가 대사로 오인되는 것을 방지한다.
+function prepareMixedParallelTranslations(line, settings, color){
+  if(!settings.parallelTranslationSoft) return { line:String(line), tokens:[] };
+  const mode = resolvedParallelTranslationMode(settings);
+  const source = String(line);
+  const segments = parallelDialogueSegments(source);
+  if(!segments.length) return { line:source, tokens:[] };
+  const tokens = [];
+  let prepared = '';
+  let cursor = 0;
+  segments.forEach(segment => {
+    prepared += source.slice(cursor, segment.start) + segment.original;
+    const token = `\uE100${tokens.length}\uE101`;
+    tokens.push({ token, html:parallelTranslationHTML(segment, settings, color, mode) });
+    prepared += token;
+    cursor = segment.end;
+  });
+  prepared += source.slice(cursor);
+  return { line:prepared, tokens };
+}
+
+function restoreMixedParallelTranslations(content, tokens){
+  return tokens.reduce((html, item) => html.split(item.token).join(item.html), content);
+}
+
+// 한 줄에 하이픈 3개만 있으면 구분선 문법으로 바꾼다.
+// 문장 안의 --- 또는 ----처럼 길이가 다른 표기는 그대로 둔다.
+function normalizeStandaloneHr(text){
+  return String(text).split('\n').map(line =>
+    /^[\t ]*---[\t ]*$/.test(line) ? '[HR]' : line
+  ).join('\n');
+}
+
+// 이미 작성한 문장 앞에 문단 구분 마커를 나중에 붙여도 구조 마커가 문장과
+// 한 줄로 합쳐지지 않게 한다. 마커 뒤의 공백·본문은 그대로 보존한다.
+function normalizeBodyHrMarkers(text){
+  return normalizeStandaloneHr(text).split('\n').map(line =>
+    line.replace(/^([\t ]*\[(?:HR(?:2|3)?|GAP)\])(?=[\t ]*\S)/i, '$1\n')
+  ).join('\n');
+}
+
+function normalizedBodyHrOffset(text, offset){
+  const source = String(text);
+  const safeOffset = Math.max(0, Math.min(Number(offset) || 0, source.length));
+  const prefix = source.slice(0, safeOffset);
+  const normalizedPrefix = normalizeBodyHrMarkers(prefix);
+  let mapped = normalizedPrefix.length;
+  // 커서가 막 완성한 구분 마커 바로 뒤에 있고 같은 줄 뒤쪽에 기존 문장이 있으면,
+  // 새로 생긴 줄바꿈 다음으로 커서를 넘겨 이어 입력이 다시 마커에 붙지 않게 한다.
+  const lineStart = source.lastIndexOf('\n', Math.max(0, safeOffset - 1)) + 1;
+  let lineEnd = source.indexOf('\n', safeOffset);
+  if(lineEnd < 0) lineEnd = source.length;
+  const line = source.slice(lineStart, lineEnd);
+  const marker = line.match(/^([\t ]*\[(?:HR(?:2|3)?|GAP)\])(?=[\t ]*\S)/i);
+  const prefixAlreadySplit = normalizedPrefix.length > normalizeStandaloneHr(prefix).length;
+  if(marker && safeOffset >= lineStart + marker[1].length && !prefixAlreadySplit) mapped++;
+  return mapped;
+}
+
+function normalizeStandaloneHrInput(ta){
+  const before = ta.value;
+  const after = normalizeBodyHrMarkers(before);
+  if(after === before) return false;
+
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const nextStart = normalizedBodyHrOffset(before, start);
+  const nextEnd = normalizedBodyHrOffset(before, end);
+  ta.value = after;
+  ta.setSelectionRange(nextStart, nextEnd);
+  return true;
+}
+
+function safeHexColor(value, fallback){
+  const normalized = typeof value === 'string' ? normalizeHex(value) : null;
+  return normalized || fallback || '#555555';
+}
+
+// 인라인 서식: **...** / __...__ -> 굵게, ***...*** -> 굵게 + 강조,
+// *...* -> 강조(기울임 + 강조색),
+// '...' -> 속마음(기울임 없이 같은 강조색). 둥근 작은따옴표는 normalizeQuotes에서 통일된다.
+function processInline(text, emphasisColor, options){
+  const literalSingleQuotes = !!(options && options.literalSingleQuotes);
+  const color = /^#[0-9A-Fa-f]{6}$/.test(emphasisColor || '') ? emphasisColor : '#747474';
+  // 모바일 게시판이 em/strong에 직접 지정하는 크기·색상·행간을 이기도록 인라인
+  // 서식 태그 자체가 가장 가까운 문단의 타이포그래피를 명시적으로 상속한다.
+  const inlineTypographyLock = `font-size:inherit !important; line-height:inherit !important; font-family:inherit !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;`;
+  const inheritedColorLock = `color:inherit !important; -webkit-text-fill-color:inherit !important;`;
+  const emphasisStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:italic !important; font-weight:inherit !important; ${inlineTypographyLock}`;
+  const strongStyle = `${inheritedColorLock} font-style:inherit !important; font-weight:700 !important; ${inlineTypographyLock}`;
+  // 기울어진 마지막 획이 다음 글자에 달라붙어 보이지 않도록 약 1px만 띄운다.
+  const emphasisOuterStyle = `${emphasisStyle} margin-right:0.08em;`;
+  // 굵은 획과 기울어진 마지막 획이 겹치면 다음 글자에 더 가까워 보이므로
+  // 굵게+이태릭 조합에만 약 0.5pt 상당의 간격을 추가한다.
+  const strongEmphasisOuterStyle = `${emphasisStyle} margin-right:0.12em;`;
+  const thoughtStyle = `color:${color} !important; -webkit-text-fill-color:${color} !important; font-style:normal !important; font-weight:inherit !important; ${inlineTypographyLock}`;
+  // 이후 단계가 본문의 큰따옴표 대사만 찾으므로, 생성 마크업 속성은 작은따옴표를 써서
+  // style 값이 대사로 오인되는 일을 막는다.
+  const em = (content, combined = false) => `<em style='${combined ? strongEmphasisOuterStyle : emphasisOuterStyle}'><span style='${emphasisStyle}'>${content}</span></em>`;
+  const strong = content => `<strong style='${strongStyle}'>${content}</strong>`;
+  const thought = content => `<span data-mosaic-thought='true' style='${thoughtStyle}'>'${content}'</span>`;
+  let content = escapeTextHTML(normalizeQuotes(String(text)));
+  if(!literalSingleQuotes){
+    // 여는 따옴표 바로 앞이 글자·숫자인 영문 축약형(It's, don't)은 건드리지 않는다.
+    // 닫는 따옴표 뒤에는 조사나 문장부호가 바로 이어져도 속마음으로 인식한다.
+    content = content.replace(/(^|[^\p{L}\p{N}])'([^'\n]+?)'/gu, (m, prefix, inner) => prefix + thought(inner));
+  }
+  // 별표 문법은 속마음 따옴표를 모두 처리한 뒤 HTML로 바꾼다. 생성된 style 속성의
+  // 작은따옴표가 속마음 문법으로 다시 해석되는 일을 막고, *** → ** → * 순서를 지킨다.
+  return content
+    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, (m, inner) => strong(em(inner, true)))
+    .replace(/\*\*(.+?)\*\*/g, (m, inner) => strong(inner))
+    .replace(/__(.+?)__/g, (m, inner) => strong(inner))
+    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
+}
+
+// Shift+Enter로 만든 같은 문단 내 줄바꿈. 일반 줄을 합치는 단계에서만 이 토큰을
+// 만들기 때문에 사용자가 직접 입력한 HTML이나 구조 문법과 섞이지 않는다.
+const SOFT_BREAK_TOKEN = '\uE200';
+function processBodyInline(text, emphasisColor, options){
+  const mode = normalizeSoftBreakSpacing(options && options.softBreakSpacing);
+  if(mode === 'normal') return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join('<br>');
+  const extra = mode === 'wide' ? 0.55 : 0.2;
+  // line-height에 다시 높이를 더하면 기본→여유가 과하게 뛰고 다음 단계 차이는 작아진다.
+  // 줄 사이에 정확한 높이의 빈 블록만 넣어 세 단계의 체감 차이를 일정하게 만든다.
+  // 큰따옴표 대사 탐지보다 먼저 삽입되므로 속성에는 작은따옴표를 써서 생성 마크업이
+  // 사용자 대사로 오인되지 않게 한다.
+  const softBreak = `<br><span data-mosaic-generated='true' aria-hidden='true' style='display:block; width:100%; height:${extra}em; overflow:hidden; font-size:inherit; line-height:0;'></span>`;
+  return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join(softBreak);
+}
+
+// 배경색 밝기에 따라 읽기 좋은 글자색(흰/검)을 자동 선택 (옵션2 배경 강조용)
+function textColorFor(hex){
+  const h = hex.replace('#','');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const r = parseInt(full.slice(0,2),16), g = parseInt(full.slice(2,4),16), b = parseInt(full.slice(4,6),16);
+  const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return luminance > 0.6 ? '#1c1b1a' : '#ffffff';
+}
+
+// 카드 톤별 구조색 팔레트 (글자색은 사용자가 직접 지정, 이건 배경/테두리/구분선/소제목용)
+// 두 색을 t(0~1) 비율로 혼합 (구조색 자동 파생용)
+function mixHex(a, b, t){
+  const pa = a.replace('#',''), pb = b.replace('#','');
+  const ea = pa.length === 3 ? pa.split('').map(c=>c+c).join('') : pa;
+  const eb = pb.length === 3 ? pb.split('').map(c=>c+c).join('') : pb;
+  const out = [0,2,4].map(i => {
+    const v = Math.round(parseInt(ea.slice(i,i+2),16) * (1-t) + parseInt(eb.slice(i,i+2),16) * t);
+    return v.toString(16).padStart(2,'0');
+  });
+  return '#' + out.join('');
+}
+
+// 색상의 밝기는 유지하고 색조·채도만 제거한 중성 회색을 만든다.
+function neutralHex(hex){
+  const raw = safeHexColor(hex, '#ffffff').slice(1);
+  const r = parseInt(raw.slice(0, 2), 16);
+  const g = parseInt(raw.slice(2, 4), 16);
+  const b = parseInt(raw.slice(4, 6), 16);
+  const value = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
+    .toString(16).padStart(2, '0');
+  return `#${value}${value}${value}`;
+}
+
+// 카드 배경과 화자색을 섞어 밝은 카드에서는 은은하게, 어두운 카드에서는
+// 충분히 구분되는 색면을 만든다. 옵션2와 이름 배지가 같은 규칙을 공유한다.
+function accentTint(bg, accent){
+  const darkBackground = textColorFor(bg) === '#ffffff';
+  return mixHex(bg, accent, darkBackground ? 0.34 : 0.18);
+}
+
+// 인용과 상태창은 같은 연한 본문색을 고정으로 사용한다.
+// 밝고 어두운 카드에서 기존 상태창과 비슷한 명도를 유지하도록 혼합량만 달리한다.
+function softBodyTextColor(settings, sourceColor){
+  const bg = safeHexColor(settings.bgColor, '#ffffff');
+  const source = safeHexColor(sourceColor, settings.narrColor || '#555555');
+  const darkBackground = textColorFor(bg) === '#ffffff';
+  return mixHex(source, bg, darkBackground ? 0.32 : 0.42);
+}
+
+// 병행 번역·인용·상태창이 공유하는 보조색.
+// 화자색을 그대로 쓰지 않고 카드 배경과 섞어 부드럽게 만든다.
+function parallelTranslationTextColor(settings, sourceColor){
+  return softBodyTextColor(settings, sourceColor || settings.charColor);
+}
+
+// 상태창은 사용자가 고른 강조(보조)색을 카드 배경에 아주 옅게 섞는다.
+// 어두운 카드에서는 같은 비율이 거의 보이지 않으므로 조금만 더 섞어 형태를 유지한다.
+function statusAccentBackground(settings){
+  const bg = safeHexColor(settings.bgColor, '#ffffff');
+  const accent = safeHexColor(settings.emphasisColor, '#747474');
+  const darkBackground = textColorFor(bg) === '#ffffff';
+  return mixHex(bg, accent, darkBackground ? 0.15 : 0.08);
+}
+
+// 카드 배경색에서 구조색(대사 박스 배경/구분선/테두리/소제목/캡션)을 자동 파생.
+// 외곽선은 기존 중성 회색 구조색을 유지한다. 내부선만 강조(보조)색이 유효할 때
+// 아주 옅게 섞어 카드의 경계보다 낮은 위계로 보이게 한다. 어두운 배경에서는
+// 같은 농도가 덜 보이므로 혼합량을 2% 높이고, 보조색이 없으면 기존 회색으로 돌아간다.
+function tonePalette(settings){
+  const bg = safeHexColor(settings.bgColor, '#ffffff');
+  const isLight = textColorFor(bg) !== '#ffffff'; // 밝은 배경이면 어두운 구조색
+  const to = isLight ? '#000000' : '#ffffff';
+  const structuralAccent = typeof settings.emphasisColor === 'string'
+    ? normalizeHex(settings.emphasisColor)
+    : null;
+  // 흰 카드에서는 외곽선이 보이되 너무 도드라지지 않게 하고, 색이나 명도가 들어간
+  // 카드에서는 검정이 과하게 섞여 탁해지지 않도록 배경 존재감에 따라 대비를 낮춘다.
+  const raw = bg.slice(1);
+  const channels = [0, 2, 4].map(i => parseInt(raw.slice(i, i + 2), 16) / 255);
+  const chroma = Math.max(...channels) - Math.min(...channels);
+  const distanceFromWhite = channels.reduce((sum, channel) => sum + (1 - channel), 0) / 3;
+  const surfacePresence = Math.min(1, Math.max(
+    chroma / 0.08,
+    Math.max(0, distanceFromWhite - 0.02) / 0.10
+  ));
+  // 정확한 흰색은 9%, 색이 뚜렷한 밝은 배경은 최저 8%로 두어
+  // 흰 카드의 외곽선만 한 단계 낮추면서 배경에 따른 자동 대비는 유지한다.
+  const shellMix = isLight ? 0.09 - (0.01 * surfacePresence) : 0.10;
+  const shellBorder = mixHex(bg, to, shellMix);
+  const divider = structuralAccent
+    ? mixHex(bg, structuralAccent, isLight ? 0.11 : 0.13)
+    : mixHex(bg, to, isLight ? 0.13 : 0.15);
+  // 내용 장식선과 꼬리말은 카드 연결선과 역할이 다르므로 별도 토큰으로 둔다.
+  // divider를 직접 연하게 만들면 표지·프로필·연결 카드의 경계까지 흐려진다.
+  // 본문 [HR]은 카드 내부의 문단 경계로 즉시 인식되도록 기존보다 한 단계 진하게 둔다.
+  // 외곽·연결선에 쓰는 divider와 분리되어 있어 다른 구분선의 위계에는 영향을 주지 않는다.
+  const contentDivider = structuralAccent
+    ? mixHex(bg, structuralAccent, isLight ? 0.15 : 0.17)
+    : mixHex(bg, to, isLight ? 0.16 : 0.18);
+  const sceneOrnament = structuralAccent
+    ? mixHex(bg, structuralAccent, isLight ? 0.14 : 0.16)
+    : mixHex(bg, to, isLight ? 0.15 : 0.17);
+  // 점은 면적이 작아 같은 색도 더 흐리게 보이므로 HR3 전용으로 대비를 조금 높인다.
+  const breathOrnament = structuralAccent
+    ? mixHex(bg, structuralAccent, isLight ? 0.23 : 0.25)
+    : mixHex(bg, to, isLight ? 0.24 : 0.26);
+  const caption = mixHex(bg, to, isLight ? 0.38 : 0.52);
+  // 꼬리말은 항상 구분선 없는 미니멀 서명이므로 caption보다 한 단계 연하게 둔다.
+  const footerText = mixHex(bg, caption, 0.65);
+  return {
+    cardBg: bg,
+    boxBg: mixHex(bg, to, isLight ? 0.045 : 0.07),
+    divider,
+    contentDivider,
+    sceneOrnament,
+    breathOrnament,
+    footerText,
+    shellBorder,
+    ornament: mixHex(bg, to, isLight ? 0.28 : 0.42),
+    caption,
+    heading: {
+      1: mixHex(bg, to, 0.93),
+      2: mixHex(bg, to, 0.87),
+      3: mixHex(bg, to, 0.76),
+      4: mixHex(bg, to, 0.60),
+    }
+  };
+}
+
+
+// 내용 간격 배율 (문단 간격/대사 여백/구분선 여백을 세트로 조절)
+function spacingMult(settings){
+  if(settings.spacingMode === 'compact') return 0.7;
+  if(settings.spacingMode === 'relaxed') return 1.35;
+  return 1;
+}
+
+// 일반 나레이션과 대사가 공유하는 단락 사이 기본 여백.
+function paragraphGapPx(settings){
+  const gap = Number(settings.paragraphGap);
+  return Number.isFinite(gap) ? Math.min(40, Math.max(8, gap)) : 20;
+}
+
+function normalizeCardLayout(value){
+  return value === 'unified' ? 'unified' : 'separate';
+}
+
+// 저장·프리셋 호환성을 위해 기존 cardLayout 문자열 값은 유지하고,
+// 화면에서는 켜고 끄는 의미가 더 분명한 단일 체크박스로 보여준다.
+function syncCardLayoutCheckbox(){
+  const select = document.getElementById('cardLayout');
+  const checkbox = document.getElementById('cardLayoutUnifiedOn');
+  if(!select || !checkbox) return;
+  checkbox.checked = normalizeCardLayout(select.value) === 'unified';
+}
+
+function hasVisibleCommentOutput(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor[data-block-type="comment"]'))
+    .some(editor => {
+      const textarea = editor.querySelector('textarea');
+      return editor.dataset.outputVisible !== 'false' && textarea && textarea.value.trim();
+    });
+}
+
+// 코멘트가 있어도 통합 카드를 사용할 수 있다. 이 조합에서는 코멘트를 통합 본문 아래에
+// 모으고 크레딧으로 문서를 닫으므로, 크레딧 배치만 결과와 일치하게 최하단으로 고정한다.
+function syncCardLayoutAvailability(){
+  const select = document.getElementById('cardLayout');
+  if(!select) return false;
+  const unifiedOption = Array.from(select.options).find(option => option.value === 'unified');
+  if(unifiedOption){
+    unifiedOption.disabled = false;
+    unifiedOption.title = '';
+  }
+  select.title = '';
+  syncCardLayoutCheckbox();
+  const forceCreditBottom = select.value === 'unified' && hasVisibleCommentOutput();
+  const creditPlacement = document.getElementById('creditPlacement');
+  if(creditPlacement){
+    const creditOn = document.getElementById('creditOn');
+    creditPlacement.disabled = !(creditOn && creditOn.checked) || forceCreditBottom;
+    creditPlacement.dataset.forcedValue = forceCreditBottom ? 'bottom' : '';
+    creditPlacement.title = forceCreditBottom
+      ? '카드 이어보기에서는 코멘트 아래에서 크레딧이 문서를 마무리합니다.'
+      : '';
+    if(typeof syncSegmentedChoiceControl === 'function') syncSegmentedChoiceControl('creditPlacement');
+  }
+  return forceCreditBottom;
+}
+
+// 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
+const CARD_INLINE_PADDING = 'clamp(16px,4vw,22px)';
+
+function normalizeSoftBreakSpacing(value){
+  const raw = String(value === undefined || value === null ? '' : value);
+  if(['normal','relaxed','wide'].includes(raw)) return raw;
+  return ['normal','relaxed','wide'][Math.min(2, Math.max(0, Number.parseInt(raw, 10) || 0))];
+}
+
+function softBreakSpacingControlValue(value){
+  return String(['normal','relaxed','wide'].indexOf(normalizeSoftBreakSpacing(value)));
+}
+
+function syncSoftBreakSpacingControl(){
+  const range = document.getElementById('softBreakSpacing');
+  const output = document.getElementById('softBreakSpacingVal');
+  if(!range || !output) return;
+  const mode = normalizeSoftBreakSpacing(range.value);
+  const labels = { normal:'기본', relaxed:'여유', wide:'넓게' };
+  output.textContent = labels[mode];
+  range.setAttribute('aria-valuetext', labels[mode]);
+}
+
+// 한 줄 전체가 대괄호로 감싸지고 내부에 |가 있으면 상태창으로 인식한다.
+// [인물이름] 등 기존 대괄호 문법은 |가 없으므로 영향을 받지 않는다.
+function statusLineContent(line){
+  const match = String(line).trim().match(/^\[\s*(.+\|.+)\s*\]$/);
+  if(!match) return null;
+  const content = match[1].trim();
+  // 캡션에 |를 쓰는 본문 이미지 등 기존 구조 문법이 상태창으로 오인되지 않게 한다.
+  if(/^(?:IMG\b|접기\b|\/접기\b|HR(?:2|3)?\b|GAP\b)/i.test(content)) return null;
+  return content;
+}
+
+// 상태창 원문은 건드리지 않고 출력할 때만 | 양옆 여백을 통일한다.
+function formatStatusContent(content){
+  return String(content).replace(/\s*\|\s*/g, ' | ');
+}
+
+function isStatusBodyLine(line){
+  const withoutCenter = String(line).trim().replace(/^\[C\]\s*/i, '');
+  return statusLineContent(withoutCenter) !== null;
+}
+
+// 소제목 레벨별 크기/굵기 (일반 소제목과 소제목 접기 헤더가 공유)
+// 등록된 추가 인물 찾기 (이름은 대소문자·공백 무시하고 비교)
+function findChar(settings, name){
+  const list = settings.extraChars || [];
+  const key = String(name).trim().toLowerCase();
+  return list.find(c => (c.name || '').trim().toLowerCase() === key) || null;
+}
+
+// 대사 줄 맨 앞의 화자 마커를 떼어냄: >> / << / [인물이름]
+// 반환 {speaker, line} — speaker는 'char' | 'user' | {name,color} | null
+function stripSpeaker(line, settings){
+  if(line.startsWith('>>')) return { speaker: 'char', line: line.slice(2).trim() };
+  if(line.startsWith('<<')) return { speaker: 'user', line: line.slice(2).trim() };
+  const m = line.match(/^\[([^\[\]\n]{1,24})\]\s*/);
+  if(m){
+    const person = findChar(settings, m[1]);
+    if(person) return { speaker: person, line: line.slice(m[0].length).trim() };
+  }
+  return { speaker: null, line };
+}
+
+function headingSpec(level){
+  return {
+    1: { size: 22,   weight: 800 },
+    2: { size: 19,   weight: 700 },
+    3: { size: 16.5, weight: 700 },
+    4: { size: 14.5, weight: 700 },
+  }[level];
+}
+
+function buildParagraph(rawLine, settings, opts){
+  opts = opts || {};
+  let line = normalizeStandaloneHr(normalizeQuotes(rawLine.trim()));
+  if(!line) return '';
+
+  const pal = tonePalette(settings);
+  const sm = spacingMult(settings);
+  const baseParagraphGap = Math.round(paragraphGapPx(settings) * sm);
+  const upper = line.toUpperCase();
+
+  if(upper === '[HR]'){
+    // 아카라이브가 <hr>의 인라인 스타일은 지워버리지만 div 스타일은 유지하는 게 확인됐으므로
+    // 구분선을 div로 생성 (1px 높이 + 배경색 = 얇은 선)
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr" style="height:1px; background-color:${pal.contentDivider}; margin:${Math.round(26*sm)}px 0;"></div>\n`;
+  }
+
+  if(upper === '[HR2]'){
+    // 장면 전환용 장식 구분선 (✦ ✦ ✦). 모양은 유지하되 [HR]과 같은
+    // 장면 전환 전용 색상을 사용해 테마와 보조색은 따르되 선보다 부드럽게 보이게 한다.
+    // 기준 크기는 기존 12px을 유지하고, 아카라이브 모바일 앱의 텍스트 자동 축소가
+    // 장식에만 적용되지 않도록 이 요소 자체에 크기와 text-size-adjust를 직접 고정한다.
+    // letter-spacing은 마지막 글자 뒤에도 붙어 장식이 왼쪽으로 치우쳐 보이므로
+    // 같은 크기의 왼쪽 패딩으로 시각적 중심을 보정한다(실제 이동량은 절반인 5px).
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr2" style="box-sizing:border-box; padding-left:10px; text-align:center; color:${pal.sceneOrnament}; font-size:12px !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important; letter-spacing:10px; margin:${Math.round(48*sm)}px 0;">✦ ✦ ✦</div>\n`;
+  }
+
+  if(upper === '[HR3]'){
+    // 별 장식보다 조용한 호흡 구분. 모바일 게시판의 텍스트 색상·자동 확대가
+    // 점 장식을 덮지 못하도록 실제 색과 채움색, 크기를 요소 자체에 고정한다.
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr3" style="box-sizing:border-box; padding-left:8px; text-align:center; color:${pal.breathOrnament} !important; -webkit-text-fill-color:${pal.breathOrnament} !important; font-size:17px !important; font-weight:600; line-height:1; letter-spacing:8px; margin:${Math.round(36*sm)}px 0; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">· · ·</div>\n`;
+  }
+
+  if(upper === '[GAP]'){
+    // 기호 없이 일반 문단 간격보다 넓은 쉼만 만든다. 주변 문단의 기본 여백과 합쳐진다.
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="gap" aria-hidden="true" style="height:${Math.round(48*sm)}px;"></div>\n`;
+  }
+
+  // 가운데 정렬 접두어를 다른 본문 문법보다 먼저 해석해 [C] # 제목처럼 함께 쓸 수 있게 함.
+  let forceCenter = false;
+  if(/^\[C\]\s*/i.test(line)){
+    forceCenter = true;
+    line = line.replace(/^\[C\]\s*/i, '');
+  }
+
+  // 상태창: [ Date | Time | Location ] → 바깥 대괄호 없이 연한 보조 정보로 출력.
+  const statusContent = statusLineContent(line);
+  if(statusContent !== null){
+    const statusDisplayContent = formatStatusContent(statusContent);
+    const statusSize = Math.max(10, (parseFloat(settings.narrSize) || 14) - 1.5);
+    // 본문과는 넉넉히 분리하고, 상태창이 연속될 때는 하나의 정보 묶음처럼 촘촘히 둔다.
+    // 두 값 모두 사용자가 고른 단락 간격에 비례해 함께 조절된다.
+    const statusOuterGap = Math.max(baseParagraphGap, Math.round(baseParagraphGap * 1.6));
+    const statusStackGap = Math.max(4, Math.round(baseParagraphGap * 0.45));
+    const statusMt = opts.extraTop
+      ? Math.round(36 * sm)
+      : (opts.isFirst ? 0 : (opts.prevIsStatus ? statusStackGap : statusOuterGap));
+    const statusMb = opts.extraBottom
+      ? Math.round(36 * sm)
+      : (opts.isLast ? 0 : (opts.nextIsStatus ? statusStackGap : statusOuterGap));
+    const statusText = softBodyTextColor(settings, safeHexColor(settings.narrColor, pal.caption));
+    const statusBg = statusAccentBackground(settings);
+    const statusAlign = 'center';
+    return `    <div data-mosaic-status="true" style="box-sizing:border-box; margin:${statusMt}px 0 ${statusMb}px 0; padding:11px 16px; background-color:${statusBg}; border-radius:8px; text-align:${statusAlign}; color:${statusText}; font-size:${statusSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${processInline(statusDisplayContent, settings.emphasisColor)}</div>\n`;
+  }
+
+  // 본문 중간 이미지: [IMG 주소], [IMG 주소 @60], [IMG 주소 @60 | 캡션]
+  // @뒤 숫자는 카드 폭 대비 가로 비율이며, height:auto로 원본 종횡비를 유지한다.
+  const imgMatch = line.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]$/i);
+  if(imgMatch){
+    let src = imgMatch[1];
+    if(src.startsWith('//')) src = 'https:' + src;
+    const imageWidth = Math.max(10, Math.min(100, parseInt(imgMatch[2] || '100', 10)));
+    const captionText = imgMatch[3] ? imgMatch[3].trim() : '';
+    const caption = captionText ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(captionText, settings.emphasisColor)}</p>` : '';
+    const alt = captionText ? stripMarkers(captionText) : '';
+    // 카드의 첫 요소면 위 마진을 없애되, 구분선과 맞닿은 쪽은 일반 문단과 같은
+    // HR_GAP을 적용한다. 이미지의 고정 22px과 구분선 마진이 서로 축약되면서
+    // 이미지 옆 간격만 좁아지던 회귀를 막는다.
+    // 아카라이브가 <img>를 <p>로 감싸며 붙이는 기본 여백도 line-height/font-size 0으로 눌러줌.
+    const imageGap = Math.round(22 * sm);
+    const separatorGap = Math.round(36 * sm);
+    const imgMt = opts.extraTop ? separatorGap : (opts.isFirst ? 0 : imageGap);
+    const imgMb = opts.extraBottom ? separatorGap : imageGap;
+    return `    <div style="margin:${imgMt}px 0 ${imgMb}px 0; line-height:0; font-size:0; text-align:center;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dib" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
+  }
+
+  // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
+  const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+  if(headingMatch){
+    const level = headingMatch[1].length;
+    const text = processInline(headingMatch[2].trim(), settings.emphasisColor);
+    const spec = headingSpec(level);
+    const HEADING = { size: spec.size, weight: spec.weight };
+    const marginBottom = Math.round((opts.extraBottom ? 36 : 14) * sm);
+    // 카드 첫 출력 제목은 #만 2px, ##~####는 0px로 붙이고,
+    // 본문 중간 제목은 단계와 관계없이 20px로 통일한다.
+    const firstHeadingTop = level === 1 ? 2 : 0;
+    const marginTop = Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm);
+    const align = (forceCenter || settings.headingCenter) ? 'text-align:center; ' : '';
+    return `    <p style="margin:${marginTop}px 0 ${marginBottom}px 0; ${align}color:${pal.heading[level]}; font-size:${HEADING.size}px; font-weight:${HEADING.weight}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${text}</p>\n`;
+  }
+
+  // 인용 블록: 줄 맨 앞 '>' 하나 (+선택적 공백). '>>' 대사 표시와는 구분됨.
+  const quoteMatch = line.match(/^>(?!>)\s?(.+)$/);
+  if(quoteMatch){
+    // 인용 안쪽의 [C]도 가운데 정렬로 인식 (> [C] 내용)
+    let qInner = quoteMatch[1].trim();
+    if(/^\[C\]\s*/i.test(qInner)){ forceCenter = true; qInner = qInner.replace(/^\[C\]\s*/i, ''); }
+    const qSize = Math.max(9, (parseFloat(settings.narrSize) || 13.5) - 0.5);
+    // 인용은 앞뒤로 넉넉히 띄워 본문과 확실히 분리 (구분선 인접 시엔 HR 여백 우선)
+    const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap;
+    const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : baseParagraphGap);
+    const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
+    const quoteBg = pal.boxBg;
+    const quoteText = softBodyTextColor(settings, safeHexColor(settings.narrColor, pal.caption));
+    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processBodyInline(qInner, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</div>\n`;
+  }
+
+  let overrideColor = null;
+  const colorTagMatch = line.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
+  if(colorTagMatch){
+    overrideColor = safeHexColor(colorTagMatch[1], null);
+    line = line.slice(colorTagMatch[0].length).trim();
+  }
+
+  const sp = stripSpeaker(line, settings);
+  const speaker = sp.speaker;
+  line = sp.line;
+
+  // 줄 전체가 정확히 "..." 로 감싸져 있으면 대사.
+  // "원문" (번역)은 대사로 묶고, '속마음' (번역)은 속마음 스타일을 유지한다.
+  // 큰따옴표 대사는 원문 병행의 자동 배치·이어쓰기·아래쓰기 설정을 따른다.
+  // *...* 강조는 문장 안과 독립 문장 모두 같은 기울임·강조색으로 처리됨.
+  const parallelTranslationMode = resolvedParallelTranslationMode(settings);
+  const parallelDialogue = settings.parallelTranslationSoft ? parallelDialogueParts(line) : null;
+  const isDialogueParallel = parallelDialogue && parallelDialogue.original.startsWith('"');
+  const isDialogue = /^"[^"]*"$/.test(line) || Boolean(isDialogueParallel);
+
+  // 보이는 문단 구분 요소 바로 앞/뒤는 여백을 더 띄워 단락 구분을 직관적으로 보여줌
+  const HR_GAP = Math.round(36 * sm);
+  const mt = opts.extraTop ? HR_GAP : 0;
+  const narrationAlign = settings.narrCenter ? 'text-align:center; ' : '';
+
+  if(isDialogue){
+    let color;
+    const dialogueAlign = (forceCenter || settings.dialogueCenter) ? 'text-align:center; ' : '';
+    if(overrideColor){
+      color = overrideColor;
+    } else if(speaker && typeof speaker === 'object'){
+      color = safeHexColor(speaker.color, settings.charColor); // 등록된 추가 인물
+    } else if(speaker === 'user'){
+      color = settings.userColor;
+    } else {
+      color = settings.charColor;
+    }
+    const dialogueSource = parallelDialogue
+      ? parallelDialogue.original
+      : line;
+    const parallelTranslationHtml = parallelDialogue
+      ? parallelTranslationHTML(parallelDialogue, settings, color, parallelTranslationMode)
+      : '';
+    // 연속 대사(주고받는 대화) 구간은 간격을 자동으로 좁혀 대화의 리듬을 살림
+    let mb;
+    if(opts.extraBottom){
+      mb = HR_GAP;
+    } else if(opts.tightBottom){
+      mb = Math.max(6, Math.round(baseParagraphGap * 0.55));
+    } else {
+      mb = baseParagraphGap;
+    }
+
+    // 화자 이름표: 마커가 없는 대사는 {{char}}가 기본 화자이므로 이름표도 char로 표시.
+    // 등록된 인물은 그 인물의 이름이 그대로 이름표에 나옴.
+    let label = '';
+    let embeddedLabel = '';
+    let speakerNameHtml = '';
+    let mtEff = mt;
+    const who = speaker || 'char';
+    const speakerNameOn = (who && typeof who === 'object')
+      ? settings.charSpeakerOn
+      : (who === 'user' ? settings.userSpeakerOn : settings.charSpeakerOn);
+    if(speakerNameOn){
+      const name = (who && typeof who === 'object')
+        ? who.name
+        : (who === 'user'
+            ? ((settings.userName || '').trim() || '{{user}}')
+            : ((settings.charName || '').trim() || '{{char}}'));
+      const nameHtml = processInline(name, settings.emphasisColor);
+      speakerNameHtml = nameHtml;
+      const labelColor = parallelTranslationTextColor(settings, color);
+      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:10.5px !important; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
+      embeddedLabel = `<span data-mosaic-speaker-label="true" style="display:block; margin:0 0 5px 0; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:10.5px !important; font-weight:600; line-height:1.35; letter-spacing:0.4px;">${nameHtml}</span>`;
+      mtEff = 0;
+    }
+
+    const wrapDialogue = (html) => label
+      ? `    <div style="display:flow-root; margin:0; padding:0;">\n${label}${html}    </div>\n`
+      : html;
+
+    if(settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'){
+      // 옵션1: 배경은 카드에서 파생된 연한 색, 글자는 화자 색
+      // 옵션2: 화자 색을 카드 배경과 섞은 옅은 색면 + 자동 대비 글자
+      const soft = settings.dlgStyle === 'softlight';
+      const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
+      const txtColor = soft ? color : textColorFor(bgColor);
+      return wrapDialogue(`      <p data-mosaic-dialogue="true" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>${parallelTranslationHtml}</p>\n`);
+    }
+
+    const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
+    const dialogueBodyHtml = parallelDialogue && parallelTranslationMode === 'inline'
+      ? `<span style="display:block;">${dialogueHtml}${parallelTranslationHtml}</span>`
+      : `<span style="display:block;">${dialogueHtml}</span>${parallelTranslationHtml}`;
+
+    // 옵션3: 화자명을 옅은 화자색 배지로 압축하고 대사는 장식 없이 읽게 함
+    if(settings.dlgStyle === 'badge'){
+      const badgeBg = accentTint(settings.bgColor, color);
+      const badgeLabel = speakerNameHtml
+        ? `<span data-mosaic-speaker-label="true" style="display:inline-block; margin:0 0 7px 0; padding:2px 7px; border-radius:999px; background-color:${badgeBg}; color:${textColorFor(badgeBg)} !important; -webkit-text-fill-color:${textColorFor(badgeBg)} !important; font-size:10px !important; font-weight:700; line-height:1.35; letter-spacing:0.3px;">${speakerNameHtml}</span>`
+        : '';
+      return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
+    }
+
+    // 옵션4: 왼쪽에서 오른쪽으로 자연스럽게 사라지는 연한 색면
+    if(settings.dlgStyle === 'gradient'){
+      return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:10px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+    }
+
+    // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
+    return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:13px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+  } else {
+    const mb = opts.extraBottom ? HR_GAP : baseParagraphGap;
+    const baseColor = overrideColor
+      || (speaker && typeof speaker === 'object' ? safeHexColor(speaker.color, settings.charColor)
+          : (speaker === 'user' ? settings.userColor : settings.charColor));
+    // 병행 번역을 임시 토큰으로 보호하고 사용자 글자를 안전한 HTML로 만든 뒤 대사 강조를 합친다.
+    const preparedParallel = prepareMixedParallelTranslations(line, settings, baseColor);
+    let content = processBodyInline(preparedParallel.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
+
+    // 옵션1·2에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
+    // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
+    // 마커가 없는 대사는 줄 맨 앞 마커/{#색} 또는 기본({{char}}) 색을 따름.
+    // 옵션3·4·5의 일반 문장은 assembleBody에서 출력용 줄로 먼저 분리된다.
+    // 이 분기에 남은 특수 문법 줄에서는 인라인 화자 마커만 흔적 없이 정리한다.
+    if(/"[^"]*"/.test(content)){
+      if(settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'){
+        const soft = settings.dlgStyle === 'softlight';
+        content = content.replace(/(&gt;&gt;|&lt;&lt;|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g, (m, mark, personName, q) => {
+          let who;
+          if(mark === '&lt;&lt;') who = settings.userColor;
+          else if(mark === '&gt;&gt;') who = settings.charColor;
+          else if(personName){
+            const p = findChar(settings, personName);
+            if(!p) return m;                 // 등록되지 않은 이름이면 원문 그대로 둠
+            who = p.color;
+          }
+          else who = baseColor;
+          const bg = soft ? pal.boxBg : accentTint(settings.bgColor, who);
+          const txtColor = soft ? who : textColorFor(bg);
+          // 서술 안에 섞인 대사도 독립 대사와 같은 크기·행간을 사용한다. 이전에는
+          // 나레이션 크기를 상속해 특히 모바일에서 대사 크기 설정이 풀린 것처럼 보였다.
+          return (m.startsWith(' ') ? ' ' : '') + `<span data-mosaic-dialogue="true" style="background-color:${bg}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; padding:1px 6px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${q}</span>`;
+        });
+      } else {
+        // 옵션3·4·5: 인라인 화자 마커가 출력에 남지 않게 제거 (등록된 인물 이름만)
+        content = content.replace(/(?:&gt;&gt;|&lt;&lt;)\s*(?=")/g, '');
+        content = content.replace(/\[([^\[\]\n]{1,24})\]\s*(?=")/g, (m, name) => findChar(settings, name) ? '' : m);
+      }
+    }
+    content = restoreMixedParallelTranslations(content, preparedParallel.tokens);
+
+    const alignN = forceCenter ? 'text-align:center; ' : narrationAlign;
+    const indentN = (settings.narrIndent && !forceCenter && !settings.narrCenter) ? 'text-indent:1em; ' : '';
+    return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentN}${alignN}color:${settings.narrColor}; font-size:${settings.narrSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
+  }
+}
+
+const MAX_CREDIT_ITEMS = 20;
+let creditDragIndex = null;
+let creditDropMarker = null;
+
+function clearCreditDragUi(){
+  document.querySelectorAll('#creditEditorList .creditEditorRow').forEach(row => {
+    row.classList.remove('isCreditDragging');
+    row.removeAttribute('aria-grabbed');
+  });
+  if(creditDropMarker) creditDropMarker.remove();
+  creditDropMarker = null;
+  creditDragIndex = null;
+}
+
+function reorderCreditItem(from, insertionIndex){
+  const items = creditItemsFromEditor();
+  if(from < 0 || from >= items.length) return false;
+  let target = Math.max(0, Math.min(items.length, insertionIndex));
+  const [moved] = items.splice(from, 1);
+  if(target > from) target--;
+  if(target === from) return false;
+  items.splice(target, 0, moved);
+  snapshotCards();
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  showUndoToast('크레딧 항목 순서를 변경했습니다.');
+  return true;
+}
+
+function finishCreditItemDrop(event){
+  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const list = document.getElementById('creditEditorList');
+  const children = Array.from(list.children);
+  const insertionIndex = children
+    .slice(0, children.indexOf(creditDropMarker))
+    .filter(child => child.classList && child.classList.contains('creditEditorRow'))
+    .length;
+  const from = creditDragIndex;
+  clearCreditDragUi();
+  reorderCreditItem(from, insertionIndex);
+}
+
+function normalizeCreditItems(value){
+  let source = value;
+  if(typeof source === 'string'){
+    try { source = JSON.parse(source || '[]'); }
+    catch(e){ source = []; }
+  }
+  if(!Array.isArray(source)) return [];
+  return source.slice(0, MAX_CREDIT_ITEMS).map((item, index) => {
+    const row = item && typeof item === 'object' ? item : {};
+    return {
+      label:String(row.label || '').slice(0, 80),
+      value:String(row.value || '').slice(0, 500),
+      url:String(row.url || '').slice(0, 8192),
+      dividerBefore:index > 0 && settingFlagOn(row.dividerBefore)
+    };
+  });
+}
+
+function creditItemsFromEditor(){
+  return Array.from(document.querySelectorAll('#creditEditorList .creditEditorRow')).map(row => ({
+    label:row.querySelector('.creditLabelInput').value,
+    value:row.querySelector('.creditValueInput').value,
+    url:row.querySelector('.creditUrlInput').value,
+    dividerBefore:row.dataset.dividerBefore === 'true'
+  }));
+}
+
+function storedCreditItems(){
+  return normalizeCreditItems(document.getElementById('creditItems').value);
+}
+
+function setStoredCreditItems(items, dispatch){
+  const field = document.getElementById('creditItems');
+  field.value = JSON.stringify(normalizeCreditItems(items));
+  if(dispatch) field.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+function syncCreditItemsField(){
+  setStoredCreditItems(creditItemsFromEditor(), true);
+}
+
+function renderCreditItemsEditor(){
+  const list = document.getElementById('creditEditorList');
+  if(!list) return;
+  const stored = storedCreditItems();
+  const items = stored.length ? stored : [{ label:'', value:'', url:'', dividerBefore:false }];
+  list.replaceChildren();
+  items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'creditEditorRow';
+    row.dataset.creditIndex = String(index);
+    row.dataset.dividerBefore = String(index > 0 && settingFlagOn(item.dividerBefore));
+
+    const header = document.createElement('div');
+    header.className = 'creditRowHeader';
+    header.draggable = true;
+    header.title = '헤더를 끌어서 크레딧 순서 변경';
+
+    const rowTitle = document.createElement('span');
+    rowTitle.className = 'creditRowTitle';
+    rowTitle.textContent = `항목 ${index + 1}`;
+
+    const label = document.createElement('input');
+    label.type = 'text';
+    label.id = `creditLabel${index}`;
+    label.className = 'creditLabelInput';
+    label.maxLength = 80;
+    label.placeholder = '항목명 · 예: Model';
+    label.setAttribute('aria-label', `크레딧 ${index + 1} 항목명`);
+    label.value = item.label;
+
+    const value = document.createElement('input');
+    value.type = 'text';
+    value.id = `creditValue${index}`;
+    value.className = 'creditValueInput';
+    value.maxLength = 500;
+    value.placeholder = '내용';
+    value.setAttribute('aria-label', `크레딧 ${index + 1} 내용`);
+    value.value = item.value;
+
+    const url = document.createElement('input');
+    url.type = 'url';
+    url.id = `creditUrl${index}`;
+    url.className = 'creditUrlInput';
+    url.maxLength = 8192;
+    url.placeholder = '연결 URL · 선택';
+    url.setAttribute('aria-label', `크레딧 ${index + 1} 링크`);
+    url.value = item.url;
+
+    const actions = document.createElement('div');
+    actions.className = 'creditRowActions';
+    const divider = document.createElement('button');
+    divider.type = 'button';
+    divider.className = 'creditDividerBtn';
+    divider.textContent = '―';
+    divider.title = index === 0 ? '첫 항목 위에는 구분선을 넣을 수 없습니다.' : '이 항목 위 구분선 표시 전환';
+    divider.setAttribute('aria-label', `크레딧 ${index + 1} 위 구분선 표시 전환`);
+    divider.setAttribute('aria-pressed', row.dataset.dividerBefore);
+    divider.disabled = index === 0;
+    const moveGroup = document.createElement('span');
+    moveGroup.className = 'creditMoveGroup';
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'itemMoveBtn';
+    up.textContent = '↑';
+    up.title = '항목을 위로';
+    up.setAttribute('aria-label', `크레딧 ${index + 1} 위로 이동`);
+    up.disabled = index === 0;
+    const down = document.createElement('button');
+    down.type = 'button';
+    down.className = 'itemMoveBtn';
+    down.textContent = '↓';
+    down.title = '항목을 아래로';
+    down.setAttribute('aria-label', `크레딧 ${index + 1} 아래로 이동`);
+    down.disabled = index === items.length - 1;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'creditDeleteBtn';
+    remove.textContent = '×';
+    remove.title = '항목 삭제';
+    remove.setAttribute('aria-label', `크레딧 ${index + 1} 삭제`);
+    moveGroup.append(up, down);
+    actions.append(divider, moveGroup, remove);
+
+    header.addEventListener('dragstart', event => {
+      if(event.target.closest('button') || !document.getElementById('creditOn').checked){
+        event.preventDefault();
+        return;
+      }
+      creditDragIndex = index;
+      creditDropMarker = document.createElement('div');
+      creditDropMarker.className = 'creditDropMarker';
+      creditDropMarker.setAttribute('aria-hidden', 'true');
+      row.classList.add('isCreditDragging');
+      row.setAttribute('aria-grabbed', 'true');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(index));
+    });
+    header.addEventListener('dragend', clearCreditDragUi);
+    row.addEventListener('dragover', event => {
+      if(creditDragIndex === null) return;
+      // 끌던 항목으로 다시 돌아오면 앞서 가리키던 위치를 취소한다. 표시선이
+      // 다른 자리에 남은 채 원래 항목에서 놓여 뜻밖의 순서 변경이 되는 것을 막는다.
+      if(creditDragIndex === index){
+        if(creditDropMarker && creditDropMarker.isConnected) creditDropMarker.remove();
+        return;
+      }
+      event.preventDefault();
+      if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      if(event.clientY >= rect.top + rect.height / 2) row.after(creditDropMarker);
+      else row.before(creditDropMarker);
+    });
+    row.addEventListener('drop', finishCreditItemDrop);
+
+    [label, value, url].forEach(input => input.addEventListener('input', syncCreditItemsField));
+    url.addEventListener('change', () => {
+      const normalized = normalizeProtocolRelativeUrl(url.value);
+      if(url.value !== normalized) url.value = normalized;
+      syncCreditItemsField();
+    });
+    up.addEventListener('click', () => moveCreditItem(index, -1));
+    down.addEventListener('click', () => moveCreditItem(index, 1));
+    divider.addEventListener('click', () => {
+      if(index === 0) return;
+      snapshotCards();
+      const enabled = row.dataset.dividerBefore !== 'true';
+      row.dataset.dividerBefore = String(enabled);
+      divider.setAttribute('aria-pressed', String(enabled));
+      syncCreditItemsField();
+      showUndoToast(`크레딧 ${index + 1} 위 구분선을 ${enabled ? '표시합니다.' : '숨겼습니다.'}`);
+    });
+    remove.addEventListener('click', () => deleteCreditItem(index));
+    const fields = document.createElement('div');
+    fields.className = 'creditRowFields';
+    fields.append(label, value, url);
+    header.append(rowTitle, actions);
+    row.append(header, fields);
+    list.appendChild(row);
+  });
+  syncCreditControlState();
+}
+
+document.getElementById('creditEditorList').addEventListener('dragover', event => {
+  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
+  event.preventDefault();
+  if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+});
+document.getElementById('creditEditorList').addEventListener('drop', finishCreditItemDrop);
+
+function addCreditItem(){
+  const items = creditItemsFromEditor();
+  if(items.length >= MAX_CREDIT_ITEMS){
+    showNoticeToast(`크레딧은 최대 ${MAX_CREDIT_ITEMS}개까지 추가할 수 있습니다.`);
+    return;
+  }
+  snapshotCards();
+  items.push({ label:'', value:'', url:'', dividerBefore:false });
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  const next = document.querySelector('#creditEditorList .creditEditorRow:last-child .creditLabelInput');
+  if(next) next.focus();
+  showUndoToast('크레딧 항목을 추가했습니다.');
+}
+
+function moveCreditItem(index, delta){
+  const items = creditItemsFromEditor();
+  const target = index + delta;
+  if(target < 0 || target >= items.length) return;
+  snapshotCards();
+  [items[index], items[target]] = [items[target], items[index]];
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  showUndoToast('크레딧 항목 순서를 변경했습니다.');
+}
+
+function deleteCreditItem(index){
+  const items = creditItemsFromEditor();
+  if(index < 0 || index >= items.length) return;
+  snapshotCards();
+  items.splice(index, 1);
+  setStoredCreditItems(items, true);
+  renderCreditItemsEditor();
+  showUndoToast('크레딧 항목을 삭제했습니다.');
+}
+
+const CREDIT_PRESET_KEY = 'mosaicCreditItemPresets_v1';
+const MAX_CREDIT_PRESETS = 50;
+
+function sanitizeCreditPresetList(value){
+  if(!Array.isArray(value)) return [];
+  return value.slice(0, MAX_CREDIT_PRESETS).map((preset, index) => {
+    if(!preset || typeof preset !== 'object' || Array.isArray(preset)) return null;
+    const name = typeof preset.name === 'string' ? preset.name.trim().slice(0, 80) : '';
+    if(!name || !Array.isArray(preset.items)) return null;
+    const items = normalizeCreditItems(preset.items)
+      .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
+    if(!items.length) return null;
+    const id = typeof preset.id === 'string' && preset.id
+      ? preset.id.slice(0, 120)
+      : `credit-preset-${index}-${name.toLowerCase()}`;
+    return { id, name, items, updatedAt:Number(preset.updatedAt) || 0 };
+  }).filter(Boolean);
+}
+
+function loadCreditPresets(){
+  try { return sanitizeCreditPresetList(JSON.parse(localStorage.getItem(CREDIT_PRESET_KEY) || '[]')); }
+  catch(e){ return []; }
+}
+
+function saveCreditPresets(presets){
+  try {
+    localStorage.setItem(CREDIT_PRESET_KEY, JSON.stringify(sanitizeCreditPresetList(presets)));
+    return true;
+  }catch(e){
+    showNoticeToast('크레딧 프리셋을 저장하지 못했습니다.');
+    return false;
+  }
+}
+
+function syncCreditPresetControls(){
+  const enabled = document.getElementById('creditOn').checked;
+  const selected = document.getElementById('creditPresetSelect').value !== '';
+  const hasName = document.getElementById('creditPresetName').value.trim() !== '';
+  document.getElementById('creditPresetLoadBtn').disabled = !enabled || !selected;
+  document.getElementById('creditPresetDeleteBtn').disabled = !enabled || !selected;
+  document.getElementById('creditPresetSaveBtn').disabled = !enabled || !hasName;
+}
+
+function renderCreditPresetOptions(selectedId){
+  const select = document.getElementById('creditPresetSelect');
+  const presets = loadCreditPresets();
+  const preferred = selectedId !== undefined ? selectedId : select.value;
+  select.replaceChildren(new Option('저장된 프리셋 선택', ''));
+  presets.forEach(preset => select.appendChild(new Option(preset.name, preset.id)));
+  select.value = presets.some(preset => preset.id === preferred) ? preferred : '';
+  syncCreditPresetControls();
+}
+
+function saveCurrentCreditPreset(){
+  const nameInput = document.getElementById('creditPresetName');
+  const name = nameInput.value.trim();
+  if(!name) return;
+  const items = normalizeCreditItems(creditItemsFromEditor())
+    .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
+  if(!items.length){
+    showNoticeToast('저장할 크레딧 항목이 없습니다.');
+    return;
+  }
+  const presets = loadCreditPresets();
+  const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
+  if(!existing && presets.length >= MAX_CREDIT_PRESETS){
+    showNoticeToast(`크레딧 프리셋은 최대 ${MAX_CREDIT_PRESETS}개까지 저장할 수 있습니다.`);
+    return;
+  }
+  const id = existing ? existing.id : `credit-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const next = existing
+    ? presets.map(preset => preset.id === id ? { id, name, items, updatedAt:Date.now() } : preset)
+    : [...presets, { id, name, items, updatedAt:Date.now() }];
+  if(!saveCreditPresets(next)) return;
+  renderCreditPresetOptions(id);
+  showNoticeToast(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
+}
+
+function loadSelectedCreditPreset(){
+  const id = document.getElementById('creditPresetSelect').value;
+  const preset = loadCreditPresets().find(item => item.id === id);
+  if(!preset) return;
+  snapshotCards();
+  setStoredCreditItems(preset.items, true);
+  renderCreditItemsEditor();
+  document.getElementById('creditPresetName').value = preset.name;
+  syncCreditPresetControls();
+  showUndoToast(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
+}
+
+function deleteSelectedCreditPreset(){
+  const id = document.getElementById('creditPresetSelect').value;
+  const presets = loadCreditPresets();
+  const preset = presets.find(item => item.id === id);
+  if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제할까요?`)) return;
+  if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
+  renderCreditPresetOptions('');
+  showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
+}
+
+function getSettings(){
+  const textFont = document.getElementById('textFont').value;
+  return {
+    imgOn: document.getElementById('imgOn').checked,
+    imgUrl: document.getElementById('imgUrl').value.trim(),
+    imgHeight: document.getElementById('imgHeight').value,
+    xpos: document.getElementById('xpos').value,
+    ypos: document.getElementById('ypos').value,
+    narrFont: textFont,
+    narrSize: document.getElementById('narrSize').value,
+    narrLine: document.getElementById('narrLine').value,
+    narrColor: document.getElementById('narrColor').value,
+    dlgStyle: document.getElementById('dlgStyle').value,
+    dlgFont: textFont,
+    dlgSize: document.getElementById('dlgSize').value,
+    dlgLine: document.getElementById('dlgLine').value,
+    titleSize: document.getElementById('titleSize').value,
+    titleBold: document.getElementById('titleBold').checked,
+    foldTitleSize: document.getElementById('foldTitleSize').value,
+    foldTitleBold: document.getElementById('foldTitleBold').checked,
+    foldTitleMinimal: !document.getElementById('foldTitleDecorationOn').checked,
+    foldDividerMinimal: !document.getElementById('foldDividerOn').checked,
+    foldTitleAutoNumber: document.getElementById('foldTitleAutoNumber').checked,
+    charColor: document.getElementById('charColor').value,
+    userColor: document.getElementById('userColor').value,
+    emphasisColor: document.getElementById('emphasisColor').value,
+    parallelTranslationSoft: document.getElementById('parallelTranslationLayout').value !== 'off',
+    parallelTranslationLayout: document.getElementById('parallelTranslationLayout').value,
+    charSpeakerOn: document.getElementById('charSpeakerOn').checked,
+    userSpeakerOn: document.getElementById('userSpeakerOn').checked,
+    extraChars: parseExtraChars(),
+    charName: document.getElementById('charName').value,
+    userName: document.getElementById('userName').value,
+    footerOn: document.getElementById('footerOn').checked,
+    footerAuthor: document.getElementById('footerAuthor').value,
+    creditOn: document.getElementById('creditOn').checked,
+    creditPlacement: normalizeCreditPlacement(document.getElementById('creditPlacement').value),
+    creditItems: storedCreditItems(),
+    logTitleOn: document.getElementById('logTitleOn').checked,
+    titleMinimal: document.getElementById('titleMinimal').checked,
+    logNumber: document.getElementById('logNumber').value,
+    logNumberUrl: normalizeProtocolRelativeUrl(document.getElementById('logNumberUrl').value),
+    logTitle: document.getElementById('logTitle').value,
+    logTitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logTitleUrl').value),
+    subChar: document.getElementById('subChar').value,
+    subCharUrl: normalizeProtocolRelativeUrl(document.getElementById('subCharUrl').value),
+    subUser: document.getElementById('subUser').value,
+    subUserUrl: normalizeProtocolRelativeUrl(document.getElementById('subUserUrl').value),
+    subtitleCoupleSeparator: normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value),
+    logSubtitle: document.getElementById('logSubtitle').value,
+    logSubtitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logSubtitleUrl').value),
+    profileOn: document.getElementById('profileOn').checked,
+    profileMinimal: document.getElementById('profileMinimal').checked,
+    profileCharOn: document.getElementById('profileCharOn').checked,
+    profileUserOn: document.getElementById('profileUserOn').checked,
+    profileCommonOn: document.getElementById('profileCommonOn').checked,
+    profilePlacement: document.getElementById('profilePlacement').value,
+    profileStyle: document.getElementById('profileStyle').value,
+    profileOrder: document.getElementById('profileOrder').value,
+    profileCharImage: normalizeProtocolRelativeUrl(document.getElementById('profileCharImage').value),
+    profileCharScale: document.getElementById('profileCharScale').value,
+    profileCharX: document.getElementById('profileCharX').value,
+    profileCharY: document.getElementById('profileCharY').value,
+    profileCharName: document.getElementById('profileCharName').value,
+    profileCharDesc: document.getElementById('profileCharDesc').value,
+    profileCharTags: document.getElementById('profileCharTags').value,
+    profileUserImage: normalizeProtocolRelativeUrl(document.getElementById('profileUserImage').value),
+    profileUserScale: document.getElementById('profileUserScale').value,
+    profileUserX: document.getElementById('profileUserX').value,
+    profileUserY: document.getElementById('profileUserY').value,
+    profileUserName: document.getElementById('profileUserName').value,
+    profileUserDesc: document.getElementById('profileUserDesc').value,
+    profileUserTags: document.getElementById('profileUserTags').value,
+    profileRelationship: document.getElementById('profileRelationship').value,
+    profileSituation: document.getElementById('profileSituation').value,
+    paragraphGap: document.getElementById('paragraphGap').value,
+    softBreakSpacing: normalizeSoftBreakSpacing(document.getElementById('softBreakSpacing').value),
+    cardLayout: normalizeCardLayout(document.getElementById('cardLayout').value),
+    spacingMode: document.getElementById('spacingMode').value,
+    cardWidth: document.getElementById('cardWidth').value,
+    cardBorderOn: document.getElementById('cardBorderOn').checked,
+    bgColor: document.getElementById('bgColor').value,
+    narrIndent: document.getElementById('narrIndent').checked,
+    narrCenter: document.getElementById('narrCenter').checked,
+    headingCenter: document.getElementById('headingCenter').checked,
+    dialogueCenter: document.getElementById('dialogueCenter').checked,
+    quoteCenter: document.getElementById('quoteCenter').checked,
+    bodyFoldTitleCenter: document.getElementById('bodyFoldTitleCenter').checked,
+    commentWidth: normalizeCommentWidth(document.getElementById('commentWidth').value),
+    commentAlign: normalizeCommentAlign(document.getElementById('commentAlign').value),
+  };
+}
+
+
+
+function buildImageBlock(settings){
+  const imageStatus = document.getElementById('imageLoadStatus');
+  const imageFailed = imageStatus && imageStatus.dataset.state === 'error';
+  if(!settings.imgOn || !settings.imgUrl || imageFailed) return '';
+  // 대표 이미지: 카드들 맨 위에 항상 표시되며(접기 카드여도 보임), 첫 카드와 한 몸처럼 연결됨.
+  // 위 모서리만 둥글고 아래 테두리는 없음 -> 바로 아래 첫 카드의 위 테두리와 만나 얇은 경계선 하나만 남음.
+  // border를 개별 속성(left/right/top)으로 지정해 아카라이브가 축약형을 재해석해도 이중선이 생기지 않게 함.
+  const pal = tonePalette(settings);
+  const H = parseFloat(settings.imgHeight) || 300;
+  const xValue = Number(settings.xpos);
+  const yValue = Number(settings.ypos);
+  const xpos = Number.isFinite(xValue) ? Math.min(100, Math.max(0, xValue)) : 50;
+  const ypos = Number.isFinite(yValue) ? Math.min(100, Math.max(0, yValue)) : 0;
+  const W = parseInt(settings.cardWidth) || 750;
+  const outerBorder = settings.cardBorderOn === false
+    ? ''
+    : `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-top:1px solid ${pal.shellBorder};`;
+  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
+`;
+}
+
+
+
+// 불리언 저장값을 명시적으로 판별해 문자열 "false"를 켜짐으로 오해하지 않게 한다.
+function settingFlagOn(value){
+  return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
+}
+
+function foldDividerStyle(minimal, palette){
+  // 아카라이브와 일부 브라우저는 details를 다시 열 때 summary 뒤 콘텐츠에
+  // 자체 여백·최소 높이를 되살릴 수 있다. 구분선이 제목에서 멀어지지 않도록
+  // 제목 다음 본문 래퍼의 레이아웃을 인라인으로 완전히 고정한다.
+  // display는 지정하지 않는다. 인라인 display:block은 닫힌 details의 기본 숨김보다
+  // 우선해 아카라이브에서 접힌 본문이 다시 보일 수 있다.
+  const stableLayout = 'box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; clear:both;';
+  if(settingFlagOn(minimal)) return `${stableLayout} border-top:none;`;
+  return `${stableLayout} border-top:1px solid ${palette.divider};`;
+}
+
+// 접기 블록 (<details>/<summary>) — 스크립트 없이 동작하는 순수 HTML 토글.
+// 배경 칩 없이 테두리와 제목 줄만으로 구성한 미니멀 스타일.
+function buildFold(title, innerHTML, settings, forceCenter){
+  const pal = tonePalette(settings);
+  const sm = spacingMult(settings);
+  const inlinePadding = CARD_INLINE_PADDING;
+  const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
+  const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const ornament = (!titleMinimal || !title.trim())
+    ? `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>`
+    : '';
+  const bodyDivider = foldDividerStyle(bodyMinimal, pal);
+  const bodyTopPadding = bodyMinimal ? 20 : 16;
+  const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+}
+
+
+// 소제목 접기 (#> 제목): 소제목이 접기 헤더가 되는 블록 — 배경 칩 없는 미니멀 스타일
+function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
+  const pal = tonePalette(settings);
+  const sm = spacingMult(settings);
+  const inlinePadding = CARD_INLINE_PADDING;
+  const spec = headingSpec(level);
+  const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
+  const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
+  const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const ornament = titleMinimal
+    ? ''
+    : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
+  const bodyDivider = foldDividerStyle(bodyMinimal, pal);
+  const bodyTopPadding = bodyMinimal ? 22 : 18;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+}
+
+
+// 접두어({#색}, >>, <<)를 벗겨낸 뒤 줄 전체가 "..." 대사인지 판별 (연속 대사 간격용)
+function isPureDialogueLine(line, settings){
+  let l = normalizeQuotes(line.trim());
+  const cm = l.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
+  if(cm) l = l.slice(cm[0].length).trim();
+  if(l.startsWith('>>') || l.startsWith('<<')) l = l.slice(2).trim();
+  else {
+    const pm = l.match(/^\[([^\[\]\n]{1,24})\]\s*/);
+    if(pm && settings && findChar(settings, pm[1])) l = l.slice(pm[0].length).trim();
+  }
+  const parallel = settings && settings.parallelTranslationSoft ? parallelDialogueParts(l) : null;
+  return /^"[^"]*"$/.test(l)
+    || Boolean(parallel && parallel.original.startsWith('"'));
+}
+
+// 옵션 3·4·5는 입력값을 바꾸지 않고 출력용 줄 배열에서만
+// 문장 속 대사를 독립 문단으로 분리한다.
+function usesSeparatedDialogueOutput(settings){
+  return ['badge', 'gradient', 'box'].includes(settings.dlgStyle);
+}
+
+function isStructuralBodyLine(line){
+  const trimmed = String(line).trim().replace(/^\[C\]\s*/i, '');
+  const upper = trimmed.toUpperCase();
+  return upper === '[HR]'
+    || upper === '[HR2]'
+    || upper === '[HR3]'
+    || upper === '[GAP]'
+    || /^\[IMG\s+/i.test(trimmed)
+    || /^\[접기(?:\s+.+?)?\]$/.test(trimmed)
+    || /^\[\/접기\]$/.test(trimmed)
+    || /^#{1,4}>?\s+/.test(trimmed)
+    || /^>(?!>)/.test(trimmed)
+    || statusLineContent(trimmed) !== null;
+}
+
+// [BR]로 이어지는 두 원문 줄을 실제 한 문단으로 합친다.
+// 인용문은 첫 줄의 `>`만 문단 문법으로 남긴다. 새 입력은 다음 줄에 `>`를 붙이지
+// 않지만, 이전 버전이 저장한 `> ` 연속 줄도 같은 결과가 되도록 함께 받아들인다.
+function combineSoftBreakPair(left, right){
+  const leftText = String(left);
+  const rightText = String(right);
+  if(!leftText.trim() || !rightText.trim()) return null;
+
+  // [C]는 인용문보다 먼저 해석되는 정렬 접두어다. 따라서 `[C] > 인용`도
+  // 일반 `> 인용`과 같은 문단으로 결합하되, 첫 줄의 [C]와 >는 그대로 보존한다.
+  const quoteLeft = leftText.match(/^(\s*(?:\[C\]\s*)?>(?!>)\s?)(.*)$/i);
+  if(quoteLeft){
+    const quoteRight = rightText.match(/^\s*(?:\[C\]\s*)?>(?!>)\s?(.*)$/i);
+    // 이전 버전의 자동 `>`와 새 버전의 평문 연속 줄을 모두 같은 인용문으로 처리한다.
+    if(!quoteRight && (/^\s*(?:>>|<<)/.test(rightText) || isStructuralBodyLine(rightText))) return null;
+    const continuation = quoteRight ? quoteRight[1] : rightText;
+    if(!continuation.trim()) return null;
+    return quoteLeft[1] + quoteLeft[2] + SOFT_BREAK_TOKEN + continuation.trimStart();
+  }
+
+  if(isStructuralBodyLine(leftText) || isStructuralBodyLine(rightText)) return null;
+  return leftText + SOFT_BREAK_TOKEN + rightText;
+}
+
+function splitDialogueLineForOutput(rawLine, settings){
+  const original = String(rawLine);
+  let line = normalizeQuotes(original).trim();
+  if(!usesSeparatedDialogueOutput(settings)
+    || !/"[^"]*"/.test(line)
+    || isPureDialogueLine(line, settings)
+    || isStructuralBodyLine(line)){
+    return [original];
+  }
+
+  let centerPrefix = '';
+  if(/^\[C\]\s*/i.test(line)){
+    centerPrefix = '[C] ';
+    line = line.replace(/^\[C\]\s*/i, '');
+  }
+
+  let colorPrefix = '';
+  const colorMatch = line.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
+  if(colorMatch){
+    colorPrefix = `{${colorMatch[1]}} `;
+    line = line.slice(colorMatch[0].length).trim();
+  }
+
+  // 줄 맨 앞 화자 표시는 해당 줄에서 발견되는 모든 대사의 기본 화자로 승계한다.
+  let defaultSpeakerPrefix = '';
+  if(line.startsWith('>>') || line.startsWith('<<')){
+    defaultSpeakerPrefix = line.slice(0, 2) + ' ';
+    line = line.slice(2).trim();
+  } else {
+    const leadingPerson = line.match(/^\[([^\[\]\n]{1,24})\]\s*/);
+    if(leadingPerson && findChar(settings, leadingPerson[1])){
+      defaultSpeakerPrefix = `[${leadingPerson[1]}] `;
+      line = line.slice(leadingPerson[0].length).trim();
+    }
+  }
+
+  const parts = [];
+  let cursor = 0;
+  const dialoguePattern = settings.parallelTranslationSoft
+    ? /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")((?:\s*\(\s*[^()（）]+?\s*\)|\s*（\s*[^()（）]+?\s*）))?/g
+    : /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g;
+  let match;
+  while((match = dialoguePattern.exec(line))){
+    const inlinePerson = match[2] ? findChar(settings, match[2]) : null;
+    const recognizedInlineSpeaker = Boolean(match[1] || inlinePerson);
+    const quoteOffset = match[0].indexOf(match[3]);
+    const quoteStart = match.index + quoteOffset;
+    const segmentStart = recognizedInlineSpeaker ? match.index : quoteStart;
+    const narration = line.slice(cursor, segmentStart).trim();
+    if(narration) parts.push(centerPrefix + narration);
+
+    const inlineSpeakerPrefix = match[1]
+      ? match[1] + ' '
+      : (inlinePerson ? `[${match[2]}] ` : '');
+    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}${match[3]}${match[4] || ''}`.trim());
+    cursor = match.index + match[0].length;
+  }
+
+  const tail = line.slice(cursor).trim();
+  if(tail) parts.push(centerPrefix + tail);
+  return parts.length > 1 ? parts : [original];
+}
+
+function expandDialogueLinesForOutput(lines, settings){
+  if(!usesSeparatedDialogueOutput(settings)) return lines;
+  const expanded = [];
+  lines.forEach(line => {
+    splitDialogueLineForOutput(line, settings).forEach(part => {
+      const trimmed = String(part).trim();
+      if(trimmed) expanded.push(trimmed);
+    });
+  });
+  return expanded;
+}
+
+function combineSoftBreakLines(lines){
+  const combined = [];
+  for(let i = 0; i < lines.length; i++){
+    let line = String(lines[i]);
+    while(/\[BR\]\s*$/i.test(line) && i + 1 < lines.length){
+      const left = line.replace(/\[BR\]\s*$/i, '');
+      const right = String(lines[i + 1]);
+      const joined = combineSoftBreakPair(left, right);
+      if(joined === null) break;
+      line = joined;
+      i++;
+    }
+    combined.push(line);
+  }
+  return combined;
+}
+
+// 한 카드 분량의 줄들을 문단 HTML로 조립 (수동 접기 + 소제목 접기 포함)
+function assembleBody(lines, settings){
+  const renderLines = expandDialogueLinesForOutput(combineSoftBreakLines(lines), settings);
+  // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
+  const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
+  let bodyHTML = '';
+  let manualBuf = null, manualTitle = '', manualForceCenter = false;   // [접기 제목] ... [/접기]
+  let headBuf = null, headTitle = '', headLevel = 0, headForceCenter = false; // #> 제목 (다음 같은/큰 소제목까지)
+
+  const push = (html) => {
+    if(manualBuf !== null) manualBuf += html;
+    else if(headBuf !== null) headBuf += html;
+    else bodyHTML += html;
+  };
+  const closeManual = () => {
+    if(manualBuf === null) return;
+    const html = buildFold(manualTitle, manualBuf, settings, manualForceCenter);
+    manualBuf = null;
+    manualForceCenter = false;
+    push(html);
+  };
+  const closeHead = () => {
+    if(headBuf === null) return;
+    bodyHTML += buildHeadingFold(headLevel, headTitle, headBuf, settings, headForceCenter);
+    headBuf = null;
+    headForceCenter = false;
+  };
+
+  renderLines.forEach((line, i) => {
+    const centeredSyntax = /^\[C\]\s*/i.test(line);
+    const structuralLine = centeredSyntax ? line.replace(/^\[C\]\s*/i, '') : line;
+    // ----- 수동 접기 열기 -----
+    const openMatch = structuralLine.match(/^\[접기(?:\s+(.+?))?\]$/);
+    if(openMatch && manualBuf === null){
+      manualTitle = (openMatch[1] || '접기').trim();
+      manualForceCenter = centeredSyntax;
+      manualBuf = '';
+      return;
+    }
+    // ----- 접기 닫기: 수동 접기가 우선, 없으면 소제목 접기를 닫음 -----
+    if(/^\[\/접기\]$/.test(line)){
+      if(manualBuf !== null){ closeManual(); return; }
+      if(headBuf !== null){ closeHead(); return; }
+      return; // 열린 접기가 없으면 무시
+    }
+    // ----- 소제목 접기 열기: #> 제목 -----
+    const headFoldMatch = structuralLine.match(/^(#{1,4})>\s+(.+)$/);
+    if(headFoldMatch && manualBuf === null){
+      closeHead(); // 이전 소제목 접기가 열려 있으면 먼저 닫음
+      headLevel = headFoldMatch[1].length;
+      headTitle = headFoldMatch[2].trim();
+      headForceCenter = centeredSyntax;
+      headBuf = '';
+      return;
+    }
+    // 수동 접기 안에서의 #> 는 일반 소제목으로 처리 (접기 중첩 방지)
+    if(headFoldMatch && manualBuf !== null){
+      line = (centeredSyntax ? '[C] ' : '') + headFoldMatch[1] + ' ' + headFoldMatch[2];
+    }
+    // ----- 같거나 더 큰 일반 소제목이 나오면 소제목 접기 자동 닫힘 -----
+    const plainHeadMatch = structuralLine.match(/^(#{1,4})\s+/);
+    if(plainHeadMatch && headBuf !== null && manualBuf === null && plainHeadMatch[1].length <= headLevel){
+      closeHead();
+    }
+
+    const isHR = isSep(line);
+    const nextIsHR = !isHR && renderLines[i + 1] !== undefined && isSep(renderLines[i + 1]);
+    const prevIsHR = !isHR && renderLines[i - 1] !== undefined && isSep(renderLines[i - 1]);
+    const isStatus = isStatusBodyLine(line);
+    const prevIsStatus = isStatus && renderLines[i - 1] !== undefined && isStatusBodyLine(renderLines[i - 1]);
+    const nextIsStatus = isStatus && renderLines[i + 1] !== undefined && isStatusBodyLine(renderLines[i + 1]);
+    // 연속 대사: 이 줄과 다음 줄이 모두 대사 단독 줄이면 간격을 좁혀 대화 리듬을 살림
+    const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
+      && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
+    // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
+    // 무시되는 닫기 마커가 있어도 첫 소제목의 위 여백이 다시 커지지 않게 한다.
+    // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
+    const isFirst = bodyHTML === '' && manualBuf === null && headBuf === null;
+    const isLast = i === renderLines.length - 1;
+    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus }));
+  });
+
+  // 닫는 마커 없이 끝났으면 자동으로 닫아줌 (수동 접기 -> 소제목 접기 순)
+  closeManual();
+  closeHead();
+  return bodyHTML;
+}
+
+// 로그 표제 밴드: 번호/제목/부제 — 대표 이미지 바로 아래, 첫 카드 위에 붙는 표지 영역.
+// 카드 밖에 있어서 첫 카드를 접어도 이미지와 함께 항상 보임.
+function buildTitleBlock(settings, hasImg){
+  if(!settings.logTitleOn) return '';
+  const num = (settings.logNumber || '').trim();
+  const title = (settings.logTitle || '').trim();
+  // 부제 = [캐릭터 ×/&/· 유저] · [자유 부제] — 한쪽만 있으면 그것만,
+  // 둘 다 있으면 자유 부제 구분점과 같은 서식의 ·로 연결한다.
+  const sc = (settings.subChar || '').trim();
+  const su = (settings.subUser || '').trim();
+  const free = (settings.logSubtitle || '').trim();
+  const hasSubtitle = Boolean(sc || su || free);
+  if(!num && !title && !hasSubtitle) return '';
+  const pal = tonePalette(settings);
+  const sm = spacingMult(settings);
+  const processedNum = processInline(num, settings.emphasisColor);
+  const processedTitle = processInline(title, settings.emphasisColor);
+  const processedSc = buildStylePreservingLink(
+    processInline(sc, settings.emphasisColor),
+    settings.subCharUrl,
+    pal.caption
+  );
+  const processedSu = buildStylePreservingLink(
+    processInline(su, settings.emphasisColor),
+    settings.subUserUrl,
+    pal.caption
+  );
+  const orderedNameHTML = settings.profileOrder === 'user-bot'
+    ? [su ? processedSu : '', sc ? processedSc : '']
+    : [sc ? processedSc : '', su ? processedSu : ''];
+  const coupleSeparator = escapeTextHTML(normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
+  const coupleHTML = orderedNameHTML.filter(Boolean).join(` ${coupleSeparator} `);
+  const freeHTML = buildStylePreservingLink(
+    processInline(free, settings.emphasisColor),
+    settings.logSubtitleUrl,
+    pal.caption
+  );
+  const subHTML = coupleHTML && freeHTML
+    ? `${coupleHTML} · ${freeHTML}`
+    : (coupleHTML || freeHTML);
+  let inner = '';
+  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${buildStylePreservingLink(processedNum, settings.logNumberUrl, pal.caption)}</p>`;
+  if(title) inner += `<p style="margin:0; font-size:${settings.titleSize}px; font-weight:${settings.titleBold ? 800 : 500}; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${buildStylePreservingLink(processedTitle, settings.logTitleUrl, pal.heading[1])}</p>`;
+  if(hasSubtitle) inner += `<p style="box-sizing:border-box; width:100%; margin:${title ? 8 : 0}px 0 0 0; padding-left:0.5px; text-align:center; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${subHTML}</p>`;
+  // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
+  // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
+  const showOuterBorder = settings.cardBorderOn !== false;
+  const sideBorders = showOuterBorder
+    ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder};`
+    : '';
+  const topEdge = hasImg
+    ? ``
+    : `${showOuterBorder ? `border-top:1px solid ${pal.shellBorder};` : ''} border-radius:16px 16px 0 0;`;
+  // 미니멀 표제는 바로 아래 프로필과 하나의 카드처럼 이어지므로 하단 여백을 줄인다.
+  // 일반 표제의 기존 간격은 그대로 유지한다.
+  const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
+  const inlinePadding = CARD_INLINE_PADDING;
+  const W = parseInt(settings.cardWidth) || 750;
+  return `<div data-mosaic-title="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+`;
+}
+
+// 프로필 이미지는 아카라이브가 position:absolute/overflow:hidden 조합을 정리해도
+// 깨지지 않도록 단일 고정 크기 배경 요소로 출력한다. 이미지 방향을 확인한 뒤에는
+// cover 기준 확대 배율도 가로·세로 사진에 맞게 안전한 background-size로 변환한다.
+const profileImageDimensions = new Map();
+function profileImageBackgroundSize(url, zoom){
+  if(zoom <= 100) return 'cover';
+  const dimensions = profileImageDimensions.get(normalizeProtocolRelativeUrl(url));
+  if(!dimensions || !dimensions.width || !dimensions.height) return 'cover';
+  return dimensions.width >= dimensions.height ? `auto ${zoom}%` : `${zoom}% auto`;
+}
+
+// 상단 프로필: 역할·표시 이름·정보를 분리한다.
+// 아카라이브가 flex 정렬 속성을 선택적으로 제거하는 환경을 고려해 프로필 출력에는
+// flex/grid를 쓰지 않고 block·inline-block·table-cell만 사용한다.
+function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTopSpacing){
+  if(!settings.profileOn) return '';
+  const commonEnabled = settings.profileCommonOn !== false;
+  const relationship = commonEnabled ? (settings.profileRelationship || '').trim() : '';
+  const situation = commonEnabled ? (settings.profileSituation || '').trim() : '';
+  let profiles = [
+    {
+      role:'BOT',
+      enabled:settings.profileCharOn !== false,
+      image:(settings.profileCharImage || '').trim(),
+      scale:settings.profileCharScale,
+      x:settings.profileCharX,
+      y:settings.profileCharY,
+      name:(settings.profileCharName || '').trim(),
+      desc:(settings.profileCharDesc || '').trim(),
+      tags:(settings.profileCharTags || '').trim(),
+      color:settings.charColor
+    },
+    {
+      role:'USER',
+      enabled:settings.profileUserOn !== false,
+      image:(settings.profileUserImage || '').trim(),
+      scale:settings.profileUserScale,
+      x:settings.profileUserX,
+      y:settings.profileUserY,
+      name:(settings.profileUserName || '').trim(),
+      desc:(settings.profileUserDesc || '').trim(),
+      tags:(settings.profileUserTags || '').trim(),
+      color:settings.userColor
+    }
+  ].filter(profile => profile.enabled && (profile.image || profile.name || profile.desc || profile.tags));
+  if(settings.profileOrder === 'user-bot') profiles.reverse();
+  if(!profiles.length && !relationship && !situation) return '';
+
+  const pal = tonePalette(settings);
+  const commonBoxBg = mixHex(pal.cardBg, pal.boxBg, 0.52);
+  const profileCardBg = settings.profileStyle === 'showcase'
+    ? 'transparent'
+    : pal.boxBg;
+  const W = parseInt(settings.cardWidth) || 750;
+  const showOuterBorder = settings.cardBorderOn !== false;
+  const border = showOuterBorder
+    ? (connectedAbove
+        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-bottom:1px solid ${pal.shellBorder}; ${removeTopDivider ? '' : `border-top:1px solid ${pal.divider};`}`
+        : `border:1px solid ${pal.shellBorder};`)
+    : (connectedAbove && !removeTopDivider ? `border-top:1px solid ${pal.divider};` : '');
+  const radius = connectedAbove ? '0 0 16px 16px' : '16px';
+  const showcase = settings.profileStyle === 'showcase';
+  const large = settings.profileStyle === 'portrait' || showcase;
+  const multiline = text => processInline(text, settings.emphasisColor).replace(/\r?\n/g, '<br>');
+  const safeScale = value => {
+    const scale = Number(value);
+    return Number.isFinite(scale) ? Math.min(300, Math.max(100, Math.round(scale / 5) * 5)) : 100;
+  };
+  const safePosition = value => {
+    const position = Number(value);
+    return Number.isFinite(position) ? Math.min(100, Math.max(0, Math.round(position))) : 50;
+  };
+  const formatTags = raw => Array.from(new Set(String(raw).split(/[,，]/)
+    .map(tag => tag.trim().replace(/^#+\s*/, ''))
+    .filter(Boolean)))
+    .slice(0, 3);
+  const profileGap = showcase ? 2 : 10;
+  const baseProfileCardHeight = large ? 116 : 80;
+  // flex/grid 없이도 같은 줄의 두 카드 높이를 맞출 수 있도록, 출력 전에 각 프로필의
+  // 이름·태그·정보가 차지할 줄 수를 보수적으로 계산한다. 아카라이브가 반응형 CSS를
+  // 일부 정리해도 두 카드에는 같은 최소 높이 숫자가 직접 들어가므로 결과가 유지된다.
+  const visualTextWidth = (value, fontSize) => Array.from(stripMarkers(String(value || '')))
+    .reduce((width, char) => {
+      if(/\s/.test(char)) return width + fontSize * 0.35;
+      if(/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u3400-\u9fff]/.test(char)) return width + fontSize;
+      return width + fontSize * 0.58;
+    }, 0);
+  const estimatedWrappedLines = (value, availableWidth, fontSize) => String(value || '')
+    .split(/\r?\n/)
+    .reduce((lines, line) => lines + Math.max(1, Math.ceil(visualTextWidth(line, fontSize) / Math.max(40, availableWidth))), 0);
+  const estimatedTagLines = (raw, availableWidth, fontSize) => {
+    const widths = formatTags(raw).map(tag => visualTextWidth(`#${tag}`, fontSize) + 13);
+    if(!widths.length) return 0;
+    let lines = 1;
+    let used = 0;
+    widths.forEach(width => {
+      if(used > 0 && used + width > availableWidth){
+        lines += 1;
+        used = width;
+      }else{
+        used += width;
+      }
+    });
+    return lines;
+  };
+  const estimatedUsableWidth = Math.max(280, Math.min(W, 750) - 40);
+  const estimatedItemWidth = profiles.length > 1
+    ? Math.max(280, (estimatedUsableWidth - profileGap) / 2)
+    : estimatedUsableWidth;
+  const estimateProfileCardHeight = profile => {
+    const size = showcase ? 150 : (large ? 88 : 56);
+    const imageTextSpacing = large ? 12 : 10;
+    const cardInnerWidth = Math.max(120, estimatedItemWidth - 28);
+    const textWidth = showcase
+      ? cardInnerWidth
+      : (profile.image
+        ? Math.max(80, cardInnerWidth - size - imageTextSpacing)
+        : cardInnerWidth);
+    const nameSize = large ? 14 : 12.5;
+    const tagSize = large ? 10.5 : 10;
+    const descSize = large ? 12 : 11.5;
+    const tagsList = formatTags(profile.tags);
+    let textHeight = settings.profileMinimal ? 0 : 9 * 1.35 + 3;
+    if(profile.name) textHeight += estimatedWrappedLines(profile.name, textWidth, nameSize) * nameSize * 1.4;
+    if(tagsList.length){
+      if(profile.name) textHeight += 6;
+      textHeight += estimatedTagLines(profile.tags, textWidth, tagSize) * tagSize * 1.5;
+    }
+    if(profile.desc){
+      if(profile.name || tagsList.length) textHeight += 6;
+      textHeight += estimatedWrappedLines(profile.desc, textWidth, descSize) * descSize * 1.55;
+    }
+    const verticalPadding = showcase && profile.image
+      ? 16
+      : (profile.image ? (large ? 14 : 12) : (large ? 15 : 12));
+    const contentHeight = showcase && profile.image
+      ? size + 10 + textHeight
+      : Math.max(profile.image ? size : 0, textHeight);
+    return Math.ceil(Math.max(baseProfileCardHeight, contentHeight + verticalPadding * 2 + 2));
+  };
+  const showcaseHasMixedImages = showcase
+    && profiles.length > 1
+    && profiles.some(profile => Boolean(profile.image))
+    && profiles.some(profile => !profile.image);
+  const sharedProfileCardHeight = profiles.length > 1 && (!showcase || showcaseHasMixedImages)
+    ? Math.max(baseProfileCardHeight, ...profiles.map(estimateProfileCardHeight))
+    : baseProfileCardHeight;
+  const profileItems = profiles.map((profile, profileIndex) => {
+    const profileFieldPrefix = profile.role === 'BOT' ? 'profileChar' : 'profileUser';
+    const textAlign = showcase ? 'center' : (profile.image ? 'left' : 'center');
+    const role = settings.profileMinimal
+      ? ''
+      : `<p style="margin:0 0 3px; color:${softBodyTextColor(settings, profile.color)}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${profile.role}</p>`;
+    const profileNameHTML = multiline(profile.name);
+    const profileLinkUrl = profile.role === 'BOT'
+      ? settings.subCharUrl
+      : (profile.role === 'USER' ? settings.subUserUrl : '');
+    const linkedProfileNameHTML = buildStylePreservingLink(profileNameHTML, profileLinkUrl, profile.color);
+    const name = profile.name
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${linkedProfileNameHTML}</p>`
+      : '';
+    const tagsList = formatTags(profile.tags);
+    const chipBg = accentTint(settings.bgColor, profile.color);
+    // 아카라이브 편집기는 문장 서식을 바꿀 때 인접한 동일 스타일 span과 보이지 않는
+    // 구분 요소까지 정리해 하나의 span으로 합칠 수 있다. 칩과 칩 목록을 각각 독립 div로
+    // 만들면 인라인 서식 병합이 블록 경계를 넘을 수 없어 세 칩의 배경과 간격이 보존된다.
+    const tags = tagsList.length
+      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(`#${tag}`, settings.emphasisColor)}</div>`).join('')}</div>`
+      : '';
+    const desc = profile.desc
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${softBodyTextColor(settings, profile.color)}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${multiline(profile.desc)}</p>`
+      : '';
+    const text = `${role}${name}${tags}${desc}`;
+    const responsiveMinWidth = showcase ? 280 : 300;
+    // 두 칸을 놓을 수 있을 때는 50%, 최소 폭 두 개가 들어가지 않을 때는 100%로
+    // 즉시 전환한다. flex-wrap이나 미디어쿼리를 제거해 아카라이브 HTML에서도 동작한다.
+    // 첫 width는 구형 WebView용 안전 폴백이다. 고급 계산식이 제거되면 2열을 억지로
+    // 유지하지 않고 전체 폭 1열로 남게 해, 고정 300px 상자나 가로 넘침을 방지한다.
+    // min()/max()가 지원되는 환경에서만 데스크톱 2열과 모바일 1열을 자동 전환한다.
+    const responsiveItemWidth = profiles.length > 1
+      ? `max(50%, min(100%, calc(${responsiveMinWidth * 2000}px - 100000%)))`
+      : '100%';
+    // 한 줄 모드에서는 좌우 패딩을 0으로 만들어 공통 상자와 양끝을 맞춘다.
+    // 두 칸이 들어가는 폭에서만 서로 맞닿는 안쪽 방향에 절반 간격을 적용한다.
+    const responsiveHalfGap = profiles.length > 1
+      ? `clamp(0px, calc(100000% - ${(responsiveMinWidth * 2 - 1) * 1000}px), ${profileGap / 2}px)`
+      : '0px';
+    const itemPaddingLeft = profiles.length > 1 && profileIndex > 0 ? responsiveHalfGap : '0px';
+    const itemPaddingRight = profiles.length > 1 && profileIndex < profiles.length - 1 ? responsiveHalfGap : '0px';
+    const itemOuterStyle = `box-sizing:border-box; width:100%; width:${responsiveItemWidth}; min-width:0; max-width:100%; display:inline-block; vertical-align:top; padding-left:${itemPaddingLeft}; padding-right:${itemPaddingRight}; padding-bottom:${profiles.length > 1 ? profileGap : 0}px;`;
+    const wrapProfileItem = content => `<div data-mosaic-profile-item="true" data-mosaic-profile-role="${profile.role.toLowerCase()}" style="${itemOuterStyle}">${content}</div>`;
+    if(!profile.image){
+      // iOS WebView는 width:100%인 CSS table 자체에 좌우 패딩이 있으면 그 패딩을
+      // 표 폭 바깥에 다시 더해 내용을 오른쪽으로 민다. 패딩은 일반 block에 두고,
+      // 패딩 없는 안쪽 table-cell만 세로 중앙 정렬에 사용한다.
+      const emptyProfilePadding = large ? 15 : 12;
+      const emptyProfileInnerHeight = Math.max(large ? 86 : 56, sharedProfileCardHeight - emptyProfilePadding * 2);
+      return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; display:block; padding:${emptyProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="box-sizing:border-box; width:100%; min-height:${emptyProfileInnerHeight}px; height:${emptyProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div>`);
+    }
+    const size = showcase ? 150 : (large ? 88 : 56);
+    const zoom = safeScale(profile.scale);
+    const imageX = safePosition(profile.x);
+    const imageY = safePosition(profile.y);
+    const imagePosition = `${imageX}% ${imageY}%`;
+    const imageRadius = showcase ? '12px' : (large ? '10px' : '50%');
+    const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
+    if(showcase){
+      const showcaseContent = `${image}<div style="box-sizing:border-box; width:100%; margin-top:10px; font-family:${fontStack(settings.narrFont)}; text-align:center;">${text}</div>`;
+      if(showcaseHasMixedImages){
+        const showcaseInnerHeight = Math.max(size, sharedProfileCardHeight - 32);
+        return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:16px 14px; background-color:${profileCardBg}; border-radius:10px; overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${showcaseInnerHeight}px; height:${showcaseInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:100%; text-align:center;">${showcaseContent}</div></div></div></div>`);
+      }
+      return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; padding:16px 14px; background-color:${profileCardBg}; border-radius:10px; overflow-wrap:anywhere; word-break:break-word; text-align:center;">${showcaseContent}</div>`);
+    }
+    const imageTextSpacing = large ? 12 : 10;
+    const imageColumnWidth = size + imageTextSpacing;
+    // 미니·클래식은 사진 칸과 실제 텍스트 폭을 하나의 inline-table로 묶어 카드의
+    // 정중앙에 놓는다. 기존 width:100% 표는 남는 텍스트 셀까지 묶음 폭으로 계산해
+    // 사진이 있는 프로필만 왼쪽으로 치우쳐 보였다. 실제 table 태그는 사용하지 않아
+    // 아카라이브의 게시판 표 테두리 스타일도 적용되지 않는다.
+    const imageProfilePadding = large ? 14 : 12;
+    const imageProfileInnerHeight = Math.max(size, sharedProfileCardHeight - imageProfilePadding * 2);
+    return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:${imageProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:10px; overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${imageProfileInnerHeight}px; height:${imageProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:auto; max-width:100%; display:inline-table; table-layout:auto; margin:0; vertical-align:middle; text-align:left;"><div style="box-sizing:border-box; display:table-cell; width:${imageColumnWidth}px; padding-right:${imageTextSpacing}px; vertical-align:middle;">${image}</div><div style="box-sizing:border-box; display:table-cell; width:auto; vertical-align:middle; font-family:${fontStack(settings.narrFont)}; overflow-wrap:anywhere; word-break:break-word;">${text}</div></div></div></div></div>`);
+  }).join('');
+
+  // flex-wrap 없이 inline-block의 자연 줄바꿈을 사용한다. 두 칸이 최소 폭을 확보하지
+  // 못하는 순간 두 번째 프로필이 다음 줄로 이동한다.
+  const profileBreakpoint = (showcase ? 280 : 300) * Math.min(2, profiles.length);
+  // 프로필 두 칸의 padding-bottom은 좁은 화면에서 다음 줄과의 간격을 만든다.
+  // 표지와 연결되지 않고 관계·상황도 없는 단독 프로필에서는 마지막 줄 아래에도
+  // 그 간격이 남으므로, 묶음의 음수 여백으로 한 번 상쇄해 바깥 위아래 여백을 맞춘다.
+  const standaloneProfileOnly = !connectedAbove && !relationship && !situation;
+  const standaloneProfileBottomCompensation = standaloneProfileOnly && profiles.length > 1
+      ? `margin-bottom:-${profileGap}px;`
+      : '';
+  const profileItemsRow = profileItems
+    ? `<div data-mosaic-profile-items="true" data-mosaic-profile-breakpoint="${profileBreakpoint}" style="box-sizing:border-box; width:100%; ${showcase ? 'max-width:560px; display:inline-block; vertical-align:top;' : 'display:block;'} ${standaloneProfileBottomCompensation} text-align:center; font-size:0; white-space:normal;">${profileItems}</div>`
+    : '';
+  // 아카라이브는 display:flex는 남기면서 justify-content를 무력화하는 경우가 있어
+  // 포트레이트 묶음 전체가 왼쪽으로 치우친다. flex를 완전히 제거하고 게시판에서도
+  // 안정적으로 유지되는 text-align:center + inline-block 조합만 사용한다.
+  const profileRow = profileItemsRow
+    ? (showcase
+        ? `<div style="box-sizing:border-box; width:100%; display:block; text-align:center; font-size:0; white-space:normal;">${profileItemsRow}</div>`
+        : profileItemsRow)
+    : '';
+
+  const relationshipItems = relationship
+    .split(/[,，]/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const relationshipDots = relationshipItems
+    .map((item, index) => `<span data-mosaic-profile-field="profileRelationship${index + 1}">${multiline(item)}</span>`)
+    .join(`<span aria-hidden="true" style="margin:0 5px;">·</span>`);
+  const relationshipTextLength = relationshipItems
+    .map(item => stripMarkers(item))
+    .join(' · ')
+    .length;
+  const minimalRelationshipIsLong = relationshipTextLength > 30;
+  const minimalRelationshipWrap = minimalRelationshipIsLong
+    ? 'white-space:normal; overflow-wrap:normal !important; word-break:keep-all !important;'
+    : 'white-space:nowrap; overflow-wrap:normal !important; word-break:keep-all !important;';
+
+  // 아카라이브의 게시판 전역 table 스타일은 실제 table/td에 테두리를 강제로 만들고
+  // 가운데 셀을 다시 압축한다. 구조 요소를 한 개의 일반 블록으로 줄이고, 블록 중앙에
+  // 0.5px 배경선을 그린 뒤 문구 배경으로 가운데만 가리면 외부 table/flex CSS와 무관하게
+  // 미리보기와 같은 간격을 유지할 수 있다.
+  const minimalLineColor = mixHex(pal.cardBg, pal.divider, 0.82);
+  const minimalRelationshipMaxWidth = minimalRelationshipIsLong ? 'max-width:60%;' : '';
+  const minimalRelationshipRow = relationship
+    ? `<div style="box-sizing:border-box; width:100%; margin:0; padding:0; border:0; text-align:center; background-color:transparent; background-image:linear-gradient(to right, ${minimalLineColor}, ${minimalLineColor}); background-position:center center; background-repeat:no-repeat; background-size:100% 0.5px;"><span style="box-sizing:border-box; display:inline-block; ${minimalRelationshipMaxWidth} margin:0; padding:0 8px; border:0; background-color:${pal.cardBg} !important; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center; ${minimalRelationshipWrap}">${relationshipDots}</span></div>`
+    : '';
+  const minimalSituationRow = situation
+    ? `<p data-mosaic-profile-field="profileSituation" style="margin:${relationship ? 8 : 0}px 0 0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p>`
+    : '';
+
+  const commonItems = settings.profileMinimal
+    ? ((relationship || situation)
+        ? `<div style="box-sizing:border-box; width:100%; padding:3px 14px 2px; text-align:center; word-break:break-word; font-size:0; font-family:${fontStack(settings.narrFont)};"><div style="box-sizing:border-box; width:100%; max-width:640px; display:inline-block; vertical-align:top; text-align:center;">${minimalRelationshipRow}${minimalSituationRow}</div></div>`
+        : '')
+    : [
+        relationship
+          ? `<div style="width:100%;"><div style="box-sizing:border-box; width:100%; padding:10px 14px 11px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word; font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 6px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">RELATIONSHIP</p><p style="margin:0; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center;">${relationshipDots}</p></div></div>`
+          : '',
+        situation
+          ? `<div style="width:100%; margin-top:${relationship ? 10 : 0}px;"><div style="box-sizing:border-box; width:100%; padding:12px 14px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 5px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">SITUATION</p><p data-mosaic-profile-field="profileSituation" style="margin:0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p></div></div></div>`
+          : ''
+      ].join('');
+
+  const commonSection = commonItems
+    ? `<div style="box-sizing:border-box; width:100%; margin-top:${profileRow ? Math.max(0, 10 - (profiles.length > 1 ? profileGap : 0)) : 0}px;">${commonItems}</div>`
+    : '';
+  // 표제 미니멀과 연결된 경우에만 프로필 상단 패딩도 조금 줄여 두 영역 사이의
+  // 빈 공간을 압축한다. 나머지 프로필 카드의 패딩은 기존 값을 유지한다.
+  const outerPadding = connectedAbove && compactTopSpacing
+    ? 'padding:10px 18px 16px; padding:clamp(9px,2vw,11px) clamp(14px,3.5vw,20px) clamp(14px,3vw,18px);'
+    : (standaloneProfileOnly
+        ? 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);'
+        : 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);');
+  return `<div data-mosaic-profile="true" style="display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto 20px; ${border} border-radius:${radius}; background-color:${pal.cardBg}; ${outerPadding}"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
+}
+
+
+function buildFooter(settings){
+  if(!settings.footerOn) return '';
+  // 도구 이름만 공식 페이지로 연결하고, 작성자 표기는 링크 밖에 둔다.
+  // 게시판의 기본 링크색이 덮어쓰지 못하도록 링크와 내부 글자에 현재 꼬리말색을 직접 지정한다.
+  const author = (settings.footerAuthor || '').trim();
+  const pal = tonePalette(settings);
+  const sm = spacingMult(settings);
+  // 꼬리말은 항상 낮은 위계의 미니멀 서명으로 출력한다.
+  const footerColor = pal.footerText;
+  // 선은 없애되 기존 여백은 유지해 본문과 너무 가까워지지 않게 한다.
+  const topPadding = 14;
+  // 작은 꼬리말 크기 유지
+  const footerFontSize = 10.5;
+  // 모바일 Safari와 게시판의 링크 자동 확대가 상속 글자 크기를 따로 키우지 못하도록
+  // 링크·내부 글자·작성자 모두 동일한 구체 크기와 text-size-adjust를 직접 가진다.
+  const fixedTextStyle = `font-size:${footerFontSize}px !important; line-height:1.5 !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;`;
+  const linkStyle = `color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; text-decoration:none !important; ${fixedTextStyle}`;
+  const toolLink = `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
+  const authorText = author ? ` <span style="color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
+  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px !important; line-height:1.5 !important; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${toolLink}${authorText}</div>\n`;
+}
+
+function buildCreditLink(contentHTML, rawUrl, color){
+  const href = normalizeHttpLinkUrl(rawUrl);
+  if(!href) return contentHTML;
+  // URL 동작은 유지하되 게시판 기본 링크 장식까지 덮어 크레딧의 낮은 위계를 유지한다.
+  const style = `color:${color} !important; -webkit-text-fill-color:${color} !important; text-decoration:none !important; border-bottom:none !important; font-family:inherit !important; font-size:inherit !important; font-weight:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;`;
+  return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
+}
+
+function normalizeCreditPlacement(value){
+  return value === 'top' ? 'top' : 'bottom';
+}
+
+function buildCredit(settings){
+  if(!settings.creditOn) return '';
+  const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
+    label:item.label.trim(),
+    value:item.value.trim(),
+    url:normalizeHttpLinkUrl(item.url),
+    dividerBefore:item.dividerBefore,
+    sourceIndex
+  })).filter(item => item.label || item.value);
+  if(!items.length) return '';
+
+  const pal = tonePalette(settings);
+  const cardWidth = parseInt(settings.cardWidth) || 750;
+  const creditWidth = Math.min(380, cardWidth);
+  const neutralCardBg = neutralHex(pal.cardBg);
+  const darkBackground = textColorFor(neutralCardBg) === '#ffffff';
+  const creditNeutral = darkBackground ? '#ffffff' : '#000000';
+  const creditAccent = safeHexColor(settings.emphasisColor, neutralCardBg);
+  // 중성 회색 축에서 본문 카드와 분리한 뒤 보조색을 극소량만 얹는다.
+  // 회색의 낮은 위계는 유지하면서 테마 색조가 미묘하게 느껴지는 정도로 제한한다.
+  const creditNeutralBg = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.03 : 0.01);
+  const creditBg = mixHex(creditNeutralBg, creditAccent, darkBackground ? 0.025 : 0.02);
+  // 외곽선은 색조를 넣지 않아 배경과 함께 탁해지거나 과하게 강조되지 않도록 한다.
+  const creditBorder = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.11 : 0.07);
+  const creditDivider = mixHex(creditBg, creditNeutral, darkBackground ? 0.07 : 0.045);
+  const labelColor = mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
+  const valueColor = mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
+  const font = fontStack(settings.narrFont);
+  const creditPadding = '9px 14px 3px';
+  const rows = items.map((item, renderedIndex) => {
+    const labelText = escapeTextHTML(item.label);
+    const valueText = escapeTextHTML(item.value);
+    const linkedValue = item.url
+      ? buildCreditLink(valueText || labelText, item.url, valueColor)
+      : (valueText || labelText);
+    const divider = renderedIndex > 0 && settingFlagOn(item.dividerBefore)
+      ? `<div data-mosaic-generated="true" data-mosaic-credit-divider-before="${item.sourceIndex}" aria-hidden="true" style="box-sizing:border-box; width:100%; height:1px; margin:7px 0 9px; padding:0; border:0; background-color:${creditDivider} !important;"></div>`
+      : '';
+    if(!item.label || !item.value){
+      const field = item.value ? 'value' : 'label';
+      return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="${field}" style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
+    }
+    return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${labelText}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
+  }).join('');
+
+  const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
+    ? '0 auto 18px'
+    : '18px auto 0';
+  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:1px solid ${creditBorder}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
+}
+
+// 코멘트는 본문 문법을 해석하지 않되, Shift+Enter가 남긴 줄 끝 [BR]만
+// 같은 문단 안의 줄바꿈으로 처리한다. 각 조각은 이후 반드시 escapeTextHTML을
+// 거치므로 다른 카드 문법이나 HTML이 이 경로로 실행되지 않는다.
+function commentParagraphEntries(value){
+  const lines = String(value || '').split('\n');
+  const entries = [];
+  for(let raw = 0; raw < lines.length; raw++){
+    let rawEnd = raw;
+    let current = String(lines[rawEnd]).trim();
+    if(!current) continue;
+    const parts = [];
+    while(/\[BR\]\s*$/i.test(current) && rawEnd + 1 < lines.length){
+      parts.push(current.replace(/\[BR\]\s*$/i, '').trim());
+      rawEnd++;
+      current = String(lines[rawEnd]).trim();
+    }
+    parts.push(current);
+    entries.push({ raw, rawEnd, parts });
+    raw = rawEnd;
+  }
+  return entries;
+}
+
+function buildCommentBlock(comment, settings){
+  const paragraphStyle = settings.commentAlign === 'center' ? ' style="text-align:center;"' : '';
+  const paragraphs = commentParagraphEntries(comment.body)
+    .map(entry => `<p${paragraphStyle}>${entry.parts.map(escapeTextHTML).join('<br>')}</p>`);
+  if(!paragraphs.length) return '';
+  // 카드 디자인과 섞이지 않도록 배경·외곽선은 두지 않는다. 기본·가운데는
+  // 아카라이브 게시글 폭 전체를, 카드 폭만 현재 설정의 max-width를 사용한다.
+  const widthStyle = settings.commentWidth === 'card'
+    ? `width:100%; max-width:${parseInt(settings.cardWidth) || 750}px; box-sizing:border-box; margin:36px auto;`
+    : 'display:block; width:100%; max-width:none; box-sizing:border-box; margin:36px 0;';
+  const alignStyle = settings.commentAlign === 'center' ? ' text-align:center;' : '';
+  return `<div data-mosaic-comment-index="${comment.sourceIndex}" data-mosaic-comment-width="${settings.commentWidth}" data-mosaic-comment-align="${settings.commentAlign}" style="${widthStyle}${alignStyle}">${paragraphs.join('\n')}</div>`;
+}
+
+// 통합 카드는 새 부모 요소를 씌우지 않고 최상위 블록의 외곽선을 이어 붙인다.
+// 미리보기의 카드별 위치 연동·직접 편집·복사 기능이 최상위 형제 구조를 사용하므로,
+// DOM 계층을 유지하면서도 출력에서는 하나의 배경과 외곽 카드처럼 보이게 한다.
+function applyUnifiedCardLayout(html, settings){
+  if(normalizeCardLayout(settings && settings.cardLayout) !== 'unified') return html;
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  // 출력 직전에도 한 번 더 확인해 손상된 초안이나 외부 호출이 코멘트를 합치지 못하게 한다.
+  if(template.content.querySelector('[data-mosaic-comment-index]')) return template.innerHTML;
+  const sections = Array.from(template.content.children).filter(element =>
+    !element.hidden && element.getAttribute('aria-hidden') !== 'true'
+  );
+  if(!sections.length) return template.innerHTML;
+
+  const pal = tonePalette(settings);
+  const width = parseInt(settings.cardWidth) || 750;
+  const showOuterBorder = settings.cardBorderOn !== false;
+  // 접기 카드는 제목만 강조하지 않고 제목과 본문을 같은 낮은 위계의 색면으로 묶는다.
+  // 최상위 details 구조는 유지하고 내부만 들여 위치 연동·직접 편집 대상이 바뀌지 않게 한다.
+  const foldPanelBg = mixHex(pal.cardBg, pal.boxBg, 0.55);
+  const cardSeparator = mixHex(pal.cardBg, pal.shellBorder, 0.65);
+  const firstBodyIndex = sections.findIndex(section => section.hasAttribute('data-mosaic-card-index'));
+  // 통합 카드의 도입부와 본문은 성격이 다르므로 마지막 표제·프로필 아래에만
+  // 한 번 경계를 둔다. 대표 이미지만 있는 경우에는 이미지 끝이 이미 경계가 되므로
+  // 별도 선을 만들지 않는다. 프로필을 위에 배치한 경우도 실제 출력 순서를 따른다.
+  const introCandidates = firstBodyIndex > 0
+    ? sections.slice(0, firstBodyIndex).filter(section =>
+        section.hasAttribute('data-mosaic-title') || section.hasAttribute('data-mosaic-profile')
+      )
+    : [];
+  const introBoundary = introCandidates.length
+    ? introCandidates[introCandidates.length - 1]
+    : null;
+  const hasUnifiedTitle = introCandidates.some(section => section.hasAttribute('data-mosaic-title'));
+  const showIntroBoundary = hasUnifiedTitle && !settingFlagOn(settings.titleMinimal);
+  sections.forEach((section, index) => {
+    const first = index === 0;
+    const last = index === sections.length - 1;
+    const bodyCard = section.hasAttribute('data-mosaic-card-index');
+    const previousSection = index > 0 ? sections[index - 1] : null;
+    const previousBodyCard = !!(previousSection && previousSection.hasAttribute('data-mosaic-card-index'));
+    const foldedCard = bodyCard && section.tagName === 'DETAILS';
+    const previousFoldedCard = previousBodyCard && previousSection.tagName === 'DETAILS';
+    section.dataset.mosaicUnifiedItem = 'true';
+    section.style.setProperty('box-sizing', 'border-box');
+    section.style.setProperty('width', '100%');
+    section.style.setProperty('max-width', `${width}px`);
+    section.style.setProperty('margin', '0 auto');
+    section.style.setProperty('background-color', pal.cardBg);
+    section.style.setProperty('border', '0');
+    // 인접한 본문 카드의 아래·위 여백은 합계 16px로 조밀하게 유지한다.
+    if(bodyCard){
+      section.style.setProperty('padding-top', '8px');
+      section.style.setProperty('padding-bottom', '8px');
+    }
+    if(foldedCard){
+      const summary = section.querySelector(':scope > summary');
+      const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
+      section.style.setProperty('padding', '8px 16px');
+      if(summary){
+        summary.style.setProperty('background-color', foldPanelBg);
+        summary.style.setProperty('border-radius', '10px 10px 2px 2px');
+      }
+      if(foldBody){
+        foldBody.style.setProperty('background-color', foldPanelBg);
+        foldBody.style.setProperty('border-radius', '2px 2px 10px 10px');
+      }
+    }
+    // 표지 묶음의 구분선 바로 다음에 첫 접기 카드가 오면 기본 8px은 지나치게
+    // 붙어 보인다. 마지막 카드 아래의 마감 여백과 같은 24px로 맞춰 위아래 호흡을 잡는다.
+    if(showIntroBoundary && foldedCard && index === firstBodyIndex){
+      section.style.setProperty('padding-top', '24px');
+    }
+    // 색면만으로 충분히 구분되는 접기 카드끼리는 선을 생략한다. 그 밖의 카드 경계에는
+    // 내부 구분선과 혼동되지 않도록 카드 폭의 중앙 24%에만 짧은 선을 그린다.
+    if(bodyCard && previousBodyCard && !(foldedCard && previousFoldedCard)){
+      section.style.setProperty('background-image', `linear-gradient(to right, transparent 38%, ${cardSeparator} 38%, ${cardSeparator} 62%, transparent 62%)`);
+      section.style.setProperty('background-repeat', 'no-repeat');
+      section.style.setProperty('background-position', 'center top');
+      section.style.setProperty('background-size', '100% 1px');
+    }
+    // 일반 카드 다음에 접기 카드가 오면 앞 카드의 넉넉한 하단 호흡은 유지하고,
+    // 구분선 아래도 같은 수준으로 넓혀 선이 전환 여백의 중앙에 놓이게 한다.
+    if(foldedCard && previousBodyCard && !previousFoldedCard){
+      section.style.setProperty('padding-top', '36px');
+    }
+    // 접기 카드 다음 일반 카드에서는 선 아래 본문이 아니라 접기 카드와 선 사이를
+    // 넓혀야 한다. 구분선은 다음 section의 top에 그려지므로 이전 접기 카드의 하단
+    // padding을 늘려 선 자체를 아래로 보내고, 아래 본문 간격은 기본값으로 유지한다.
+    if(bodyCard && !foldedCard && previousFoldedCard){
+      previousSection.style.setProperty('padding-bottom', '36px');
+    }
+    // 카드 사이의 조밀한 간격은 유지하되 통합 묶음의 끝에는 충분한 마감 여백을 둔다.
+    if(last && bodyCard){
+      section.style.setProperty('padding-bottom', '24px');
+    }
+    if(showOuterBorder){
+      section.style.setProperty('border-left', `1px solid ${pal.shellBorder}`);
+      section.style.setProperty('border-right', `1px solid ${pal.shellBorder}`);
+      if(first) section.style.setProperty('border-top', `1px solid ${pal.shellBorder}`);
+      if(last) section.style.setProperty('border-bottom', `1px solid ${pal.shellBorder}`);
+    }
+    // 일반 표제는 표지 묶음의 마지막 요소 아래 선으로 본문과 구분한다.
+    // 표제 미니멀을 켜면 그 선도 함께 없애 표지와 본문을 여백만으로 잇는다.
+    if(showIntroBoundary && section === introBoundary){
+      section.style.setProperty('border-bottom', `1px solid ${pal.shellBorder}`);
+    }
+    section.style.setProperty('border-radius', sections.length === 1
+      ? '16px'
+      : (first ? '16px 16px 0 0' : (last ? '0 0 16px 16px' : '0')));
+    section.style.setProperty('overflow', 'hidden');
+  });
+  return template.innerHTML;
+}
+
+// 출력 요소가 이미 명시한 색상·크기에만 !important를 붙인다. 이전 방식처럼 모든
+// 글자 자식에 상속값을 다시 복제하지 않아 HTML을 줄이면서도, 실제 타이포그래피를
+// 결정하는 문단·대사·번역·프로필 요소는 게시판/모바일 전역 CSS보다 우선한다.
+// text-size-adjust는 최상위 출력 블록에만 한 번씩 두어 모바일 자동 확대를 막는다.
+function lockOutputTypographyForArca(html){
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  const isConcreteColor = value => {
+    const color = String(value || '').trim();
+    return color && !/^(?:inherit|initial|unset|revert(?:-layer)?|currentcolor)$/i.test(color);
+  };
+  const isConcreteSize = value => {
+    const size = String(value || '').trim();
+    return size && !/^(?:inherit|initial|unset|revert(?:-layer)?|medium)$/i.test(size);
+  };
+  const lockDeclaredTypography = element => {
+    if(!element.style) return;
+    const declaredColor = element.style ? element.style.getPropertyValue('color').trim() : '';
+    const declaredFill = element.style ? element.style.getPropertyValue('-webkit-text-fill-color').trim() : '';
+    const declaredSize = element.style ? element.style.getPropertyValue('font-size').trim() : '';
+    const effectiveColor = isConcreteColor(declaredColor)
+      ? declaredColor
+      : (isConcreteColor(declaredFill) ? declaredFill : '');
+    if(effectiveColor){
+      if(element.style.getPropertyPriority('color') !== 'important'){
+        element.style.setProperty('color', effectiveColor, 'important');
+      }
+      if(element.style.getPropertyPriority('-webkit-text-fill-color') !== 'important'){
+        element.style.setProperty('-webkit-text-fill-color', effectiveColor, 'important');
+      }
+    }
+    if(isConcreteSize(declaredSize) && element.style.getPropertyPriority('font-size') !== 'important'){
+      element.style.setProperty('font-size', declaredSize, 'important');
+    }
+  };
+  // 경량화된 잠금은 전체 출력의 모든 자식에게 상속값을 복제하지 않는다. 다만 모바일
+  // 게시판 CSS가 strong/em/a/span에 직접 색상·크기를 주면 대사 설정만 풀릴 수 있으므로,
+  // 대사와 화자명 내부의 짧은 하위 트리에 한해서 가장 가까운 명시값을 직접 고정한다.
+  const lockDialogueTree = (element, inheritedColor = '', inheritedSize = '') => {
+    if(!element || !element.style) return;
+    const declaredColor = element.style.getPropertyValue('color').trim();
+    const declaredFill = element.style.getPropertyValue('-webkit-text-fill-color').trim();
+    const declaredSize = element.style.getPropertyValue('font-size').trim();
+    const effectiveColor = isConcreteColor(declaredColor)
+      ? declaredColor
+      : (isConcreteColor(declaredFill) ? declaredFill : inheritedColor);
+    const effectiveSize = isConcreteSize(declaredSize) ? declaredSize : inheritedSize;
+    if(effectiveColor){
+      element.style.setProperty('color', effectiveColor, 'important');
+      element.style.setProperty('-webkit-text-fill-color', effectiveColor, 'important');
+    }
+    if(effectiveSize) element.style.setProperty('font-size', effectiveSize, 'important');
+    Array.from(element.children).forEach(child => {
+      if(child.tagName !== 'BR') lockDialogueTree(child, effectiveColor, effectiveSize);
+    });
+  };
+  // 모바일 게시판이 summary와 내부 span/strong에 별도 제목 스타일을 강제해도
+  // 접기 제목의 설정값은 유지한다. 장식처럼 자체 크기·색이 있는 자식은 그 값을
+  // 우선하므로 제목 크기가 커져도 장식까지 함께 커지지 않는다.
+  const foldTitleProperties = ['color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'font-family'];
+  const foldTitleRootProperties = ['display', 'align-items', 'justify-content', 'column-gap', 'list-style', 'padding', 'text-align'];
+  const isCssWideKeyword = value => !value || /^(?:inherit|initial|unset|revert(?:-layer)?)$/i.test(value);
+  const lockFoldTitleTree = (element, inherited = {}) => {
+    if(!element || !element.style) return;
+    const effective = {};
+    foldTitleProperties.forEach(property => {
+      const declared = element.style.getPropertyValue(property).trim();
+      const value = isCssWideKeyword(declared) ? (inherited[property] || '') : declared;
+      if(value) element.style.setProperty(property, value, 'important');
+      effective[property] = value;
+    });
+    if(effective.color) element.style.setProperty('-webkit-text-fill-color', effective.color, 'important');
+    element.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+    element.style.setProperty('text-size-adjust', '100%', 'important');
+    Array.from(element.children).forEach(child => {
+      if(child.tagName !== 'BR') lockFoldTitleTree(child, effective);
+    });
+  };
+  // 모바일 게시판이 strong/em/span에 별도 크기를 주더라도 굵게·기울임·속마음이
+  // 문단의 설정 크기에서 작아지지 않도록 가장 가까운 명시 크기를 짧은 서식 트리에 고정한다.
+  const nearestConcreteSize = element => {
+    let current = element;
+    while(current && current !== template.content){
+      if(current.style){
+        const size = current.style.getPropertyValue('font-size').trim();
+        if(isConcreteSize(size)) return size;
+      }
+      current = current.parentElement;
+    }
+    return '';
+  };
+  const lockInlineFormatTree = root => {
+    const inheritedSize = nearestConcreteSize(root.parentElement);
+    if(!inheritedSize) return;
+    const visit = (element, parentSize) => {
+      if(!element || !element.style) return;
+      const declaredSize = element.style.getPropertyValue('font-size').trim();
+      const effectiveSize = isConcreteSize(declaredSize) ? declaredSize : parentSize;
+      if(effectiveSize) element.style.setProperty('font-size', effectiveSize, 'important');
+      Array.from(element.children).forEach(child => {
+        if(child.tagName !== 'BR') visit(child, effectiveSize);
+      });
+    };
+    visit(root, inheritedSize);
+  };
+  Array.from(template.content.children).forEach(element => {
+    // 코멘트는 게시판 기본 글자로 보이게 하는 블록이므로 잠금 대상에서 완전히 제외한다.
+    if(element.hasAttribute('data-mosaic-comment-index')) return;
+    if(element.style){
+      element.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+      element.style.setProperty('text-size-adjust', '100%', 'important');
+    }
+    lockDeclaredTypography(element);
+    element.querySelectorAll('[style]').forEach(lockDeclaredTypography);
+    element.querySelectorAll('[data-mosaic-fold-title="true"]').forEach(title => {
+      lockFoldTitleTree(title);
+      foldTitleRootProperties.forEach(property => {
+        const value = title.style.getPropertyValue(property).trim();
+        if(value) title.style.setProperty(property, value, 'important');
+      });
+    });
+    element.querySelectorAll('strong, em, [data-mosaic-thought="true"]').forEach(lockInlineFormatTree);
+    element.querySelectorAll('[data-mosaic-dialogue="true"], [data-mosaic-speaker-label="true"]').forEach(dialogue => {
+      dialogue.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+      dialogue.style.setProperty('text-size-adjust', '100%', 'important');
+      lockDialogueTree(dialogue);
+    });
+  });
+  return template.innerHTML;
+}
+
+// 미리보기의 카드-입력창 연결과 반응형 보정에만 쓰는 data-mosaic-* 표식은
+// 아카라이브 게시글이나 개별 복사본에는 필요 없다. 미리보기 원본에는 보존하고,
+// 실제 배포 HTML을 만들 때만 제거해 편집기 내부 상태가 출력물에 새지 않게 한다.
+function stripEditorOutputMetadata(html){
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  template.content.querySelectorAll('*').forEach(element => {
+    Array.from(element.attributes).forEach(attribute => {
+      if(attribute.name.startsWith('data-mosaic-')) element.removeAttribute(attribute.name);
+    });
+  });
+  return template.innerHTML;
+}
+
+function buildCard(settings){
+  const pal = tonePalette(settings);
+  const unifiedLayout = normalizeCardLayout(settings.cardLayout) === 'unified';
+
+  // 카드별 입력창에서 직접 읽음: 이미지는 첫 카드에만, 꼬리말은 마지막 카드에만
+  const sourceCards = getCards();
+  const firstVisibleSourceIndex = sourceCards.findIndex(card => card.type !== 'comment' && card.visible !== false);
+  let cardList = sourceCards
+    .map((c, sourceIndex) => ({
+      sourceIndex,
+      type: c.type === 'comment' ? 'comment' : 'card',
+      lines: c.body.split('\n').map(l => l.trim()).filter(l => l !== ''),
+      folded: settingFlagOn(c.folded),
+      foldTitle: (c.cardTitle !== undefined ? c.cardTitle : (c.foldTitle || '')).trim(),
+      visible: c.visible !== false,
+    }))
+    .filter(c => c.type === 'card' && c.visible && c.lines.length > 0); // 숨긴 카드와 내용이 빈 카드는 출력에서 제외
+  // 보이는 카드가 하나라도 있으면 기존의 빈 카드 폴백을 유지한다. 모든 카드가 숨김이면
+  // 본문 카드를 새로 만들지 않아 눈 토글의 의미대로 출력에서 완전히 제외한다.
+  if(cardList.length === 0 && firstVisibleSourceIndex >= 0){
+    cardList = [{ sourceIndex:firstVisibleSourceIndex, lines:[], folded:false, foldTitle:'' }];
+  }
+
+  // 배경 이미지는 아카라이브가 썸네일로 인식하지 못하므로, 대표 이미지가 있으면
+  // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
+  let recognitionImg = '';
+  const imageStatus = document.getElementById('imageLoadStatus');
+  const imageFailed = imageStatus && imageStatus.dataset.state === 'error';
+  if(settings.imgOn && settings.imgUrl && !imageFailed){
+    // 아카라이브의 확대 뷰어는 0px 이미지도 갤러리 대상으로 수집한다. 그 결과
+    // 대표 이미지가 먼저여도, 독립 프로필이 먼저여도 다음 시각 블록 위에 확대 아이콘이
+    // 떠버린다. 서버의 대표 썸네일 탐색용 <img>는 남기되 모든 배치에서 완전히 숨기고,
+    // 뷰어가 이미지로 꾸미는 데 사용하는 fr-* 클래스도 붙이지 않는다.
+    recognitionImg = `<div hidden aria-hidden="true" style="display:none !important; width:0; height:0; margin:0; padding:0; overflow:hidden; line-height:0;"><img src="${escapeAttr(settings.imgUrl)}" alt="" hidden style="display:none !important; width:0; height:0; margin:0;"></div>\n`;
+  }
+
+  // 대표 이미지와 표제 밴드는 모든 카드 '위'에 항상 표시 — 카드를 접어도 보이고, 첫 카드와 한 몸처럼 연결됨
+  const imgBlock = buildImageBlock(settings);
+  const hasImg = imgBlock !== '';
+  const titleBand = buildTitleBlock(settings, hasImg);
+  const hasTitle = titleBand !== '';
+  // 표제 미니멀의 하단 경계선뿐 아니라, 표제가 꺼져 대표 이미지와 프로필이 직접
+  // 맞닿는 경우의 프로필 상단선도 제거해 두 영역이 하나의 카드처럼 이어지게 한다.
+  const profileAtTop = settings.profilePlacement === 'top';
+  const compactProfileTopSpacing = !profileAtTop && hasTitle && settings.titleMinimal;
+  const removeProfileTopDivider = !profileAtTop && (compactProfileTopSpacing || (hasImg && !hasTitle));
+  const topProfileBlock = profileAtTop
+    ? buildProfileBlock(settings, false, false, false)
+    : '';
+  const attachedProfileBlock = profileAtTop
+    ? ''
+    : buildProfileBlock(settings, hasImg || hasTitle, removeProfileTopDivider, compactProfileTopSpacing);
+  const hasAttachedProfile = attachedProfileBlock !== '';
+  const visibleComments = sourceCards
+    .map((comment, sourceIndex) => ({ ...comment, sourceIndex }))
+    .filter(comment => comment.type === 'comment' && comment.visible !== false && String(comment.body || '').trim());
+  const firstBodySourceIndex = unifiedLayout
+    ? (cardList.length ? cardList[0].sourceIndex : Number.POSITIVE_INFINITY)
+    : Math.min(
+        cardList.length ? cardList[0].sourceIndex : Number.POSITIVE_INFINITY,
+        visibleComments.length ? visibleComments[0].sourceIndex : Number.POSITIVE_INFINITY
+      );
+
+  const foldDividerMinimal = settingFlagOn(settings.foldDividerMinimal);
+  const cardInlinePadding = CARD_INLINE_PADDING;
+  let blankFoldNumber = 0;
+  const cards = cardList.map((card, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === cardList.length - 1;
+    const connected = isFirst && card.sourceIndex === firstBodySourceIndex
+      && !hasAttachedProfile && (hasImg || hasTitle); // 표지 다음 블록이 카드일 때만 한 덩어리로 연결
+    // 전역 옵션 하나로 모든 접기 카드와 본문 내부 접기의 제목 아래 구분선을 함께 제어한다.
+    const bodySettings = Object.assign({}, settings, { foldBodyMinimal: foldDividerMinimal });
+    const bodyHTML = assembleBody(card.lines, bodySettings);
+    const footer = isLast ? buildFooter(settings) : '';
+    const marginCss = isFirst ? '0 auto' : '20px auto 0 auto';
+    // 연결된 첫 카드는 위 모서리를 각지게 해서 이미지와 하나의 틀처럼 이어지게 함
+    const radius = connected ? '0 0 16px 16px' : '16px';
+    const W = parseInt(settings.cardWidth) || 750;
+    // 대표 이미지 바로 아래에는 선을 두지 않는다. 표제 미니멀도 표제와 첫 카드 사이를 여백으로만 구분한다.
+    const noTopLine = connected && ((hasTitle && settings.titleMinimal) || (hasImg && !hasTitle));
+    const showOuterBorder = settings.cardBorderOn !== false;
+    // 표제 밴드와 본문 카드가 하나의 카드처럼 보이도록 외곽선은
+    // 모두 표제·이미지에 쓰는 옅은 보조색 외곽선으로 통일한다.
+    const shellOuterColor = pal.shellBorder;
+    let borderCss = '';
+    if(showOuterBorder){
+      if(noTopLine){
+        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor};`;
+      }else if(connected){
+        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; border-top:1px solid ${pal.divider};`;
+      }else{
+        borderCss = `border:1px solid ${shellOuterColor};`;
+      }
+    } else if(connected && !noTopLine){
+      // 이미지·표제와 카드 사이의 선은 외곽선이 아니라 내부 경계이므로 유지한다.
+      borderCss = `border-top:1px solid ${pal.divider};`;
+    }
+    const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
+
+    if(card.folded){
+      // 접기 카드: 카드 틀 전체가 details. 헤더는 배경 없는 깔끔한 제목 줄 하나.
+      // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
+      // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
+      const foldTitle = card.foldTitle || '';
+      const autoFoldTitle = settingFlagOn(settings.foldTitleAutoNumber) && !foldTitle.trim()
+        ? String(++blankFoldNumber)
+        : '';
+      const visibleFoldTitle = foldTitle.trim() || autoFoldTitle;
+      const minimalFoldTitle = settingFlagOn(settings.foldTitleMinimal);
+      // 제목이 비어 ✦ ✦ ✦만 보이는 카드 헤더는 일반 제목 장식보다 아주 살짝 연하게 둔다.
+      const foldOrnamentColor = visibleFoldTitle
+        ? pal.ornament
+        : mixHex(pal.ornament, pal.cardBg, 0.12);
+      const foldTitleHTML = visibleFoldTitle
+        ? `<span style="min-width:0; line-height:1.35;">${processInline(visibleFoldTitle, settings.emphasisColor)}</span>`
+        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
+      const foldLeftOrnament = minimalFoldTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
+      const foldRightOrnament = minimalFoldTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
+      const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
+      const foldBodyPadding = foldDividerMinimal
+        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
+      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
+  <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
+${bodyHTML}${footer}  </div>
+</details>`;
+    }
+    const cardTitle = (card.foldTitle || '').trim();
+    if(cardTitle){
+      const minimalCardTitle = settingFlagOn(settings.foldTitleMinimal);
+      const cardTitleHTML = `<span style="min-width:0; line-height:1.35;">${processInline(cardTitle, settings.emphasisColor)}</span>`;
+      const cardLeftOrnament = minimalCardTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; font-size:12px; line-height:1;">✦</span>`;
+      const cardRightOrnament = minimalCardTitle
+        ? ''
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; font-size:12px; line-height:1;">✦</span>`;
+      const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
+      const cardBodyPadding = foldDividerMinimal
+        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
+        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
+      return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
+  <div data-mosaic-card-title="true" style="display:flex; align-items:center; justify-content:center; column-gap:14px; padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
+  <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
+${bodyHTML}${footer}  </div>
+</div>`;
+    }
+    return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
+  <div style="box-sizing:border-box; padding:clamp(20px,4vw,26px) ${cardInlinePadding} clamp(24px,5vw,30px);">
+${bodyHTML}${footer}  </div>
+</div>`;
+  });
+
+  const renderedCards = new Map(cardList.map((card, index) => [card.sourceIndex, cards[index]]));
+  const renderedComments = new Map(visibleComments.map(comment => [comment.sourceIndex, buildCommentBlock(comment, settings)]));
+  const orderedBody = sourceCards.map((block, sourceIndex) =>
+    block.type === 'comment' ? renderedComments.get(sourceIndex) : renderedCards.get(sourceIndex)
+  ).filter(Boolean);
+  const renderedCardFlow = cardList.map(card => renderedCards.get(card.sourceIndex)).filter(Boolean);
+  const renderedCommentFlow = visibleComments.map(comment => renderedComments.get(comment.sourceIndex)).filter(Boolean);
+
+  // 꼬리말은 마지막 본문 카드 안에 붙인다. 크레딧은 최상단 또는 전체 카드 흐름
+  // 뒤의 독립 블록으로 둔다. 통합 모드의 코멘트는 본문 뒤에 원래 상대 순서대로 모으고,
+  // 이때는 크레딧을 그 아래에 고정해 문서의 마지막 요소로 사용한다.
+  const forceCreditBottom = unifiedLayout && renderedCommentFlow.length > 0;
+  const credit = buildCredit(forceCreditBottom
+    ? Object.assign({}, settings, { creditPlacement:'bottom' })
+    : settings);
+  const creditAtTop = !forceCreditBottom && normalizeCreditPlacement(settings.creditPlacement) === 'top';
+  const topCredit = creditAtTop ? credit : '';
+  const bottomCredit = creditAtTop ? '' : credit;
+  const introFlow = topProfileBlock + imgBlock + titleBand + attachedProfileBlock;
+  const mainFlow = introFlow + (unifiedLayout ? renderedCardFlow : orderedBody).join('\n');
+  const arrangedMainFlow = unifiedLayout ? applyUnifiedCardLayout(mainFlow, settings) : mainFlow;
+  const collectedComments = forceCreditBottom ? `\n${renderedCommentFlow.join('\n')}` : '';
+  const output = recognitionImg + topCredit + arrangedMainFlow + collectedComments + bottomCredit;
+  return lockOutputTypographyForArca(output);
+}
+
+const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
+const RESTORE_META_SUFFIX = '-->';
+
+function encodeRestoreState(data){
+  const bytes = new TextEncoder().encode(JSON.stringify({ app:'mosaic-log', version:1, data }));
+  let binary = '';
+  const chunkSize = 0x8000;
+  for(let i = 0; i < bytes.length; i += chunkSize){
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function decodeRestoreState(html){
+  const start = html.indexOf(RESTORE_META_PREFIX);
+  if(start < 0) return null;
+  const payloadStart = start + RESTORE_META_PREFIX.length;
+  const end = html.indexOf(RESTORE_META_SUFFIX, payloadStart);
+  if(end < 0) throw new Error('복원 데이터가 끝까지 저장되지 않았습니다.');
+  const encoded = html.slice(payloadStart, end).trim();
+  if(!encoded || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('복원 데이터 형식이 올바르지 않습니다.');
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const envelope = JSON.parse(new TextDecoder().decode(bytes));
+  if(!envelope || envelope.app !== 'mosaic-log' || envelope.version !== 1 || !envelope.data){
+    throw new Error('지원하지 않는 조각로그 복원 데이터입니다.');
+  }
+  return envelope.data;
+}
+
+function generateHTML(includeRestoreState = false, prebuiltOutput){
+  const rawOutput = prebuiltOutput === undefined
+    ? buildCard(getSettings())
+    : prebuiltOutput;
+  const output = stripEditorOutputMetadata(rawOutput);
+  if(!includeRestoreState) return output;
+  // 내려받는 HTML 파일 자체로 작업을 복원할 수 있도록 보이지 않는 상태 데이터를 함께 기록한다.
+  const restoreMeta = RESTORE_META_PREFIX + encodeRestoreState(collectSlotWork()) + RESTORE_META_SUFFIX + '\n';
+  return restoreMeta + output;
+}
+
+let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
+
+// ---------- 미리보기에서 선택해 서식 적용 ----------
+// 미리보기 글자를 드래그하면 작은 도구막대가 뜨고, 굵게/강조를 본문에 바로 적용함.
+// 이미 서식이 걸린 부분을 고르면 해당 버튼이 켜지고, 다시 누르면 서식이 해제된다.
+// 최상위 문단(접기 블록 밖)만 대상으로 하며, 선택한 글자를 원본 줄에서 찾아 마커로 감싼다.
+const FMT_WRAP = { bold: '**', emphasis: '*' };
+const FMT_TAG = { bold: 'STRONG', emphasis: 'EM' };
+const FMT_RE = {
+  // 새 입력은 **만 만들지만, 기존 로그의 __ 굵기도 읽고 해제할 수 있게 남긴다.
+  bold: /__(.+?)__|\*\*(.+?)\*\*/g,
+  emphasis: /\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)/g
+};
+const CENTER_RE = /^(>\s?)?\[C\]\s*/i;   // 줄 맨 앞 또는 인용 뒤의 [C]
+let selCtx = null;
+let blockCtx = null;
+let previewDirectEditReady = false;
+let previewDirectEditCommitting = false;
+const previewDirectEditDescriptors = new WeakMap();
+let previewRenderRevision = 0;
+let deferredImageStatusEditor = null;
+
+// 문자열에서 인라인 마커를 걷어내 순수 글자만 남김 (비교용)
+function stripMarkers(s){
+  return s.replace(/__|\*/g, '');
+}
+
+function formatMatchContent(fmt, match){
+  // ***글***에서 강조만 해제할 때 굵기는 남겨 **글**로 되돌린다.
+  if(fmt === 'emphasis' && match[0].startsWith('***')) return `**${match[1]}**`;
+  return match[1] !== undefined ? match[1] : match[2];
+}
+
+function maskInlineFormatMarkers(value, mask){
+  const normalized = String(value);
+  [
+    { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
+    { re:/\*\*([^*\n]+?)\*\*/g, width:2 },
+    { re:/__(.+?)__/g, width:2 },
+    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
+  ].forEach(({ re, width }) => {
+    let match;
+    while((match = re.exec(normalized)) !== null){
+      mask(match.index, match.index + width);
+      mask(match.index + match[0].length - width, match.index + match[0].length);
+    }
+  });
+}
+
+// buildParagraph/assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
+// 원문 인덱스를 유지한 채 기록하고, 제목·인용문 안의 화자처럼 보이는 글자는 그대로 둔다.
+function sourceProjectionMeta(line){
+  const normalized = normalizeQuotes(String(line));
+  const currentSettings = getSettings();
+  const hidden = [];
+  const hide = (start, end) => {
+    if(end > start) hidden.push([Math.max(0, start), Math.min(normalized.length, end)]);
+  };
+  const leading = normalized.match(/^\s*/);
+  let offset = leading ? leading[0].length : 0;
+  hide(0, offset);
+  const trailing = normalized.match(/\s*$/);
+  if(trailing) hide(normalized.length - trailing[0].length, normalized.length);
+  let rest = normalized.slice(offset);
+
+  // 출력 텍스트가 없는 구조 문법.
+  if(/^\[(?:HR(?:2|3)?|GAP)\]\s*$/i.test(rest) || /^\[\/접기\]\s*$/.test(rest)){
+    hide(offset, normalized.length);
+    return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+  }
+
+  // 수동 접기 제목: 대괄호와 '접기'만 숨기고 사용자가 쓴 제목은 보이게 둔다.
+  const fold = rest.match(/^(?:\[C\]\s*)?\[접기(?:\s+(.+?))?\]\s*$/i);
+  if(fold){
+    if(!fold[1]){
+      hide(offset, normalized.length);
+      return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+    }
+    // 제목 문자열이 [C]나 [접기] 문법 안의 글자와 같아도 첫 일치 위치를 잘못
+    // 선택하지 않도록, 문법 접두어의 실제 길이로 제목 시작점을 계산한다.
+    const titlePrefix = rest.match(/^(?:\[C\]\s*)?\[접기\s+/i);
+    const titleAt = titlePrefix ? titlePrefix[0].length : rest.indexOf(fold[1]);
+    const visibleTitle = fold[1].trim();
+    hide(offset, offset + titleAt);
+    hide(offset + titleAt + visibleTitle.length, normalized.length);
+    return { normalized, hidden, start: offset + titleAt, maskInlineSpeakers:false };
+  }
+
+  // 가운데 정렬은 이미지·소제목·인용보다 먼저 처리된다.
+  const centered = rest.match(/^\[C\]\s*/i);
+  if(centered){
+    hide(offset, offset + centered[0].length);
+    offset += centered[0].length;
+    rest = normalized.slice(offset);
+  }
+
+  // 상태창은 출력에서 바깥 대괄호와 그 안쪽 여백만 숨긴다.
+  const statusText = statusLineContent(rest);
+  if(statusText !== null){
+    const textAt = rest.indexOf(statusText);
+    hide(offset, offset + textAt);
+    hide(offset + textAt + statusText.length, normalized.length);
+    return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
+  }
+
+  // 본문 이미지에서는 캡션만 화면에 보인다.
+  const image = rest.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]\s*$/i);
+  if(image){
+    if(!image[3]){
+      hide(offset, normalized.length);
+      return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
+    }
+    const captionAt = rest.indexOf(image[3]);
+    hide(offset, offset + captionAt);
+    hide(offset + captionAt + image[3].length, normalized.length);
+    return { normalized, hidden, start: offset + captionAt, maskInlineSpeakers:false };
+  }
+
+  // 일반 소제목과 소제목 접기는 접두어 뒤 제목을 그대로 출력한다.
+  const heading = rest.match(/^(#{1,4})>?\s+(.+)$/);
+  if(heading){
+    // 제목이 # 자체로 시작해도 마커를 제목으로 오인하지 않게 접두어 길이를 사용한다.
+    const headingPrefix = rest.match(/^#{1,4}>?\s+/);
+    const textAt = headingPrefix ? headingPrefix[0].length : rest.indexOf(heading[2]);
+    hide(offset, offset + textAt);
+    return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
+  }
+
+  // 인용 안에서는 선택적인 [C]까지만 문법이고, 이후 문자는 모두 실제 본문이다.
+  const quote = rest.match(/^>(?!>)\s*/);
+  if(quote){
+    hide(offset, offset + quote[0].length);
+    offset += quote[0].length;
+    rest = normalized.slice(offset);
+    const innerCenter = rest.match(/^\[C\]\s*/i);
+    if(innerCenter){
+      hide(offset, offset + innerCenter[0].length);
+      offset += innerCenter[0].length;
+    }
+    return { normalized, hidden, start: offset, maskInlineSpeakers:false };
+  }
+
+  // 일반 문단/대사에서만 색상·화자 접두어를 소비한다.
+  const color = rest.match(/^\{#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\}\s*/);
+  if(color){
+    hide(offset, offset + color[0].length);
+    offset += color[0].length;
+    rest = normalized.slice(offset);
+  }
+  const fixedSpeaker = rest.match(/^(?:>>|<<)\s*/);
+  if(fixedSpeaker){
+    hide(offset, offset + fixedSpeaker[0].length);
+    offset += fixedSpeaker[0].length;
+  } else {
+    const named = rest.match(/^\[([^\[\]\n]{1,24})\]\s*(?=["“‘'])/);
+    if(named && findChar(currentSettings, named[1])){
+      hide(offset, offset + named[0].length);
+      offset += named[0].length;
+    }
+  }
+  // 이어쓰기와 아래쓰기 모두 번역 괄호를 실제 화면에 표시한다.
+  // 편집·검색 투영에서도 괄호를 숨기지 않아 화면 글자와 원문 인덱스를 일치시킨다.
+  return { normalized, hidden, start: offset, maskInlineSpeakers:true };
+}
+
+function sourceContentStart(line){
+  return sourceProjectionMeta(line).start;
+}
+
+function lineSearchProjection(line){
+  const meta = sourceProjectionMeta(line);
+  const normalized = meta.normalized;
+  const chars = normalized.split('');
+  const mask = (start, end) => {
+    for(let i = Math.max(0, start); i < Math.min(chars.length, end); i++) chars[i] = '\u0000';
+  };
+  meta.hidden.forEach(range => mask(range[0], range[1]));
+
+  let m;
+  // 일반 문단 중간의 화자 마커만 화면에서 사라진다. 제목·인용문에서는 글자 그대로다.
+  if(meta.maskInlineSpeakers){
+    const settings = getSettings();
+    const speakerRe = /(>>|<<|\[([^\[\]\n]{1,24})\])\s*(?=["“‘'])/g;
+    while((m = speakerRe.exec(normalized)) !== null){
+      const known = m[1] === '>>' || m[1] === '<<' || !!findChar(settings, m[2]);
+      if(known) mask(m.index, m.index + m[0].length);
+    }
+  }
+
+  // 인라인 서식 기호는 보이지 않지만 내용의 원문 인덱스는 그대로 유지한다.
+  // 미리보기 직접 편집에서도 출력 파서와 같은 ** / __ / *** 문법을 사용한다.
+  maskInlineFormatMarkers(normalized, mask);
+  return chars.join('');
+}
+
+// 상태창은 출력할 때 `|` 양옆 공백을 통일하므로 화면 문자열의 길이가 원문과 달라질 수 있다.
+// 화면의 각 글자가 원문의 어느 인덱스에서 왔는지 함께 만들어 드래그 범위를 정확히 되돌린다.
+function sourceDisplayProjectionMap(line){
+  const projection = lineSearchProjection(line);
+  const items = [];
+  for(let i = 0; i < projection.length; i++){
+    if(projection[i] !== '\u0000') items.push({ char:projection[i], raw:i });
+  }
+  if(!isStatusBodyLine(line)){
+    return { text:items.map(item => item.char).join(''), map:items.map(item => item.raw) };
+  }
+
+  const parts = [[]];
+  const pipes = [];
+  items.forEach(item => {
+    if(item.char === '|'){
+      pipes.push(item);
+      parts.push([]);
+    }else{
+      parts[parts.length - 1].push(item);
+    }
+  });
+  const out = [];
+  const map = [];
+  parts.forEach((part, index) => {
+    let start = 0;
+    let end = part.length;
+    if(index > 0) while(start < end && /\s/.test(part[start].char)) start++;
+    if(index < parts.length - 1) while(end > start && /\s/.test(part[end - 1].char)) end--;
+    part.slice(start, end).forEach(item => { out.push(item.char); map.push(item.raw); });
+    if(index < pipes.length){
+      const pipe = pipes[index];
+      out.push(' ', '|', ' ');
+      map.push(pipe.raw, pipe.raw, pipe.raw + 1);
+    }
+  });
+  return { text:out.join(''), map };
+}
+
+function findSourceRange(line, text, occurrence, caseInsensitive){
+  const ranges = findAllSourceRanges(line, text, caseInsensitive);
+  return ranges[Math.max(0, occurrence || 0)] || null;
+}
+
+function findAllSourceRanges(line, text, caseInsensitive){
+  if(!text) return [];
+  const display = sourceDisplayProjectionMap(line);
+  const normalizedText = normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
+  if(!normalizedText) return [];
+  const hay = caseInsensitive ? display.text.toLowerCase() : display.text;
+  const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
+  const ranges = [];
+  let from = 0;
+  let at = hay.indexOf(needle, from);
+  while(at !== -1){
+    const last = at + needle.length - 1;
+    if(display.map[at] !== undefined && display.map[last] !== undefined){
+      ranges.push({ start:display.map[at], end:display.map[last] + 1 });
+    }
+    from = at + Math.max(1, needle.length);
+    at = hay.indexOf(needle, from);
+  }
+  return ranges;
+}
+
+// 대치 범위가 굵게·강조 구간의 경계를 가로지르면 남은 한쪽 마커가 본문에
+// 노출될 수 있다. 해당 서식쌍만 걷어낸 뒤 원래 범위를 새 인덱스로 옮긴다.
+function prepareSourceRangeReplacement(line, sourceRange){
+  const raw = String(line);
+  const remove = new Set();
+  [
+    { re:/__(.+?)__/g, width:2 },
+    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
+  ].forEach(({ re, width }) => {
+    let match;
+    while((match = re.exec(raw)) !== null){
+      const innerStart = match.index + width;
+      const innerEnd = match.index + match[0].length - width;
+      const overlaps = sourceRange.start < innerEnd && sourceRange.end > innerStart;
+      const fullyInside = sourceRange.start >= innerStart && sourceRange.end <= innerEnd;
+      if(!overlaps || fullyInside) continue;
+      for(let i = match.index; i < match.index + width; i++) remove.add(i);
+      for(let i = innerEnd; i < innerEnd + width; i++) remove.add(i);
+    }
+  });
+  if(!remove.size) return { line:raw, range:sourceRange };
+  let clean = '';
+  let cleanStart = 0;
+  let cleanEnd = 0;
+  for(let i = 0; i < raw.length; i++){
+    if(i < sourceRange.start && !remove.has(i)) cleanStart++;
+    if(i < sourceRange.end && !remove.has(i)) cleanEnd++;
+    if(!remove.has(i)) clean += raw[i];
+  }
+  return { line:clean, range:{ start:cleanStart, end:cleanEnd } };
+}
+
+function replaceSourceRange(line, sourceRange, replacement){
+  const prepared = prepareSourceRangeReplacement(line, sourceRange);
+  return prepared.line.slice(0, prepared.range.start)
+    + replacement
+    + prepared.line.slice(prepared.range.end);
+}
+
+function comparableFormattedText(value){
+  return formatStatusContent(stripMarkers(normalizeQuotes(String(value)))).trim();
+}
+
+function hideSelToolbar(){
+  const bar = document.getElementById('selToolbar');
+  bar.style.display = 'none';
+  bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  selCtx = null;
+}
+
+function hideBlockToolbar(){
+  const bar = document.getElementById('blockToolbar');
+  bar.style.display = 'none';
+  blockCtx = null;
+}
+
+function showBlockToolbar(ctx){
+  hideSelToolbar();
+  // 구분선·이미지의 mousedown은 기본 포커스 이동을 막는다. 왼쪽 입력창 포커스가
+  // 남아 도구막대가 숨겨지지 않도록 미리보기 메뉴를 열기 전에 해제한다.
+  const active = document.activeElement;
+  if(active && active.closest && active.closest('#sidebar')) active.blur();
+  document.body.classList.remove('sidebarFieldActive');
+  blockCtx = ctx;
+  const bar = document.getElementById('blockToolbar');
+  const isImage = ctx.type === 'img';
+  const isHeading = ctx.type === 'heading';
+  bar.setAttribute('aria-label', isHeading ? '마크다운 소제목 단계 변경' : (isImage ? '본문 이미지 편집' : '문단 구분 요소 편집'));
+  bar.querySelectorAll('[data-separator-type]').forEach(button => {
+    const isSeparator = !isImage && !isHeading;
+    const isCurrent = isSeparator && button.dataset.separatorType === ctx.type;
+    button.hidden = !isSeparator;
+    button.classList.toggle('active', isCurrent);
+    button.setAttribute('aria-pressed', isCurrent ? 'true' : 'false');
+  });
+  bar.querySelector('[data-block-action="ratio"]').hidden = !isImage;
+  bar.querySelector('[data-block-action="caption"]').hidden = !isImage;
+  bar.querySelector('[data-block-action="delete"]').hidden = isHeading;
+  bar.querySelectorAll('[data-heading-level]').forEach(button => {
+    const level = Number(button.dataset.headingLevel);
+    button.hidden = !isHeading;
+    button.classList.toggle('active', isHeading && level === ctx.level);
+    button.setAttribute('aria-pressed', isHeading && level === ctx.level ? 'true' : 'false');
+  });
+  const r = ctx.block.getBoundingClientRect();
+  bar.style.display = 'flex';
+  const bw = bar.offsetWidth || 100;
+  const above = r.top - bar.offsetHeight - 8;
+  // 마크다운 단계 메뉴는 소제목의 왼쪽 시작선에 맞추고,
+  // 이미지·구분선 메뉴만 기존처럼 블록 중앙에 배치한다.
+  const preferredLeft = isHeading ? r.left : r.left + r.width / 2 - bw / 2;
+  bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, preferredLeft)) + 'px';
+  bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, above > 8 ? above : r.bottom + 8)) + 'px';
+}
+
+function editSeparatorText(text, raw, type, action){
+  const lines = text.split('\n');
+  if(lines[raw] === undefined) return null;
+  const token = lines[raw].match(/^(\s*)\[(?:HR(?:2|3)?|GAP)\](\s*)$/i);
+  if(!token) return null;
+  const variants = [
+    { type:'hr', token:'[HR]', label:'구분선' },
+    { type:'hr2', token:'[HR2]', label:'장면 전환' },
+    { type:'hr3', token:'[HR3]', label:'호흡 구분' },
+    { type:'gap', token:'[GAP]', label:'넓은 여백' }
+  ];
+  const current = variants.findIndex(item => item.type === type);
+  if(current < 0) return null;
+  let message;
+  if(String(action).startsWith('separator-')){
+    const targetType = String(action).slice('separator-'.length);
+    const next = variants.find(item => item.type === targetType);
+    if(!next || next.type === variants[current].type) return null;
+    lines[raw] = token[1] + next.token + token[2];
+    message = `${variants[current].label}을 ${next.label}으로 변경.`;
+  }else if(action === 'delete'){
+    lines.splice(raw, 1);
+    message = `${variants[current].label} 삭제.`;
+  }else return null;
+  return {
+    text: lines.join('\n'),
+    message
+  };
+}
+
+function editHeadingLevelText(text, raw, action){
+  const levelMatch = String(action).match(/^heading-([1-4])$/);
+  if(!levelMatch) return null;
+  const nextLevel = Number(levelMatch[1]);
+  const lines = text.split('\n');
+  if(lines[raw] === undefined) return null;
+  // [C]와 접기용 >는 그대로 두고 # 개수만 바꾼다.
+  const token = lines[raw].match(/^(\s*)(\[C\]\s*)?(#{1,4})(>?)(\s+)(.+?)(\s*)$/i);
+  if(!token) return null;
+  const currentLevel = token[3].length;
+  if(currentLevel === nextLevel) return null;
+  lines[raw] = token[1] + (token[2] || '') + '#'.repeat(nextLevel)
+    + (token[4] || '') + token[5] + token[6] + token[7];
+  return {
+    text:lines.join('\n'),
+    message:`소제목 단계를 ${'#'.repeat(nextLevel)}로 변경.`
+  };
+}
+
+function parseBodyImageLine(line){
+  const token = String(line).match(/^(\s*)\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.*?))?\](\s*)$/i);
+  if(!token) return null;
+  return {
+    leading: token[1],
+    src: token[2],
+    width: Math.max(10, Math.min(100, parseInt(token[3] || '100', 10))),
+    caption: token[4] ? token[4].trim() : '',
+    trailing: token[5]
+  };
+}
+
+function buildBodyImageLine(parsed, width, caption){
+  const sizeMarker = width === 100 ? '' : ` @${width}`;
+  const captionMarker = caption ? ` | ${caption}` : '';
+  return `${parsed.leading}[IMG ${parsed.src}${sizeMarker}${captionMarker}]${parsed.trailing}`;
+}
+
+function editBodyImageText(text, raw, action){
+  const lines = text.split('\n');
+  if(lines[raw] === undefined) return null;
+  const parsed = parseBodyImageLine(lines[raw]);
+  if(!parsed) return null;
+
+  if(action === 'delete'){
+    lines.splice(raw, 1);
+    return { text:lines.join('\n'), message:'본문 이미지 삭제.' };
+  }
+
+  if(action === 'ratio'){
+    const input = prompt('이미지 가로 비율 (10~100%)\n세로 크기는 원본 비율에 맞춰 자동 조절됩니다.', String(parsed.width));
+    if(input === null) return null;
+    const width = Number(String(input).replace('%', '').trim());
+    if(!Number.isInteger(width) || width < 10 || width > 100){
+      alert('비율은 10부터 100 사이의 정수로 입력해 주세요.');
+      return null;
+    }
+    lines[raw] = buildBodyImageLine(parsed, width, parsed.caption);
+    return { text:lines.join('\n'), message:`이미지 비율을 ${width}%로 변경.` };
+  }
+
+  if(action === 'caption'){
+    const input = prompt('이미지 캡션\n빈칸으로 저장하면 캡션이 삭제됩니다.', parsed.caption);
+    if(input === null) return null;
+    const caption = input.replace(/[\r\n]+/g, ' ').trim();
+    lines[raw] = buildBodyImageLine(parsed, parsed.width, caption);
+    return { text:lines.join('\n'), message:caption ? '이미지 캡션 수정.' : '이미지 캡션 삭제.' };
+  }
+
+  return null;
+}
+
+function finishBlockToolbarAction(action){
+  if(!blockCtx) return;
+  const { ta, raw, type } = blockCtx;
+  const result = type === 'heading'
+    ? editHeadingLevelText(ta.value, raw, action)
+    : (type === 'img'
+        ? editBodyImageText(ta.value, raw, action)
+        : editSeparatorText(ta.value, raw, type, action));
+  if(!result){ hideBlockToolbar(); return; }
+  snapshotCards();
+  ta.value = result.text;
+  hideBlockToolbar();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(result.message);
+}
+
+document.querySelectorAll('#blockToolbar button').forEach(btn => {
+  btn.addEventListener('mousedown', e => e.preventDefault());
+  btn.addEventListener('click', () => finishBlockToolbarAction(btn.dataset.blockAction));
+});
+
+// 선택 영역을 감싸고 있는 서식 태그(<strong>/<em>)를 블록 안에서 찾음
+function activeFormatEl(node, tagName, block){
+  let el = node.nodeType === 3 ? node.parentElement : node;
+  while(el && el !== block){
+    if(el.tagName === tagName) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function previewCardContexts(){
+  const preview = document.getElementById('preview');
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  // 출력 순서를 추측하지 않고 buildCard가 기록한 원래 카드 번호로 직접 연결한다.
+  // 빈 카드·접기·카드 제목이 중간에 섞여도 다른 카드 textarea로 밀리지 않는다.
+  return Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]')).map(cardEl => {
+    const sourceIndex = Number(cardEl.dataset.mosaicCardIndex);
+    const ed = Number.isInteger(sourceIndex) ? editors[sourceIndex] : null;
+    return {
+      cardEl,
+      sourceIndex,
+      ed:ed || null,
+      ta:ed ? ed.querySelector('textarea') : null
+    };
+  }).filter(ctx => ctx.ta);
+}
+
+function previewCommentContexts(){
+  const preview = document.getElementById('preview');
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  return Array.from(preview.querySelectorAll(':scope > [data-mosaic-comment-index]')).map(commentEl => {
+    const sourceIndex = Number(commentEl.dataset.mosaicCommentIndex);
+    const ed = Number.isInteger(sourceIndex) ? editors[sourceIndex] : null;
+    const validEditor = ed && ed.dataset.blockType === 'comment' ? ed : null;
+    return {
+      commentEl,
+      sourceIndex,
+      ed:validEditor,
+      ta:validEditor ? validEditor.querySelector('textarea') : null
+    };
+  }).filter(ctx => ctx.ta);
+}
+
+// 코멘트의 [BR] 연결 구간은 미리보기에서 하나의 <p>가 되므로 같은 원문 범위와 연결한다.
+function commentDisplayEntries(ta){
+  return commentParagraphEntries(ta.value);
+}
+
+function previewCardBody(cardEl){
+  if(!cardEl) return null;
+  if(cardEl.tagName === 'DETAILS') return cardEl.querySelector(':scope > div');
+  return cardEl.querySelector(':scope > div:not([data-mosaic-card-title="true"])');
+}
+
+// 미리보기에서 실제 본문 글자를 가진 최소 블록만 수집한다.
+// 바깥 카드·접기 컨테이너와 화자 이름표·꼬리말·장식은 원문 줄과 대응하지 않는다.
+function previewSourceBlocks(cardEl){
+  const cardSummary = cardEl.tagName === 'DETAILS' && cardEl.firstElementChild
+    && cardEl.firstElementChild.tagName === 'SUMMARY' ? cardEl.firstElementChild : null;
+  return Array.from(cardEl.querySelectorAll('p, summary, div')).filter(el => {
+    if(el === cardSummary) return false;
+    if(el.matches('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.closest('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
+    if(el.tagName === 'DIV' && el.querySelector('p, summary, div')) return false;
+    return el.textContent.trim() !== '';
+  });
+}
+
+// 원문 줄 가운데 화면에 실제로 글자가 생기는 줄만 출력 순서 그대로 모은다.
+// 제목 없는 수동 접기는 기본 제목이 생성되므로 정렬용 항목은 남기되 직접 편집은 막는다.
+function sourceDisplayEntries(ta){
+  const result = [];
+  const settings = getSettings();
+  const sourceLines = ta.value.split('\n');
+  for(let raw = 0; raw < sourceLines.length; raw++){
+    let line = sourceLines[raw];
+    const trimmed = line.trim();
+    if(!trimmed) continue;
+    if(/^(?:\[C\]\s*)?\[접기\]\s*$/i.test(trimmed)){
+      result.push({ raw, editable:false });
+      continue;
+    }
+
+    // [BR]로 이어진 여러 원문 줄은 미리보기에서 하나의 문단이므로 직접 편집도
+    // 하나의 항목으로 묶는다. 구조 문법·빈 줄 앞에서는 결합하지 않는다.
+    let rawEnd = raw;
+    let combinedLine = line;
+    while(/\[BR\]\s*$/i.test(combinedLine) && rawEnd + 1 < sourceLines.length){
+      const left = combinedLine.replace(/\[BR\]\s*$/i, '');
+      const right = sourceLines[rawEnd + 1];
+      const joined = combineSoftBreakPair(left, right);
+      if(joined === null) break;
+      combinedLine = joined;
+      rawEnd++;
+    }
+    if(rawEnd > raw){
+      const renderLines = expandDialogueLinesForOutput([combinedLine], settings);
+      renderLines.forEach(renderLine => {
+        const projection = sourceDisplayProjectionMap(renderLine).text
+          .split(SOFT_BREAK_TOKEN).join('\n').trim();
+        if(!projection) return;
+        result.push({
+          raw,
+          rawEnd,
+          editable:renderLines.length === 1,
+          renderLine,
+          projection,
+          occurrence:0,
+          sourceBounds:null,
+          segmented:false,
+          softBreak:true
+        });
+      });
+      raw = rawEnd;
+      continue;
+    }
+    // 대사 옵션 3–5는 한 원문 줄 안의 서술과 대사를 여러 출력 문단으로 나눈다.
+    // 미리보기 편집 연결도 같은 분할 결과를 사용해야 HR 등 구조 요소 뒤에서
+    // 문단 인덱스가 밀리지 않는다.
+    const renderLines = expandDialogueLinesForOutput([line], settings);
+    let sourceCursor = 0;
+    renderLines.forEach(renderLine => {
+      const projection = sourceDisplayProjectionMap(renderLine).text.trim();
+      if(!projection) return;
+      const ranges = findAllSourceRanges(line, projection, false);
+      let occurrence = ranges.findIndex(range => range.start >= sourceCursor);
+      if(occurrence < 0) occurrence = 0;
+      const sourceBounds = ranges[occurrence] || null;
+      if(sourceBounds) sourceCursor = sourceBounds.end;
+      result.push({
+        raw,
+        rawEnd:raw,
+        editable:true,
+        renderLine,
+        projection,
+        occurrence,
+        sourceBounds,
+        segmented:renderLines.length > 1
+      });
+    });
+  }
+  return result;
+}
+
+// 미리보기 최소 글자 블록과 원문 줄은 렌더 순서가 같다.
+// 이 순서 매핑은 접기 내부·접기 제목까지 포함해 최상위 블록만 보던 누락을 피한다.
+function findBlockSource(node){
+  const originEl = node && node.nodeType === 1 ? node : node && node.parentElement;
+  if(!originEl || originEl.closest('[data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return null;
+  const ctx = previewCardContexts().find(item => item.cardEl.contains(node));
+  if(!ctx) return null;
+  const blocks = previewSourceBlocks(ctx.cardEl);
+  const block = blocks.find(item => item.contains(node));
+  if(!block) return null;
+  const entry = sourceDisplayEntries(ctx.ta)[blocks.indexOf(block)];
+  if(!entry || !entry.editable) return null;
+  return {
+    ta:ctx.ta,
+    block,
+    raw:entry.raw,
+    rawEnd:entry.rawEnd === undefined ? entry.raw : entry.rawEnd,
+    softBreak:!!entry.softBreak,
+    segmented:!!entry.segmented,
+    sourceBounds:entry.sourceBounds || null
+  };
+}
+
+// ---------- 미리보기에서 직접 글자 편집 ----------
+// 출력 HTML 문자열에는 편집 속성을 넣지 않고, 미리보기 DOM을 그린 뒤에만 연결한다.
+// 따라서 복사·다운로드되는 HTML에는 contenteditable이나 연결 정보가 섞이지 않는다.
+function inlineEditProjection(value){
+  const normalized = normalizeQuotes(String(value));
+  const chars = normalized.split('');
+  const mask = (start, end) => {
+    for(let i = start; i < end && i < chars.length; i++) chars[i] = '\u0000';
+  };
+  maskInlineFormatMarkers(normalized, mask);
+  return chars.join('');
+}
+
+// 보이는 글자만 비교해 바뀐 구간을 원문에 되돌린다.
+// [C], >, #, 화자, 색상, 굵게·강조 마커처럼 화면에 안 보이는 문법은 그대로 둔다.
+function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preserveLineBreaks = false){
+  const raw = String(rawValue);
+  const projected = projection === undefined ? lineSearchProjection(raw) : projection;
+  const rawIndexes = [];
+  let oldVisible = '';
+  for(let i = 0; i < projected.length; i++){
+    if(projected[i] === '\u0000') continue;
+    oldVisible += projected[i];
+    rawIndexes.push(i);
+  }
+  const normalizedNext = normalizeQuotes(String(nextVisible))
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n?/g, '\n');
+  const next = preserveLineBreaks
+    ? normalizedNext.replace(/[ \t]*\n[ \t]*/g, '\n').replace(/\n{2,}/g, '\n').trim()
+    : normalizedNext.replace(/\s*\n\s*/g, ' ').trim();
+  if(next === oldVisible.trim()) return raw;
+  if(!next) return '';
+
+  const old = oldVisible.trim();
+  let prefix = 0;
+  while(prefix < old.length && prefix < next.length && old[prefix] === next[prefix]) prefix++;
+  let suffix = 0;
+  while(suffix < old.length - prefix && suffix < next.length - prefix
+    && old[old.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix++;
+
+  // projection의 앞뒤 공백은 원문 문법처럼 숨겨질 수 있으므로, 화면 문자열의 실제 시작을 맞춘다.
+  const projectedVisible = projected.replace(/\u0000/g, '');
+  const leftTrim = projectedVisible.length - projectedVisible.trimStart().length;
+  const visibleIndexes = rawIndexes.slice(leftTrim, rawIndexes.length - (projectedVisible.length - projectedVisible.trimEnd().length));
+  const replaceStart = prefix < visibleIndexes.length
+    ? visibleIndexes[prefix]
+    : (visibleIndexes.length ? visibleIndexes[visibleIndexes.length - 1] + 1 : sourceContentStart(raw));
+  const oldEnd = old.length - suffix;
+  const replaceEnd = oldEnd > prefix && visibleIndexes[oldEnd - 1] !== undefined
+    ? visibleIndexes[oldEnd - 1] + 1
+    : replaceStart;
+  const inserted = next.slice(prefix, next.length - suffix);
+  return (raw.slice(0, replaceStart) + inserted + raw.slice(replaceEnd))
+    .replace(/____/g, '')
+    .replace(/\*\*\*\*/g, '');
+}
+
+function replacePreviewBodyLine(rawLine, nextVisible){
+  const raw = String(rawLine);
+  let core = raw.trim();
+  const centerMatch = core.match(/^\[C\]\s*/i);
+  if(centerMatch){
+    core = core.slice(centerMatch[0].length);
+  }
+  if(statusLineContent(core) !== null){
+    const clean = String(nextVisible).replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+    if(!clean) return '';
+    // 상태창은 화면에서만 | 공백이 정리된다. 보이는 글자가 그대로라면 원문의
+    // __...__ / *...* 등 혼합 문법을 건드리지 않는다.
+    if(clean === sourceDisplayProjectionMap(raw).text.trim()) return raw;
+    return replaceVisibleUsingProjection(raw, clean, lineSearchProjection(raw));
+  }
+  return replaceVisibleUsingProjection(raw, nextVisible, lineSearchProjection(raw));
+}
+
+function previewEditableText(el, preserveLineBreaks){
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')
+    .forEach(node => node.remove());
+  // 아래쓰기로 표시되는 병행 번역은 DOM상 인접 span이라 textContent에서 두 문장이
+  // 붙어 버린다. 원문의 두 내용 사이 공백과 동일하게 한 칸을 보존한다.
+  clone.querySelectorAll('[data-mosaic-parallel-translation-mode="stack"]')
+    .forEach(node => node.before(document.createTextNode(' ')));
+  if(preserveLineBreaks){
+    clone.querySelectorAll('br').forEach(node => node.replaceWith(document.createTextNode('\n')));
+    return clone.textContent
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]*\n[ \t]*/g, '\n')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+  return clone.textContent.replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+}
+
+// 한 원문 줄이 여러 미리보기 문단으로 분리된 경우에는 검색 범위를 해당 조각으로
+// 제한한다. 같은 문장이 앞뒤에 반복돼도 다른 조각을 수정하지 않게 한다.
+function descriptorSourceRange(descriptor, line, text, occurrence){
+  const bounds = descriptor && descriptor.sourceBounds;
+  if(bounds && Number.isInteger(bounds.start) && Number.isInteger(bounds.end)){
+    const segment = line.slice(bounds.start, bounds.end);
+    const local = findSourceRange(segment, text, occurrence, false);
+    if(local) return { start:bounds.start + local.start, end:bounds.start + local.end };
+    // 자동 분리된 대사는 반드시 자기 원문 조각 안에서만 수정한다.
+    // 조각 검색에 실패했을 때 줄 전체로 되돌아가면 같은 문장이 인접 조각에서
+    // 발견되어 엉뚱한 대사에 서식이나 편집 내용이 적용될 수 있다.
+    if(descriptor && descriptor.segmented) return null;
+  }
+  return findSourceRange(line, text, occurrence, false);
+}
+
+// [BR] 문단은 여러 원문 줄이 미리보기의 한 블록으로 합쳐진다. 선택한 글자가
+// 첫 줄이 아닌 경우에도 결합 순서대로 각 원문 줄의 후보를 세어 실제 줄과 범위를 찾는다.
+function descriptorSelectionSource(descriptor, text, occurrence){
+  if(!descriptor || !descriptor.ta) return null;
+  const lines = descriptor.ta.value.split('\n');
+  const rawStart = descriptor.raw;
+  const rawEnd = Math.max(rawStart, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : rawStart);
+  if(descriptor.softBreak && rawEnd > rawStart){
+    let remaining = Math.max(0, occurrence || 0);
+    for(let raw = rawStart; raw <= rawEnd; raw++){
+      const line = lines[raw];
+      if(line === undefined) continue;
+      const ranges = findAllSourceRanges(line, text, false);
+      if(remaining < ranges.length){
+        return { raw, range:ranges[remaining], occurrence:remaining, sourceBounds:null, segmented:false };
+      }
+      remaining -= ranges.length;
+    }
+    return null;
+  }
+  const line = lines[rawStart];
+  if(line === undefined) return null;
+  const range = descriptorSourceRange(descriptor, line, text, occurrence);
+  return range ? {
+    raw:rawStart,
+    range,
+    occurrence,
+    sourceBounds:descriptor.sourceBounds || null,
+    segmented:!!descriptor.segmented
+  } : null;
+}
+
+function revealCoverControl(ids){
+  const list = Array.isArray(ids) ? ids : [ids];
+  const input = list.map(id => document.getElementById(id)).find(Boolean);
+  if(!input) return;
+  const btn = document.querySelector('.tabBtn[data-tab="tabCover"]');
+  if(btn && !btn.classList.contains('active')) btn.click();
+  requestAnimationFrame(() => {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTop = document.getElementById('sidebarTop');
+    const target = input.closest('.row') || input;
+    const targetRect = target.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sidebarRect.top;
+    const desiredTop = Math.max(sidebarRect.top + 12, headerBottom + 20);
+    if(targetRect.top < desiredTop || targetRect.bottom > sidebarRect.bottom - 12){
+      sidebar.scrollTop += targetRect.top - desiredTop;
+    }
+    target.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => { target.style.boxShadow = ''; }, 900);
+    if(typeof input.setSelectionRange === 'function') input.setSelectionRange(0, input.value.length);
+  });
+}
+
+function revealProfileControl(id){
+  const input = document.getElementById(id);
+  if(!input) return;
+  const coverTab = document.getElementById('tabBtnCover');
+  if(coverTab && !coverTab.classList.contains('active')) coverTab.click();
+  const profileGroup = document.getElementById('profileGroup');
+  if(profileGroup) profileGroup.open = true;
+  const subgroupId = id.startsWith('profileChar')
+    ? 'profileCharGroup'
+    : (id.startsWith('profileUser') ? 'profileUserGroup' : 'profileCommonGroup');
+  const subgroup = document.getElementById(subgroupId);
+  if(subgroup) subgroup.open = true;
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !input.isConnected) return;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTop = document.getElementById('sidebarTop');
+    const target = input.closest('.row') || input;
+    const targetRect = target.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sidebarRect.top;
+    const desiredTop = Math.max(sidebarRect.top + 12, headerBottom + 20);
+    if(targetRect.top < desiredTop || targetRect.bottom > sidebarRect.bottom - 12){
+      sidebar.scrollTop += targetRect.top - desiredTop;
+    }
+    target.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => { if(target.isConnected) target.style.boxShadow = ''; }, 900);
+  });
+}
+
+function creditEditorInput(index, field){
+  if(!Number.isInteger(index) || index < 0) return null;
+  const row = document.querySelector(`#creditEditorList .creditEditorRow[data-credit-index="${index}"]`);
+  if(!row) return null;
+  const selector = field === 'label' ? '.creditLabelInput'
+    : (field === 'url' ? '.creditUrlInput' : '.creditValueInput');
+  return row.querySelector(selector);
+}
+
+function revealCreditControl(index, field){
+  const input = creditEditorInput(index, field);
+  if(!input) return;
+  const coverTab = document.getElementById('tabBtnCover');
+  if(coverTab && !coverTab.classList.contains('active')) coverTab.click();
+  const creditGroup = document.getElementById('creditGroup');
+  if(creditGroup) creditGroup.open = true;
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !input.isConnected) return;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTop = document.getElementById('sidebarTop');
+    const row = input.closest('.creditEditorRow');
+    const target = row || input;
+    const targetRect = target.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sidebarRect.top;
+    const desiredTop = Math.max(sidebarRect.top + 12, headerBottom + 20);
+    if(targetRect.top < desiredTop || targetRect.bottom > sidebarRect.bottom - 12){
+      sidebar.scrollTop += targetRect.top - desiredTop;
+    }
+    input.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => { if(input.isConnected) input.style.boxShadow = ''; }, 900);
+  });
+}
+
+// 위치 맞추기가 켜져 있으면 미리보기 직접 편집도 기존 양방향 연결에 참여한다.
+// 포커스는 미리보기에 둔 채 왼쪽 탭·카드·원문 줄만 찾아 보여준다.
+function syncDirectEditPosition(el, descriptor){
+  if(descriptor.type === 'body' || descriptor.type === 'comment'){
+    activeTa = descriptor.ta;
+    syncBodyOnlyToolbarAvailability({ target:descriptor.ta });
+  }
+  if(!positionSyncEnabled()) return;
+  if(descriptor.type === 'cover'){
+    revealCoverControl(descriptor.id);
+    return;
+  }
+  if(descriptor.type === 'coverSubtitle'){
+    revealCoverControl(descriptor.ids);
+    return;
+  }
+  if(descriptor.type === 'profile'){
+    revealProfileControl(descriptor.id);
+    return;
+  }
+  if(descriptor.type === 'credit'){
+    revealCreditControl(descriptor.index, descriptor.field);
+    return;
+  }
+  if(descriptor.type === 'body'){
+    revealInEditor(
+      descriptor.ta,
+      descriptor.raw,
+      previewEditableText(el, true),
+      0,
+      descriptor.sourceBounds,
+      descriptor.segmented
+    );
+    return;
+  }
+  if(descriptor.type === 'comment'){
+    revealCommentInEditor(descriptor.ta, descriptor.raw, descriptor.rawEnd);
+  }
+}
+
+function commitPreviewDirectEdit(el, descriptor){
+  if(previewDirectEditCommitting) return;
+  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
+  const next = previewEditableText(el, preservesLineBreaks);
+  if(descriptor.type === 'cover'){
+    const input = document.getElementById(descriptor.id);
+    if(!input) return;
+    const updated = replaceVisibleUsingProjection(input.value, next, inlineEditProjection(input.value));
+    if(updated === input.value) return;
+    previewDirectEditCommitting = true;
+    snapshotCards();
+    input.value = updated;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast('미리보기에서 표지 수정.');
+    previewDirectEditCommitting = false;
+    return;
+  }
+
+  if(descriptor.type === 'coverSubtitle'){
+    const ids = descriptor.ids || [];
+    const values = {};
+    const hasCouple = ids.includes('subChar') || ids.includes('subUser');
+    const hasFree = ids.includes('logSubtitle');
+    let coupleText = hasCouple ? next : '';
+    let freeText = hasFree ? next : '';
+    if(hasCouple && hasFree){
+      // 이름 구분 기호도 ·일 수 있으므로 자유 부제 앞의 마지막 구분점을 사용한다.
+      const spacedDividerAt = next.lastIndexOf(' · ');
+      const dividerAt = spacedDividerAt >= 0 ? spacedDividerAt : next.lastIndexOf('·');
+      if(dividerAt >= 0){
+        const dividerLength = spacedDividerAt >= 0 ? 3 : 1;
+        coupleText = next.slice(0, dividerAt).trim();
+        freeText = next.slice(dividerAt + dividerLength).trim();
+      }else{
+        // 보호 기호를 우회해 ·가 사라져도 이름과 자유 부제를 한 값으로 합치지 않는다.
+        const currentNames = document.getElementById('profileOrder').value === 'user-bot'
+          ? [document.getElementById('subUser').value, document.getElementById('subChar').value]
+          : [document.getElementById('subChar').value, document.getElementById('subUser').value];
+        const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+        coupleText = currentNames
+          .filter(value => value.trim()).join(` ${separator} `);
+        freeText = document.getElementById('logSubtitle').value;
+      }
+    }
+    if(ids.includes('subChar') && ids.includes('subUser')){
+      const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+      const divider = coupleText.match(new RegExp(`\\s+${escRe(separator)}\\s+|${escRe(separator)}`));
+      if(divider){
+        const at = divider.index;
+        const first = coupleText.slice(0, at).trim();
+        const second = coupleText.slice(at + divider[0].length).trim();
+        if(document.getElementById('profileOrder').value === 'user-bot'){
+          values.subUser = first;
+          values.subChar = second;
+        }else{
+          values.subChar = first;
+          values.subUser = second;
+        }
+      }else{
+        // 보호 기호를 우회해 구분 기호가 사라져도 두 입력값을 합치지 않는다.
+        // 기존 값을 그대로 보존해 두 이름이 중복되는 회귀를 막는다.
+        values.subChar = document.getElementById('subChar').value;
+        values.subUser = document.getElementById('subUser').value;
+      }
+    }else if(ids.includes('subChar')){
+      values.subChar = coupleText;
+    }else if(ids.includes('subUser')){
+      values.subUser = coupleText;
+    }
+    if(hasFree) values.logSubtitle = freeText;
+    Object.keys(values).forEach(id => {
+      const input = document.getElementById(id);
+      values[id] = replaceVisibleUsingProjection(input.value, values[id], inlineEditProjection(input.value));
+    });
+    const changed = Object.entries(values).some(([id, value]) => document.getElementById(id).value !== value);
+    if(!changed) return;
+    previewDirectEditCommitting = true;
+    snapshotCards();
+    Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
+    const trigger = document.getElementById(Object.keys(values)[0]);
+    if(trigger) trigger.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast('미리보기에서 부제 수정.');
+    previewDirectEditCommitting = false;
+    return;
+  }
+
+  if(descriptor.type === 'profile'){
+    const input = document.getElementById(descriptor.id);
+    if(!input) return;
+    const visible = descriptor.normalizeTag ? normalizeProfileTag(next) : next;
+    const updated = replaceVisibleUsingProjection(
+      input.value,
+      visible,
+      inlineEditProjection(input.value),
+      descriptor.multiline === true
+    );
+    if(updated === input.value) return;
+    previewDirectEditCommitting = true;
+    try {
+      snapshotCards();
+      input.value = updated;
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+      showUndoToast('미리보기에서 프로필 수정.');
+    } finally {
+      previewDirectEditCommitting = false;
+    }
+    return;
+  }
+
+  if(descriptor.type === 'credit'){
+    const input = creditEditorInput(descriptor.index, descriptor.field);
+    if(!input) return;
+    const updated = String(next).slice(0, Number(input.maxLength) > 0 ? Number(input.maxLength) : 500);
+    const staged = el.dataset.previewCreditStaged === 'true';
+    if(updated === input.value && !staged) return;
+    previewDirectEditCommitting = true;
+    try {
+      // 입력 중 이미 원본 필드에 임시 동기화했다면 그때 만든 수정 전 스냅샷을 보존한다.
+      // blur에서 다시 스냅샷을 만들면 실행 취소 기준도 수정 후 값으로 덮일 수 있다.
+      if(!staged) snapshotCards();
+      input.value = updated;
+      setStoredCreditItems(creditItemsFromEditor(), true);
+      showUndoToast(`미리보기에서 크레딧 ${descriptor.field === 'label' ? '항목명' : '내용'} 수정.`);
+    } finally {
+      delete el.dataset.previewCreditStaged;
+      previewDirectEditCommitting = false;
+    }
+    return;
+  }
+
+  if(descriptor.type === 'comment'){
+    const owningContext = previewCommentContexts().find(ctx => ctx.commentEl.contains(el));
+    if(!owningContext || owningContext.ta !== descriptor.ta){
+      // 다시 렌더된 오래된 문단이 다른 코멘트 원문을 덮어쓰지 않게 한다.
+      render();
+      return;
+    }
+    const ta = descriptor.ta;
+    const lines = ta ? ta.value.split('\n') : [];
+    if(!ta || lines[descriptor.raw] === undefined) return;
+    const rawEnd = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
+    const updatedGroup = next.split('\n').join('[BR]\n');
+    const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
+    if(updatedGroup === oldGroup) return;
+    previewDirectEditCommitting = true;
+    snapshotCards();
+    const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
+    lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
+    ta.value = lines.join('\n');
+    activeTa = ta;
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast('미리보기에서 코멘트 수정.');
+    previewDirectEditCommitting = false;
+    return;
+  }
+
+  const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
+  if(!owningContext || owningContext.ta !== descriptor.ta){
+    // 연결이 바뀐 오래된 미리보기 요소는 절대 다른 카드 원문에 저장하지 않는다.
+    render();
+    return;
+  }
+  const ta = descriptor.ta;
+  const lines = ta ? ta.value.split('\n') : [];
+  if(!ta || lines[descriptor.raw] === undefined) return;
+  const rawLine = lines[descriptor.raw];
+  const rawEnd = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
+  if(!descriptor.segmented && (descriptor.softBreak || next.includes('\n'))){
+    const nextParts = next.split('\n');
+    const oldParts = lines.slice(descriptor.raw, rawEnd + 1)
+      .map(part => part.replace(/\[BR\]\s*$/i, ''));
+    const updatedGroup = nextParts.map((part, index) => {
+      // 기존 각 줄의 [C]·화자·색상·강조 문법은 가능한 한 그대로 유지하고,
+      // 새로 생긴 줄만 보이는 글자를 원문으로 사용한다.
+      if(oldParts[index] !== undefined) return replacePreviewBodyLine(oldParts[index], part);
+      return part;
+    }).join('[BR]\n');
+    const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
+    if(updatedGroup === oldGroup) return;
+    previewDirectEditCommitting = true;
+    snapshotCards();
+    const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
+    lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
+    ta.value = lines.join('\n');
+    activeTa = ta;
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast('미리보기에서 같은 문단 줄바꿈 수정.');
+    previewDirectEditCommitting = false;
+    return;
+  }
+  let updated;
+  if(descriptor.segmented && descriptor.sourceBounds){
+    const start = descriptor.sourceBounds.start;
+    const end = descriptor.sourceBounds.end;
+    const segment = rawLine.slice(start, end);
+    const nextSegment = replaceVisibleUsingProjection(segment, next, lineSearchProjection(segment));
+    updated = rawLine.slice(0, start) + nextSegment + rawLine.slice(end);
+  }else{
+    updated = replacePreviewBodyLine(rawLine, next);
+  }
+  if(updated === lines[descriptor.raw]) return;
+  previewDirectEditCommitting = true;
+  snapshotCards();
+  if(!descriptor.segmented && updated === '') lines.splice(descriptor.raw, 1);
+  else lines[descriptor.raw] = updated;
+  ta.value = lines.join('\n');
+  activeTa = ta;
+  ta.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast('미리보기에서 본문 수정.');
+  previewDirectEditCommitting = false;
+}
+
+function previewSelectionDetails(el, formatNode){
+  let text = '';
+  let before = '';
+  if(formatNode){
+    text = formatNode.textContent || '';
+    const pre = document.createRange();
+    pre.selectNodeContents(el);
+    try { pre.setEndBefore(formatNode); } catch(e){ return null; }
+    before = pre.toString();
+  }else{
+    const sel = window.getSelection();
+    if(!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const range = sel.getRangeAt(0);
+    if(!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
+    text = sel.toString();
+    const pre = range.cloneRange();
+    pre.selectNodeContents(el);
+    pre.setEnd(range.startContainer, range.startOffset);
+    before = pre.toString();
+  }
+  text = text.replace(/\u00a0/g, ' ').trim();
+  if(!text) return null;
+  let occurrence = 0;
+  let from = 0;
+  let at = before.indexOf(text, from);
+  while(at !== -1){
+    occurrence++;
+    from = at + Math.max(1, text.length);
+    at = before.indexOf(text, from);
+  }
+  return { text, occurrence };
+}
+
+// 브라우저가 contenteditable 내부에 자체 <b>/<i>를 넣더라도 DOM에만 남겨두지 않고
+// 반드시 대응하는 본문 원문 줄의 **...** / *...* 문법으로 변환한다.
+function applyPreviewFormatToSource(el, descriptor, fmt, details){
+  if(previewDirectEditCommitting || !descriptor || descriptor.type !== 'body' || !details) return false;
+  const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
+  if(!owningContext || owningContext.ta !== descriptor.ta) return false;
+  const ta = descriptor.ta;
+  const lines = ta ? ta.value.split('\n') : [];
+  const resolved = descriptorSelectionSource(descriptor, details.text, details.occurrence);
+  if(!resolved) return false;
+  const raw = resolved.raw;
+  const line = lines[raw];
+  if(line === undefined) return false;
+  const sourceRange = resolved.range;
+  const wrap = FMT_WRAP[fmt];
+  if(!wrap) return false;
+
+  let nextLine = '';
+  let removed = false;
+  const re = new RegExp(FMT_RE[fmt].source, 'g');
+  let match;
+  while((match = re.exec(line)) !== null){
+    const innerStart = match.index + wrap.length;
+    const innerEnd = match.index + match[0].length - wrap.length;
+    if(sourceRange.start >= innerStart && sourceRange.end <= innerEnd){
+      nextLine = line.slice(0, match.index) + formatMatchContent(fmt, match) + line.slice(match.index + match[0].length);
+      removed = true;
+      break;
+    }
+  }
+  if(!nextLine){
+    const selectedSource = line.slice(sourceRange.start, sourceRange.end);
+    nextLine = line.slice(0, sourceRange.start) + wrap + selectedSource + wrap + line.slice(sourceRange.end);
+  }
+  if(nextLine === line) return false;
+
+  previewDirectEditCommitting = true;
+  try {
+    snapshotCards();
+    lines[raw] = nextLine;
+    ta.value = lines.join('\n');
+    activeTa = ta;
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(`${fmt === 'bold' ? '굵게' : '강조'} 서식 ${removed ? '해제' : '적용'}.`);
+  } finally {
+    previewDirectEditCommitting = false;
+  }
+  return true;
+}
+
+function wrapPreviewTextTokenAt(el, offset, token, key, label){
+  if(offset < 0 || el.querySelector(`[data-preview-protected-token="${key}"]`)) return;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node;
+  let consumed = 0;
+  while((node = walker.nextNode())){
+    const end = consumed + node.nodeValue.length;
+    if(offset < consumed || offset >= end){
+      consumed = end;
+      continue;
+    }
+    const at = offset - consumed;
+    if(node.nodeValue.slice(at, at + token.length) !== token) return;
+    const before = node.nodeValue.slice(0, at);
+    const after = node.nodeValue.slice(at + token.length);
+    const divider = document.createElement('span');
+    divider.dataset.previewProtectedToken = key;
+    divider.setAttribute('contenteditable', 'false');
+    divider.setAttribute('aria-label', label);
+    divider.textContent = token;
+    const fragment = document.createDocumentFragment();
+    if(before) fragment.appendChild(document.createTextNode(before));
+    fragment.appendChild(divider);
+    if(after) fragment.appendChild(document.createTextNode(after));
+    node.parentNode.replaceChild(fragment, node);
+    return;
+  }
+}
+
+function protectPreviewSubtitleDividers(el, keys){
+  if(!el || !Array.isArray(keys) || !keys.length) return;
+  let text = el.textContent;
+  if(keys.includes('subtitle-couple-divider')){
+    const token = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+    const spacedAt = text.indexOf(` ${token} `);
+    const offset = spacedAt >= 0 ? spacedAt + 1 : text.indexOf(token);
+    wrapPreviewTextTokenAt(el, offset, token, 'subtitle-couple-divider', '이름 구분 기호');
+  }
+  if(keys.includes('subtitle-free-divider')){
+    text = el.textContent;
+    // 이름 사이에도 ·를 선택할 수 있으므로 자유 부제 앞의 마지막 점을 보호한다.
+    const spacedAt = text.lastIndexOf(' · ');
+    const offset = spacedAt >= 0 ? spacedAt + 1 : text.lastIndexOf('·');
+    wrapPreviewTextTokenAt(el, offset, '·', 'subtitle-free-divider', '자유 부제 구분 기호');
+  }
+}
+
+function previewSelectionOffsets(el){
+  const selection = window.getSelection();
+  if(!selection || !selection.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  if(!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
+  const beforeStart = document.createRange();
+  beforeStart.selectNodeContents(el);
+  beforeStart.setEnd(range.startContainer, range.startOffset);
+  const beforeEnd = document.createRange();
+  beforeEnd.selectNodeContents(el);
+  beforeEnd.setEnd(range.endContainer, range.endOffset);
+  return { start:beforeStart.toString().length, end:beforeEnd.toString().length };
+}
+
+// contenteditable 문단의 시작에서 Backspace, 끝에서 Delete를 누르면 브라우저가
+// 이웃 문단 DOM을 합칠 수 있다. 그 상태에서 blur 저장이 실행되면 현재 문단이 아닌
+// 인용문의 마지막 줄이나 구분선 너머 문단까지 수정 범위로 오인할 수 있으므로,
+// 문단 경계를 넘는 삭제만 막고 문단 내부 선택 삭제는 그대로 허용한다.
+function previewBoundaryDeleteBlocked(el, inputType){
+  // 모바일 편집기와 단어·행 단위 삭제도 같은 경계를 넘을 수 있다.
+  const direction = String(inputType).match(/^delete(?:Content|Word|SoftLine|HardLine)(Backward|Forward)$/i);
+  if(!direction) return false;
+  const selection = previewSelectionOffsets(el);
+  if(!selection || selection.start !== selection.end) return false;
+  const fullRange = document.createRange();
+  fullRange.selectNodeContents(el);
+  const length = fullRange.toString().length;
+  if(direction[1].toLowerCase() === 'backward') return selection.start === 0;
+  return selection.start === length;
+}
+
+function subtitleDividerEditBlocked(el, inputType){
+  const dividers = Array.from(el.querySelectorAll('[data-preview-protected-token]'));
+  const selection = previewSelectionOffsets(el);
+  if(!dividers.length || !selection) return false;
+  return dividers.some(divider => {
+    const beforeDivider = document.createRange();
+    beforeDivider.selectNodeContents(el);
+    beforeDivider.setEndBefore(divider);
+    const dividerStart = beforeDivider.toString().length;
+    const dividerEnd = dividerStart + divider.textContent.length;
+    if(selection.start !== selection.end){
+      return selection.start < dividerEnd && selection.end > dividerStart;
+    }
+    if(/^delete.*Backward$/i.test(inputType)) return selection.start === dividerEnd;
+    if(/^delete.*Forward$/i.test(inputType)) return selection.start === dividerStart;
+    return false;
+  });
+}
+
+function enablePreviewDirectEditor(el, descriptor, label){
+  if(!el || el.dataset.previewDirectEdit === 'true') return;
+  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
+  el.dataset.previewDirectEdit = 'true';
+  el.dataset.previewEditType = descriptor.type;
+  previewDirectEditDescriptors.set(el, descriptor);
+  el.setAttribute('contenteditable', 'plaintext-only');
+  el.setAttribute('role', 'textbox');
+  el.setAttribute('aria-label', label);
+  el.setAttribute('title', preservesLineBreaks
+    ? '미리보기에서 수정 · Enter 저장 · Shift+Enter 같은 문단 줄바꿈 · Esc 취소'
+    : '미리보기에서 수정 · Enter 저장 · Esc 취소');
+  // 미리보기는 교정 화면이 아니므로 브라우저·확장 프로그램의 빨간 맞춤법 밑줄을 표시하지 않는다.
+  el.spellcheck = false;
+  el.setAttribute('spellcheck', 'false');
+  el.setAttribute('autocorrect', 'off');
+  el.setAttribute('autocapitalize', 'off');
+  el.setAttribute('data-gramm', 'false');
+  el.setAttribute('data-gramm_editor', 'false');
+  el.setAttribute('data-enable-grammarly', 'false');
+  el.querySelectorAll('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')
+    .forEach(node => node.setAttribute('contenteditable', 'false'));
+  if(descriptor.protectedSubtitleTokens) protectPreviewSubtitleDividers(el, descriptor.protectedSubtitleTokens);
+
+  let cancelled = false;
+  let focusValue = '';
+  const syncChangedHighlight = () => {
+    if(previewEditableText(el, preservesLineBreaks) !== focusValue){
+      el.dataset.previewEditChanged = 'true';
+    }else{
+      delete el.dataset.previewEditChanged;
+    }
+  };
+  el.addEventListener('focus', () => {
+    focusValue = previewEditableText(el, preservesLineBreaks);
+    delete el.dataset.previewEditChanged;
+    syncDirectEditPosition(el, descriptor);
+  });
+  el.addEventListener('beforeinput', e => {
+    if(previewBoundaryDeleteBlocked(el, e.inputType || '')){
+      e.preventDefault();
+      return;
+    }
+    if(descriptor.protectedSubtitleTokens && subtitleDividerEditBlocked(el, e.inputType || '')){
+      e.preventDefault();
+      return;
+    }
+    const fmt = e.inputType === 'formatBold' ? 'bold'
+      : (e.inputType === 'formatItalic' ? 'emphasis' : null);
+    if(fmt){
+      e.preventDefault();
+      applyPreviewFormatToSource(el, descriptor, fmt, previewSelectionDetails(el));
+      return;
+    }
+    if(e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') e.preventDefault();
+  });
+  el.addEventListener('paste', e => {
+    e.preventDefault();
+    if(descriptor.protectedSubtitleTokens && subtitleDividerEditBlocked(el, 'insertFromPaste')) return;
+    const pasted = (e.clipboardData || window.clipboardData).getData('text/plain');
+    const plain = preservesLineBreaks
+      ? pasted.replace(/\r\n?/g, '\n')
+      : pasted.replace(/\s*\n\s*/g, ' ');
+    document.execCommand('insertText', false, plain);
+  });
+  el.addEventListener('cut', e => {
+    if(descriptor.protectedSubtitleTokens && subtitleDividerEditBlocked(el, 'deleteByCut')) e.preventDefault();
+  });
+  el.addEventListener('input', e => {
+    if(descriptor.protectedSubtitleTokens && descriptor.protectedSubtitleTokens.some(key =>
+      !el.querySelector(`[data-preview-protected-token="${key}"]`))){
+      // 일부 브라우저의 편집 명령이 beforeinput을 건너뛰면 원본 필드로 즉시 복구한다.
+      render();
+      return;
+    }
+    const fmt = e.inputType === 'formatBold' ? 'bold'
+      : (e.inputType === 'formatItalic' ? 'emphasis' : null);
+    if(fmt) applyPreviewFormatToSource(el, descriptor, fmt, previewSelectionDetails(el));
+    syncChangedHighlight();
+    if(descriptor.type === 'credit'){
+      const input = creditEditorInput(descriptor.index, descriptor.field);
+      if(!input) return;
+      const staged = previewEditableText(el, false)
+        .slice(0, Number(input.maxLength) > 0 ? Number(input.maxLength) : 500);
+      if(staged === input.value) return;
+      // 다음 크레딧 입력이 전체 항목을 직렬화하기 전에 현재 미리보기 수정값을
+      // 원본 입력과 숨은 저장 필드에 함께 반영한다. 렌더는 blur까지 미뤄 포커스를 지킨다.
+      if(el.dataset.previewCreditStaged !== 'true') snapshotCards();
+      input.value = staged;
+      setStoredCreditItems(creditItemsFromEditor(), false);
+      el.dataset.previewCreditStaged = 'true';
+    }
+  });
+  el.addEventListener('keydown', e => {
+    if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Backspace' || e.key === 'Delete'){
+      const inputType = e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
+      if(previewBoundaryDeleteBlocked(el, inputType)){
+        e.preventDefault();
+        return;
+      }
+    }
+    const shortcut = (e.metaKey || e.ctrlKey) && !e.altKey ? e.key.toLowerCase() : '';
+    if(shortcut === 'b' || shortcut === 'i'){
+      e.preventDefault();
+      if(descriptor.type === 'body'){
+        const fmt = shortcut === 'b' ? 'bold' : 'emphasis';
+        const button = document.querySelector(`#selToolbar button[data-fmt="${fmt}"]`);
+        if(selCtx && button) button.click();
+      }
+      return;
+    }
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      if(e.shiftKey && preservesLineBreaks){
+        const selection = window.getSelection();
+        if(selection && selection.rangeCount){
+          const range = selection.getRangeAt(0);
+          if(el.contains(range.startContainer) && el.contains(range.endContainer)){
+            range.deleteContents();
+            const br = document.createElement('br');
+            range.insertNode(br);
+            range.setStartAfter(br);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            syncChangedHighlight();
+          }
+        }
+        return;
+      }
+      el.blur();
+    } else if(e.key === 'Escape'){
+      e.preventDefault();
+      cancelled = true;
+      if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true'){
+        const input = creditEditorInput(descriptor.index, descriptor.field);
+        if(input){
+          input.value = focusValue;
+          setStoredCreditItems(creditItemsFromEditor(), false);
+        }
+        delete el.dataset.previewCreditStaged;
+        undoSnapshot = null;
+      }
+      el.blur();
+      render();
+    }
+  });
+  el.addEventListener('blur', () => {
+    if(cancelled) return;
+    // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
+    // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
+    if(previewEditableText(el, preservesLineBreaks) === focusValue){
+      if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true') undoSnapshot = null;
+      delete el.dataset.previewCreditStaged;
+      delete el.dataset.previewEditChanged;
+      return;
+    }
+    commitPreviewDirectEdit(el, descriptor);
+    delete el.dataset.previewEditChanged;
+  });
+
+  // 일부 브라우저의 선택 메뉴는 beforeinput/input 없이 DOM 태그만 삽입한다.
+  // 새로 생긴 서식 요소를 감시해 같은 원문 변환 경로로 보낸다.
+  if(descriptor.type === 'body' && typeof MutationObserver === 'function'){
+    const knownNodes = new WeakSet([el, ...el.querySelectorAll('*')]);
+    const observer = new MutationObserver(() => {
+      if(previewDirectEditCommitting || !el.isConnected) return;
+      const candidates = Array.from(el.querySelectorAll('b, strong, i, em, span[style]'));
+      const added = candidates.find(node => !knownNodes.has(node));
+      candidates.forEach(node => knownNodes.add(node));
+      if(!added) return;
+      const tag = added.tagName;
+      const weight = (added.style && added.style.fontWeight) || '';
+      const italic = (added.style && added.style.fontStyle) === 'italic';
+      const fmt = (tag === 'B' || tag === 'STRONG' || /^(?:bold|[7-9]00)$/.test(weight))
+        ? 'bold'
+        : ((tag === 'I' || tag === 'EM' || italic) ? 'emphasis' : null);
+      if(fmt) applyPreviewFormatToSource(el, descriptor, fmt, previewSelectionDetails(el, added));
+    });
+    observer.observe(el, { childList:true, subtree:true, attributes:true, attributeFilter:['style'] });
+  }
+}
+
+// 소제목을 한 번 클릭하면 # 단계 선택 메뉴를 연다.
+function bindHeadingLevelInteraction(block, ctx){
+  if(!block || block.dataset.mosaicHeadingLevelBound === 'true') return;
+  block.dataset.mosaicHeadingLevelBound = 'true';
+  block.title = '클릭해서 # 단계 변경 · 글자는 미리보기에서 직접 수정';
+  block.addEventListener('click', () => {
+    if(block.isConnected) showBlockToolbar(ctx);
+  });
+  block.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+const PROFILE_DIRECT_EDIT_LABELS = Object.freeze({
+  profileCharName:'BOT 이름 수정',
+  profileCharDesc:'BOT 소개 수정',
+  profileUserName:'USER 이름 수정',
+  profileUserDesc:'USER 소개 수정',
+  profileRelationship1:'관계·키워드 1 수정',
+  profileRelationship2:'관계·키워드 2 수정',
+  profileRelationship3:'관계·키워드 3 수정',
+  profileSituation:'상황·요약 수정'
+});
+
+function decoratePreviewProfileEditors(){
+  if(!previewDirectEditReady) return;
+  const profile = previewParts().profile;
+  if(!profile) return;
+  profile.querySelectorAll('[data-mosaic-profile-field]').forEach(field => {
+    const id = field.dataset.mosaicProfileField;
+    const input = document.getElementById(id);
+    if(!input) return;
+    const isTag = /(?:Tag|Relationship)\d$/.test(id);
+    const multiline = input.tagName === 'TEXTAREA';
+    enablePreviewDirectEditor(field, {
+      type:'profile',
+      id,
+      multiline,
+      normalizeTag:isTag
+    }, PROFILE_DIRECT_EDIT_LABELS[id] || (isTag ? '프로필 태그 수정' : '프로필 내용 수정'));
+    // 이름에 연결 URL이 있어도 미리보기에서는 편집을 우선하고 페이지를 이탈하지 않는다.
+    field.querySelectorAll('a').forEach(link => {
+      link.removeAttribute('href');
+      link.removeAttribute('target');
+      link.tabIndex = -1;
+      link.addEventListener('click', event => event.preventDefault());
+    });
+  });
+
+  profile.querySelectorAll('[data-mosaic-profile-image-field]').forEach(image => {
+    const id = image.dataset.mosaicProfileImageField;
+    image.removeAttribute('aria-hidden');
+    image.tabIndex = 0;
+    image.setAttribute('role', 'button');
+    image.setAttribute('aria-label', '왼쪽의 프로필 이미지 설정으로 이동');
+    image.title = '클릭하면 왼쪽의 프로필 이미지 설정으로 이동';
+    image.style.cursor = 'pointer';
+    const reveal = () => { if(positionSyncEnabled()) revealProfileControl(id); };
+    image.addEventListener('click', reveal);
+    image.addEventListener('keydown', event => {
+      if(event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      reveal();
+    });
+  });
+
+  // 역할명이나 카드의 빈 부분을 눌러도 해당 BOT/USER 설정 묶음을 찾을 수 있게 한다.
+  profile.querySelectorAll('[data-mosaic-profile-role]').forEach(item => {
+    item.addEventListener('click', event => {
+      if(event.target.closest('[data-mosaic-profile-field], [data-mosaic-profile-image-field]')) return;
+      const id = item.dataset.mosaicProfileRole === 'user' ? 'profileUserName' : 'profileCharName';
+      if(positionSyncEnabled()) revealProfileControl(id);
+    });
+  });
+}
+
+function decoratePreviewCreditEditors(){
+  if(!previewDirectEditReady) return;
+  const credit = previewParts().credit;
+  if(!credit) return;
+  const fields = Array.from(credit.querySelectorAll('[data-mosaic-credit-index][data-mosaic-credit-field]'));
+  fields.forEach(field => {
+    const index = Number(field.dataset.mosaicCreditIndex);
+    const fieldName = field.dataset.mosaicCreditField;
+    if(!Number.isInteger(index) || !['label','value'].includes(fieldName)) return;
+    if(!creditEditorInput(index, fieldName)) return;
+    enablePreviewDirectEditor(field, {
+      type:'credit',
+      index,
+      field:fieldName
+    }, `크레딧 ${index + 1} ${fieldName === 'label' ? '항목명' : '내용'} 수정`);
+    // 연결 URL은 왼쪽에서 관리하고, 미리보기에서는 항목 내용 편집을 우선한다.
+    field.querySelectorAll('a').forEach(link => {
+      link.removeAttribute('href');
+      link.removeAttribute('target');
+      link.tabIndex = -1;
+      link.addEventListener('click', event => event.preventDefault());
+    });
+  });
+
+  // 항목의 여백을 눌러도 대응하는 왼쪽 입력 묶음을 찾을 수 있게 한다.
+  credit.addEventListener('click', event => {
+    if(event.target.closest('[data-mosaic-credit-index][data-mosaic-credit-field]')) return;
+    if(!positionSyncEnabled()) return;
+    const row = event.target.closest('[data-mosaic-credit-row]');
+    const divider = event.target.closest('[data-mosaic-credit-divider-before]');
+    const index = divider
+      ? Number(divider.dataset.mosaicCreditDividerBefore)
+      : (row ? Number(row.dataset.mosaicCreditRow) : Number(fields[0] && fields[0].dataset.mosaicCreditIndex));
+    if(Number.isInteger(index)) revealCreditControl(index, 'label');
+  });
+}
+
+function decoratePreviewDirectEditors(){
+  if(!previewDirectEditReady) return;
+  const title = previewParts().title;
+  if(title){
+    const settings = getSettings();
+    const rows = [];
+    if((settings.logNumber || '').trim()) rows.push({ id:'logNumber', label:'표지 메모 수정' });
+    if((settings.logTitle || '').trim()) rows.push({ id:'logTitle', label:'표지 제목 수정' });
+    const subIds = ['subChar','subUser','logSubtitle'].filter(id => (settings[id] || '').trim());
+    if(subIds.length === 1) rows.push({ id:subIds[0], label:'표지 부제 수정' });
+    else if(subIds.length > 1) rows.push({ type:'coverSubtitle', ids:subIds, label:'표지 부제 수정' });
+    const paragraphs = Array.from(title.children).filter(el => el.tagName === 'P');
+    rows.forEach((row, index) => {
+      const descriptor = row.type === 'coverSubtitle'
+        ? {
+            type:'coverSubtitle',
+            ids:row.ids,
+            protectedSubtitleTokens:[
+              ...(row.ids.includes('subChar') && row.ids.includes('subUser') ? ['subtitle-couple-divider'] : []),
+              ...(row.ids.includes('logSubtitle') && (row.ids.includes('subChar') || row.ids.includes('subUser'))
+                ? ['subtitle-free-divider'] : [])
+            ]
+          }
+        : { type:'cover', id:row.id };
+      enablePreviewDirectEditor(paragraphs[index], descriptor, row.label);
+    });
+  }
+
+  // 현재 탭이나 마지막으로 선택한 카드와 관계없이, 출력 중인 모든 카드의 원문을 연결한다.
+  previewCardContexts().forEach(ctx => {
+    const blocks = previewSourceBlocks(ctx.cardEl);
+    const entries = sourceDisplayEntries(ctx.ta);
+    blocks.forEach((block, index) => {
+      const entry = entries[index];
+      if(entry && entry.editable){
+        // 분할된 출력 조각은 원문 속 정확한 범위를 찾았을 때만 직접 편집을 허용한다.
+        // 범위를 모르는 상태에서 줄 전체를 덮어쓰면 인접 문장이 복제될 수 있다.
+        if(entry.segmented && !entry.sourceBounds) return;
+        enablePreviewDirectEditor(block, {
+          type:'body',
+          ta:ctx.ta,
+          raw:entry.raw,
+          rawEnd:entry.rawEnd === undefined ? entry.raw : entry.rawEnd,
+          softBreak:!!entry.softBreak,
+          segmented:entry.segmented,
+          sourceBounds:entry.sourceBounds || null
+        }, '본문 문단 수정');
+        const sourceLine = (ctx.ta.value.split('\n')[entry.raw] || '').trim();
+        const headingMatch = sourceLine.match(/^(?:\[C\]\s*)?(#{1,4})>?\s+/i);
+        if(headingMatch){
+          bindHeadingLevelInteraction(block, {
+            block,
+            ta:ctx.ta,
+            raw:entry.raw,
+            type:'heading',
+            level:headingMatch[1].length
+          });
+        }
+      }
+    });
+
+  });
+
+  // 코멘트도 미리보기 문단을 원문 범위와 연결해 직접 수정한다. 본문 서식·문법
+  // 도구는 연결하지 않으며, 편집 속성은 복사 HTML이 아닌 미리보기 DOM에만 붙는다.
+  previewCommentContexts().forEach(ctx => {
+    const paragraphs = Array.from(ctx.commentEl.querySelectorAll(':scope > p'));
+    const entries = commentDisplayEntries(ctx.ta);
+    paragraphs.forEach((paragraph, index) => {
+      const entry = entries[index];
+      if(!entry) return;
+      enablePreviewDirectEditor(paragraph, {
+        type:'comment',
+        ta:ctx.ta,
+        raw:entry.raw,
+        rawEnd:entry.rawEnd
+      }, '코멘트 문단 수정');
+    });
+  });
+}
+
+// 미리보기의 카드 제목을 누르면 왼쪽의 원본 카드 편집기를 보여준다.
+// summary의 기본 접기/펼치기 동작은 막지 않으며, 미리보기 쪽 포커스도 빼앗지 않는다.
+function revealPreviewCardTitleEditor(ctx){
+  if(!positionSyncEnabled() || !ctx || !ctx.ed) return;
+  const editor = ctx.ed;
+  const ta = ctx.ta;
+  const bodyTab = document.getElementById('tabBtnBody');
+  if(bodyTab && !bodyTab.classList.contains('active')) bodyTab.click();
+  ensureBodyInputGroupOpen();
+  if(editor.classList.contains('isCollapsed')){
+    const collapse = editor.querySelector('.collapseCtl');
+    if(collapse) collapse.click();
+  }
+  if(ta){
+    activeTa = ta;
+    syncBodyOnlyToolbarAvailability({ target:ta });
+  }
+  requestAnimationFrame(() => {
+    if(!positionSyncEnabled() || !editor.isConnected) return;
+    scrollCardIntoSidebar(editor);
+    editor.style.boxShadow = '0 0 0 2px var(--accent)';
+    setTimeout(() => {
+      if(editor.isConnected) editor.style.boxShadow = '';
+    }, 900);
+  });
+}
+
+function decoratePreviewCardTitlePositionLinks(){
+  previewCardContexts().forEach(ctx => {
+    const titleEl = ctx.cardEl.tagName === 'DETAILS'
+      ? ctx.cardEl.querySelector(':scope > summary')
+      : ctx.cardEl.querySelector(':scope > [data-mosaic-card-title="true"]');
+    if(!titleEl) return;
+    titleEl.dataset.mosaicCardTitlePositionLink = 'true';
+    titleEl.title = '클릭하면 왼쪽의 해당 카드로 이동';
+    const activate = event => {
+      if(event.target.closest('a, button, input, select, textarea')) return;
+      revealPreviewCardTitleEditor(ctx);
+    };
+    titleEl.addEventListener('click', activate);
+    // summary는 자체 키보드 동작을 유지하고, 일반 카드 제목에만 같은 접근성을 더한다.
+    if(titleEl.tagName !== 'SUMMARY'){
+      titleEl.tabIndex = 0;
+      titleEl.setAttribute('role', 'button');
+      titleEl.setAttribute('aria-label', '왼쪽의 해당 카드로 이동');
+      titleEl.addEventListener('keydown', event => {
+        if(event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        revealPreviewCardTitleEditor(ctx);
+      });
+    }
+  });
+}
+
+// 미리보기에서 고른 부분을 본문 입력창에서도 선택해 보여줌 (미리보기 선택은 그대로 유지)
+// textarea 안에서 특정 문자 위치가 실제로 몇 px 지점인지 측정 (줄바꿈까지 정확히 반영)
+function caretOffsetTop(ta, index){
+  const cs = getComputedStyle(ta);
+  const mirror = document.createElement('div');
+  const copy = ['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight',
+                'textTransform','wordSpacing','textIndent','whiteSpace','wordWrap','overflowWrap',
+                'paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderLeftWidth'];
+  copy.forEach(p => { mirror.style[p] = cs[p]; });
+  mirror.style.position = 'absolute';
+  mirror.style.visibility = 'hidden';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.wordWrap = 'break-word';
+  mirror.style.width = ta.clientWidth + 'px';
+  mirror.style.height = 'auto';
+  mirror.textContent = ta.value.slice(0, index);
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const top = marker.offsetTop;
+  mirror.remove();
+  return { top };
+}
+
+function revealEditorOffsetAtTop(target, start, ed){
+  requestAnimationFrame(() => {
+    const { top } = caretOffsetTop(target, start);
+    const cs = getComputedStyle(target);
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const borderTop = parseFloat(cs.borderTopWidth) || 0;
+    target.scrollTop = Math.max(0, top - padTop - borderTop);
+    if(ed){
+      scrollCardIntoSidebar(ed);
+      ed.style.boxShadow = '0 0 0 2px var(--accent)';
+      setTimeout(() => { ed.style.boxShadow = ''; }, 900);
+    }
+  });
+}
+
+function ensureBodyInputGroupOpen(){
+  const group = document.getElementById('bodyInputGroup');
+  if(group && !group.open) group.open = true;
+}
+
+function revealCommentInEditor(ta, raw, rawEnd){
+  if(!ta) return;
+  const fsOpen = document.getElementById('fsOverlay').style.display === 'block';
+  if(!fsOpen){
+    const button = document.querySelector('.tabBtn[data-tab="tabBody"]');
+    if(button && !button.classList.contains('active')) button.click();
+    ensureBodyInputGroupOpen();
+  }
+  const target = fsOpen ? document.getElementById('fsTextarea') : ta;
+  const lines = target.value.split('\n');
+  if(lines[raw] === undefined) return;
+  const endRaw = Math.max(raw, Math.min(Number.isInteger(rawEnd) ? rawEnd : raw, lines.length - 1));
+  const start = lines.slice(0, raw).reduce((length, line) => length + line.length + 1, 0);
+  const end = lines.slice(0, endRaw + 1).reduce((length, line, index) =>
+    length + line.length + (index < endRaw ? 1 : 0), 0);
+  const editor = ta.closest('.commentEditor');
+  if(editor && getComputedStyle(ta).display === 'none'){
+    const collapse = editor.querySelector('.collapseCtl');
+    if(collapse) collapse.click();
+  }
+  target.setSelectionRange(start, Math.max(start, end));
+  activeTa = ta;
+  revealEditorOffsetAtTop(target, start, editor);
+}
+
+function revealInEditor(ta, raw, text, occurrence, sourceBounds, segmented = false){
+  // 본문 탭으로 전환 (전체 화면 편집 중이면 그대로 둠)
+  const fsOpen = document.getElementById('fsOverlay').style.display === 'block';
+  if(!fsOpen){
+    const btn = document.querySelector('.tabBtn[data-tab="tabBody"]');
+    if(btn && !btn.classList.contains('active')) btn.click();
+    ensureBodyInputGroupOpen();
+  }
+  const target = fsOpen ? document.getElementById('fsTextarea') : ta;
+  if(!target) return;
+
+  // 원본 줄에서 선택 글자의 위치를 찾아 같은 범위를 선택
+  const lines = target.value.split('\n');
+  const line = lines[raw];
+  if(line === undefined) return;
+  const sourceRange = descriptorSourceRange({ sourceBounds, segmented }, line, text, occurrence);
+  if(segmented && !sourceRange) return;
+  const lineStart = lines.slice(0, raw).reduce((a, l) => a + l.length + 1, 0);
+  const start = sourceRange ? lineStart + sourceRange.start : lineStart;
+  const end = sourceRange ? lineStart + sourceRange.end : lineStart + line.length;
+
+  // 접어둔 카드 입력창이면 펼침
+  const ed = target.closest('.cardEditor');
+  if(ed){
+    const collapse = ed.querySelector('.miniCtl');
+    if(collapse && getComputedStyle(target).display === 'none') collapse.click();
+  }
+
+  // 미리보기의 선택이 풀리지 않도록 포커스는 옮기지 않고 선택 범위만 지정
+  target.setSelectionRange(start, end);
+
+  // 미리보기에서 고른 문장이 본문 입력칸의 '첫 번째 보이는 줄'에 오도록 맞춘다.
+  // 전체 본문의 처음으로 보내면 선택한 문장이 가려지는 회귀가 생기므로 선택 시작점의 실제 px 위치를 쓴다.
+  revealEditorOffsetAtTop(target, start, ed);
+}
+
+
+document.getElementById('preview').addEventListener('mouseup', () => {
+  // 블록 드래그 이동 중에는 무시
+  if(dragState) return;
+  const directEditor = document.activeElement && document.activeElement.closest
+    ? document.activeElement.closest('[data-preview-direct-edit="true"]')
+    : null;
+  const directDescriptor = directEditor ? previewDirectEditDescriptors.get(directEditor) : null;
+  // 표지 글자는 직접 편집만 허용하고, B/I/가운데 정렬 도구는 본문 원문에만 표시한다.
+  if(directEditor && directEditor.dataset.previewEditType !== 'body'){
+    hideSelToolbar();
+    return;
+  }
+  setTimeout(() => {
+    const sel = window.getSelection();
+    if(!sel || sel.isCollapsed || !sel.rangeCount){ hideSelToolbar(); return; }
+    const text = sel.toString().replace(/\u00a0/g, ' ').trim();
+    if(!text){ hideSelToolbar(); return; }
+    const range = sel.getRangeAt(0);
+    const endEl = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+    if(endEl && endEl.closest('[data-mosaic-speaker-label="true"]')){ hideSelToolbar(); return; }
+    // 직접 편집 본문은 렌더 순서를 다시 추정하지 않고, 편집 요소에 저장한 정확한 카드·원문 줄을 사용한다.
+    const src = directDescriptor && directDescriptor.type === 'body'
+      ? { ta:directDescriptor.ta, raw:directDescriptor.raw, block:directEditor }
+      : findBlockSource(range.startContainer);
+    if(!src || !src.block.contains(range.endContainer)){ hideSelToolbar(); return; }
+    // 블록 안에서 선택 앞쪽 글자 수를 세어, 같은 글자가 여러 번 나올 때 몇 번째인지 판별
+    let occurrenceRoot = src.block;
+    if(src.block.querySelector(':scope > [data-mosaic-speaker-label="true"]')){
+      let child = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      while(child && child.parentElement !== src.block) child = child.parentElement;
+      if(child && child.parentElement === src.block && child.contains(range.endContainer)) occurrenceRoot = child;
+    }
+    const pre = range.cloneRange();
+    pre.selectNodeContents(occurrenceRoot);
+    pre.setEnd(range.startContainer, range.startOffset);
+    const occurrence = pre.toString().split(text).length - 1;
+
+    // 이미 걸려 있는 서식 감지 (선택 지점을 감싸는 <strong>/<em> 찾기)
+    const active = {};
+    Object.keys(FMT_TAG).forEach(fmt => {
+      const el = activeFormatEl(range.startContainer, FMT_TAG[fmt], src.block);
+      active[fmt] = el ? el.textContent : null;
+    });
+    const sourceDescriptor = directDescriptor && directDescriptor.type === 'body'
+      ? directDescriptor
+      : src;
+    const resolved = descriptorSelectionSource(sourceDescriptor, text, occurrence);
+    if(!resolved){ hideSelToolbar(); return; }
+    // [BR] 문단의 가운데 정렬은 결합 문단 전체를 제어하므로 첫 원문 줄을 기준으로 한다.
+    const centerRaw = sourceDescriptor.softBreak ? sourceDescriptor.raw : resolved.raw;
+    const centerLine = src.ta.value.split('\n')[centerRaw] || '';
+    active.center = CENTER_RE.test(centerLine) ? 'on' : null;
+
+    selCtx = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
+    if(positionSyncEnabled()) revealInEditor(
+      src.ta,
+      resolved.raw,
+      text,
+      resolved.occurrence,
+      resolved.sourceBounds,
+      resolved.segmented
+    );
+    const bar = document.getElementById('selToolbar');
+    bar.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', !!active[b.dataset.fmt]);
+    });
+    const r = range.getBoundingClientRect();
+    bar.style.display = 'flex';
+    const bw = bar.offsetWidth || 100;
+    bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
+    const above = r.top - bar.offsetHeight - 8;
+    const vertical = above > 8 ? above : r.bottom + 8;
+    bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, vertical)) + 'px';
+  }, 0);
+});
+
+document.addEventListener('mousedown', (e) => {
+  if(e.target.closest && (e.target.closest('#selToolbar') || e.target.closest('#blockToolbar'))) return;
+  hideSelToolbar();
+  hideBlockToolbar();
+});
+
+document.querySelectorAll('#selToolbar button').forEach(btn => {
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => {
+    if(!selCtx) return;
+    const { ta, raw, centerRaw = raw, text, occurrence, active, sourceRange:capturedRange } = selCtx;
+    const fmt = btn.dataset.fmt;
+    const wrap = FMT_WRAP[fmt];
+    const lines = ta.value.split('\n');
+    const line = lines[raw];
+    if(line === undefined){ hideSelToolbar(); return; }
+
+    const fail = (msg) => {
+      const st = document.getElementById('copyStatus');
+      st.textContent = msg;
+      setTimeout(() => { st.textContent = ''; }, 3500);
+      hideSelToolbar();
+    };
+    const finish = (newLine, label, targetRaw = raw) => {
+      // 미리보기를 다시 그릴 때 기존 contenteditable이 blur되며 평문을 재저장하면
+      // 방금 넣은 **...** / *...* 마커가 지워진다. 서식 작업 동안 blur 저장을 잠근다.
+      previewDirectEditCommitting = true;
+      try {
+        snapshotCards();
+        lines[targetRaw] = newLine;
+        ta.value = lines.join('\n');
+        hideSelToolbar();
+        window.getSelection().removeAllRanges();
+        render();
+        updateCounter();
+        saveDraft();
+        showUndoToast(label);
+      } finally {
+        previewDirectEditCommitting = false;
+      }
+    };
+    const name = { bold: '굵게', emphasis: '강조', center: '가운데 정렬' }[fmt];
+
+    // 가운데 정렬: 줄 단위로 [C] 붙이기/떼기 (인용 `> ` 뒤에 삽입)
+    if(fmt === 'center'){
+      const centerLine = lines[centerRaw];
+      if(centerLine === undefined){ hideSelToolbar(); return; }
+      let newLine;
+      if(active.center){
+        newLine = centerLine.replace(CENTER_RE, (m, q) => (q || ''));
+        return finish(newLine, '가운데 정렬 해제.', centerRaw);
+      }
+      const qm = centerLine.match(/^>(?!>)\s?/);
+      newLine = qm ? qm[0] + '[C] ' + centerLine.slice(qm[0].length) : '[C] ' + centerLine;
+      return finish(newLine, '가운데 정렬 적용.', centerRaw);
+    }
+
+    // 이미 서식이 걸린 부분 → 해제
+    if(active[fmt]){
+      const targetPlain = active[fmt];
+      const re = new RegExp(FMT_RE[fmt].source, 'g');
+      let m, found = null;
+      const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false);
+      while((m = re.exec(line)) !== null){
+        const containsSelection = sourceRange && sourceRange.start >= m.index && sourceRange.end <= m.index + m[0].length;
+        if(containsSelection && comparableFormattedText(formatMatchContent(fmt, m)) === comparableFormattedText(targetPlain)){
+          found = m;
+          break;
+        }
+      }
+      if(!found) return fail(`${name} 서식을 찾지 못함. 본문에서 직접 삭제.`);
+      const newLine = line.slice(0, found.index) + formatMatchContent(fmt, found) + line.slice(found.index + found[0].length);
+      return finish(newLine, `${name} 서식 해제.`);
+    }
+
+    // 원본 줄에서 같은 글자의 occurrence번째 위치를 찾음 (마커가 섞여 있으면 실패할 수 있음)
+    const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false);
+    if(!sourceRange) return fail('선택한 글자의 원문 위치를 확인하지 못함.');
+    const selectedSource = line.slice(sourceRange.start, sourceRange.end);
+
+    finish(line.slice(0, sourceRange.start) + wrap + selectedSource + wrap + line.slice(sourceRange.end), `${name} 서식 적용.`);
+  });
+});
+
+// ---------- 미리보기 블록 드래그 이동 (이미지·문단 구분 요소) ----------
+// assembleBody의 라우팅 규칙을 그대로 재현해, 카드 본문의 '최상위 블록'이
+// 원본 텍스트의 몇 번째 줄에서 나왔는지 매핑한다.
+// entries: [{raw, text}] (빈 줄 제외, raw는 원본 줄 번호)
+// 반환: [{kind:'line'|'fold', startRaw, text}]
+function topLevelMap(entries){
+  const res = [];
+  let manual = false, manualStart = -1;
+  let head = false, headStart = -1, headLevel = 0;
+
+  entries.forEach(e => {
+    let line = e.text;
+    let structuralLine = line.replace(/^\[C\]\s*/i, '');
+
+    const openMatch = structuralLine.match(/^\[접기(?:\s+(.+?))?\]$/);
+    if(openMatch && !manual){ manual = true; manualStart = e.raw; return; }
+
+    if(/^\[\/접기\]$/.test(line)){
+      if(manual){
+        manual = false;
+        // 수동 접기가 닫히면 head 버퍼로 들어가거나(중첩) 최상위로 나옴
+        if(!head) res.push({ kind:'fold', startRaw: manualStart });
+        return;
+      }
+      if(head){ head = false; res.push({ kind:'fold', startRaw: headStart }); return; }
+      return;
+    }
+
+    const headFoldMatch = structuralLine.match(/^(#{1,4})>\s+(.+)$/);
+    if(headFoldMatch && !manual){
+      if(head) res.push({ kind:'fold', startRaw: headStart });
+      head = true; headStart = e.raw; headLevel = headFoldMatch[1].length;
+      return;
+    }
+    if(headFoldMatch && manual){
+      line = headFoldMatch[1] + ' ' + headFoldMatch[2];
+      structuralLine = line;
+    }
+
+    const plainHeadMatch = structuralLine.match(/^(#{1,4})\s+/);
+    if(plainHeadMatch && head && !manual && plainHeadMatch[1].length <= headLevel){
+      head = false; res.push({ kind:'fold', startRaw: headStart });
+    }
+
+    if(!manual && !head) res.push({
+      kind:'line',
+      startRaw:e.raw,
+      text:structuralLine,
+      partIndex:e.partIndex || 0,
+      partCount:e.partCount || 1
+    });
+  });
+
+  if(manual){ if(!head) res.push({ kind:'fold', startRaw: manualStart }); }
+  if(head) res.push({ kind:'fold', startRaw: headStart });
+  return res;
+}
+
+// assembleBody와 같은 순서로 빈 줄 제거 → [BR] 문단 결합 → 대사 분할을 적용하되,
+// 각 출력 항목이 시작된 원문 줄 번호는 보존한다. 이전 매핑은 [BR] 두 줄을 각각
+// 세어 미리보기 블록 수와 어긋났고, 그 순간 이미지가 클릭 편집 전용 폴백으로
+// 내려가 드래그가 비활성화됐다.
+function topLevelSourceEntries(text, settings){
+  const sourceEntries = [];
+  String(text || '').split('\n').forEach((line, raw) => {
+    const trimmed = line.trim();
+    if(trimmed) sourceEntries.push({ raw, text:trimmed });
+  });
+
+  const combinedEntries = [];
+  for(let index = 0; index < sourceEntries.length; index++){
+    const start = sourceEntries[index];
+    let current = start.text;
+    let rawEnd = start.raw;
+    while(/\[BR\]\s*$/i.test(current) && index + 1 < sourceEntries.length){
+      const left = current.replace(/\[BR\]\s*$/i, '');
+      const next = sourceEntries[index + 1];
+      const joined = combineSoftBreakPair(left, next.text);
+      if(joined === null) break;
+      current = joined;
+      rawEnd = next.raw;
+      index++;
+    }
+    combinedEntries.push({ raw:start.raw, rawEnd, text:current });
+  }
+
+  const entries = [];
+  combinedEntries.forEach(entry => {
+    const outputParts = expandDialogueLinesForOutput([entry.text], settings)
+      .map(value => String(value).trim())
+      .filter(Boolean);
+    outputParts.forEach((value, partIndex) => {
+      entries.push({
+        raw:entry.raw,
+        rawEnd:entry.rawEnd,
+        text:value,
+        partIndex,
+        partCount:outputParts.length
+      });
+    });
+  });
+  return entries;
+}
+
+// 원본 텍스트에서 srcRaw 줄을 떼어내 destRaw 줄 앞에 끼워넣음 (destRaw=null이면 맨 끝)
+function moveLineInText(text, srcRaw, destRaw){
+  let lines = text.split('\n');
+  const moved = lines[srcRaw];
+  if(moved === undefined) return text;
+  lines.splice(srcRaw, 1);
+  let dest = destRaw;
+  if(dest === null || dest === undefined){
+    if(lines.length && lines[lines.length - 1].trim() !== '') lines.push('');
+    lines.push(moved);
+  } else {
+    if(dest > srcRaw) dest -= 1;   // 앞쪽을 뺐으니 목적지가 한 칸 당겨짐
+    dest = Math.max(0, Math.min(lines.length, dest));
+    const insert = [];
+    if(dest > 0 && lines[dest - 1].trim() !== '') insert.push('');
+    insert.push(moved);
+    if(dest < lines.length && lines[dest].trim() !== '') insert.push('');
+    lines.splice(dest, 0, ...insert);
+  }
+  return lines.join('\n');
+}
+
+// 대사 옵션 3–5가 한 원문 줄을 여러 출력 블록으로 나눈 경계에 구분 요소를 놓으면,
+// 그 원문 줄을 실제 줄들로 분리하고 선택한 경계에 원래 마커를 삽입한다.
+function moveSeparatorIntoSplitLine(text, srcRaw, destInfo, settings){
+  if(!destInfo || destInfo.kind !== 'line' || destInfo.partCount <= 1 || destInfo.partIndex <= 0) return null;
+  const lines = String(text).split('\n');
+  const moved = lines[srcRaw];
+  const targetRaw = destInfo.startRaw;
+  const targetLine = lines[targetRaw];
+  if(moved === undefined || targetLine === undefined || srcRaw === targetRaw) return null;
+  if(!/^\s*\[(?:HR(?:2|3)?|GAP)\]\s*$/i.test(moved)) return null;
+
+  const parts = splitDialogueLineForOutput(targetLine, settings)
+    .map(part => String(part).trim())
+    .filter(Boolean);
+  const splitAt = destInfo.partIndex;
+  if(parts.length !== destInfo.partCount || splitAt <= 0 || splitAt >= parts.length) return null;
+
+  // 사용자가 원문에 넣었던 바깥쪽 들여쓰기·후행 공백은 첫/마지막 조각에 보존한다.
+  const leading = (targetLine.match(/^\s*/) || [''])[0];
+  const trailing = (targetLine.match(/\s*$/) || [''])[0];
+  parts[0] = leading + parts[0];
+  parts[parts.length - 1] += trailing;
+
+  // 먼저 기존 구분선을 떼어낸 뒤 대상 원문 줄의 변경된 인덱스를 계산한다.
+  lines.splice(srcRaw, 1);
+  const adjustedTarget = targetRaw - (srcRaw < targetRaw ? 1 : 0);
+  const replacement = [
+    ...parts.slice(0, splitAt),
+    moved.trim(),
+    ...parts.slice(splitAt)
+  ];
+  lines.splice(adjustedTarget, 1, ...replacement);
+  return lines.join('\n');
+}
+
+// 화면에 장식·편집 기능을 붙이기 전의 순수 출력 HTML을 보관한다.
+// 카드별 복사는 이 문자열에서 꺼내므로 미리보기 전용 버튼이나 편집 속성이 섞이지 않는다.
+let previewSourceHTML = '';
+
+function copyPreviewCardText(text){
+  // file:// 미리보기에서도 동작하도록 동기 복사를 우선하고 Clipboard API를 보조로 쓴다.
+  try {
+    const temp = document.createElement('textarea');
+    temp.value = text;
+    temp.setAttribute('readonly', '');
+    temp.style.cssText = 'position:fixed; left:-9999px; top:0; opacity:0; pointer-events:none;';
+    document.body.appendChild(temp);
+    temp.select();
+    temp.setSelectionRange(0, temp.value.length);
+    let done = false;
+    try { done = document.execCommand('copy'); } catch(e){ done = false; }
+    temp.remove();
+    if(done){
+      if(window.getSelection) window.getSelection().removeAllRanges();
+      return Promise.resolve(true);
+    }
+  } catch(e){ /* Clipboard API로 한 번 더 시도 */ }
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
+  }
+  return Promise.resolve(false);
+}
+
+const PREVIEW_CONTROL_INSET = 8;
+const PREVIEW_CONTROL_GAP = 6;
+const PREVIEW_CONTROL_SIZE = 27;
+
+function createPreviewControlButton(className, text, title){
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `${className} previewFloatingControl`;
+  button.textContent = text;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  return button;
+}
+
+function previewElementRect(element, positioningRoot){
+  const root = positioningRoot || document.getElementById('previewWrap');
+  const rootRect = root.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  return {
+    top: rect.top - rootRect.top - root.clientTop + root.scrollTop,
+    left: rect.left - rootRect.left - root.clientLeft + root.scrollLeft,
+    width: rect.width,
+    height: rect.height
+  };
+}
+
+function previewControlGeometry(button, positioningRoot){
+  const target = button._mosaicCopyTarget || button._mosaicProfileTarget || button._mosaicOptionTarget;
+  const anchor = button._mosaicOptionAnchor || target;
+  if(!target || !anchor || !target.isConnected || !anchor.isConnected) return null;
+  const targetRect = previewElementRect(target, positioningRoot);
+  const anchorRect = previewElementRect(anchor, positioningRoot);
+  const buttonWidth = button.offsetWidth || PREVIEW_CONTROL_SIZE;
+  const buttonHeight = button.offsetHeight || PREVIEW_CONTROL_SIZE;
+  const mirrored = isDesktopLayoutMirrored();
+  const priority = button.classList.contains('previewBlockCopyBtn')
+    ? 0
+    : (button.classList.contains('previewProfilePlacementBtn') ? 1 : 2);
+  return {
+    button,
+    priority,
+    desiredTop:button._mosaicFooterAtCardEnd
+      ? anchorRect.top + anchorRect.height - PREVIEW_CONTROL_INSET - buttonHeight
+      : targetRect.top + PREVIEW_CONTROL_INSET,
+    left:mirrored
+      ? anchorRect.left - PREVIEW_CONTROL_INSET - buttonWidth
+      : anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
+    height:buttonHeight
+  };
+}
+
+function layoutPreviewFloatingButtons(){
+  const root = document.getElementById('previewWrap');
+  if(!root) return;
+  syncPreviewCommentOutset();
+  const controls = Array.from(root.querySelectorAll(':scope > .previewFloatingControl'))
+    .map(button => previewControlGeometry(button, root))
+    .filter(Boolean)
+    .sort((a, b) => a.desiredTop - b.desiredTop || a.priority - b.priority);
+  const placed = [];
+  controls.forEach(control => {
+    let top = control.desiredTop;
+    // 버튼 종류나 대상 DOM의 깊이와 관계없이 같은 열에서 겹치는 모든 버튼을
+    // 복사 → 이동 → 옵션 순서로 한 번만 쌓는다.
+    placed.forEach(previous => {
+      const sameColumn = Math.abs(previous.left - control.left) < 2;
+      const overlaps = top < previous.bottom + PREVIEW_CONTROL_GAP
+        && top + control.height + PREVIEW_CONTROL_GAP > previous.top;
+      if(sameColumn && overlaps) top = previous.bottom + PREVIEW_CONTROL_GAP;
+    });
+    control.button.style.top = `${Math.round(top)}px`;
+    control.button.style.left = `${Math.round(control.left)}px`;
+    placed.push({
+      top,
+      bottom:top + control.height,
+      left:control.left
+    });
+  });
+}
+
+// 검색창처럼 미리보기 위쪽 형제가 나타나거나 사라지면 대상 카드의 실제 좌표가
+// 즉시 달라진다. 현재 프레임과 브라우저가 레이아웃을 확정한 다음 프레임에 한 번씩
+// 다시 계산해 외곽 조작 버튼이 이전 좌표에 남지 않도록 한다.
+function refreshPreviewFloatingButtonLayout(){
+  layoutPreviewFloatingButtons();
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+}
+
+// 데스크톱 미리보기에서는 카드보다 넓은 게시글 영역을 계산해 기본 코멘트가
+// 왼쪽 설정 패널 쪽부터 시작하도록 한다. 모바일 380 미리보기는 그 폭 자체가
+// 게시글 viewport이므로 바깥 확장을 적용하지 않는다.
+function syncPreviewCommentOutset(){
+  const previewArea = document.getElementById('previewArea');
+  const previewWrap = document.getElementById('previewWrap');
+  const preview = document.getElementById('preview');
+  const mobileButton = document.getElementById('widthMobileBtn');
+  if(!previewArea || !previewWrap || !preview) return;
+  if(mobileButton && mobileButton.classList.contains('active')){
+    preview.style.setProperty('--preview-comment-outset', '0px');
+    return;
+  }
+  const areaRect = previewArea.getBoundingClientRect();
+  const wrapRect = previewWrap.getBoundingClientRect();
+  const areaStyle = getComputedStyle(previewArea);
+  const contentLeft = areaRect.left + (parseFloat(areaStyle.paddingLeft) || 0);
+  const contentRight = areaRect.right - (parseFloat(areaStyle.paddingRight) || 0);
+  const leftSpace = Math.max(0, wrapRect.left - contentLeft);
+  const rightSpace = Math.max(0, contentRight - wrapRect.right);
+  const outset = Math.max(0, Math.min(leftSpace, rightSpace));
+  preview.style.setProperty('--preview-comment-outset', `${Math.round(outset)}px`);
+}
+
+function previewCopySuccessMessage(label){
+  const compact = String(label).replace(/카드\s+(\d+)/g, '카드$1');
+  return `${compact}의 HTML을 복사했습니다.`;
+}
+
+const PREVIEW_COPY_JOIN_TOLERANCE = 2;
+
+// 기능상의 종류가 아니라 화면에서 실제로 맞닿은지를 복사 단위의 기준으로 삼는다.
+// 소수점 렌더링 오차는 허용하되, 옆에 놓인 요소나 폭이 크게 다른 요소는 합치지 않는다.
+function previewCopyElementsAreAttached(previousElement, nextElement){
+  if(!previousElement || !nextElement) return false;
+  const previousRect = previousElement.getBoundingClientRect();
+  const nextRect = nextElement.getBoundingClientRect();
+  const verticalGap = nextRect.top - previousRect.bottom;
+  const overlapWidth = Math.max(0,
+    Math.min(previousRect.right, nextRect.right) - Math.max(previousRect.left, nextRect.left));
+  const narrowerWidth = Math.min(previousRect.width, nextRect.width);
+  return verticalGap >= -PREVIEW_COPY_JOIN_TOLERANCE
+    && verticalGap <= PREVIEW_COPY_JOIN_TOLERANCE
+    && narrowerWidth > 0
+    && overlapWidth >= narrowerWidth * 0.8;
+}
+
+function previewCopyLabel(labels){
+  return labels.filter((label, index, all) => label && all.indexOf(label) === index).join('와 ');
+}
+
+function previewTopLevelCopyLabel(element, visibleCardNumbers, visibleCommentNumbers){
+  if(element.dataset.mosaicProfile === 'true') return '프로필';
+  if(element.dataset.mosaicCoverImage === 'true' || element.dataset.mosaicTitle === 'true') return '표지';
+  if(element.dataset.mosaicCredit === 'true') return '크레딧';
+  if(element.hasAttribute('data-mosaic-comment-index')){
+    const sourceIndex = Number(element.dataset.mosaicCommentIndex);
+    return `코멘트 ${visibleCommentNumbers.get(sourceIndex) || 1}`;
+  }
+  if(element.hasAttribute('data-mosaic-card-index')){
+    const sourceIndex = Number(element.dataset.mosaicCardIndex);
+    const visibleNumber = visibleCardNumbers.get(sourceIndex);
+    return `카드 ${visibleNumber || 1}`;
+  }
+  return '카드';
+}
+
+// previewSourceHTML과 화면의 #preview는 렌더 직후 같은 최상위 자식 순서를 가진다.
+// 검색 강조·직접 편집용 속성이 들어간 화면 DOM은 복사하지 않고, 같은 순서의 순수 출력
+// 노드를 복사한다. 대표 이미지 인식용 숨김 노드는 최상단 프로필을 건너뛰고
+// 실제 대표 이미지 블록과 함께 보존한다.
+function previewCopySegments(){
+  const preview = document.getElementById('preview');
+  if(!previewSourceHTML || !preview) return [];
+  const sourceDocument = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
+  const sourceChildren = Array.from(sourceDocument.body.children);
+  const previewChildren = Array.from(preview.children);
+  const visibleCardNumbers = new Map(
+    previewCardContexts().map((context, index) => [context.sourceIndex, index + 1])
+  );
+  const visibleCommentNumbers = new Map(
+    Array.from(preview.querySelectorAll(':scope > [data-mosaic-comment-index]'))
+      .map((element, index) => [Number(element.dataset.mosaicCommentIndex), index + 1])
+  );
+  const coverImageIndex = sourceChildren.findIndex(element => element.dataset.mosaicCoverImage === 'true');
+  const segments = [];
+  let pendingHiddenElements = [];
+  sourceChildren.forEach((sourceElement, index) => {
+    const previewElement = previewChildren[index];
+    const hidden = sourceElement.hidden
+      || sourceElement.getAttribute('aria-hidden') === 'true'
+      || !previewElement
+      || previewElement.hidden
+      || previewElement.getAttribute('aria-hidden') === 'true';
+    if(hidden){
+      pendingHiddenElements.push(sourceElement);
+      return;
+    }
+    const keepHiddenForCoverImage = pendingHiddenElements.length
+      && coverImageIndex >= 0
+      && index < coverImageIndex;
+    const sourceHTML = keepHiddenForCoverImage
+      ? sourceElement.outerHTML
+      : [...pendingHiddenElements.map(element => element.outerHTML), sourceElement.outerHTML].join('\n');
+    const html = stripEditorOutputMetadata(
+      sourceHTML
+    );
+    if(!keepHiddenForCoverImage) pendingHiddenElements = [];
+    segments.push({
+      startElement:previewElement,
+      endElement:previewElement,
+      labels:[previewTopLevelCopyLabel(sourceElement, visibleCardNumbers, visibleCommentNumbers)],
+      html
+    });
+  });
+  if(pendingHiddenElements.length && segments.length){
+    const lastSegment = segments[segments.length - 1];
+    lastSegment.html += `\n${stripEditorOutputMetadata(pendingHiddenElements.map(element => element.outerHTML).join('\n'))}`;
+  }
+  return segments;
+}
+
+function previewCopyGroups(){
+  const groups = [];
+  previewCopySegments().forEach(segment => {
+    const previous = groups[groups.length - 1];
+    if(previous && previewCopyElementsAreAttached(previous.endElement, segment.startElement)){
+      previous.endElement = segment.endElement;
+      previous.labels.push(...segment.labels);
+      previous.htmlParts.push(segment.html);
+      return;
+    }
+    groups.push({
+      startElement:segment.startElement,
+      endElement:segment.endElement,
+      labels:[...segment.labels],
+      htmlParts:[segment.html]
+    });
+  });
+  return groups;
+}
+
+function addPreviewCopyButton(target, label, getHTML, successMessage){
+  if(!target) return;
+  const previewWrap = document.getElementById('previewWrap');
+  const button = createPreviewControlButton('previewBlockCopyBtn', '⧉', `${label} HTML 복사`);
+  button._mosaicCopyTarget = target;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const html = getHTML();
+    if(!html){
+      button.textContent = '!';
+      button.classList.add('isError');
+      showNoticeToast(`${label} HTML을 찾지 못했습니다.`);
+      return;
+    }
+    copyPreviewCardText(html).then(done => {
+      button.classList.toggle('isCopied', done);
+      button.classList.toggle('isError', !done);
+      button.textContent = done ? '✓' : '!';
+      button.title = done ? `${label} HTML 복사 완료` : '클립보드 권한을 확인해 주세요';
+      showNoticeToast(done
+        ? successMessage
+        : '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.');
+      setTimeout(() => {
+        if(!button.isConnected) return;
+        button.classList.remove('isCopied', 'isError');
+        button.textContent = '⧉';
+        button.title = `${label} HTML 복사`;
+      }, 1600);
+    });
+  });
+  previewWrap.appendChild(button);
+}
+
+function decoratePreviewCopyButtons(){
+  previewCopyGroups().forEach(group => {
+    const unified = group.startElement.dataset.mosaicUnifiedItem === 'true'
+      && group.endElement.dataset.mosaicUnifiedItem === 'true';
+    const label = unified ? '이어진 카드' : previewCopyLabel(group.labels);
+    addPreviewCopyButton(
+      group.startElement,
+      label,
+      () => {
+        const html = group.htmlParts.filter(Boolean).join('\n');
+        return html ? `${html}\n<br>` : '';
+      },
+      previewCopySuccessMessage(label)
+    );
+  });
+  // 접기 상태가 바뀌면 아래 카드의 위치도 달라지므로 외곽 버튼을 다시 맞춘다.
+  document.querySelectorAll('#preview details').forEach(detail => {
+    detail.addEventListener('toggle', () => requestAnimationFrame(layoutPreviewFloatingButtons));
+  });
+}
+
+function decoratePreviewProfilePlacementButton(){
+  const profile = previewParts().profile;
+  if(!profile) return;
+  const placement = document.getElementById('profilePlacement');
+  if(!placement) return;
+  const atTop = placement.value === 'top';
+  const title = atTop ? '프로필을 표지 아래로 이동' : '프로필을 최상단 독립으로 이동';
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  button._mosaicProfileTarget = profile;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const next = placement.value === 'top' ? 'below' : 'top';
+    placement.value = next;
+    placement.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(next === 'top'
+      ? '프로필을 최상단 독립으로 이동했습니다.'
+      : '프로필을 표지 아래로 이동했습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
+function decoratePreviewCreditPlacementButton(){
+  const credit = previewParts().credit;
+  if(!credit) return;
+  const placement = document.getElementById('creditPlacement');
+  if(!placement || placement.disabled) return;
+  // 통합 카드에 표시 코멘트가 있으면 크레딧은 코멘트 아래에 고정된다.
+  if(document.getElementById('cardLayout').value === 'unified' && previewParts().comments.length) return;
+  const atTop = normalizeCreditPlacement(placement.value) === 'top';
+  const title = atTop ? '크레딧을 최하단으로 이동' : '크레딧을 최상단으로 이동';
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  button._mosaicProfileTarget = credit;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const next = atTop ? 'bottom' : 'top';
+    placement.value = next;
+    placement.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(next === 'top'
+      ? '크레딧을 최상단으로 이동했습니다.'
+      : '크레딧을 최하단으로 이동했습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
+function addPreviewMinimalToggleButton(target, anchor, inputId, label){
+  const input = document.getElementById(inputId);
+  if(!target || !input) return;
+  const title = input.checked ? `${label} 미니멀 해제` : `${label} 미니멀 적용`;
+  const button = createPreviewControlButton('previewOptionToggleBtn', input.checked ? '•' : '○', title);
+  button.setAttribute('aria-pressed', String(input.checked));
+  button._mosaicOptionTarget = target;
+  button._mosaicOptionAnchor = anchor || target;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    const enabled = !input.checked;
+    input.checked = enabled;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(`${label} 미니멀을 ${enabled ? '적용' : '해제'}했습니다.`);
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
+function addPreviewFooterVisibilityButton(){
+  const input = document.getElementById('footerOn');
+  if(!input) return;
+  // 접힌 details 안의 꼬리말은 DOM에 있어도 화면에는 보이지 않는다.
+  // 보이는 꼬리말만 좌표 대상으로 삼아 숨은 요소의 0 좌표를 사용하지 않는다.
+  const footer = previewVisibleFooterElement();
+  const cards = previewParts().cards;
+  const lastCard = cards[cards.length - 1] || null;
+  const anchor = footer ? (footer.closest('[data-mosaic-card-index]') || lastCard) : lastCard;
+  if(!anchor) return;
+
+  const visible = input.checked;
+  const title = visible ? '꼬리말 숨기기' : '꼬리말 다시 표시';
+  const button = createPreviewControlButton(
+    'previewOptionToggleBtn',
+    visible ? '○' : '⊘',
+    title
+  );
+  button.setAttribute('aria-pressed', String(!visible));
+  button._mosaicOptionTarget = footer || anchor;
+  button._mosaicOptionAnchor = anchor;
+  button._mosaicFooterAtCardEnd = !footer;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    input.checked = !visible;
+    syncCoverControlState();
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    showUndoToast(input.checked ? '꼬리말을 표시했습니다.' : '꼬리말을 숨겼습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
+function addPreviewCardDividerToggleButton(cardEl, titleEl){
+  const divider = document.getElementById('foldDividerOn');
+  if(!cardEl || !titleEl || !divider) return;
+  const title = divider.checked
+    ? '모든 카드 제목 구분선 숨기기'
+    : '모든 카드 제목 구분선 표시';
+  const button = createPreviewControlButton('previewOptionToggleBtn', divider.checked ? '○' : '•', title);
+  button.setAttribute('aria-pressed', String(!divider.checked));
+  button._mosaicOptionTarget = titleEl;
+  button._mosaicOptionAnchor = cardEl;
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapshotCards();
+    divider.checked = !divider.checked;
+    syncDesignSummaries();
+    render();
+    scheduleDraftSave();
+    showUndoToast(divider.checked
+      ? '모든 카드 제목 구분선을 표시했습니다.'
+      : '모든 카드 제목 구분선을 숨겼습니다.');
+  });
+  document.getElementById('previewWrap').appendChild(button);
+}
+
+function decoratePreviewOptionButtons(){
+  const parts = previewParts();
+  addPreviewMinimalToggleButton(parts.title, parts.title, 'titleMinimal', '표제');
+  addPreviewMinimalToggleButton(parts.profile, parts.profile, 'profileMinimal', '프로필');
+  addPreviewFooterVisibilityButton();
+  previewCardContexts().forEach(({ cardEl }) => {
+    const titleEl = cardEl.tagName === 'DETAILS'
+      ? cardEl.querySelector(':scope > summary')
+      : cardEl.querySelector(':scope > [data-mosaic-card-title="true"]');
+    addPreviewCardDividerToggleButton(cardEl, titleEl);
+  });
+}
+
+window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewFloatingButtons));
+// 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
+// 달라지는 경우에도 외곽 복사 버튼을 해당 카드 오른쪽에 다시 맞춘다.
+const previewCopyResizeObserver = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons))
+  : null;
+if(previewCopyResizeObserver){
+  previewCopyResizeObserver.observe(document.getElementById('preview'));
+  previewCopyResizeObserver.observe(document.getElementById('pvSearchBox'));
+}
+
+// 현재 설정 또는 미리 만들어 둔 HTML로 미리보기를 다시 그림.
+function renderPreview(prebuiltHTML){
+  const preview = document.getElementById('preview');
+  // 모든 외곽 버튼은 #previewWrap의 형제 요소다. 미리보기 HTML을 교체해도 남기 때문에
+  // 새 대상을 연결하기 전에 한 번에 제거해 오래된 좌표·이벤트 참조를 남기지 않는다.
+  document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
+  preview.classList.add('previewRefreshing');
+  hideBlockToolbar();
+  // 카드 번호와 카드 안쪽 순번을 함께 기록한다. 전체 details 순번만 쓰면 앞 카드가
+  // 비거나 접기 구조가 달라졌을 때 다음 카드의 펼침 상태가 엉뚱한 곳으로 이동한다.
+  const openStates = new Map();
+  previewCardContexts().forEach(ctx => {
+    const details = [
+      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
+      ...ctx.cardEl.querySelectorAll('details')
+    ];
+    details.forEach((detail, index) => openStates.set(`${ctx.sourceIndex}:${index}`, detail.open));
+  });
+  previewSourceHTML = prebuiltHTML !== undefined
+    ? prebuiltHTML
+    : buildCard(getSettings());
+  preview.innerHTML = previewSourceHTML;
+  syncPreviewOuterBreaks();
+  // 미리보기에서 링크를 눌러 편집 화면을 이탈하지 않게 한다.
+  // 복사·다운로드되는 실제 출력 HTML의 링크 동작에는 영향을 주지 않는다.
+  const previewTitle = previewParts().title;
+  if(previewTitle) previewTitle.querySelectorAll('a').forEach(link => {
+    link.title = '출력물에서 열리는 링크';
+    link.addEventListener('click', event => event.preventDefault());
+  });
+  previewCardContexts().forEach(ctx => {
+    const details = [
+      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
+      ...ctx.cardEl.querySelectorAll('details')
+    ];
+    details.forEach((detail, index) => {
+      if(openStates.get(`${ctx.sourceIndex}:${index}`) === true) detail.open = true;
+    });
+  });
+  enableBlockDrag(preview);
+  if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
+  decoratePreviewDirectEditors();
+  decoratePreviewProfileEditors();
+  decoratePreviewCreditEditors();
+  decoratePreviewCardTitlePositionLinks();
+  decoratePreviewCopyButtons();
+  decoratePreviewProfilePlacementButton();
+  decoratePreviewCreditPlacementButton();
+  decoratePreviewOptionButtons();
+  // 새 버튼이 기본 CSS 좌표(top:8px)에 한 프레임이라도 남지 않게 즉시 배치하고,
+  // 이미지·웹폰트·줄바꿈이 확정되는 다음 프레임에 한 번 더 보정한다.
+  layoutPreviewFloatingButtons();
+  requestAnimationFrame(() => {
+    layoutPreviewFloatingButtons();
+    preview.classList.remove('previewRefreshing');
+  });
+}
+
+function syncPreviewOuterBreaks(){
+  const preview = document.getElementById('preview');
+  const option = document.getElementById('copyWithOuterBreaks');
+  if(!preview || !option) return;
+  preview.classList.toggle('previewOuterBreaks', option.checked);
+}
+
+// 한 번 클릭하면 편집 메뉴를 열고, 일정 거리 이상 움직이면 기존 드래그 이동을 시작한다.
+function bindSeparatorInteraction(target, dragCtx, menuCtx){
+  const MOVE_PX = 7;
+  let suppressClick = false;
+
+  target.addEventListener('mousedown', e => {
+    if(e.button !== 0) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const cleanup = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    const onMove = ev => {
+      if(Math.hypot(ev.clientX - sx, ev.clientY - sy) < MOVE_PX) return;
+      cleanup();
+      if(dragCtx){
+        suppressClick = true;
+        startBlockDrag(dragCtx);
+      }
+    };
+    const onUp = () => cleanup();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+  target.addEventListener('click', e => {
+    e.preventDefault();
+    if(suppressClick){ suppressClick = false; return; }
+    showBlockToolbar(menuCtx);
+  });
+  target.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function previewSeparatorType(block){
+  if(!block || block.dataset.mosaicGenerated !== 'true' || block.tagName !== 'DIV') return null;
+  if(['hr', 'hr2', 'hr3', 'gap'].includes(block.dataset.mosaicSeparator)) return block.dataset.mosaicSeparator;
+  if(block.style.height === '1px') return 'hr';
+  if(block.textContent.trim() === '✦ ✦ ✦' && block.style.letterSpacing) return 'hr2';
+  if(block.textContent.trim() === '· · ·' && block.style.letterSpacing) return 'hr3';
+  return null;
+}
+
+function bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx){
+  if(!block || block.dataset.mosaicSeparatorEditBound === 'true') return;
+  block.dataset.mosaicSeparatorEditBound = 'true';
+  if(type === 'hr'){
+    // 1px 선 자체 대신 충분히 넓은 투명 클릭 영역을 사용한다.
+    block.style.position = 'relative';
+    const hit = document.createElement('div');
+    hit.dataset.mosaicSeparatorHit = 'true';
+    hit.style.cssText = `position:absolute; z-index:2; left:0; right:0; top:-15px; height:32px; cursor:${dragCtx ? 'grab' : 'pointer'}; user-select:none;`;
+    hit.title = dragCtx ? '클릭해서 변경/삭제 · 드래그로 이동' : '클릭해서 변경/삭제';
+    bindSeparatorInteraction(hit, dragCtx, menuCtx);
+    block.appendChild(hit);
+    return;
+  }
+  block.style.cursor = dragCtx ? 'grab' : 'pointer';
+  block.style.userSelect = 'none';
+  block.title = dragCtx ? '클릭해서 변경/삭제 · 드래그로 이동' : '클릭해서 변경/삭제';
+  bindSeparatorInteraction(block, dragCtx, menuCtx);
+}
+
+// 최상위 이미지·문단 구분 요소는 드래그 이동도 지원한다.
+// 접기 안쪽 이미지는 구조를 깨지 않도록 이동은 막고 클릭 편집만 연결한다.
+function enableBlockDrag(preview){
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  // 출력에서 빈 카드는 제외되므로, 내용 있는 본문 카드만 순서대로 대응시킨다.
+  // 코멘트는 별도 최상위 블록이라 이전 순번 폴백에 섞이면 카드 드래그 대상이 밀릴 수 있다.
+  const nonEmpty = editors.filter(ed => ed.dataset.blockType !== 'comment'
+    && ed.querySelector('textarea').value.split('\n').some(l => l.trim() !== ''));
+
+  // 미리보기 최상위 자식 중 '카드'만 골라냄 (썸네일 p, 이미지 밴드, 표제 밴드 제외)
+  const indexedCardEls = Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]'));
+  const cardEls = indexedCardEls.length ? indexedCardEls : Array.from(preview.children).filter(el => {
+    if(el.tagName === 'DETAILS') return true;
+    if(el.tagName !== 'DIV') return false;
+    if(el.style.backgroundImage) return false;
+    const inner = el.firstElementChild;
+    return !!(inner && inner.tagName === 'DIV');
+  });
+
+  cardEls.forEach((cardEl, cardIdx) => {
+    const sourceIndex = Number(cardEl.dataset.mosaicCardIndex);
+    const editor = Number.isInteger(sourceIndex) ? editors[sourceIndex] : nonEmpty[cardIdx];
+    if(!editor) return;
+    const ta = editor.querySelector('textarea');
+    const settings = getSettings();
+    // assembleBody의 [BR] 결합과 대사 분할을 모두 반영해 이미지·구분선의
+    // 드래그 대상 수가 실제 미리보기 최상위 블록 수와 항상 같게 한다.
+    const entries = topLevelSourceEntries(ta.value, settings);
+    const map = topLevelMap(entries);
+
+    // 카드 본문 컨테이너: details면 summary 다음, div면 첫 자식
+    const bodyDiv = previewCardBody(cardEl);
+    if(!bodyDiv) return;
+
+    // 원문과 출력의 이미지 순서는 같으므로, 접기 안쪽 이미지도 원문 줄과 안전하게 연결할 수 있다.
+    const bindRemainingBodyImages = () => {
+      const sourceImages = [];
+      ta.value.split('\n').forEach((line, raw) => {
+        if(parseBodyImageLine(line)) sourceImages.push({ raw });
+      });
+      const previewImages = Array.from(bodyDiv.querySelectorAll('img'));
+      if(sourceImages.length !== previewImages.length) return;
+      previewImages.forEach((img, index) => {
+        const block = img.parentElement;
+        if(!block || block.dataset.mosaicImageEditBound === 'true') return;
+        block.dataset.mosaicImageEditBound = 'true';
+        block.style.cursor = 'pointer';
+        block.title = '클릭해서 이미지 삭제/비율/캡션 편집';
+        bindSeparatorInteraction(block, null, {
+          block,
+          ta,
+          raw: sourceImages[index].raw,
+          type: 'img'
+        });
+      });
+    };
+
+    // 접기 내부의 문단 구분 요소도 출력 순서와 원문 순서로 연결한다.
+    // 최상위 요소만 대상으로 삼던 기존 매핑에서 빠진 항목은 클릭 편집만 허용하고,
+    // 접기 구조를 깨뜨릴 수 있는 드래그 이동은 막는다.
+    const bindRemainingBodySeparators = () => {
+      const sourceSeparators = [];
+      ta.value.split('\n').forEach((line, raw) => {
+        const token = line.trim().toUpperCase();
+        if(token === '[HR]') sourceSeparators.push({ raw, type:'hr' });
+        else if(token === '[HR2]') sourceSeparators.push({ raw, type:'hr2' });
+        else if(token === '[HR3]') sourceSeparators.push({ raw, type:'hr3' });
+        else if(token === '[GAP]') sourceSeparators.push({ raw, type:'gap' });
+      });
+      const previewSeparators = Array.from(bodyDiv.querySelectorAll('[data-mosaic-generated="true"]'))
+        .map(block => ({ block, type:previewSeparatorType(block) }))
+        .filter(item => item.type);
+      if(sourceSeparators.length !== previewSeparators.length) return;
+      previewSeparators.forEach((item, index) => {
+        const source = sourceSeparators[index];
+        if(source.type !== item.type || item.block.dataset.mosaicSeparatorEditBound === 'true') return;
+        bindSeparatorBlockInteraction(item.block, item.type, null, {
+          block:item.block,
+          ta,
+          raw:source.raw,
+          type:item.type
+        });
+      });
+    };
+
+    // 표제 블록은 카드 밖이므로 본문 자식 = [문단들..., (마지막 카드면 꼬리말)]
+    let blocks = Array.from(bodyDiv.children);
+    if(blocks.length === map.length + 1) blocks = blocks.slice(0, -1); // 꼬리말 제외
+    if(blocks.length !== map.length){
+      bindRemainingBodyImages();
+      bindRemainingBodySeparators();
+      return;
+    }
+
+    blocks.forEach((block, i) => {
+      const info = map[i];
+      if(info.kind !== 'line') return;
+      const text = info.text;
+      const isImg = /^\[IMG\s/i.test(text);
+      const isHr = /^\[HR\]$/i.test(text);
+      const isHr2 = /^\[HR2\]$/i.test(text);
+      const isHr3 = /^\[HR3\]$/i.test(text);
+      const isGap = /^\[GAP\]$/i.test(text);
+      if(!isImg && !isHr && !isHr2 && !isHr3 && !isGap) return;
+      if(isImg && !block.querySelector('img')) return;
+
+      const label = isImg ? '이미지'
+        : (isHr ? '구분선' : (isHr2 ? '장면 전환' : (isHr3 ? '호흡 구분' : '넓은 여백')));
+      const type = isImg ? 'img' : (isHr ? 'hr' : (isHr2 ? 'hr2' : (isHr3 ? 'hr3' : 'gap')));
+      const dragCtx = { block, blocks, map, ta, srcIndex:i, label, type };
+      const menuCtx = { block, ta, raw:info.startRaw, type };
+
+      if(isHr || isHr2 || isHr3 || isGap){
+        bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx);
+      } else {
+        block.dataset.mosaicImageEditBound = 'true';
+        block.style.cursor = 'grab';
+        block.title = '클릭해서 삭제/비율/캡션 · 드래그로 이미지 이동';
+        bindSeparatorInteraction(block, dragCtx, menuCtx);
+      }
+    });
+    bindRemainingBodyImages();
+    bindRemainingBodySeparators();
+  });
+}
+
+function startBlockDrag(ctx){
+  const { block, blocks } = ctx;
+  block.style.opacity = '0.45';
+  block.style.cursor = 'grabbing';
+
+  const marker = document.createElement('div');
+  marker.style.cssText = 'height:3px; background:#111; border-radius:2px; margin:4px 0; pointer-events:none;';
+  dragState = Object.assign({}, ctx, { marker, destIndex: null, moved: false });
+
+  document.addEventListener('mousemove', onBlockDragMove);
+  document.addEventListener('mouseup', onBlockDragEnd);
+}
+
+function onBlockDragMove(e){
+  if(!dragState) return;
+  dragState.moved = true;
+  const { blocks, marker, srcIndex } = dragState;
+  // 커서와 가장 가까운 삽입 지점(문단 경계)을 찾음
+  let dest = blocks.length;
+  for(let i = 0; i < blocks.length; i++){
+    const r = blocks[i].getBoundingClientRect();
+    if(e.clientY < r.top + r.height / 2){ dest = i; break; }
+  }
+  dragState.destIndex = dest;
+  // 제자리면 표시 안 함
+  if(dest === srcIndex || dest === srcIndex + 1){
+    if(marker.parentNode) marker.remove();
+    return;
+  }
+  const ref = blocks[dest];
+  if(ref) ref.parentNode.insertBefore(marker, ref);
+  else blocks[blocks.length - 1].parentNode.appendChild(marker);
+}
+
+function onBlockDragEnd(){
+  document.removeEventListener('mousemove', onBlockDragMove);
+  document.removeEventListener('mouseup', onBlockDragEnd);
+  if(!dragState) return;
+  const { block, marker, map, ta, srcIndex, destIndex, moved, label, type } = dragState;
+  block.style.opacity = '';
+  block.style.cursor = 'grab';
+  if(marker.parentNode) marker.remove();
+  dragState = null;
+
+  if(!moved || destIndex === null) return;
+  if(destIndex === srcIndex || destIndex === srcIndex + 1) return; // 제자리
+
+  const srcRaw = map[srcIndex].startRaw;
+  const destInfo = destIndex < map.length ? map[destIndex] : null;
+  const destRaw = destInfo ? destInfo.startRaw : null;
+  const splitMove = (type === 'hr' || type === 'hr2')
+    ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, getSettings())
+    : null;
+  const nextText = splitMove === null
+    ? moveLineInText(ta.value, srcRaw, destRaw)
+    : splitMove;
+  if(nextText === ta.value) return;
+  snapshotCards();
+  ta.value = nextText;
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(splitMove === null ? `${label} 위치 변경.` : `${label} 위치 변경 · 원문 자동 분리.`);
+}
+
+let syncingChars = false;
+// ---------- 편집 중인 부분을 미리보기에서 자동으로 보여주기 ----------
+// 다음 렌더 직후 어떤 요소로 스크롤할지 지정 (getter는 렌더된 DOM에서 요소를 찾아 반환)
+let pendingPreviewFocus = null;
+let pendingPreviewFallbackScrollTop = null;
+function focusPreviewOn(getter){
+  if(!positionSyncEnabled()){
+    pendingPreviewFocus = null;
+    pendingPreviewFallbackScrollTop = null;
+    return;
+  }
+  pendingPreviewFocus = getter;
+  // 표시 옵션을 끄는 순간 대상 DOM이 사라지면 브라우저의 스크롤 앵커가
+  // 미리보기 위치를 임의로 보정할 수 있다. 그 경우에만 되돌릴 기준 위치를 기억한다.
+  const previewArea = document.getElementById('previewArea');
+  pendingPreviewFallbackScrollTop = previewArea ? previewArea.scrollTop : null;
+}
+
+// 본문 입력 ↔ 미리보기 자동 이동은 편집 내용과 별개인 화면 설정으로 기억한다.
+const POSITION_SYNC_KEY = 'mosaicPositionSync_v1';
+const positionSyncInput = document.getElementById('positionSyncOn');
+try {
+  positionSyncInput.checked = localStorage.getItem(POSITION_SYNC_KEY) !== 'off';
+} catch(e){
+  positionSyncInput.checked = true;
+}
+function positionSyncEnabled(){
+  return !!(positionSyncInput && positionSyncInput.checked);
+}
+function syncPositionSyncFloatingUi(){
+  const on = positionSyncEnabled();
+  const text = `위치 연동 ${on ? '켜짐' : '꺼짐'}`;
+  document.getElementById('previewSyncText').textContent = text;
+  document.getElementById('previewSyncFloat').title = text;
+  positionSyncInput.setAttribute('aria-label', text);
+}
+positionSyncInput.addEventListener('change', () => {
+  pendingPreviewFocus = null;
+  pendingPreviewFallbackScrollTop = null;
+  syncPositionSyncFloatingUi();
+  try { localStorage.setItem(POSITION_SYNC_KEY, positionSyncInput.checked ? 'on' : 'off'); }
+  catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 설정은 유지 */ }
+});
+syncPositionSyncFloatingUi();
+
+// 미리보기 전체화면: 설정 패널을 숨기고 실제 출력물을 흰 캔버스에서 확인한다.
+const previewFullscreenBtn = document.getElementById('previewFullscreenBtn');
+let previewFullscreenScrollTop = 0;
+function setPreviewFullscreen(on){
+  const previewArea = document.getElementById('previewArea');
+  if(on){
+    previewFullscreenScrollTop = previewArea.scrollTop;
+    previewArea.scrollTop = 0;
+  }
+  document.body.classList.toggle('previewFullscreen', !!on);
+  previewFullscreenBtn.setAttribute('aria-pressed', String(!!on));
+  previewFullscreenBtn.textContent = on ? '×' : '⛶';
+  previewFullscreenBtn.title = on ? '전체화면 미리보기 닫기 (Esc)' : '전체화면 미리보기';
+  previewFullscreenBtn.setAttribute('aria-label', previewFullscreenBtn.title);
+  // 폭 전환이나 출력 HTML의 인라인 효과가 이미 시작됐더라도 즉시 정지시킨다.
+  if(typeof previewArea.getAnimations === 'function'){
+    try { previewArea.getAnimations({ subtree:true }).forEach(animation => animation.cancel()); }
+    catch(e){ /* 구형 브라우저에서는 위 CSS 차단만 적용한다. */ }
+  }
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+  if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewFullscreenScrollTop; });
+}
+previewFullscreenBtn.addEventListener('click', () => {
+  setPreviewFullscreen(!document.body.classList.contains('previewFullscreen'));
+});
+document.addEventListener('keydown', (event) => {
+  if(event.key === 'Escape' && document.body.classList.contains('previewFullscreen')){
+    event.preventDefault();
+    setPreviewFullscreen(false);
+  }
+});
+
+// 미리보기 최상위 구성요소 분류: 이미지 밴드 / 표제 밴드 / 프로필 / 카드들
+function previewParts(){
+  const preview = document.getElementById('preview');
+  const parts = { image: null, title: null, profile: null, credit: null, cards: [], comments: [] };
+  Array.from(preview.children).forEach(el => {
+    // 대표 이미지 목록 인식용 숨김 썸네일을 표제 밴드로 오인하지 않는다.
+    if(el.hidden || el.getAttribute('aria-hidden') === 'true') return;
+    if(el.hasAttribute('data-mosaic-comment-index')){ parts.comments.push(el); return; }
+    if(el.hasAttribute('data-mosaic-card-index')){ parts.cards.push(el); return; }
+    if(el.tagName === 'DETAILS'){ parts.cards.push(el); return; }
+    if(el.tagName !== 'DIV') return;                       // 숨김 썸네일 <p>
+    if(el.dataset.mosaicProfile === 'true'){ parts.profile = el; return; }
+    if(el.dataset.mosaicCredit === 'true'){ parts.credit = el; return; }
+    if(el.dataset.mosaicCoverImage === 'true'){ parts.image = el; return; }
+    if(el.dataset.mosaicTitle === 'true'){ parts.title = el; return; }
+    if(el.style.backgroundImage){ parts.image = el; return; }
+    const first = el.firstElementChild;
+    if(first && first.tagName === 'DIV') parts.cards.push(el);   // 카드(안쪽 패딩 div)
+    else if(!parts.title) parts.title = el;                      // 표제 밴드(<p>들만 가짐)
+  });
+  return parts;
+}
+
+// 세로 배치(모바일)에서는 미리보기로 스크롤하면 입력창이 화면 밖으로 밀려 편집이 불가능해짐.
+// CSS의 680px 분기와 같은 기준으로 판단.
+function isStackedLayout(){
+  return window.matchMedia('(max-width: 680px)').matches;
+}
+
+// 화면 밖일 때만 오른쪽 미리보기 컨테이너 안에서 부드럽게 스크롤한다.
+// Element.scrollIntoView()는 모든 상위 스크롤 영역과 뷰포트를 함께 조정할 수 있어,
+// 좌우 분할 화면에서는 미리보기 변화가 왼쪽 사이드바 위치까지 흔드는 원인이 된다.
+function scrollPreviewIfNeeded(el, force){
+  if(!el || isStackedLayout()) return;
+  const previewArea = document.getElementById('previewArea');
+  if(!previewArea || !previewArea.contains(el)) return;
+  const areaRect = previewArea.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  const margin = 40;
+  const visibleTop = areaRect.top + margin;
+  const visibleBottom = areaRect.bottom - margin;
+  const visible = r.top >= visibleTop && r.bottom <= visibleBottom;
+  if(!force && visible) return;
+  const current = previewArea.scrollTop;
+  const relativeTop = r.top - areaRect.top + current;
+  const centeredTop = relativeTop - Math.max(0, (previewArea.clientHeight - r.height) / 2);
+  const maxScroll = Math.max(0, previewArea.scrollHeight - previewArea.clientHeight);
+  const next = Math.max(0, Math.min(maxScroll, centeredTop));
+  previewArea.scrollTo({ top:next, behavior:'smooth' });
+}
+
+// 특정 카드/줄에 해당하는 미리보기 블록 찾기
+function previewBlockFor(ta, raw){
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  const myEd = ta.closest('.cardEditor');
+  const sourceIndex = editors.indexOf(myEd);
+  // 내용 있는 카드의 순번을 추측하지 않고 출력 카드가 기록한 원래 카드 번호로 찾는다.
+  // 앞쪽에 빈 카드가 있거나 카드 순서를 바꾼 직후에도 다른 카드로 이동하지 않는다.
+  const cardEl = Number.isInteger(sourceIndex) && sourceIndex >= 0
+    ? previewParts().cards.find(card => Number(card.dataset.mosaicCardIndex) === sourceIndex)
+    : null;
+  if(!cardEl) return null;
+
+  const entries = [];
+  ta.value.split('\n').forEach((l, i) => { if(l.trim() !== '') entries.push({ raw: i, text: l.trim() }); });
+  const map = topLevelMap(entries);
+  const bodyDiv = previewCardBody(cardEl);
+  if(!bodyDiv) return cardEl;
+  let blocks = Array.from(bodyDiv.children);
+  if(blocks.length === map.length + 1) blocks = blocks.slice(0, -1);   // 꼬리말 제외
+  // 출력에 꼬리말·접기 래퍼가 더해져 개수가 달라도 가장 가까운 블록을 사용한다.
+
+  // 커서가 놓인 줄(raw) 이하에서 가장 가까운 블록
+  let best = -1;
+  map.forEach((m, i) => { if(m.startRaw <= raw) best = i; });
+  if(best < 0) return cardEl;
+  return blocks[Math.min(best, blocks.length - 1)] || cardEl;
+}
+
+// 카드 편집기의 헤더·제목 입력은 본문 줄 좌표가 없으므로 카드 시작점을 직접 찾는다.
+// 접기 카드는 summary, 일반 제목 카드는 제목, 제목이 비어 있으면 카드 자체를 대상으로 한다.
+function previewCardStartForEditor(editor){
+  if(!editor || editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return null;
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  const sourceIndex = editors.indexOf(editor);
+  if(sourceIndex < 0) return null;
+  const cardEl = previewParts().cards.find(card => Number(card.dataset.mosaicCardIndex) === sourceIndex);
+  if(!cardEl) return null;
+  if(cardEl.tagName === 'DETAILS') return cardEl.querySelector(':scope > summary') || cardEl;
+  return cardEl.querySelector(':scope > [data-mosaic-card-title="true"]') || cardEl;
+}
+
+function scrollPreviewToCardEditor(editor){
+  if(!positionSyncEnabled()) return;
+  const target = previewCardStartForEditor(editor);
+  if(target) scrollPreviewIfNeeded(target, true);
+}
+
+// 입력창에서 커서가 있는 줄을 미리보기에서 보여줌
+function focusPreviewOnCaret(ta){
+  if(!ta || !positionSyncEnabled()) return;
+  const raw = ta.value.slice(0, ta.selectionStart).split('\n').length - 1;
+  focusPreviewOn(() => previewBlockFor(ta, raw));
+}
+
+function render(){
+  previewRenderRevision += 1;
+  syncCardLayoutAvailability();
+  syncPreviewCardStyleToggles();
+  syncDesignSummaries();
+  // 본문에 새 [이름] 마커가 생기면 인물 목록을 자동 갱신 (재진입 방지)
+  if(!syncingChars){
+    syncingChars = true;
+    try { syncCharList(); } finally { syncingChars = false; }
+  }
+  // 미리보기에는 카드 연결 표식을 보존하고, 복사·다운로드용 HTML에서는 제거한다.
+  // buildCard를 두 번 실행하지 않아 비동기 이미지 상태가 바뀌는 순간에도 두 결과가 같다.
+  const previewHTML = buildCard(getSettings());
+  const html = generateHTML(false, previewHTML);
+  document.getElementById('codeBox').value = html;
+  renderPreview(previewHTML);
+  renderCurrentThemePalette();
+
+  // 렌더가 끝난 뒤, 편집 중인 부분으로 스크롤
+  if(pendingPreviewFocus && positionSyncEnabled()){
+    const getter = pendingPreviewFocus;
+    const fallbackScrollTop = pendingPreviewFallbackScrollTop;
+    pendingPreviewFocus = null;
+    pendingPreviewFallbackScrollTop = null;
+    requestAnimationFrame(() => {
+      if(!positionSyncEnabled()) return;
+      try {
+        const target = getter();
+        if(target) scrollPreviewIfNeeded(target);
+        else if(Number.isFinite(fallbackScrollTop)) document.getElementById('previewArea').scrollTop = fallbackScrollTop;
+      } catch(e){ /* 무시 */ }
+    });
+  } else if(!positionSyncEnabled()){
+    pendingPreviewFocus = null;
+    pendingPreviewFallbackScrollTop = null;
+  }
+  // 본문 검색 하이라이트 재적용 (검색 중이 아니면 즉시 반환) — 미리보기의 pvApplySearch 재적용과 같은 원리
+}
+
+function updateHexLabels(){
+  ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
+    document.getElementById(id + 'Hex').value = document.getElementById(id).value;
+  });
+}
+
+function normalizeHex(raw){
+  let v = raw.trim();
+  if(!v.startsWith('#')) v = '#' + v;
+  if(/^#[0-9A-Fa-f]{3}$/.test(v)){
+    v = '#' + v[1]+v[1] + v[2]+v[2] + v[3]+v[3];
+  }
+  if(/^#[0-9A-Fa-f]{6}$/.test(v)) return v.toLowerCase();
+  return null;
+}
+
+// 컬러피커 <-> 헥스코드 입력창 양방향 연동
+['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
+  const colorInput = document.getElementById(id);
+  const hexInput = document.getElementById(id + 'Hex');
+
+  colorInput.addEventListener('input', () => {
+    hexInput.value = colorInput.value;
+  });
+
+  hexInput.addEventListener('input', () => {
+    const normalized = normalizeHex(hexInput.value);
+    if(normalized){
+      colorInput.value = normalized;
+      // HEX 입력은 연결된 color input의 input 이벤트를 자동으로 만들지 않는다.
+      // 프리셋 출처 요약도 실제 색상과 동시에 다시 판정한다.
+      updateOverwriteBtn();
+      render();
+      scheduleDraftSave();
+      commitStyleHistory(false);
+    }
+  });
+
+  hexInput.addEventListener('blur', () => {
+    // 입력을 마쳤을 때 유효하지 않으면 현재 컬러값으로 되돌림
+    const normalized = normalizeHex(hexInput.value);
+    hexInput.value = normalized || colorInput.value;
+  });
+});
+
+// 이미지 슬라이더 값 라벨 갱신
+document.getElementById('imgHeight').addEventListener('input', e => {
+  const editor = document.getElementById('imgHeightVal');
+  if(editor !== document.activeElement) editor.value = e.target.value;
+});
+
+document.getElementById('xpos').addEventListener('input', e => {
+  const editor = document.getElementById('xposVal');
+  if(editor !== document.activeElement) editor.value = e.target.value;
+});
+
+document.getElementById('ypos').addEventListener('input', e => {
+  const editor = document.getElementById('yposVal');
+  if(editor !== document.activeElement) editor.value = e.target.value;
+});
+
+['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY'].forEach(id => {
+  document.getElementById(id).addEventListener('input', e => {
+    const editor = document.getElementById(id + 'Val');
+    if(editor !== document.activeElement) editor.value = e.target.value;
+  });
+});
+
+function syncProfileImageRangeLabels(){
+  ['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY'].forEach(id => {
+    const input = document.getElementById(id);
+    const label = document.getElementById(id + 'Val');
+    if(input && label && label !== document.activeElement) label.value = input.value;
+  });
+}
+
+const PROFILE_IMAGE_UI_CONFIGS = [
+  { label:'BOT', inputId:'profileCharImage', buttonId:'profileCharImageAdjustBtn', panelId:'profileCharImageAdjustPanel', toggleId:'profileCharOn' },
+  { label:'USER', inputId:'profileUserImage', buttonId:'profileUserImageAdjustBtn', panelId:'profileUserImageAdjustPanel', toggleId:'profileUserOn' },
+];
+
+function setProfileImageAdjustOpen(config, open){
+  const button = document.getElementById(config.buttonId);
+  const panel = document.getElementById(config.panelId);
+  const next = !!open && !button.disabled;
+  panel.hidden = !next;
+  button.setAttribute('aria-expanded', String(next));
+  button.textContent = '⚙︎';
+  button.setAttribute('aria-label', `${config.label} 사진 조정 ${next ? '닫기' : '열기'}`);
+  button.title = next ? '사진 조정 닫기' : '사진 조정';
+}
+
+function syncProfileImageUiState(){
+  const profileOn = document.getElementById('profileOn').checked;
+  PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
+    const input = document.getElementById(config.inputId);
+    const button = document.getElementById(config.buttonId);
+    const enabled = profileOn && document.getElementById(config.toggleId).checked && input.value.trim() !== '';
+    button.disabled = !enabled;
+    if(!enabled) setProfileImageAdjustOpen(config, false);
+  });
+}
+
+PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
+  const input = document.getElementById(config.inputId);
+  const button = document.getElementById(config.buttonId);
+  button.addEventListener('click', () => {
+    setProfileImageAdjustOpen(config, button.getAttribute('aria-expanded') !== 'true');
+  });
+  input.addEventListener('input', syncProfileImageUiState);
+});
+
+function syncCoverImageRangeLabels(){
+  ['imgHeight','xpos','ypos'].forEach(id => {
+    const input = document.getElementById(id);
+    const editor = document.getElementById(id + 'Val');
+    if(input && editor && editor !== document.activeElement) editor.value = input.value;
+  });
+}
+
+function syncTypographyRangeLabels(){
+  ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','titleSize','foldTitleSize'].forEach(id => {
+    const input = document.getElementById(id);
+    const label = document.getElementById(id + 'Val');
+    // 직접 입력 중에는 "1." 같은 소수점 입력 중간값을 덮어쓰지 않는다.
+    if(input && label && label !== document.activeElement) label.value = input.value;
+  });
+  syncSoftBreakSpacingControl();
+}
+
+// 슬라이더와 숫자 입력을 양방향으로 연결해 빠른 조절과 정확한 입력을 모두 지원한다.
+document.querySelectorAll('.rangeEditor input[data-range]').forEach(editor => {
+  const range = document.getElementById(editor.dataset.range);
+  if(!range) return;
+  editor.addEventListener('input', () => {
+    const value = Number(editor.value);
+    if(!Number.isFinite(value) || value < Number(range.min) || value > Number(range.max)) return;
+    range.value = String(value);
+    range.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+  editor.addEventListener('change', () => {
+    const value = Number(editor.value);
+    const safeValue = Number.isFinite(value)
+      ? Math.min(Number(range.max), Math.max(Number(range.min), value))
+      : Number(range.value);
+    range.value = String(safeValue);
+    editor.value = range.value;
+    range.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+});
+
+function selectedControlText(id){
+  const select = document.getElementById(id);
+  const option = select && select.options[select.selectedIndex];
+  return option ? option.textContent.replace(/\s*\([^)]*\)\s*$/, '') : '';
+}
+
+function syncDesktopPreviewWidth(){
+  const desktopButton = document.getElementById('widthDesktopBtn');
+  if(!desktopButton || !desktopButton.classList.contains('active')) return;
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
+}
+
+function syncDesignSummaries(){
+  syncCardLayoutCheckbox();
+  const font = selectedControlText('textFont');
+  const dialogue = selectedControlText('dlgStyle');
+  const cardLayout = selectedControlText('cardLayout');
+  const spacing = selectedControlText('spacingMode');
+  const width = selectedControlText('cardWidth');
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  document.getElementById('widthDesktopBtn').textContent = `데스크톱 ${cardWidth}`;
+  syncDesktopPreviewWidth();
+  document.getElementById('typographyDesignSummary').textContent =
+    `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
+  const parallelLayout = selectedControlText('parallelTranslationLayout');
+  document.getElementById('dialogueDesignSummary').textContent =
+    `${dialogue} · 병행 ${parallelLayout}`;
+  document.getElementById('layoutDesignSummary').textContent =
+    `${cardLayout} · 내용 ${spacing} · ${width} · 외곽선 ${document.getElementById('cardBorderOn').checked ? '켬' : '끔'}`;
+
+  const imageOn = document.getElementById('imgOn').checked;
+  document.getElementById('imageCoverSummary').textContent = imageOn
+    ? `표시 · ${document.getElementById('imgHeight').value}px`
+    : '숨김';
+
+  const titleOn = document.getElementById('logTitleOn').checked;
+  const profileOrderSummary = selectedControlText('titleProfileOrder').replace(/\s+/g, '');
+  document.getElementById('titleCoverSummary').textContent = titleOn
+    ? `표시 · ${document.getElementById('titleMinimal').checked ? '미니멀' : '일반'} · ${profileOrderSummary}`
+    : '숨김';
+  const titleLinkSummary = document.getElementById('titleLinkSummary');
+  if(titleLinkSummary){
+    const linked = [];
+    const activeProfileBotName = document.getElementById('profileOn').checked
+      && document.getElementById('profileCharOn').checked
+      && document.getElementById('profileCharName').value.trim();
+    const activeProfileUserName = document.getElementById('profileOn').checked
+      && document.getElementById('profileUserOn').checked
+      && document.getElementById('profileUserName').value.trim();
+    if(document.getElementById('logNumber').value.trim() && document.getElementById('logNumberUrl').value.trim()) linked.push('메모');
+    if(document.getElementById('logTitle').value.trim() && document.getElementById('logTitleUrl').value.trim()) linked.push('제목');
+    if((document.getElementById('subChar').value.trim() || activeProfileBotName) && document.getElementById('subCharUrl').value.trim()) linked.push('BOT');
+    if((document.getElementById('subUser').value.trim() || activeProfileUserName) && document.getElementById('subUserUrl').value.trim()) linked.push('USER');
+    if(document.getElementById('logSubtitle').value.trim() && document.getElementById('logSubtitleUrl').value.trim()) linked.push('부제');
+    titleLinkSummary.textContent = linked.length ? linked.join(' · ') : '미설정';
+  }
+
+  const profileOn = document.getElementById('profileOn').checked;
+  const profilePlacementSummary = selectedControlText('profilePlacement');
+  document.getElementById('profileCoverSummary').textContent = profileOn
+    ? `표시 · ${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
+    : '숨김';
+
+  const profileBaseSummary = document.getElementById('profileBaseSummary');
+  if(profileBaseSummary) profileBaseSummary.textContent = profileOn
+    ? `${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
+    : '숨김';
+
+  const footerOn = document.getElementById('footerOn').checked;
+  document.getElementById('footerCoverSummary').textContent = footerOn
+    ? '표시'
+    : '숨김';
+  const creditOn = document.getElementById('creditOn').checked;
+  const creditCount = storedCreditItems().filter(item => item.label.trim() || item.value.trim()).length;
+  document.getElementById('creditCoverSummary').textContent = creditOn
+    ? `표시 · ${selectedControlText('creditPlacement')} · ${creditCount}개 항목`
+    : '숨김';
+}
+
+function normalizeProtocolRelativeUrl(value){
+  const url = String(value || '').trim();
+  return url.startsWith('//') ? 'https:' + url : url;
+}
+
+const PROFILE_TAG_GROUPS = [
+  { masterId:'profileCharTags', editorIds:['profileCharTag1','profileCharTag2','profileCharTag3'] },
+  { masterId:'profileUserTags', editorIds:['profileUserTag1','profileUserTag2','profileUserTag3'] },
+  { masterId:'profileRelationship', editorIds:['profileRelationship1','profileRelationship2','profileRelationship3'] },
+];
+
+function normalizeProfileTag(value){
+  return String(value || '').trim().replace(/^#+\s*/, '');
+}
+
+function splitProfileTags(value){
+  return Array.from(new Set(String(value || '').split(/[,，]/)
+    .map(normalizeProfileTag)
+    .filter(Boolean)))
+    .slice(0, 3);
+}
+
+function syncProfileTagMaster(group, dispatch = true){
+  const master = document.getElementById(group.masterId);
+  const nextValue = group.editorIds
+    .map(id => normalizeProfileTag(document.getElementById(id).value))
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(', ');
+  if(master.value === nextValue) return;
+  master.value = nextValue;
+  if(dispatch) master.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+function syncProfileTagEditorsFromMasters(){
+  PROFILE_TAG_GROUPS.forEach(group => {
+    const master = document.getElementById(group.masterId);
+    const tags = splitProfileTags(master.value);
+    master.value = tags.join(', ');
+    group.editorIds.forEach((id, index) => { document.getElementById(id).value = tags[index] || ''; });
+  });
+}
+
+const PROFILE_ENTITY_CONFIGS = [
+  {
+    label:'BOT', toggleId:'profileCharOn', groupId:'profileCharGroup', resetButtonId:'profileCharResetBtn', imageResetButtonId:'profileCharImageResetBtn',
+    controlIds:['profileCharName','profileCharUrl','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
+    resetValues:{ profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' },
+    imageResetValues:{ profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
+  },
+  {
+    label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn', imageResetButtonId:'profileUserImageResetBtn',
+    controlIds:['profileUserName','profileUserUrl','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
+    resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' },
+    imageResetValues:{ profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
+  },
+  {
+    label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
+    controlIds:['profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'],
+    resetValues:{ profileRelationship:'', profileSituation:'' },
+    resetPrompt:'관계·키워드와 상황·요약을 초기화할까요?',
+    emptyMessage:'관계와 상황은 이미 초기 상태입니다.',
+    completeMessage:'관계와 상황을 초기화했습니다.'
+  }
+];
+
+function applyProfileReset(entries, message){
+  snapshotCards();
+  entries.forEach(([id, value]) => { document.getElementById(id).value = value; });
+  syncProfileTagEditorsFromMasters();
+  syncProfileImageRangeLabels();
+  syncCoverControlState();
+  syncDesignSummaries();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(message);
+}
+
+function resetProfileEntity(config){
+  const entries = Object.entries(config.resetValues);
+  const changed = entries.some(([id, value]) => document.getElementById(id).value !== value);
+  if(!changed){
+    showNoticeToast(config.emptyMessage || `${config.label} 프로필은 이미 초기 상태입니다.`);
+    return;
+  }
+  const prompt = config.resetPrompt || `${config.label} 프로필의 사진·이름·정보·태그를 초기화할까요?`;
+  if(!confirm(`${prompt}\n(되돌리기로 복구할 수 있습니다.)`)) return;
+  applyProfileReset(entries, config.completeMessage || `${config.label} 프로필을 초기화했습니다.`);
+}
+
+function resetProfileImage(config){
+  const entries = Object.entries(config.imageResetValues || {});
+  if(!entries.some(([id, value]) => document.getElementById(id).value !== value)){
+    showNoticeToast(`${config.label} 사진은 이미 초기 상태입니다.`);
+    return;
+  }
+  if(!confirm(`${config.label} 사진 URL과 이미지 조정을 초기화할까요?\n(되돌리기로 복구할 수 있습니다.)`)) return;
+  applyProfileReset(entries, `${config.label} 사진을 초기화했습니다.`);
+}
+
+PROFILE_ENTITY_CONFIGS.forEach(config => {
+  document.getElementById(config.resetButtonId).addEventListener('click', () => {
+    resetProfileEntity(config);
+  });
+  if(config.imageResetButtonId){
+    document.getElementById(config.imageResetButtonId).addEventListener('click', () => {
+      resetProfileImage(config);
+    });
+  }
+  const actions = document.getElementById(config.toggleId).closest('.profileSubActions');
+  if(actions){
+    actions.addEventListener('click', event => event.stopPropagation());
+    actions.addEventListener('keydown', event => event.stopPropagation());
+  }
+});
+
+PROFILE_TAG_GROUPS.forEach(group => {
+  group.editorIds.forEach((id, index) => {
+    const editor = document.getElementById(id);
+    editor.addEventListener('input', () => {
+      if(/[,，]/.test(editor.value)){
+        const tags = splitProfileTags(editor.value);
+        group.editorIds.slice(index).forEach((targetId, offset) => {
+          document.getElementById(targetId).value = tags[offset] || '';
+        });
+      }
+      syncProfileTagMaster(group, true);
+    });
+    editor.addEventListener('blur', () => {
+      editor.value = normalizeProfileTag(editor.value);
+      syncProfileTagMaster(group, true);
+    });
+  });
+});
+
+// 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여줌
+// (이 도구가 로컬 파일로 열려있을 때 미리보기에서 못 불러오는 경우 방지)
+['imgUrl','profileCharImage','profileUserImage','logNumberUrl','logTitleUrl','subCharUrl','subUserUrl','logSubtitleUrl'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    const input = document.getElementById(id);
+    const url = normalizeProtocolRelativeUrl(input.value);
+    if(input.value !== url){
+      input.value = url;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+});
+
+const subtitleCoupleSeparatorInput = document.getElementById('subtitleCoupleSeparator');
+const subtitleCoupleSeparatorBtn = document.getElementById('subtitleCoupleSeparatorBtn');
+function syncSubtitleCoupleSeparatorControl(){
+  const separator = normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
+  subtitleCoupleSeparatorInput.value = separator;
+  subtitleCoupleSeparatorBtn.textContent = separator;
+  const separators = ['×', '&', '·'];
+  const next = separators[(separators.indexOf(separator) + 1) % separators.length];
+  subtitleCoupleSeparatorBtn.setAttribute('aria-label', `이름 구분 기호 ${separator} · 눌러서 ${next}로 변경`);
+  subtitleCoupleSeparatorBtn.title = `이름 구분 기호를 ${next}로 변경`;
+}
+subtitleCoupleSeparatorInput.addEventListener('input', syncSubtitleCoupleSeparatorControl);
+subtitleCoupleSeparatorBtn.addEventListener('click', () => {
+  if(subtitleCoupleSeparatorBtn.disabled) return;
+  snapshotCards();
+  const separators = ['×', '&', '·'];
+  const current = normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
+  subtitleCoupleSeparatorInput.value = separators[(separators.indexOf(current) + 1) % separators.length];
+  subtitleCoupleSeparatorInput.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast(`이름 구분 기호를 ${subtitleCoupleSeparatorInput.value}로 변경했습니다.`);
+});
+syncSubtitleCoupleSeparatorControl();
+
+// 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
+// 어떤 입력이 미리보기의 어느 부분에 대응하는지
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','subtitleCoupleSeparator','logSubtitle','logSubtitleUrl','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
+const WORK_FIELD_DEFAULTS = Object.freeze({
+  imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
+  charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
+  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', subUserUrl:'', subtitleCoupleSeparator:'×', logSubtitle:'', logSubtitleUrl:'',
+  profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
+  keywordRules:'[]'
+});
+const WORK_BOOLEAN_DEFAULTS = Object.freeze({
+  logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false,
+  profileCharOn:true, profileUserOn:true, profileCommonOn:true, footerOn:true, creditOn:false
+});
+// 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
+// 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
+const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
+const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
+const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
+// 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
+// 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
+function previewVisibleFooterElement(){
+  const footer = document.querySelector('#preview [data-mosaic-footer="true"]');
+  return footer && footer.getClientRects().length ? footer : null;
+}
+
+function previewProfileRoleTarget(role){
+  return document.querySelector(`#preview [data-mosaic-profile-role="${role}"]`) || previewParts().profile;
+}
+
+function previewProfileFieldTarget(id){
+  let targetId = id;
+  if(id === 'profileCharTags'){
+    targetId = /^profileCharTag[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileCharTag1';
+  }else if(id === 'profileUserTags'){
+    targetId = /^profileUserTag[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileUserTag1';
+  }else if(id === 'profileRelationship'){
+    targetId = /^profileRelationship[1-3]$/.test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : 'profileRelationship1';
+  }
+  return document.querySelector(`#preview [data-mosaic-profile-field="${targetId}"]`)
+    || document.querySelector(`#preview [data-mosaic-profile-image-field="${targetId}"]`)
+    || previewParts().profile;
+}
+
+function previewCreditFieldTarget(index, field){
+  if(!Number.isInteger(index) || index < 0) return previewParts().credit;
+  const credit = previewParts().credit;
+  if(!credit) return null;
+  const preferredField = field === 'label' ? 'label' : 'value';
+  return credit.querySelector(`[data-mosaic-credit-index="${index}"][data-mosaic-credit-field="${preferredField}"]`)
+    || credit.querySelector(`[data-mosaic-credit-index="${index}"]`)
+    || credit;
+}
+
+function activeCreditPreviewTarget(){
+  const id = document.activeElement && document.activeElement.id;
+  const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
+  if(!match) return previewParts().credit;
+  const field = match[1] === 'Label' ? 'label' : 'value';
+  return previewCreditFieldTarget(Number(match[2]), field);
+}
+const PREVIEW_FOCUS_MAP = {
+  logNumber:  () => previewParts().title,
+  logNumberUrl:() => previewParts().title,
+  logTitle:   () => previewParts().title,
+  logTitleUrl:() => previewParts().title,
+  subChar:    () => previewParts().title,
+  subCharUrl: () => previewParts().title,
+  subUser:    () => previewParts().title,
+  subUserUrl: () => previewParts().title,
+  subtitleCoupleSeparator:() => previewParts().title,
+  logSubtitle:() => previewParts().title,
+  logSubtitleUrl:() => previewParts().title,
+  logTitleOn: () => previewParts().title,
+  titleMinimal:() => previewParts().title,
+  imgOn:      () => previewParts().image,
+  imgUrl:     () => previewParts().image,
+  imgHeight:  () => previewParts().image,
+  xpos:       () => previewParts().image,
+  ypos:       () => previewParts().image,
+  profileOn:  () => previewParts().profile,
+  profileMinimal:() => previewParts().profile,
+  profileCharOn:() => previewProfileRoleTarget('bot'),
+  profileUserOn:() => previewProfileRoleTarget('user'),
+  profileCommonOn:() => previewParts().profile,
+  profilePlacement:() => previewParts().profile,
+  profileStyle:() => previewParts().profile,
+  profileOrder:() => previewParts().profile || previewParts().title,
+  profileCharImage:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharScale:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharX:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharY:() => previewProfileFieldTarget('profileCharImage'),
+  profileCharName: () => previewProfileFieldTarget('profileCharName'),
+  profileCharDesc: () => previewProfileFieldTarget('profileCharDesc'),
+  profileCharTags: () => previewProfileFieldTarget('profileCharTags'),
+  profileUserImage:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserScale:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserX:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserY:() => previewProfileFieldTarget('profileUserImage'),
+  profileUserName: () => previewProfileFieldTarget('profileUserName'),
+  profileUserDesc: () => previewProfileFieldTarget('profileUserDesc'),
+  profileUserTags: () => previewProfileFieldTarget('profileUserTags'),
+  profileRelationship:() => previewProfileFieldTarget('profileRelationship'),
+  profileSituation:() => previewProfileFieldTarget('profileSituation'),
+  // 숨긴 뒤에는 대체 대상으로 마지막 카드 전체를 반환하지 않는다.
+  // 큰 카드를 중앙 정렬하며 미리보기 스크롤이 튀는 것을 막고,
+  // 다시 표시한 경우에도 접힌 카드 안이라면 스크롤하거나 카드를 열지 않는다.
+  footerOn: () => previewVisibleFooterElement(),
+  footerAuthor: () => previewVisibleFooterElement(),
+  creditOn: () => previewParts().credit,
+  creditPlacement: () => previewParts().credit,
+  creditItems: () => activeCreditPreviewTarget(),
+};
+
+function normalizeCommentWidth(value){
+  return ['default','card'].includes(value) ? value : 'default';
+}
+
+function normalizeCommentAlign(value){
+  return ['left','center'].includes(value) ? value : 'left';
+}
+
+function hasMarkdownCardContent(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
+    if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
+    const textarea = editor.querySelector('textarea');
+    if(!textarea) return false;
+    // #> 접기 소제목은 아래의 '접기 제목' 정렬이 담당한다. 일반 소제목만 감지해
+    // 접기 소제목밖에 없을 때 효과 없는 마크다운 버튼이 활성화되지 않게 한다.
+    return /^(?:\s*\[C\]\s*)?\s*#{1,4}\s+\S/im.test(textarea.value);
+  });
+}
+
+function hasQuoteCardContent(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
+    if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
+    const textarea = editor.querySelector('textarea');
+    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*>(?!>)\s*(?:\[C\]\s*)?\S/im.test(textarea.value));
+  });
+}
+
+function hasBodyFoldTitleContent(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
+    if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
+    const textarea = editor.querySelector('textarea');
+    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*(?:\[접기(?:\s+.*?)?\]|#{1,4}>\s+\S)/im.test(textarea.value));
+  });
+}
+
+function syncParagraphControlAvailability(rowId, controlIds, enabled, disabledTitle){
+  const row = document.getElementById(rowId);
+  row.classList.toggle('isControlDisabled', !enabled);
+  row.setAttribute('aria-disabled', String(!enabled));
+  row.title = enabled ? '' : disabledTitle;
+  controlIds.map(id => document.getElementById(id)).forEach(control => {
+    control.disabled = !enabled;
+    control.setAttribute('aria-disabled', String(!enabled));
+  });
+}
+
+function syncParagraphSettingsUI(){
+  const press = (id, value) => document.getElementById(id).setAttribute('aria-pressed', String(value));
+  const narrIndent = document.getElementById('narrIndent').checked;
+  press('narrIndentNone', !narrIndent);
+  press('narrIndentFirst', narrIndent);
+  syncParagraphControlAvailability(
+    'markdownAlignRow',
+    ['headingCenter'],
+    hasMarkdownCardContent(),
+    '카드에 마크다운 소제목을 입력하면 설정할 수 있습니다.'
+  );
+  syncParagraphControlAvailability(
+    'quoteAlignRow',
+    ['quoteCenter'],
+    hasQuoteCardContent(),
+    '카드에 인용문을 입력하면 설정할 수 있습니다.'
+  );
+  syncParagraphControlAvailability(
+    'bodyFoldTitleAlignRow',
+    ['bodyFoldTitleCenter'],
+    hasBodyFoldTitleContent(),
+    '카드에 본문 접기를 입력하면 설정할 수 있습니다.'
+  );
+  const commentWidth = normalizeCommentWidth(document.getElementById('commentWidth').value);
+  const commentAlign = normalizeCommentAlign(document.getElementById('commentAlign').value);
+  press('commentWidthDefault', commentWidth === 'default');
+  press('commentWidthCard', commentWidth === 'card');
+  press('commentAlignLeft', commentAlign === 'left');
+  press('commentAlignCenter', commentAlign === 'center');
+
+  const hasCommentCard = !!document.querySelector('#cardEditors .commentEditor');
+  syncParagraphControlAvailability(
+    'commentWidthRow',
+    ['commentWidthDefault','commentWidthCard'],
+    hasCommentCard,
+    '코멘트 카드를 추가하면 설정할 수 있습니다.'
+  );
+  syncParagraphControlAvailability(
+    'commentAlignRow',
+    ['commentAlignLeft','commentAlignCenter'],
+    hasCommentCard,
+    '코멘트 카드를 추가하면 설정할 수 있습니다.'
+  );
+}
+
+function setParagraphOptions(nextState){
+  const changed = [];
+  Object.entries(nextState).forEach(([id, value]) => {
+    const input = document.getElementById(id);
+    const isCheckbox = input.type === 'checkbox';
+    const next = isCheckbox ? !!value : String(value);
+    const current = isCheckbox ? input.checked : input.value;
+    if(current === next) return;
+    if(isCheckbox) input.checked = next;
+    else input.value = next;
+    changed.push(input);
+  });
+  // 한 번의 선택 변경은 한 번만 렌더·저장한다.
+  syncParagraphSettingsUI();
+  if(changed.length) changed[0].dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+document.getElementById('narrIndentNone').addEventListener('click', () => {
+  setParagraphOptions({ narrIndent:false });
+});
+document.getElementById('narrIndentFirst').addEventListener('click', () => {
+  setParagraphOptions({ narrIndent:true });
+});
+document.getElementById('commentWidthDefault').addEventListener('click', () => {
+  setParagraphOptions({ commentWidth:'default' });
+});
+document.getElementById('commentWidthCard').addEventListener('click', () => {
+  setParagraphOptions({ commentWidth:'card' });
+});
+document.getElementById('commentAlignLeft').addEventListener('click', () => {
+  setParagraphOptions({ commentAlign:'left' });
+});
+document.getElementById('commentAlignCenter').addEventListener('click', () => {
+  setParagraphOptions({ commentAlign:'center' });
+});
+syncParagraphSettingsUI();
+
+document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').forEach(el => {
+  if(el.classList.contains('hexLabel') || !SIDEBAR_OUTPUT_IDS.has(el.id)) return;
+  // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
+  if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
+  el.addEventListener('input', () => {
+    syncParagraphSettingsUI();
+    syncTypographyRangeLabels();
+    syncDesignSummaries();
+    const positionSync = positionSyncEnabled();
+    const preserveViewport = !positionSync && POSITION_PRESERVE_TOGGLE_IDS.has(el.id);
+    const viewportX = preserveViewport ? window.scrollX : 0;
+    const viewportY = preserveViewport ? window.scrollY : 0;
+    if(positionSync && PREVIEW_FOCUS_MAP[el.id]) focusPreviewOn(PREVIEW_FOCUS_MAP[el.id]);
+    else if(!positionSync) pendingPreviewFocus = null;
+    render();
+    if(preserveViewport){
+      requestAnimationFrame(() => window.scrollTo(viewportX, viewportY));
+    }
+    scheduleDraftSave();
+    if(el.id && STYLE_FIELDS.includes(el.id)) commitStyleHistory(false);
+  });
+});
+
+// 값이 바뀌기 전에도 프로필 입력칸을 클릭하는 즉시 오른쪽의 대응 요소를 보여준다.
+document.getElementById('profileGroup').addEventListener('focusin', event => {
+  if(!positionSyncEnabled()) return;
+  const id = event.target && event.target.id;
+  if(!id) return;
+  let target = null;
+  if(/^(?:profileCharTag|profileUserTag|profileRelationship)[1-3]$/.test(id)){
+    target = previewProfileFieldTarget(id);
+  }else if(id === 'profileCharUrl'){
+    target = previewProfileFieldTarget('profileCharName');
+  }else if(id === 'profileUserUrl'){
+    target = previewProfileFieldTarget('profileUserName');
+  }else if(PREVIEW_FOCUS_MAP[id]){
+    target = PREVIEW_FOCUS_MAP[id]();
+  }
+  if(target) scrollPreviewIfNeeded(target, true);
+});
+
+// 크레딧 입력을 선택하면 같은 항목의 미리보기 글자를 보여준다. URL은 별도의
+// 출력 글자가 없으므로 해당 항목의 내용(없으면 항목명)을 대상으로 삼는다.
+document.getElementById('creditGroup').addEventListener('focusin', event => {
+  if(!positionSyncEnabled()) return;
+  const id = event.target && event.target.id;
+  const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
+  if(!match) return;
+  const field = match[1] === 'Label' ? 'label' : 'value';
+  const target = previewCreditFieldTarget(Number(match[2]), field);
+  if(target) scrollPreviewIfNeeded(target, true);
+});
+
+['foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    syncDesignSummaries();
+    render();
+    scheduleDraftSave();
+    commitStyleHistory(true);
+  });
+});
+
+document.getElementById('textFont').addEventListener('change', () => loadSelectedWebFont('textFont'));
+
+const TITLE_LINK_DEPENDENCIES = [
+  { sourceId:'logNumber', linkId:'logNumberUrl' },
+  { sourceId:'logTitle', linkId:'logTitleUrl' },
+  { sourceId:'subChar', linkId:'subCharUrl' },
+  { sourceId:'subUser', linkId:'subUserUrl' },
+  { sourceId:'logSubtitle', linkId:'logSubtitleUrl' },
+];
+
+// 표제와 상단 프로필은 BOT·USER별로 하나의 링크 값을 공유한다. 화면에는 각 문맥에 맞는
+// 입력칸을 제공하되 저장·내보내기 데이터는 subCharUrl·subUserUrl에 한 번씩만 유지한다.
+const profileBotLinkInput = document.getElementById('profileCharUrl');
+const sharedBotLinkInput = document.getElementById('subCharUrl');
+const profileUserLinkInput = document.getElementById('profileUserUrl');
+const sharedUserLinkInput = document.getElementById('subUserUrl');
+
+function syncProfileBotLinkControl(){
+  if(!profileBotLinkInput || !sharedBotLinkInput) return;
+  if(profileBotLinkInput.value !== sharedBotLinkInput.value){
+    profileBotLinkInput.value = sharedBotLinkInput.value;
+  }
+  const enabled = document.getElementById('profileOn').checked
+    && document.getElementById('profileCharOn').checked
+    && document.getElementById('profileCharName').value.trim() !== '';
+  profileBotLinkInput.disabled = !enabled;
+  const row = profileBotLinkInput.closest('.row');
+  if(row) row.classList.toggle('isControlDisabled', !enabled);
+}
+
+if(profileBotLinkInput && sharedBotLinkInput){
+  profileBotLinkInput.addEventListener('input', () => {
+    if(sharedBotLinkInput.value === profileBotLinkInput.value) return;
+    sharedBotLinkInput.value = profileBotLinkInput.value;
+    sharedBotLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+  profileBotLinkInput.addEventListener('change', () => {
+    const normalized = normalizeProtocolRelativeUrl(profileBotLinkInput.value);
+    profileBotLinkInput.value = normalized;
+    if(sharedBotLinkInput.value !== normalized){
+      sharedBotLinkInput.value = normalized;
+      sharedBotLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  });
+  sharedBotLinkInput.addEventListener('input', syncProfileBotLinkControl);
+  document.getElementById('profileCharName').addEventListener('input', syncProfileBotLinkControl);
+}
+
+function syncProfileUserLinkControl(){
+  if(!profileUserLinkInput || !sharedUserLinkInput) return;
+  if(profileUserLinkInput.value !== sharedUserLinkInput.value){
+    profileUserLinkInput.value = sharedUserLinkInput.value;
+  }
+  const enabled = document.getElementById('profileOn').checked
+    && document.getElementById('profileUserOn').checked
+    && document.getElementById('profileUserName').value.trim() !== '';
+  profileUserLinkInput.disabled = !enabled;
+  const row = profileUserLinkInput.closest('.row');
+  if(row) row.classList.toggle('isControlDisabled', !enabled);
+}
+
+if(profileUserLinkInput && sharedUserLinkInput){
+  profileUserLinkInput.addEventListener('input', () => {
+    if(sharedUserLinkInput.value === profileUserLinkInput.value) return;
+    sharedUserLinkInput.value = profileUserLinkInput.value;
+    sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+  profileUserLinkInput.addEventListener('change', () => {
+    const normalized = normalizeProtocolRelativeUrl(profileUserLinkInput.value);
+    profileUserLinkInput.value = normalized;
+    if(sharedUserLinkInput.value !== normalized){
+      sharedUserLinkInput.value = normalized;
+      sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  });
+  sharedUserLinkInput.addEventListener('input', syncProfileUserLinkControl);
+  document.getElementById('profileUserName').addEventListener('input', syncProfileUserLinkControl);
+}
+
+function syncTitleLinkControlState(){
+  const titleOn = document.getElementById('logTitleOn').checked;
+  TITLE_LINK_DEPENDENCIES.forEach(({ sourceId, linkId }) => {
+    const source = document.getElementById(sourceId);
+    const link = document.getElementById(linkId);
+    if(!source || !link) return;
+    const enabled = titleOn && source.value.trim() !== '';
+    link.disabled = !enabled;
+    const row = link.closest('.row');
+    if(row) row.classList.toggle('isControlDisabled', !enabled);
+  });
+}
+
+function syncProfileEntityControlState(){
+  const profileOn = document.getElementById('profileOn').checked;
+  PROFILE_ENTITY_CONFIGS.forEach(config => {
+    const toggle = document.getElementById(config.toggleId);
+    const entityOn = toggle.checked;
+    const enabled = profileOn && entityOn;
+    // 상위 프로필 표시를 꺼도 하위 선택값은 바꾸지 않는다. 토글만 잠가 두었다가
+    // 프로필을 다시 켜면 BOT·USER·관계의 기존 활성 상태를 그대로 복원한다.
+    toggle.disabled = !profileOn;
+    const switchLabel = toggle.closest('.profileEntitySwitch');
+    if(switchLabel) switchLabel.title = profileOn
+      ? `${config.label} 표시 전환`
+      : '프로필 표시를 켜야 변경할 수 있습니다.';
+    const group = document.getElementById(config.groupId);
+    const body = group && group.querySelector('.profileSubBody');
+    if(body) body.classList.toggle('isEntityDisabled', !enabled);
+    config.controlIds.forEach(id => {
+      const control = document.getElementById(id);
+      if(!control) return;
+      control.disabled = !enabled;
+      const rangeEditor = document.querySelector(`.rangeEditor input[data-range="${id}"]`);
+      if(rangeEditor) rangeEditor.disabled = !enabled;
+      const row = control.closest('.row');
+      if(row) row.classList.toggle('isControlDisabled', !enabled);
+    });
+  });
+}
+
+function syncCoverControlState(){
+  syncProfileOrderControls();
+  syncSubtitleCoupleSeparatorControl();
+  syncCoverImageRangeLabels();
+  syncProfileImageRangeLabels();
+  const groups = [
+    { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','xpos','ypos'] },
+    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'] },
+    { on: document.getElementById('profileOn').checked, ids: ['profileMinimal','profilePlacement','profileStyle','profileProfileOrder','profileRelationship','profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'] },
+    { on: document.getElementById('footerOn').checked, ids: ['footerAuthor'] },
+  ];
+  groups.forEach(group => group.ids.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.disabled = !group.on;
+    const rangeEditor = document.querySelector(`.rangeEditor input[data-range="${id}"]`);
+    if(rangeEditor) rangeEditor.disabled = !group.on;
+    const row = el.closest('.row');
+    if(row) row.classList.toggle('isControlDisabled', !group.on);
+  }));
+  subtitleCoupleSeparatorBtn.disabled = !document.getElementById('logTitleOn').checked;
+  syncProfileEntityControlState();
+  syncProfileImageUiState();
+  syncProfileBotLinkControl();
+  syncProfileUserLinkControl();
+  // 표제 전체가 켜져 있어도 실제 연결 문구가 비어 있으면 해당 링크만 잠근다.
+  syncTitleLinkControlState();
+  syncAllSegmentedChoiceControls();
+  updateAllImageLoadStatuses();
+  syncCreditControlState();
+}
+function syncCreditControlState(){
+  const on = document.getElementById('creditOn').checked;
+  const forceBottom = document.getElementById('cardLayout').value === 'unified'
+    && hasVisibleCommentOutput();
+  const area = document.getElementById('creditEditorArea');
+  if(!area) return;
+  area.classList.toggle('creditControlsDisabled', !on);
+  area.setAttribute('aria-disabled', String(!on));
+  area.querySelectorAll('input, select, button').forEach(control => { control.disabled = !on; });
+  const placement = document.getElementById('creditPlacement');
+  if(placement){
+    placement.disabled = !on || forceBottom;
+    placement.dataset.forcedValue = forceBottom ? 'bottom' : '';
+    placement.title = forceBottom
+      ? '카드 이어보기에서는 코멘트 아래에서 크레딧이 문서를 마무리합니다.'
+      : '';
+  }
+  const presetSummary = area.querySelector('.creditPresetSummary');
+  if(presetSummary){
+    presetSummary.setAttribute('aria-disabled', String(!on));
+    presetSummary.tabIndex = on ? 0 : -1;
+    if(!on){
+      const presetSection = presetSummary.closest('.creditPresetSection');
+      if(presetSection) presetSection.open = false;
+      if(document.activeElement === presetSummary) presetSummary.blur();
+    }
+  }
+  if(on){
+    const rows = Array.from(area.querySelectorAll('.creditEditorRow'));
+    rows.forEach((row, index) => {
+      const moveButtons = row.querySelectorAll('.creditMoveGroup .itemMoveBtn');
+      const dividerButton = row.querySelector('.creditDividerBtn');
+      if(dividerButton) dividerButton.disabled = index === 0;
+      if(moveButtons[0]) moveButtons[0].disabled = index === 0;
+      if(moveButtons[1]) moveButtons[1].disabled = index === rows.length - 1;
+    });
+  }
+  syncSegmentedChoiceControl('creditPlacement');
+  syncCreditPresetControls();
+}
+['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn','profileCommonOn','footerOn','creditOn'].forEach(id => {
+  document.getElementById(id).addEventListener('change', syncCoverControlState);
+});
+document.getElementById('creditAddBtn').addEventListener('click', addCreditItem);
+document.getElementById('creditPresetSelect').addEventListener('change', syncCreditPresetControls);
+document.getElementById('creditPresetName').addEventListener('input', syncCreditPresetControls);
+document.getElementById('creditPresetLoadBtn').addEventListener('click', loadSelectedCreditPreset);
+document.getElementById('creditPresetSaveBtn').addEventListener('click', saveCurrentCreditPreset);
+document.getElementById('creditPresetDeleteBtn').addEventListener('click', deleteSelectedCreditPreset);
+TITLE_LINK_DEPENDENCIES.forEach(({ sourceId }) => {
+  document.getElementById(sourceId).addEventListener('input', syncTitleLinkControlState);
+});
+
+// ---------- 카드별 본문 입력 ----------
+const EXAMPLE_BODY = `<<"이리야."
+
+대답이 없었다.
+
+이리의 눈동자는 하늘에 박혀 있었고, 눈꺼풀은 깜빡이는 것조차 잊은 듯 움직이지 않았다. 동공이 빛에 반응하며 천천히 줄어들었다가 구름이 해를 가리자 다시 풀어졌다. 그 작은 변화조차 이리에게는 경이로움이었다. 그의 목구멍에서 낮은 소리가 흘러나왔다. 말이 아니었다. 개가 낯선 것을 마주했을 때 내는, 가슴 깊은 곳에서 울리는 작은 울음소리.
+
+이리의 눈에는 눈물이 맺혀 있었다.
+
+흐르지는 않았다. 속눈썹에 걸린 채로 아침 햇살을 받아 작은 프리즘처럼 빛나고 있었다. 슬픔의 눈물이 아니었다. 두려움도, 고통도 아니었다. 그저 너무 많은 것이 한꺼번에 밀려들어왔을 때, 몸이 감당하지 못해 흘러넘치는 수분. 개였을 때는 볼 수 없었던 색깔들. 인간의 눈이 포착하는 스펙트럼의 넓이. 하늘의 파랑은 단일한 색이 아니라 수백 개의 파랑이 겹쳐진 층위였다. 이리는 그 모든 것을 동시에 보고 있었다.
+
+"하늘."
+
+단 한 단어. 발음은 여전히 서툴렀다. 하지만 그 목소리에는 말로 다 담지 못한 모든 것이 실려 있었다.
+
+
+*이렇게 생긴 거였어? 이렇게 넓은 거였어? 이렇게 많은 색이 있었어? 나 여태까지 이걸 모르고 살았어?*`;
+
+let activeTa = null; // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
+
+function cardTextareas(){
+  return Array.from(document.querySelectorAll('#cardEditors textarea'));
+}
+
+function bodyCardTextareas(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
+}
+
+const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
+function syncBodyOnlyToolbarAvailability(event){
+  const focused = event && event.target && event.target.matches('#cardEditors textarea')
+    ? event.target
+    : activeTa;
+  const commentActive = !!(focused && focused.closest && focused.closest('.commentEditor'));
+  const toolbar = document.getElementById('bodyEditorToolbar');
+  if(toolbar) toolbar.setAttribute('aria-disabled', String(commentActive));
+  BODY_ONLY_TOOL_IDS.forEach(id => {
+    const button = document.getElementById(id);
+    if(button) button.disabled = commentActive;
+  });
+}
+document.getElementById('cardEditors').addEventListener('focusin', syncBodyOnlyToolbarAvailability);
+
+// 일반 본문·대사·인용문 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
+// 인용문도 다음 원문 줄에 `>`를 자동으로 붙이지 않는다. combineSoftBreakPair가
+// 앞줄의 인용 문맥을 이어받으므로 [C]와 함께 써도 한 인용 블록으로 안전하게 출력된다.
+// 구조 문법 줄과 빈 줄에서는 브라우저 기본 줄바꿈을 유지한다.
+function handleSoftBreakKeydown(e){
+  if(e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  const ta = e.currentTarget;
+  if(!ta || typeof ta.selectionStart !== 'number') return;
+  const value = ta.value;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  // 여러 원문 줄을 한 번에 선택한 경우에는 구조 문법까지 지울 수 있으므로
+  // 자동 [BR] 치환을 하지 않고 브라우저의 일반 줄바꿈 동작을 유지한다.
+  if(value.slice(start, end).includes('\n')) return;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = value.indexOf('\n', end);
+  if(lineEnd < 0) lineEnd = value.length;
+  const currentLine = value.slice(lineStart, lineEnd).replace(/\[BR\]\s*$/i, '');
+  const semanticCurrentLine = currentLine.replace(/^\s*\[C\]\s*/i, '');
+  const isQuoteLine = /^\s*>(?!>)\s?\S/.test(semanticCurrentLine);
+  if(!currentLine.trim() || (isStructuralBodyLine(currentLine) && !isQuoteLine)) return;
+  e.preventDefault();
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  const insertion = '[BR]\n';
+  let inserted = false;
+  try { inserted = document.execCommand('insertText', false, insertion); } catch(err){ inserted = false; }
+  if(!inserted){
+    ta.setRangeText(insertion, start, end, 'end');
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+  }
+}
+
+// 코멘트에는 카드 구조 문법이 없으므로 구조 줄 판별 없이 [BR] 줄바꿈만 허용한다.
+// 빈 줄과 여러 줄 선택은 일반 Enter 동작을 유지해 예기치 않은 범위 치환을 막는다.
+function handleCommentSoftBreakKeydown(e){
+  if(e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  const ta = e.currentTarget;
+  if(!ta || typeof ta.selectionStart !== 'number') return;
+  const value = ta.value;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  if(value.slice(start, end).includes('\n')) return;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const currentLine = value.slice(lineStart, start).replace(/\[BR\]\s*$/i, '');
+  if(!currentLine.trim()) return;
+  e.preventDefault();
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  let inserted = false;
+  try { inserted = document.execCommand('insertText', false, '[BR]\n'); } catch(err){ inserted = false; }
+  if(!inserted){
+    ta.setRangeText('[BR]\n', start, end, 'end');
+    ta.dispatchEvent(new Event('input', { bubbles:true }));
+  }
+}
+
+// 카드 입력창에 붙인 관찰자를 정리한 뒤 DOM을 비워, 반복 불러오기·초기화 시
+// 제거된 카드가 메모리에 남거나 뒤늦은 크기 콜백이 실행되지 않게 한다.
+function disposeCardEditor(ed){
+  if(!ed) return;
+  const observer = ed._widthObserver;
+  if(observer && typeof observer.disconnect === 'function') observer.disconnect();
+  delete ed._widthObserver;
+}
+
+function clearCardEditors(){
+  const container = document.getElementById('cardEditors');
+  Array.from(container.children).forEach(disposeCardEditor);
+  container.replaceChildren();
+}
+
+// 상단 탭 헤더의 실제 높이를 따라가 툴바가 그 아래에 정확히 붙도록 한다.
+function syncBodyToolbarStickyOffset(){
+  const sidebar = document.getElementById('sidebar');
+  const sidebarTop = document.getElementById('sidebarTop');
+  if(!sidebar || !sidebarTop) return;
+  // 상단 탭과 편집 도크를 바로 이어 붙여, 스크롤된 본문이 틈 사이로 비치지 않게 한다.
+  sidebar.style.setProperty('--body-toolbar-sticky-top', `${Math.round(sidebarTop.getBoundingClientRect().height)}px`);
+}
+let bodyToolbarHeaderObserver = null;
+if(typeof ResizeObserver === 'function'){
+  bodyToolbarHeaderObserver = new ResizeObserver(syncBodyToolbarStickyOffset);
+  bodyToolbarHeaderObserver.observe(document.getElementById('sidebarTop'));
+}
+window.addEventListener('resize', syncBodyToolbarStickyOffset);
+requestAnimationFrame(syncBodyToolbarStickyOffset);
+
+function getCardBodies(){
+  return cardTextareas().map(t => t.value);
+}
+
+function getCards(){
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).map(ed => {
+    const body = ed.querySelector('textarea').value;
+    const visible = ed.dataset.outputVisible !== 'false';
+    if(ed.dataset.blockType === 'comment') return { type:'comment', body, visible };
+    const fold = ed.querySelector('.cardFoldChk');
+    const title = ed.querySelector('.foldTitleInput');
+    return {
+      type:'card',
+      body,
+      folded:!!(fold && fold.checked),
+      foldTitle:title ? title.value : '',
+      cardTitle:title ? title.value : '',
+      visible,
+    };
+  });
+}
+
+function renumberCards(){
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  const cardEditors = editors.filter(ed => ed.dataset.blockType !== 'comment');
+  let cardNumber = 0;
+  let commentNumber = 0;
+  editors.forEach(ed => {
+    const isComment = ed.dataset.blockType === 'comment';
+    const index = isComment ? ++commentNumber : ++cardNumber;
+    const folded = ed.querySelector('.cardFoldChk') && ed.querySelector('.cardFoldChk').checked;
+    const visible = ed.dataset.outputVisible !== 'false';
+    ed.querySelector('.cardNum').textContent = (isComment ? '코멘트 ' : '카드 ') + index + (folded ? ' · 접힘' : '') + (visible ? '' : ' · 숨김');
+    const ta = ed.querySelector('textarea');
+    if(ta) ta.setAttribute('aria-label', `${isComment ? '코멘트' : '카드'} ${index} 본문`);
+    // 카드가 1장뿐이면 삭제 버튼 숨김
+    const deleteButton = ed.querySelector('.delCardBtn');
+    if(deleteButton) deleteButton.style.display = isComment || cardEditors.length > 1 ? '' : 'none';
+  });
+  // 카드 구조가 바뀐 시점에만 코멘트 배치 버튼의 활성 여부를 갱신한다.
+  syncParagraphSettingsUI();
+}
+
+// 카드와 코멘트가 섞인 실제 편집 순서를 헤더 드래그로 바꾼다.
+// 입력창과 헤더의 버튼은 드래그 시작점에서 제외해 편집·클릭 오작동을 막는다.
+const cardEditorDragState = {
+  editor:null,
+  marker:null,
+  blockedByControl:false,
+  clientY:null,
+  autoScrollFrame:null
+};
+
+function cardEditorElements(container){
+  return Array.from(container.children).filter(child => child.classList && child.classList.contains('cardEditor'));
+}
+
+function cardEditorOrderAtMarker(container, dragged, marker){
+  const remaining = cardEditorElements(container).filter(editor => editor !== dragged);
+  const children = Array.from(container.children);
+  const childrenBeforeMarker = children.slice(0, children.indexOf(marker));
+  const insertIndex = childrenBeforeMarker.filter(child => child !== dragged && child.classList && child.classList.contains('cardEditor')).length;
+  const ordered = remaining.slice();
+  ordered.splice(insertIndex, 0, dragged);
+  return ordered;
+}
+
+function stopCardEditorAutoScroll(){
+  if(cardEditorDragState.autoScrollFrame !== null){
+    cancelAnimationFrame(cardEditorDragState.autoScrollFrame);
+    cardEditorDragState.autoScrollFrame = null;
+  }
+  cardEditorDragState.clientY = null;
+}
+
+function cleanupCardEditorDrag(){
+  stopCardEditorAutoScroll();
+  if(cardEditorDragState.editor) cardEditorDragState.editor.classList.remove('isEditorDragging');
+  if(cardEditorDragState.marker) cardEditorDragState.marker.remove();
+  cardEditorDragState.editor = null;
+  cardEditorDragState.marker = null;
+  cardEditorDragState.blockedByControl = false;
+}
+
+function prepareCardEditorDragHandle(head){
+  head.draggable = true;
+  head.title = '헤더를 끌어서 카드·코멘트 순서 변경';
+}
+
+function positionCardEditorDropMarker(clientY){
+  const dragged = cardEditorDragState.editor;
+  const marker = cardEditorDragState.marker;
+  if(!dragged || !marker) return;
+  const candidates = cardEditorElements(cardEditorContainer).filter(editor => editor !== dragged);
+  const nextEditor = candidates.find(editor => {
+    const rect = editor.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2;
+  });
+  if(nextEditor) cardEditorContainer.insertBefore(marker, nextEditor);
+  else cardEditorContainer.appendChild(marker);
+}
+
+function cardEditorAutoScrollStep(){
+  cardEditorDragState.autoScrollFrame = null;
+  if(!cardEditorDragState.editor || cardEditorDragState.clientY === null) return;
+  const sidebar = document.getElementById('sidebar');
+  if(!sidebar) return;
+
+  const rect = sidebar.getBoundingClientRect();
+  const stickyHeader = document.getElementById('sidebarTop');
+  const stickyBottom = stickyHeader
+    ? Math.max(rect.top, Math.min(rect.bottom, stickyHeader.getBoundingClientRect().bottom))
+    : rect.top;
+  const edge = Math.min(110, Math.max(68, rect.height * .14));
+  const y = cardEditorDragState.clientY;
+  let delta = 0;
+  if(y < stickyBottom + edge){
+    const strength = Math.min(1, Math.max(0, (stickyBottom + edge - y) / edge));
+    delta = -Math.ceil(8 + 24 * strength);
+  }else if(y > rect.bottom - edge){
+    const strength = Math.min(1, Math.max(0, (y - (rect.bottom - edge)) / edge));
+    delta = Math.ceil(8 + 24 * strength);
+  }
+
+  if(delta){
+    const before = sidebar.scrollTop;
+    sidebar.scrollTop += delta;
+    // 스크롤하는 동안 카드의 화면 좌표가 계속 바뀌므로 표시선도 매 프레임 다시 계산한다.
+    if(sidebar.scrollTop !== before) positionCardEditorDropMarker(y);
+    cardEditorDragState.autoScrollFrame = requestAnimationFrame(cardEditorAutoScrollStep);
+  }
+}
+
+function updateCardEditorAutoScroll(clientY){
+  cardEditorDragState.clientY = clientY;
+  if(cardEditorDragState.autoScrollFrame === null){
+    cardEditorDragState.autoScrollFrame = requestAnimationFrame(cardEditorAutoScrollStep);
+  }
+}
+
+const cardEditorContainer = document.getElementById('cardEditors');
+cardEditorContainer.addEventListener('pointerdown', event => {
+  // 헤더 버튼을 누른 채 포인터를 바깥에서 놓아도 draggable 속성이 고착되지 않도록
+  // 카드별 속성을 바꾸지 않고 이번 포인터 동작만 컨테이너 상태로 차단한다.
+  cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select, .cardEditorHead .cardNum');
+});
+document.addEventListener('pointerup', () => { cardEditorDragState.blockedByControl = false; });
+document.addEventListener('pointercancel', () => { cardEditorDragState.blockedByControl = false; });
+cardEditorContainer.addEventListener('dragstart', event => {
+  const head = event.target.closest('.cardEditorHead');
+  const editor = head && head.closest('.cardEditor');
+  if(!editor || cardEditorDragState.blockedByControl){
+    event.preventDefault();
+    return;
+  }
+  // 브라우저가 직전 dragend를 누락했어도 표시선과 흐림 상태를 남기지 않는다.
+  cleanupCardEditorDrag();
+  cardEditorDragState.editor = editor;
+  cardEditorDragState.marker = document.createElement('div');
+  cardEditorDragState.marker.className = 'cardEditorDropMarker';
+  cardEditorDragState.marker.setAttribute('aria-hidden', 'true');
+  editor.classList.add('isEditorDragging');
+  if(event.dataTransfer){
+    event.dataTransfer.effectAllowed = 'move';
+    // Safari는 데이터가 없는 dragstart를 취소할 수 있다.
+    event.dataTransfer.setData('text/plain', 'mosaic-log-editor-order');
+  }
+});
+
+// 카드 목록 위의 고정 헤더까지 포인터를 올려도 dragover를 계속 받아야 위쪽으로
+// 자동 스크롤할 수 있다. 컨테이너가 아닌 문서에서 받아 사이드바 내부 동작만 처리한다.
+document.addEventListener('dragover', event => {
+  const dragged = cardEditorDragState.editor;
+  const marker = cardEditorDragState.marker;
+  if(!dragged || !marker) return;
+  const sidebar = document.getElementById('sidebar');
+  if(!sidebar) return;
+  const rect = sidebar.getBoundingClientRect();
+  const insideSidebar = event.clientX >= rect.left && event.clientX <= rect.right
+    && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if(!insideSidebar){
+    stopCardEditorAutoScroll();
+    return;
+  }
+  event.preventDefault();
+  if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  positionCardEditorDropMarker(event.clientY);
+  updateCardEditorAutoScroll(event.clientY);
+});
+
+function finishCardEditorDrop(event){
+  const dragged = cardEditorDragState.editor;
+  const marker = cardEditorDragState.marker;
+  if(!dragged || !marker || !marker.isConnected){
+    cleanupCardEditorDrag();
+    return;
+  }
+  event.preventDefault();
+
+  const before = cardEditorElements(cardEditorContainer);
+  const intended = cardEditorOrderAtMarker(cardEditorContainer, dragged, marker);
+  const changed = before.length === intended.length && before.some((editor, index) => editor !== intended[index]);
+  if(changed){
+    snapshotCards();
+    const anchor = marker.nextElementSibling;
+    cardEditorContainer.insertBefore(dragged, anchor);
+    renumberCards();
+    render();
+    updateCounter();
+    saveDraft();
+    const kind = dragged.dataset.blockType === 'comment' ? '코멘트' : '카드';
+    showUndoToast(`${kind} 순서 변경.`);
+  }
+  cleanupCardEditorDrag();
+}
+
+cardEditorContainer.addEventListener('drop', finishCardEditorDrop);
+// 위쪽 자동 스크롤 구역이 카드 컨테이너 밖의 고정 헤더까지 확장되므로,
+// 그 위치에서 놓아도 현재 표시선에 정상적으로 정렬을 확정한다.
+document.getElementById('sidebar').addEventListener('drop', finishCardEditorDrop);
+
+cardEditorContainer.addEventListener('dragend', cleanupCardEditorDrag);
+
+function setupAutoExpandTextarea(editor, textarea, button, minimumHeight, accessibleName = '입력창'){
+  const resize = () => {
+    if(!textarea.classList.contains('isAutoExpanded') || getComputedStyle(textarea).display === 'none') return;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(minimumHeight, textarea.scrollHeight) + 'px';
+    textarea.scrollTop = 0;
+  };
+  const setExpanded = enabled => {
+    textarea.classList.toggle('isAutoExpanded', enabled);
+    button.setAttribute('aria-pressed', String(enabled));
+    button.setAttribute('aria-label', enabled ? `${accessibleName} 원래 높이로 되돌리기` : `${accessibleName} 전체 펼치기`);
+    button.title = enabled
+      ? '입력창을 원래 높이로 되돌리기'
+      : '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
+    button.textContent = enabled ? '축소' : '펼침';
+    if(enabled) requestAnimationFrame(resize);
+    else {
+      textarea.style.height = '';
+      textarea.scrollTop = 0;
+    }
+  };
+  button.addEventListener('click', () => setExpanded(!textarea.classList.contains('isAutoExpanded')));
+  if(typeof ResizeObserver === 'function'){
+    let lastWidth = 0;
+    const widthObserver = new ResizeObserver(entries => {
+      const width = entries[0] ? entries[0].contentRect.width : 0;
+      if(Math.abs(width - lastWidth) < 0.5) return;
+      lastWidth = width;
+      if(textarea.classList.contains('isAutoExpanded')) requestAnimationFrame(resize);
+    });
+    widthObserver.observe(textarea);
+    editor._widthObserver = widthObserver;
+  }
+  return resize;
+}
+
+function createCardEditor(value){
+  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle, visible} 객체
+  const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
+  const data = {
+    ...source,
+    foldTitle:source.cardTitle !== undefined ? source.cardTitle : (source.foldTitle || ''),
+    body:normalizeBodyHrMarkers(source.body || ''),
+    visible:source.visible === undefined ? true : settingFlagOn(source.visible)
+  };
+
+  const ed = document.createElement('div');
+  ed.className = 'cardEditor';
+  ed.dataset.blockType = 'card';
+  ed.dataset.outputVisible = String(data.visible);
+
+  const head = document.createElement('div');
+  head.className = 'cardEditorHead';
+  prepareCardEditorDragHandle(head);
+  const left = document.createElement('div');
+  left.className = 'headLeft';
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button';
+  collapseBtn.className = 'miniCtl collapseCtl';
+  collapseBtn.title = '입력창 접기 (편집 화면 정리용, 출력에는 영향 없음)';
+  collapseBtn.setAttribute('aria-label', '입력창 접기');
+  collapseBtn.setAttribute('aria-expanded', 'true');
+  const visibilityBtn = document.createElement('button');
+  visibilityBtn.type = 'button';
+  visibilityBtn.className = 'miniCtl visibilityCtl';
+  visibilityBtn.innerHTML = '<span class="visibilityIcon visibilityVisibleIcon" aria-hidden="true">○</span><span class="visibilityIcon visibilityHiddenIcon" aria-hidden="true">⊘</span>';
+  const num = document.createElement('span');
+  num.className = 'cardNum';
+  num.dataset.positionLink = 'true';
+  num.tabIndex = 0;
+  num.setAttribute('role', 'button');
+  num.title = '미리보기에서 이 카드 위치 보기';
+  num.setAttribute('aria-label', '미리보기에서 이 카드 위치 보기');
+  const fsBtn = document.createElement('button');
+  fsBtn.type = 'button';
+  fsBtn.className = 'miniCtl fsBtn';
+  fsBtn.textContent = '⛶';
+  fsBtn.title = '이 카드를 전체 화면으로 크게 편집';
+  fsBtn.setAttribute('aria-label', '카드 전체 화면 편집');
+  const autoExpandBtn = document.createElement('button');
+  autoExpandBtn.type = 'button';
+  autoExpandBtn.className = 'miniCtl autoExpandBtn';
+  autoExpandBtn.textContent = '펼침';
+  autoExpandBtn.title = '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
+  autoExpandBtn.setAttribute('aria-label', '입력창 전체 펼치기');
+  autoExpandBtn.setAttribute('aria-pressed', 'false');
+  const duplicateBtn = document.createElement('button');
+  duplicateBtn.type = 'button';
+  duplicateBtn.className = 'duplicateCardBtn';
+  duplicateBtn.textContent = '⧉';
+  duplicateBtn.title = '이 카드를 바로 아래에 복제';
+  duplicateBtn.setAttribute('aria-label', '카드 복제');
+  // 헤더 왼쪽에는 편집창 접기, 출력 표시, 카드 번호를 둔다.
+  left.appendChild(collapseBtn);
+  left.appendChild(visibilityBtn);
+  left.appendChild(num);
+
+  const right = document.createElement('div');
+  right.className = 'headRight';
+  const upBtn = document.createElement('button');
+  upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '카드를 위로';
+  upBtn.setAttribute('aria-label', '카드를 위로 이동');
+  const downBtn = document.createElement('button');
+  downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '카드를 아래로';
+  downBtn.setAttribute('aria-label', '카드를 아래로 이동');
+  const foldLabel = document.createElement('label');
+  foldLabel.className = 'foldChk';
+  const foldChk = document.createElement('input');
+  foldChk.type = 'checkbox';
+  foldChk.className = 'cardFoldChk';
+  foldChk.checked = settingFlagOn(data.folded);
+  foldLabel.appendChild(document.createTextNode('접기'));
+  foldLabel.appendChild(foldChk);
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delCardBtn';
+  del.textContent = '×';
+  del.title = '이 카드 삭제';
+  del.setAttribute('aria-label', '카드 삭제');
+  const arrowGroup = document.createElement('span');
+  arrowGroup.className = 'arrowGroup';
+  arrowGroup.appendChild(upBtn);
+  arrowGroup.appendChild(downBtn);
+
+  right.appendChild(arrowGroup);
+  right.appendChild(autoExpandBtn);
+  right.appendChild(fsBtn);
+
+  head.appendChild(left);
+  head.appendChild(right);
+
+  // 카드 제목: 접기 여부와 관계없이 항상 표시하며, 접기 카드에서는 summary 제목으로 사용한다.
+  const foldTitleInput = document.createElement('input');
+  foldTitleInput.type = 'text';
+  foldTitleInput.className = 'foldTitleInput';
+  foldTitleInput.maxLength = 200;
+  foldTitleInput.placeholder = '카드 제목';
+  foldTitleInput.setAttribute('aria-label', '카드 제목');
+  foldTitleInput.value = data.foldTitle || '';
+
+  const ta = document.createElement('textarea');
+  ta.value = data.body || '';
+  ta.placeholder = '이 카드의 본문을 입력...';
+  const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 200);
+
+  const refresh = () => { render(); updateCounter(); scheduleDraftSave(); };
+  const syncVisibilityUi = () => {
+    const visible = ed.dataset.outputVisible !== 'false';
+    ed.classList.toggle('isOutputHidden', !visible);
+    visibilityBtn.classList.toggle('isHidden', !visible);
+    // 이 버튼의 토글 의미는 '출력 숨김'이므로 숨겨진 상태에서 pressed=true다.
+    visibilityBtn.setAttribute('aria-pressed', String(!visible));
+    visibilityBtn.setAttribute('aria-label', visible ? '카드 출력 숨기기' : '카드 출력 다시 표시');
+    visibilityBtn.title = visible
+      ? '이 카드를 미리보기와 출력 HTML에서 숨기기'
+      : '숨긴 카드를 미리보기와 출력 HTML에 다시 표시';
+  };
+  visibilityBtn.addEventListener('click', () => {
+    snapshotCards();
+    const visible = ed.dataset.outputVisible !== 'false';
+    ed.dataset.outputVisible = String(!visible);
+    syncVisibilityUi();
+    renumberCards();
+    refresh();
+    buildDocumentNavigator();
+    showUndoToast(visible ? '카드 출력 숨김.' : '카드 출력 다시 표시.');
+  });
+  syncVisibilityUi();
+  duplicateBtn.addEventListener('click', () => {
+    snapshotCards();
+    const clone = createCardEditor({
+      body: ta.value,
+      folded: foldChk.checked,
+      cardTitle: foldTitleInput.value,
+      visible: ed.dataset.outputVisible !== 'false'
+    });
+    ed.after(clone);
+    renumberCards();
+    render();
+    updateCounter();
+    saveDraft();
+    const cloneTa = clone.querySelector('textarea');
+    if(cloneTa){
+      activeTa = cloneTa;
+      cloneTa.focus();
+      clone.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    }
+    showUndoToast('카드 복제됨.');
+  });
+  ta.addEventListener('input', () => {
+    applyActiveKeywordRulesToTextarea(ta);
+    normalizeStandaloneHrInput(ta);
+    syncParagraphSettingsUI();
+    // 미리보기 직접 편집이 원문 입력창으로 반영되는 동안에는 현재 미리보기 위치를
+    // 유지한다. 왼쪽 입력창에서 직접 타이핑할 때만 기존 위치 연동을 실행한다.
+    if(previewDirectEditCommitting) pendingPreviewFocus = null;
+    else focusPreviewOnCaret(ta);
+    refresh();
+    if(ed.classList.contains('isCollapsed')) updatePeek();
+    if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
+  });
+  ta.addEventListener('keydown', handleSoftBreakKeydown);
+  ta.addEventListener('focus', () => {
+    activeTa = ta;
+    decoratePreviewDirectEditors();
+  });
+  // 커서만 옮겨도(클릭·방향키) 해당 문단을 보여줌
+  ta.addEventListener('keyup', (e) => {
+    if(positionSyncEnabled() && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','PageUp','PageDown'].includes(e.key)){
+      scrollPreviewIfNeeded(previewBlockFor(ta, ta.value.slice(0, ta.selectionStart).split('\n').length - 1), true);
+    }
+  });
+  ta.addEventListener('click', () => {
+    if(!positionSyncEnabled()) return;
+    scrollPreviewIfNeeded(previewBlockFor(ta, ta.value.slice(0, ta.selectionStart).split('\n').length - 1), true);
+  });
+
+  fsBtn.addEventListener('click', () => {
+    openFullscreen(ta, num.textContent || '본문', ed);
+  });
+
+  // 본문 첫 줄(문법 마커는 걷어냄)을 요약으로
+  const updatePeek = () => {
+    const first = ta.value.split('\n').map(l => l.trim()).find(l => l !== '') || '';
+    const plain = first
+      .replace(/^\[C\]\s*/i, '')
+      .replace(/^#{1,4}>?\s*/, '')
+      .replace(/^>{1,2}\s*/, '')
+      .replace(/^<<\s*/, '')
+      .replace(/^\[[^\]]{1,24}\]\s*/, '')
+      .replace(/__|\*/g, '');
+    peek.textContent = plain || '(빈 카드)';
+    peek.title = plain;
+  };
+
+  collapseBtn.addEventListener('click', () => {
+    const collapsed = ta.style.display !== 'none';   // 지금 펼쳐져 있으면 접는 동작
+    ta.style.display = collapsed ? 'none' : '';
+    // 접으면 서식 버튼 대신 본문 요약을 보여줌 (접기 설정은 그대로)
+    fmtGroup.style.display = collapsed ? 'none' : '';
+    peek.style.display = collapsed ? '' : 'none';
+    ed.classList.toggle('isCollapsed', collapsed);
+    if(collapsed) updatePeek();
+    collapseBtn.classList.toggle('isCollapsed', collapsed);
+    collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    if(!collapsed && ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
+  });
+
+  upBtn.addEventListener('click', () => {
+    const prev = ed.previousElementSibling;
+    if(prev){
+      snapshotCards();
+      ed.parentNode.insertBefore(ed, prev);
+      renumberCards();
+      refresh();
+      showUndoToast('카드 순서 변경.');
+    }
+  });
+  downBtn.addEventListener('click', () => {
+    const next = ed.nextElementSibling;
+    if(next){
+      snapshotCards();
+      ed.parentNode.insertBefore(next, ed);
+      renumberCards();
+      refresh();
+      showUndoToast('카드 순서 변경.');
+    }
+  });
+  const syncFoldUi = () => {
+    ed.classList.toggle('isFolded', foldChk.checked);
+    renumberCards();
+  };
+  let foldUndoPrepared = false;
+  const prepareFoldUndo = () => {
+    if(foldUndoPrepared) return;
+    snapshotCards();
+    foldUndoPrepared = true;
+  };
+  foldChk.addEventListener('pointerdown', prepareFoldUndo);
+  foldChk.addEventListener('keydown', (e) => { if(e.key === ' ' || e.key === 'Enter') prepareFoldUndo(); });
+  foldChk.addEventListener('change', () => {
+    syncFoldUi();
+    refresh();
+    if(foldUndoPrepared) showUndoToast(foldChk.checked ? '접기 카드 설정.' : '접기 카드 해제.');
+    foldUndoPrepared = false;
+  });
+  requestAnimationFrame(syncFoldUi);
+  const showCardInPreview = () => scrollPreviewToCardEditor(ed);
+  num.addEventListener('click', showCardInPreview);
+  num.addEventListener('keydown', event => {
+    if(event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    showCardInPreview();
+  });
+  foldTitleInput.addEventListener('focus', showCardInPreview);
+  foldTitleInput.addEventListener('click', showCardInPreview);
+  foldTitleInput.addEventListener('input', () => {
+    focusPreviewOn(() => previewCardStartForEditor(ed));
+    refresh();
+  });
+
+  del.addEventListener('click', () => {
+    const cardCount = document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor)').length;
+    if(cardCount <= 1) return;
+    snapshotCards();
+    const focusEditor = ed.nextElementSibling || ed.previousElementSibling;
+    if(activeTa === ta) activeTa = null;
+    disposeCardEditor(ed);
+    ed.remove();
+    renumberCards();
+    refresh();
+    if(focusEditor){
+      activeTa = focusEditor.querySelector('textarea');
+      if(activeTa) activeTa.focus();
+    }
+    showUndoToast('카드 삭제됨.');
+  });
+
+  // 헤더 아래 회색 줄: 왼쪽=서식 도구(입력창 바로 위), 오른쪽=접기 카드 설정
+  const fmt = document.createElement('div');
+  fmt.className = 'cardFoldRow cardToolRow';
+
+  const fmtGroup = document.createElement('div');
+  fmtGroup.className = 'cardFmtBar';
+  [['bold',`선택 부분 굵게 (**…**)  ·  ${MOD_KEY}+B`],
+   ['emphasis',`선택 부분 강조 (*…*)  ·  ${MOD_KEY}+I`],
+   ['center',`이 줄 가운데 정렬 ([C])  ·  ${MOD_KEY}+E`]].forEach(([f, tip]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fmtBtn';
+    btn.title = tip;
+    btn.innerHTML = f === 'bold' ? '<b>B</b>' : (f === 'emphasis' ? '<i>I</i>' : 'C');
+    btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
+    btn.addEventListener('click', () => applyTextareaFormat(ta, f));
+    fmtGroup.appendChild(btn);
+  });
+
+  const foldGroup = document.createElement('div');
+  foldGroup.className = 'cardFoldGroup';
+  foldGroup.appendChild(foldTitleInput);   // 제목이 왼쪽
+  foldGroup.appendChild(foldLabel);        // 체크박스가 오른쪽
+  foldGroup.appendChild(duplicateBtn);      // 보조 동작은 카드 헤더 밖에 배치
+  foldGroup.appendChild(del);              // 위험 동작은 도구줄 끝에 조용히 배치
+
+  // 입력창을 접었을 때 서식 버튼 자리에 본문 첫 줄을 보여줌
+  const peek = document.createElement('div');
+  peek.className = 'cardPeek';
+  peek.style.display = 'none';
+
+  fmt.appendChild(fmtGroup);
+  fmt.appendChild(peek);
+  fmt.appendChild(foldGroup);
+
+  ed.appendChild(head);
+  ed.appendChild(fmt);
+  ed.appendChild(ta);
+  return ed;
+}
+
+function createCommentEditor(value){
+  const source = (typeof value === 'object' && value !== null) ? value : { body:value || '' };
+  const ed = document.createElement('div');
+  ed.className = 'cardEditor commentEditor';
+  ed.dataset.blockType = 'comment';
+  ed.dataset.outputVisible = String(source.visible === undefined ? true : settingFlagOn(source.visible));
+
+  const head = document.createElement('div');
+  head.className = 'cardEditorHead';
+  prepareCardEditorDragHandle(head);
+  const left = document.createElement('div');
+  left.className = 'headLeft';
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button'; collapseBtn.className = 'miniCtl collapseCtl';
+  collapseBtn.title = '입력창 접기'; collapseBtn.setAttribute('aria-expanded', 'true'); collapseBtn.setAttribute('aria-label', '코멘트 입력창 접기');
+  const visibilityBtn = document.createElement('button');
+  visibilityBtn.type = 'button'; visibilityBtn.className = 'miniCtl visibilityCtl';
+  visibilityBtn.innerHTML = '<span class="visibilityIcon visibilityVisibleIcon" aria-hidden="true">○</span><span class="visibilityIcon visibilityHiddenIcon" aria-hidden="true">⊘</span>';
+  const num = document.createElement('span'); num.className = 'cardNum';
+  left.append(collapseBtn, visibilityBtn, num);
+  const right = document.createElement('div'); right.className = 'headRight';
+  const arrows = document.createElement('span'); arrows.className = 'arrowGroup';
+  const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '코멘트를 위로'; upBtn.setAttribute('aria-label', '코멘트를 위로 이동');
+  const downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '코멘트를 아래로'; downBtn.setAttribute('aria-label', '코멘트를 아래로 이동');
+  const autoExpandBtn = document.createElement('button');
+  autoExpandBtn.type = 'button'; autoExpandBtn.className = 'miniCtl autoExpandBtn'; autoExpandBtn.textContent = '펼침';
+  autoExpandBtn.title = '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
+  autoExpandBtn.setAttribute('aria-label', '코멘트 입력창 전체 펼치기');
+  autoExpandBtn.setAttribute('aria-pressed', 'false');
+  arrows.append(upBtn, downBtn); right.append(arrows, autoExpandBtn); head.append(left, right);
+
+  const ta = document.createElement('textarea');
+  ta.value = String(source.body || '');
+  ta.placeholder = '카드 사이에 덧붙일 코멘트를 입력...';
+  const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 96, '코멘트 입력창');
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'delCardBtn'; del.textContent = '×'; del.title = '이 코멘트 삭제'; del.setAttribute('aria-label', '코멘트 삭제');
+  right.append(del);
+  ed.append(head, ta);
+
+  const refresh = () => { render(); updateCounter(); scheduleDraftSave(); };
+  const syncVisibility = () => {
+    const visible = ed.dataset.outputVisible !== 'false';
+    ed.classList.toggle('isOutputHidden', !visible);
+    visibilityBtn.classList.toggle('isHidden', !visible);
+    visibilityBtn.setAttribute('aria-pressed', String(!visible));
+    visibilityBtn.setAttribute('aria-label', visible ? '코멘트 출력 숨기기' : '코멘트 출력 다시 표시');
+    visibilityBtn.title = visible ? '미리보기와 출력 HTML에서 숨기기' : '출력 다시 표시';
+  };
+  syncVisibility();
+  visibilityBtn.addEventListener('click', () => {
+    snapshotCards();
+    ed.dataset.outputVisible = String(ed.dataset.outputVisible === 'false');
+    syncVisibility(); renumberCards(); refresh(); buildDocumentNavigator();
+    showUndoToast(ed.dataset.outputVisible === 'false' ? '코멘트 출력 숨김.' : '코멘트 출력 다시 표시.');
+  });
+  ta.addEventListener('input', () => {
+    pendingPreviewFocus = null;
+    refresh();
+    if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
+  });
+  ta.addEventListener('keydown', handleCommentSoftBreakKeydown);
+  ta.addEventListener('focus', () => { activeTa = ta; });
+  collapseBtn.addEventListener('click', () => {
+    const collapse = ta.style.display !== 'none';
+    ta.style.display = collapse ? 'none' : '';
+    ed.classList.toggle('isCollapsed', collapse);
+    collapseBtn.classList.toggle('isCollapsed', collapse);
+    collapseBtn.setAttribute('aria-expanded', String(!collapse));
+    if(!collapse && ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
+  });
+  const move = direction => {
+    const sibling = direction < 0 ? ed.previousElementSibling : ed.nextElementSibling;
+    if(!sibling) return;
+    snapshotCards();
+    if(direction < 0) ed.parentNode.insertBefore(ed, sibling);
+    else ed.parentNode.insertBefore(sibling, ed);
+    renumberCards(); refresh(); showUndoToast('코멘트 순서 변경.');
+  };
+  upBtn.addEventListener('click', () => move(-1));
+  downBtn.addEventListener('click', () => move(1));
+  del.addEventListener('click', () => {
+    snapshotCards();
+    const focusEditor = ed.nextElementSibling || ed.previousElementSibling;
+    if(activeTa === ta) activeTa = null;
+    disposeCardEditor(ed); ed.remove(); renumberCards(); refresh();
+    if(focusEditor){ activeTa = focusEditor.querySelector('textarea'); if(activeTa) activeTa.focus(); }
+    showUndoToast('코멘트 삭제됨.');
+  });
+  return ed;
+}
+
+function addCard(value, focus){
+  const isComment = value && typeof value === 'object' && value.type === 'comment';
+  const ed = isComment ? createCommentEditor(value) : createCardEditor(value);
+  document.getElementById('cardEditors').appendChild(ed);
+  renumberCards();
+  const ta = ed.querySelector('textarea');
+  if(focus){ ta.focus(); activeTa = ta; }
+  return ta;
+}
+
+document.getElementById('addCardBtn').addEventListener('click', () => {
+  snapshotCards();
+  addCard('', true);
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast('카드 추가됨.');
+});
+
+document.getElementById('addCommentBtn').addEventListener('click', () => {
+  snapshotCards();
+  const activeEditor = activeTa && activeTa.closest ? activeTa.closest('#cardEditors .cardEditor') : null;
+  const editor = createCommentEditor({ type:'comment', body:'', visible:true });
+  if(activeEditor) activeEditor.after(editor);
+  else document.getElementById('cardEditors').appendChild(editor);
+  renumberCards();
+  const ta = editor.querySelector('textarea');
+  activeTa = ta;
+  ta.focus();
+  render(); updateCounter(); saveDraft();
+  if(ta) ta.closest('.cardEditor').scrollIntoView({ block:'nearest', behavior:'smooth' });
+  showUndoToast('코멘트 추가됨.');
+});
+
+// ---------- 작업 단위 되돌리기 안전망 ----------
+// 큰 작업 직전 상태를 잠시 잡아두고, 작업이 끝나면 상단 공용 기록에 전·후 상태를 함께 쌓음.
+// 글자 하나하나의 입력은 브라우저 기본 Ctrl/⌘+Z가 담당한다.
+let undoSnapshot = null;
+let undoTimer = null;
+let toastUndoAction = null;
+const UNDO_TOAST_DURATION_MS = 4000;
+
+// 작업 전체(카드 + 표제/이미지/이름/꼬리말/크레딧)를 담는 헬퍼 — 보관함 슬롯과 되돌리기가 공유
+function collectWork(){
+  const fields = {};
+  WORK_FIELDS.forEach(id => { fields[id] = document.getElementById(id).value; });
+  WORK_BOOLEAN_FIELDS.forEach(id => { fields[id] = document.getElementById(id).checked; });
+  return { cards: getCards(), fields };
+}
+
+function collectSlotWork(){
+  const data = collectWork();
+  data.style = currentStyleValues();
+  return data;
+}
+
+function applyWork(data){
+  const fields = data.fields || {};
+  WORK_FIELDS.forEach(id => {
+    document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
+  });
+  renderCreditItemsEditor();
+  syncProfileTagEditorsFromMasters();
+  renderKeywordRuleList();
+  Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
+    document.getElementById(id).checked = fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback;
+  });
+  if(data.style && typeof data.style === 'object') applyStyleValues(data.style);
+  syncCoverControlState();
+  syncDesignSummaries();
+  document.getElementById('xposVal').value = document.getElementById('xpos').value;
+  document.getElementById('yposVal').value = document.getElementById('ypos').value;
+  document.getElementById('imgHeightVal').value = document.getElementById('imgHeight').value;
+  clearCardEditors();
+  activeTa = null;
+  const cards = (data.cards && data.cards.length) ? data.cards : [{ body:'', folded:false, foldTitle:'' }];
+  cards.forEach(c => addCard(c, false));
+  activeTa = bodyCardTextareas()[0] || null;
+  charRowsKey = null;
+  syncCharList();
+  render();
+  updateCounter();
+  saveDraft();
+}
+
+function snapshotCards(){
+  // 막 끝난 디자인 조절이 뒤늦게 끼어들지 않도록 작업 경계를 확정한다.
+  clearTimeout(styleCommitTimer);
+  undoSnapshot = captureActionState('작업 전');
+}
+
+function dismissToast(){
+  const toast = document.getElementById('undoToast');
+  toast.style.display = 'none';
+  clearTimeout(undoTimer);
+  undoTimer = null;
+  toastUndoAction = null;
+}
+
+function openToast(message, undoAction, showUndoButton){
+  const toast = document.getElementById('undoToast');
+  const undoButton = document.getElementById('undoBtn');
+  document.getElementById('undoMsg').textContent = message;
+  toastUndoAction = typeof undoAction === 'function' ? undoAction : null;
+  undoButton.hidden = !showUndoButton;
+  toast.style.display = 'flex';
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(dismissToast, UNDO_TOAST_DURATION_MS);
+}
+
+function showUndoToast(message, undoAction){
+  if(typeof undoAction !== 'function') recordCompletedAction(message);
+  openToast(message, undoAction, true);
+}
+
+// 복사처럼 작업 상태를 바꾸지 않는 알림에는 되돌리기 버튼을 노출하지 않는다.
+// 그렇지 않으면 사용자가 복사 취소로 오해하고 직전 편집을 되돌릴 수 있다.
+function showNoticeToast(message){
+  openToast(message, null, false);
+}
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  const undoAction = toastUndoAction;
+  dismissToast();
+  if(undoAction){
+    undoAction();
+    return;
+  }
+  goActionHistory(-1);
+});
+
+// 토스트 밖의 화면을 누르면 즉시 닫는다. pointerdown 캡처 단계에서 기존
+// 토스트만 정리하므로, 이어지는 click이 새 알림을 띄우는 동작은 방해하지 않는다.
+document.addEventListener('pointerdown', event => {
+  const toast = document.getElementById('undoToast');
+  if(toast.style.display !== 'flex' || toast.contains(event.target)) return;
+  dismissToast();
+}, true);
+
+// 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
+// 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
+// 덮어쓰기 직후에는 정확한 저장 상태로 되돌릴 수 있다.
+function restoreStoredValue(key, previousValue){
+  try {
+    if(previousValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previousValue);
+    return true;
+  } catch(e){
+    return false;
+  }
+}
+
+// ---------- 본문 삽입 툴바 ----------
+// 커서 위치(또는 선택 영역)에 텍스트를 넣고 편집 상태를 자연스럽게 유지
+function insertIntoBody(prefix, suffix, placeholder, label){
+  // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
+  let ta = activeTa;
+  // 코멘트에 포커스가 있을 때 본문 전용 버튼이 인접 카드까지 몰래 수정하지 않게 한다.
+  if(ta && ta.closest('.commentEditor')) return;
+  ta = ta || document.querySelector('#cardEditors .cardEditor:not(.commentEditor) textarea');
+  if(!ta) return;
+  activeTa = ta;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  const selected = ta.value.slice(start, end);
+  const middle = selected || placeholder || '';
+  snapshotCards();
+
+  // 앞뒤로 빈 줄이 없으면 자동으로 넣어서 문단 규칙(엔터 구분)이 안 깨지게 함
+  const needNlBefore = before.length > 0 && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const needNlAfter = after.length > 0 && !after.startsWith('\n\n') ? (after.startsWith('\n') ? '\n' : '\n\n') : '';
+
+  const inserted = needNlBefore + prefix + middle + suffix + needNlAfter;
+  ta.value = before + inserted + after;
+
+  // 커서 위치: 선택이 있었으면 블록 뒤로, 없었으면 placeholder를 선택 상태로
+  if(selected){
+    const pos = before.length + inserted.length;
+    ta.setSelectionRange(pos, pos);
+  } else if(placeholder){
+    const selStart = before.length + needNlBefore.length + prefix.length;
+    ta.setSelectionRange(selStart, selStart + placeholder.length);
+  }
+  syncMirror(ta);   // 전체 화면 편집 중이면 실제 카드 입력창에도 선택 위치까지 반영
+  ta.focus();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(label || '본문 요소 삽입.');
+}
+
+function insertBodyImage(){
+  const urlInput = prompt('이미지 주소를 입력하세요.');
+  if(urlInput === null) return;
+  const url = urlInput.trim();
+  if(!url || /[\s\]]/.test(url)){
+    alert('공백이나 ]가 없는 이미지 주소를 입력해 주세요.');
+    return;
+  }
+  const widthInput = prompt('이미지 가로 크기 (10~100%)\n세로 크기는 원본 비율에 맞춰 자동 조절됩니다.', '100');
+  if(widthInput === null) return;
+  const parsedWidth = parseInt(String(widthInput).replace('%', '').trim(), 10);
+  if(!Number.isFinite(parsedWidth) || parsedWidth < 10 || parsedWidth > 100){
+    alert('크기는 10부터 100 사이의 숫자로 입력해 주세요.');
+    return;
+  }
+  const captionInput = prompt('캡션 (선택 사항)', '');
+  if(captionInput === null) return;
+  const caption = captionInput.replace(/[\r\n]+/g, ' ').trim();
+  const sizeMarker = parsedWidth === 100 ? '' : ` @${parsedWidth}`;
+  const captionMarker = caption ? ` | ${caption}` : '';
+  insertIntoBody(`[IMG ${url}${sizeMarker}${captionMarker}]`, '', '', '이미지 삽입.');
+}
+
+// ---------- 입력창 서식 도구막대 (B / I / C) ----------
+// 선택한 글자를 마커로 감싸거나(굵게·강조), 커서가 놓인 줄을 가운데 정렬한다.
+function applyTextareaFormat(ta, fmt){
+  if(!ta || ta.closest('.commentEditor')) return;
+  if(fmt !== 'center' && !FMT_WRAP[fmt]) return;
+  const val = ta.value;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  if(fmt !== 'center' && s === e) return;
+  snapshotCards();
+  let resultLabel = '';
+
+  if(fmt === 'center'){
+    // 커서가 있는 줄 전체에 [C] 토글 (인용 `> ` 뒤에 삽입)
+    const lineStart = val.lastIndexOf('\n', s - 1) + 1;
+    let lineEnd = val.indexOf('\n', s);
+    if(lineEnd === -1) lineEnd = val.length;
+    const line = val.slice(lineStart, lineEnd);
+    let newLine;
+    if(CENTER_RE.test(line)){
+      newLine = line.replace(CENTER_RE, (m, q) => (q || ''));
+      resultLabel = '가운데 정렬 해제.';
+    } else {
+      const qm = line.match(/^>(?!>)\s?/);
+      newLine = qm ? qm[0] + '[C] ' + line.slice(qm[0].length) : '[C] ' + line;
+      resultLabel = '가운데 정렬 적용.';
+    }
+    ta.value = val.slice(0, lineStart) + newLine + val.slice(lineEnd);
+    const delta = newLine.length - line.length;
+    ta.setSelectionRange(Math.max(lineStart, s + delta), Math.max(lineStart, e + delta));
+  } else {
+    const wrap = FMT_WRAP[fmt];
+    const sel = val.slice(s, e);
+    // 새 굵기는 **로 적용하되, 기존 __ 문법도 같은 버튼으로 해제할 수 있게 유지한다.
+    const wraps = fmt === 'bold' ? [wrap, '__'] : [wrap];
+    let removed = false;
+    for(const candidate of wraps){
+      const escaped = candidate.replace(/[*]/g, '\\$&');
+      const inner = new RegExp('^' + escaped + '([\\s\\S]+)' + escaped + '$');
+      const m = sel.match(inner);
+      if(m){
+        ta.value = val.slice(0, s) + m[1] + val.slice(e);
+        ta.setSelectionRange(s, s + m[1].length);
+        removed = true;
+        resultLabel = fmt === 'bold' ? '굵게 해제.' : '강조 해제.';
+        break;
+      }
+      if(val.slice(Math.max(0, s - candidate.length), s) === candidate
+         && val.slice(e, e + candidate.length) === candidate){
+        ta.value = val.slice(0, s - candidate.length) + sel + val.slice(e + candidate.length);
+        ta.setSelectionRange(s - candidate.length, s - candidate.length + sel.length);
+        removed = true;
+        resultLabel = fmt === 'bold' ? '굵게 해제.' : '강조 해제.';
+        break;
+      }
+    }
+    if(!removed){
+      ta.value = val.slice(0, s) + wrap + sel + wrap + val.slice(e);
+      ta.setSelectionRange(s + wrap.length, s + wrap.length + sel.length);
+      resultLabel = fmt === 'bold' ? '굵게 적용.' : '강조 적용.';
+    }
+  }
+
+  syncMirror(ta);
+  ta.focus();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(resultLabel || '본문 서식 변경.');
+}
+
+// 전체 화면 편집기의 서식 바 (입력창 바로 위)
+document.querySelectorAll('.fmtBar[data-scope="fs"] .fmtBtn').forEach(btn => {
+  btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
+  btn.addEventListener('click', () => {
+    applyTextareaFormat(document.getElementById('fsTextarea'), btn.dataset.tfmt);
+  });
+});
+
+// ---------- 전체 화면 본문 편집 ----------
+// 오버레이의 입력창은 실제 카드 입력창의 '거울'이다. 값이 바뀌면 원본에 그대로 옮기고
+// input 이벤트를 흘려보내 미리보기·카운터·자동저장이 평소처럼 동작하게 한다.
+function syncMirror(ta){
+  if(ta && ta.__mirror){
+    const real = ta.__mirror;
+    real.value = ta.value;
+    const s = Math.min(ta.selectionStart, real.value.length);
+    const e = Math.min(ta.selectionEnd, real.value.length);
+    real.setSelectionRange(s, e);
+    real.dispatchEvent(new Event('input', { bubbles: true }));
+    // 실제 카드의 input 처리에서 자동 키워드 치환·구분선 정돈이 일어나면
+    // 전체 화면 거울에도 즉시 되비쳐 두 입력창의 값과 커서가 갈라지지 않게 한다.
+    if(ta.value !== real.value){
+      ta.value = real.value;
+      ta.setSelectionRange(real.selectionStart, real.selectionEnd);
+    }
+  }
+}
+
+let fsPrevActive = null;
+
+let fsScrollY = 0;
+let fsEditor = null;   // 전체 화면으로 열려 있는 카드 에디터 요소
+
+function setWorkspaceInert(on){
+  ['sidebar','previewArea','sidebarResizer'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.inert = !!on;
+  });
+}
+
+// 전체 화면의 접기 컨트롤과 카드 제목을 실제 카드의 컨트롤과 맞춰줌
+function syncFsFold(){
+  const titleInput = document.getElementById('fsFoldTitle');
+  titleInput.style.display = '';
+}
+
+function openFullscreen(realTa, title, editor){
+  const fsTa = document.getElementById('fsTextarea');
+  fsTa.value = realTa.value;
+  fsTa.__mirror = realTa;
+  fsEditor = editor || null;
+
+  // 접기 카드 여부·카드 제목을 그대로 가져옴
+  const chk = document.getElementById('fsFoldChk');
+  const titleInput = document.getElementById('fsFoldTitle');
+  const realChk = fsEditor && fsEditor.querySelector('.cardFoldChk');
+  const realTitle = fsEditor && fsEditor.querySelector('.foldTitleInput');
+  chk.checked = !!(realChk && realChk.checked);
+  titleInput.value = realTitle ? realTitle.value : '';
+  syncFsFold();
+
+  document.getElementById('fsTitle').textContent = title;
+  setFsSearchOpen(false);   // 이전 카드의 검색 결과·강조를 지우고 검색 도구는 접힌 상태로 시작
+  const overlay = document.getElementById('fsOverlay');
+  overlay.style.display = 'block';
+  overlay.setAttribute('aria-hidden', 'false');
+  setWorkspaceInert(true);
+  // 배경 스크롤 잠금 (위치를 기억했다가 닫을 때 그대로 복원)
+  fsScrollY = window.scrollY;
+  document.body.classList.add('fsLock');
+  fsPrevActive = activeTa;
+  activeTa = fsTa;            // 툴바 삽입이 전체 화면 입력창을 향하게 함
+  fsTa.focus();
+  fsTa.setSelectionRange(realTa.selectionStart, realTa.selectionEnd);
+  fsTa.scrollTop = realTa.scrollTop;
+}
+
+function closeFullscreen(){
+  const fsTa = document.getElementById('fsTextarea');
+  const overlay = document.getElementById('fsOverlay');
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
+  fsEditor = null;
+  document.body.classList.remove('fsLock');
+  setWorkspaceInert(false);
+  window.scrollTo(0, fsScrollY);
+  const real = fsTa.__mirror;
+  fsTa.__mirror = null;
+  activeTa = real || fsPrevActive;
+  if(real){
+    try { real.focus({ preventScroll: true }); }
+    catch(e){ real.focus(); }
+  }
+}
+
+// 입력창이 아닌 곳(패널 여백·배경)에서의 휠은 아예 무시해 뒤쪽이 밀리지 않게 함
+document.getElementById('fsOverlay').addEventListener('wheel', (e) => {
+  if(!e.target.closest('#fsTextarea')) e.preventDefault();
+}, { passive: false });
+
+document.getElementById('fsTextarea').addEventListener('input', function(){
+  normalizeStandaloneHrInput(this);
+  syncMirror(this);
+  if(fsHlQuery) fsHlPaint(fsHlQuery, fsHlCur);
+});
+document.getElementById('fsTextarea').addEventListener('keydown', handleSoftBreakKeydown);
+document.getElementById('fsTextarea').addEventListener('scroll', function(){
+  const hl = document.getElementById('fsHl');
+  hl.scrollTop = this.scrollTop;
+  hl.scrollLeft = this.scrollLeft;
+});
+// 전체 화면에서도 커서 위치의 문단을 미리보기에서 보여줌 (뒤에 가려 안 보이므로 스크롤만 맞춤)
+document.getElementById('fsTextarea').addEventListener('keyup', function(e){
+  if(!this.__mirror || !positionSyncEnabled()) return;
+  if(!['ArrowUp','ArrowDown','PageUp','PageDown'].includes(e.key)) return;
+  const raw = this.value.slice(0, this.selectionStart).split('\n').length - 1;
+  if(isStackedLayout()) return;
+  const el = previewBlockFor(this.__mirror, raw);
+  if(el) el.scrollIntoView({ block: 'center' });
+});
+
+// 접기 카드 체크/제목을 바꾸면 실제 카드 컨트롤에 그대로 옮기고 이벤트를 흘려보냄
+document.getElementById('fsFoldChk').addEventListener('change', function(){
+  syncFsFold();
+  if(!fsEditor) return;
+  snapshotCards();
+  const realChk = fsEditor.querySelector('.cardFoldChk');
+  realChk.checked = this.checked;
+  realChk.dispatchEvent(new Event('change', { bubbles: true }));
+  showUndoToast(this.checked ? '접기 카드 설정.' : '접기 카드 해제.');
+});
+
+document.getElementById('fsFoldTitle').addEventListener('input', function(){
+  if(!fsEditor) return;
+  const realTitle = fsEditor.querySelector('.foldTitleInput');
+  realTitle.value = this.value;
+  realTitle.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+document.getElementById('fsCloseBtn').addEventListener('click', closeFullscreen);
+document.getElementById('fsOverlay').addEventListener('mousedown', (e) => {
+  if(e.target.id === 'fsOverlay') closeFullscreen();   // 바깥 여백 클릭
+});
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(e.key === 'Escape' && document.getElementById('fsOverlay').style.display === 'block'){
+    e.preventDefault();
+    closeFullscreen();
+  }
+});
+
+// 전체 화면 툴바: 사이드바 툴바와 같은 동작을 그대로 호출
+const FS_ACTIONS = {
+  fold:   () => insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용', '접기 삽입.'),
+  hr:     () => insertIntoBody('[HR]', '', '', '구분선 삽입.'),
+  hr2:    () => insertIntoBody('[HR2]', '', '', '장면 전환 삽입.'),
+  hr3:    () => insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.'),
+  gap:    () => insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.'),
+  img:    () => insertBodyImage(),
+  quote:  () => insertIntoBody('> ', '', '인용할 내용', '인용 삽입.'),
+  tidy:   () => document.getElementById('tidyBtn').click(),
+};
+document.querySelectorAll('#fsToolbar button[data-fs]').forEach(btn => {
+  btn.addEventListener('mousedown', (e) => e.preventDefault());  // 포커스 유지
+  btn.addEventListener('click', () => {
+    const fn = FS_ACTIONS[btn.dataset.fs];
+    if(fn) fn();
+    // 정돈은 실제 입력창을 직접 고치므로, 전체 화면 쪽 값을 다시 맞춰줌
+    const fsTa = document.getElementById('fsTextarea');
+    if(btn.dataset.fs === 'tidy' && fsTa.__mirror) fsTa.value = fsTa.__mirror.value;
+    fsTa.focus();
+  });
+});
+
+// ---------- 전체 화면 본문 검색 ----------
+// textarea가 포커스를 잃으면 selection 색이 사라지는 브라우저가 있어,
+// 입력창 뒤 미러 레이어(#fsHl)에 전체 결과와 현재 결과를 직접 칠한다.
+let fsHlQuery = '';
+let fsHlCur = -1;
+let fsHlAt = -1;
+
+function fsScrollToIndex(ta, idx){
+  const { top } = caretOffsetTop(ta, idx);
+  ta.scrollTop = Math.max(0, top - ta.clientHeight / 2);
+}
+
+function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function fsFindHits(q){
+  if(!q) return [];
+  const hay = normalizeQuotes(document.getElementById('fsTextarea').value).toLowerCase();
+  const needle = normalizeQuotes(q).toLowerCase();
+  const hits = [];
+  let p = hay.indexOf(needle);
+  while(p !== -1){ hits.push(p); p = hay.indexOf(needle, p + Math.max(1, needle.length)); }
+  return hits;
+}
+
+function fsHlPaint(query, current){
+  const ta = document.getElementById('fsTextarea');
+  const bd = document.getElementById('fsHl');
+  if(!query){
+    bd.innerHTML = '';
+    ta.classList.remove('fsHlOn');
+    return 0;
+  }
+  // textarea와 미러의 글꼴·자간·패딩을 매번 정확히 맞춰 한글 두 글자 이상도 어긋나지 않게 함
+  const cs = getComputedStyle(ta);
+  SEARCH_HL_PROPS.forEach(p => { bd.style[p] = cs[p]; });
+  const r = searchHlMarkup(ta.value, query, 0, current);
+  bd.innerHTML = r.html;
+  bd.scrollTop = ta.scrollTop;
+  bd.scrollLeft = ta.scrollLeft;
+  ta.classList.add('fsHlOn');
+  return r.count;
+}
+
+function fsClearSearch(){
+  fsHlQuery = '';
+  fsHlCur = -1;
+  fsHlAt = -1;
+  const find = document.getElementById('fsFindInput');
+  if(find) find.value = '';
+  const count = document.getElementById('fsFindCount');
+  if(count) count.textContent = '';
+  const hl = document.getElementById('fsHl');
+  if(hl) fsHlPaint('', -1);
+}
+
+// 검색어 입력 직후에는 전체 결과를 회색으로 표시하고, 이동할 때만 현재 결과를 연두로 표시.
+function fsFindApply(){
+  const ta = document.getElementById('fsTextarea');
+  const q = document.getElementById('fsFindInput').value;
+  const counter = document.getElementById('fsFindCount');
+  fsHlQuery = q;
+  fsHlCur = -1;
+  fsHlAt = -1;
+  // 검색창에 포커스가 있을 때 남는 파란 네이티브 선택 영역은 접어 미러 강조와 겹치지 않게 함
+  ta.setSelectionRange(ta.selectionStart, ta.selectionStart);
+  const hits = fsFindHits(q);
+  fsHlPaint(q, -1);
+  counter.textContent = !q ? '' : (hits.length ? hits.length + '곳' : '0 / 0');
+}
+
+// dir: 1 다음 / -1 이전. 현재 위치는 selection이 아니라 fsHlAt으로 관리해 파란 선택 영역을 만들지 않음.
+function fsFindStep(dir, fromIndex){
+  const ta = document.getElementById('fsTextarea');
+  const counter = document.getElementById('fsFindCount');
+  const q = document.getElementById('fsFindInput').value;
+  if(!q){ fsClearSearch(); return; }
+  const hits = fsFindHits(q);
+  if(!hits.length){ fsHlPaint(q, -1); counter.textContent = '0 / 0'; return; }
+  const old = hits.indexOf(fsHlAt);
+  let next;
+  if(old < 0 && Number.isFinite(fromIndex)){
+    if(dir >= 0){
+      next = hits.findIndex(h => h >= fromIndex);
+      if(next < 0) next = 0;
+    } else {
+      next = hits.length - 1;
+      while(next >= 0 && hits[next] >= fromIndex) next--;
+      if(next < 0) next = hits.length - 1;
+    }
+  } else {
+    next = old < 0 ? (dir >= 0 ? 0 : hits.length - 1)
+                   : (old + dir + hits.length) % hits.length;
+  }
+  const idx = hits[next];
+  fsScrollToIndex(ta, idx);
+  fsHlQuery = q;
+  fsHlCur = next;
+  fsHlAt = idx;
+  fsHlPaint(q, fsHlCur);
+  counter.textContent = (fsHlCur + 1) + ' / ' + hits.length;
+}
+
+// 현재 선택된 일치를 대치하고 다음 일치로 이동.
+// execCommand('insertText')를 쓰면 브라우저 기본 되돌리기(Ctrl+Z)가 살아 있고,
+// input 이벤트가 자연 발생해 미러 동기화(syncMirror)·미리보기·저장이 평소처럼 동작함.
+function fsReplaceCurrent(){
+  const ta = document.getElementById('fsTextarea');
+  const q = document.getElementById('fsFindInput').value;
+  if(!q) return;
+  const r = document.getElementById('fsReplInput').value;
+  const selTxt = fsHlAt >= 0 ? ta.value.slice(fsHlAt, fsHlAt + q.length) : '';
+  if(selTxt.toLowerCase() !== q.toLowerCase()){ fsFindStep(1); return; }  // 먼저 현재 항목 표시
+  const s = fsHlAt;
+  snapshotCards();
+  ta.focus();
+  ta.setSelectionRange(s, s + q.length);  // 실제 대치 순간에만 잠깐 선택해 브라우저 되돌리기를 유지
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, r); } catch(e){ ok = false; }
+  if(!ok){
+    ta.value = ta.value.slice(0, s) + r + ta.value.slice(s + selTxt.length);
+    ta.setSelectionRange(s + r.length, s + r.length);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  } else syncMirror(ta);
+  fsHlAt = -1;
+  fsFindStep(1, s + r.length);
+  showUndoToast('1곳 변경.');
+}
+
+// 이 카드 전체 대치 (대소문자 무시 — 검색과 동일 기준)
+function fsReplaceAll(){
+  const ta = document.getElementById('fsTextarea');
+  const counter = document.getElementById('fsFindCount');
+  const q = document.getElementById('fsFindInput').value;
+  if(!q) return;
+  const r = document.getElementById('fsReplInput').value;
+  const re = new RegExp(escRe(q), 'gi');
+  const matches = ta.value.match(re);
+  if(!matches){ counter.textContent = '0 / 0'; return; }
+  snapshotCards();
+  const newVal = ta.value.replace(re, () => r);
+  ta.focus();
+  ta.setSelectionRange(0, ta.value.length);
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, newVal); } catch(e){ ok = false; }
+  if(!ok || ta.value !== newVal){
+    ta.value = newVal;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  } else syncMirror(ta);
+  ta.setSelectionRange(0, 0);
+  ta.scrollTop = 0;
+  fsHlAt = -1;
+  fsHlCur = -1;
+  fsHlPaint(q, -1);
+  counter.textContent = matches.length + '곳 변경';
+  showUndoToast(matches.length + '곳 변경.');
+}
+
+function setFsSearchOpen(open, focusInput){
+  const panel = document.getElementById('fsPanel');
+  const toggle = document.getElementById('fsSearchToggle');
+  panel.classList.toggle('fsSearchOpen', !!open);
+  toggle.setAttribute('aria-expanded', String(!!open));
+  document.getElementById('fsSearchBar').setAttribute('aria-hidden', String(!open));
+  toggle.textContent = open ? '검색 닫기' : '검색';
+  if(!open){ fsClearSearch(); return; }
+  if(focusInput){
+    const input = document.getElementById('fsFindInput');
+    input.focus(); input.select();
+  }
+}
+
+(function(){
+  const input = document.getElementById('fsFindInput');
+  const repl = document.getElementById('fsReplInput');
+  input.addEventListener('input', fsFindApply);
+  input.addEventListener('compositionend', fsFindApply);
+  const onEsc = (e) => {
+    // 검색만 닫고 전체 화면 편집기는 유지
+    e.preventDefault(); e.stopPropagation();
+    setFsSearchOpen(false);
+    document.getElementById('fsTextarea').focus();
+  };
+  input.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Enter'){ e.preventDefault(); fsFindStep(e.shiftKey ? -1 : 1); }
+    else if(e.key === 'Escape') onEsc(e);
+  });
+  repl.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Enter'){ e.preventDefault(); fsReplaceCurrent(); }
+    else if(e.key === 'Escape') onEsc(e);
+  });
+  const prev = document.getElementById('fsFindPrevBtn');
+  const next = document.getElementById('fsFindNextBtn');
+  [prev, next].forEach(b => b.addEventListener('mousedown', (e) => e.preventDefault()));  // 포커스 유지
+  prev.addEventListener('click', () => fsFindStep(-1));
+  next.addEventListener('click', () => fsFindStep(1));
+  document.getElementById('fsReplBtn').addEventListener('click', fsReplaceCurrent);
+  document.getElementById('fsReplAllBtn').addEventListener('click', fsReplaceAll);
+  document.getElementById('fsSearchToggle').addEventListener('click', () => {
+    const open = document.getElementById('fsPanel').classList.contains('fsSearchOpen');
+    setFsSearchOpen(!open, !open);
+  });
+})();
+
+// ---------- 미리보기 검색 (Ctrl/⌘+F) ----------
+// 미리보기 DOM 의 텍스트 노드에만 강조 span(.pvHit)을 끼워 넣는다.
+// 출력물(generateHTML)은 항상 입력값에서 새로 만들어지므로 강조가 결과물에 섞일 일은 없음.
+// 리렌더(renderPreview)가 innerHTML 을 갈아엎으므로, 검색이 켜져 있으면 끝에서 다시 칠한다.
+let pvSearchOn = false;
+let pvHits = [];
+let pvCur = -1;
+
+function pvScopeTextarea(){
+  const scope = document.getElementById('pvScopeSelect').value;
+  if(scope === 'all') return null;
+  const match = scope.match(/^card:(\d+)$/);
+  if(match) return bodyCardTextareas()[Number(match[1])] || null;
+  if(activeTa && activeTa.matches('#cardEditors .cardEditor:not(.commentEditor) textarea')) return activeTa;
+  if(pvCur >= 0 && pvHits[pvCur]){
+    const src = findBlockSource(pvHits[pvCur]);
+    if(src && src.ta) return src.ta;
+  }
+  return bodyCardTextareas()[0] || null;
+}
+
+function pvScopeTextareas(){
+  const ta = pvScopeTextarea();
+  return ta ? [ta] : bodyCardTextareas();
+}
+
+function pvScopePreviewRoots(){
+  const ta = pvScopeTextarea();
+  if(!ta) return previewCardContexts().map(ctx => ctx.cardEl);
+  const ctx = previewCardContexts().find(item => item.ta === ta);
+  return ctx ? [ctx.cardEl] : [];
+}
+
+function pvRefreshScopeOptions(resetToAll){
+  const select = document.getElementById('pvScopeSelect');
+  const previous = select.value;
+  const textareas = bodyCardTextareas();
+  select.innerHTML = '';
+  const all = document.createElement('option');
+  all.value = 'all';
+  all.textContent = '전체 카드';
+  select.appendChild(all);
+  textareas.forEach((ta, index) => {
+    const option = document.createElement('option');
+    option.value = `card:${index}`;
+    option.textContent = `카드 ${index + 1}`;
+    select.appendChild(option);
+  });
+  const values = Array.from(select.options).map(option => option.value);
+  if(resetToAll) select.value = 'all';
+  else select.value = values.includes(previous) ? previous : 'all';
+}
+
+function pvClearHits(){
+  document.querySelectorAll('#preview .pvHit').forEach(sp => {
+    const parent = sp.parentNode;
+    if(!parent) return;
+    // 검색어가 굵게·강조 span 경계를 가로질러도 원래 미리보기 구조를 보존한다.
+    while(sp.firstChild) parent.insertBefore(sp.firstChild, sp);
+    sp.remove();
+    parent.normalize();
+  });
+  pvHits = []; pvCur = -1;
+}
+
+// 한 출력 문단의 여러 텍스트 노드를 하나의 문자열처럼 검색한다.
+// 굵게·강조·원문 병행 span 경계를 가로지르는 검색어도 한 항목으로 표시하되,
+// 화자 이름표와 자동 장식은 원문 입력에 없는 글자이므로 검색에서 제외한다.
+function pvHighlightBlock(block, query){
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let node;
+  while(walker.nextNode()){
+    node = walker.currentNode;
+    const parent = node.parentElement;
+    if(!node.data || (parent && parent.closest('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-card-title="true"]'))) continue;
+    nodes.push(node);
+  }
+  if(!nodes.length) return [];
+  const text = nodes.map(item => item.data).join('');
+  const hay = normalizeQuotes(text).toLowerCase();
+  const needle = normalizeQuotes(query).toLowerCase();
+  if(!needle) return [];
+  const matches = [];
+  let at = hay.indexOf(needle);
+  while(at !== -1){
+    matches.push({ start:at, end:at + query.length });
+    at = hay.indexOf(needle, at + Math.max(1, query.length));
+  }
+  if(!matches.length) return [];
+
+  const boundaries = [];
+  let cursor = 0;
+  nodes.forEach(textNode => {
+    boundaries.push({ node:textNode, start:cursor, end:cursor + textNode.data.length });
+    cursor += textNode.data.length;
+  });
+  const locate = (position, startBoundary) => {
+    for(let i = 0; i < boundaries.length; i++){
+      const item = boundaries[i];
+      if(position < item.end || (position === item.end && (!startBoundary || i === boundaries.length - 1))){
+        return { node:item.node, offset:Math.max(0, Math.min(item.node.data.length, position - item.start)) };
+      }
+    }
+    const last = boundaries[boundaries.length - 1];
+    return { node:last.node, offset:last.node.data.length };
+  };
+
+  const hits = [];
+  // 뒤에서부터 감싸야 앞쪽 원본 텍스트 노드의 오프셋이 바뀌지 않는다.
+  matches.slice().reverse().forEach(match => {
+    const start = locate(match.start, true);
+    const end = locate(match.end, false);
+    if(!start || !end) return;
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    const span = document.createElement('span');
+    span.className = 'pvHit';
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    hits.unshift(span);
+  });
+  return hits;
+}
+
+function pvUpdateCount(){
+  const q = document.getElementById('pvFindInput').value;
+  document.getElementById('pvFindCount').textContent =
+    !q ? '' : (pvHits.length ? (pvCur >= 0 ? (pvCur + 1) + ' / ' + pvHits.length : pvHits.length + '곳') : '0 / 0');
+}
+
+// keepPos: 리렌더 후 재적용 시 현재 위치를 유지하고 스크롤하지 않음 (타이핑이 화면을 끌고 다니지 않게)
+function pvApplySearch(keepPos){
+  const prevCur = pvCur;
+  pvRefreshScopeOptions(false);
+  pvClearHits();
+  const q = document.getElementById('pvFindInput').value;
+  if(!pvSearchOn || !q){ pvUpdateCount(); return; }
+  const roots = pvScopePreviewRoots();
+  if(!roots.length){ pvUpdateCount(); return; }
+  roots.forEach(root => {
+    previewSourceBlocks(root).forEach(block => {
+      pvHits.push(...pvHighlightBlock(block, q));
+    });
+  });
+  if(pvHits.length){
+    pvCur = keepPos && prevCur >= 0 ? Math.min(prevCur, pvHits.length - 1) : -1;
+    if(pvCur >= 0) pvMarkCurrent(false);
+  }
+  pvUpdateCount();
+}
+
+function pvMarkCurrent(scroll){
+  pvHits.forEach(sp => sp.classList.remove('pvHitCur'));
+  const cur = pvHits[pvCur];
+  if(!cur) return;
+  cur.classList.add('pvHitCur');
+  // 닫힌 접기(details) 안의 일치는 조상을 열어서 보이게 함
+  let el = cur.parentElement;
+  while(el){
+    if(el.tagName === 'DETAILS') el.open = true;
+    el = el.parentElement;
+  }
+  if(scroll) cur.scrollIntoView({ block: 'center' });
+  pvUpdateCount();
+}
+
+function pvGo(dir){
+  if(!pvHits.length) return;
+  pvCur = pvCur < 0
+    ? (dir >= 0 ? 0 : pvHits.length - 1)
+    : (pvCur + dir + pvHits.length) % pvHits.length;
+  pvMarkCurrent(true);
+}
+
+function openPreviewSearch(){
+  pvSearchOn = true;
+  document.getElementById('pvSearchBox').style.display = 'flex';
+  pvRefreshScopeOptions(true);
+  const input = document.getElementById('pvFindInput');
+  input.focus();
+  input.select();
+  pvApplySearch(false);
+  refreshPreviewFloatingButtonLayout();
+}
+
+function closePreviewSearch(){
+  pvSearchOn = false;
+  const box = document.getElementById('pvSearchBox');
+  box.style.display = 'none';
+  pvClearHits();
+  document.getElementById('pvFindCount').textContent = '';
+  refreshPreviewFloatingButtonLayout();
+}
+
+// ---------- 미리보기 대치 ----------
+// 현재 항목 대치: 강조 span(findBlockSource)으로 원본 카드·줄을 역추적하고,
+// 그 줄 안에서 몇 번째 일치인지(같은 줄에 속한 앞선 강조 수)를 세어 원본의 해당 위치만 바꾼다.
+// 미리보기 텍스트는 마커 제거·따옴표 정규화를 거치므로, 검색어가 그 변형에 걸치면
+// 원본에서 위치를 찾지 못할 수 있음 → 상태 메시지로 알리고 아무것도 바꾸지 않는다.
+function pvReplaceCurrent(){
+  const q = document.getElementById('pvFindInput').value;
+  if(!q || !pvHits.length) return;
+  if(pvCur < 0){ pvGo(1); return; }
+  const r = document.getElementById('pvReplInput').value;
+  const hit = pvHits[pvCur];
+  if(!hit) return;
+  const src = findBlockSource(hit);
+  if(!src){ pvStatusFlash('본문 밖 — 대치 불가'); return; }
+  let k = 0;
+  for(let i = 0; i < pvCur; i++){
+    const s = findBlockSource(pvHits[i]);
+    if(s && s.ta === src.ta && s.raw === src.raw) k++;
+  }
+  const lines = src.ta.value.split('\n');
+  const line = lines[src.raw] || '';
+  const sourceRange = findSourceRange(line, q, k, true);
+  if(!sourceRange){ pvStatusFlash('원본 위치 확인 실패'); return; }
+  snapshotCards();
+  lines[src.raw] = replaceSourceRange(line, sourceRange, r);
+  src.ta.value = lines.join('\n');
+  src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
+  showUndoToast('1곳 변경.');
+  if(pvHits.length) pvMarkCurrent(true);
+}
+
+// 선택한 범위 안의 모든 일치 대치 (대소문자 무시 — 검색 강조와 동일 기준)
+function pvReplaceAll(){
+  const q = document.getElementById('pvFindInput').value;
+  if(!q) return;
+  const r = document.getElementById('pvReplInput').value;
+  const perTextarea = new Map();
+
+  // DOM 강조 위치가 아니라 원문의 '화면에 보이는 투영'을 직접 검색한다.
+  // 그래서 접기 내부도 빠지지 않고, 표제·꼬리말·화자 이름표와 문법 기호는 건드리지 않는다.
+  pvScopeTextareas().forEach(ta => {
+    const rows = new Map();
+    ta.value.split('\n').forEach((line, raw) => {
+      const matches = findAllSourceRanges(line, q, true);
+      if(matches.length) rows.set(raw, matches);
+    });
+    if(rows.size) perTextarea.set(ta, rows);
+  });
+
+  let n = 0;
+  perTextarea.forEach(rows => rows.forEach(atList => { n += atList.length; }));
+  if(!n){ pvStatusFlash('0 / 0'); return; }
+  snapshotCards();
+  perTextarea.forEach((rows, ta) => {
+    const lines = ta.value.split('\n');
+    rows.forEach((rangeList, raw) => {
+      let line = lines[raw] || '';
+      rangeList.sort((a, b) => b.start - a.start).forEach(range => {
+        line = replaceSourceRange(line, range, r);
+      });
+      lines[raw] = line;
+    });
+    ta.value = lines.join('\n');
+  });
+  render(); updateCounter(); saveDraft();
+  showUndoToast(n + '곳 변경.');
+  if(pvHits.length) pvMarkCurrent(true);
+}
+
+// 카운터 자리에 상태를 잠깐 보여주고 원래 카운트로 복귀
+let pvStatusTimer = null;
+function pvStatusFlash(msg){
+  document.getElementById('pvFindCount').textContent = msg;
+  clearTimeout(pvStatusTimer);
+  pvStatusTimer = setTimeout(pvUpdateCount, 2200);
+}
+
+(function(){
+  const input = document.getElementById('pvFindInput');
+  const repl = document.getElementById('pvReplInput');
+  const scope = document.getElementById('pvScopeSelect');
+  input.addEventListener('input', () => pvApplySearch(false));
+  scope.addEventListener('change', () => {
+    pvApplySearch(false);
+  });
+  input.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      pvGo(e.shiftKey ? -1 : 1);
+    } else if(e.key === 'Escape'){
+      e.preventDefault(); e.stopPropagation();
+      closePreviewSearch();
+    }
+  });
+  repl.addEventListener('keydown', (e) => {
+    if(e.isComposing || e.keyCode === 229) return;
+    if(e.key === 'Enter'){ e.preventDefault(); pvReplaceCurrent(); }
+    else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); closePreviewSearch(); }
+  });
+  document.getElementById('pvReplBtn').addEventListener('click', pvReplaceCurrent);
+  document.getElementById('pvReplAllBtn').addEventListener('click', pvReplaceAll);
+  const prev = document.getElementById('pvFindPrevBtn');
+  const next = document.getElementById('pvFindNextBtn');
+  [prev, next].forEach(b => b.addEventListener('mousedown', (e) => e.preventDefault()));
+  prev.addEventListener('click', () => pvGo(-1));
+  next.addEventListener('click', () => pvGo(1));
+  document.getElementById('pvFindCloseBtn').addEventListener('click', closePreviewSearch);
+})();
+
+// 입력창 밖에서의 Esc 로도 미리보기 검색 닫기 (전체 화면이 열려 있으면 그쪽 Esc 가 우선)
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(e.key !== 'Escape') return;
+  if(document.getElementById('fsOverlay').style.display === 'block') return;
+  if(document.getElementById('codeOverlay').style.display === 'block') return;
+  if(pvSearchOn) closePreviewSearch();
+});
+
+document.getElementById('insertFoldBtn').addEventListener('click', () => {
+  // 텍스트를 드래그해 두고 누르면 그 부분이 통째로 접기에 들어가고,
+  // 선택 없이 누르면 빈 접기 틀이 들어가고 안쪽 내용이 선택 상태가 돼서 바로 타이핑하면 됨
+  insertIntoBody('[접기 제목]\n\n', '\n\n[/접기]', '접힐 내용', '접기 삽입.');
+});
+
+document.getElementById('insertHrBtn').addEventListener('click', () => {
+  insertIntoBody('[HR]', '', '', '구분선 삽입.');
+});
+
+document.getElementById('separatorInsertSelect').addEventListener('change', (event) => {
+  const type = event.target.value;
+  event.target.value = '';
+  if(type === 'hr2') insertIntoBody('[HR2]', '', '', '장면 전환 삽입.');
+  else if(type === 'hr3') insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.');
+  else if(type === 'gap') insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.');
+});
+
+document.getElementById('insertImgBtn').addEventListener('click', () => {
+  insertBodyImage();
+});
+
+document.getElementById('insertQuoteBtn').addEventListener('click', () => {
+  insertIntoBody('> ', '', '인용할 내용', '인용 삽입.');
+});
+
+document.getElementById('tidyBtn').addEventListener('click', () => {
+  snapshotCards();
+  let changed = 0;
+  bodyCardTextareas().forEach(ta => {
+    const before = ta.value;
+    let v = normalizeQuotes(before).replace(/`/g, "'");
+    v = normalizeStandaloneHr(v);
+    v = v.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');   // 폭 없는 문자 제거
+    v = v.split('\n').map(l => l.replace(/\s+$/,'')).join('\n'); // 줄 끝 공백 제거
+    v = v.replace(/\n{3,}/g, '\n\n');                     // 3줄 이상 빈 줄 -> 1줄
+    v = v.trim();
+    if(v !== before){ ta.value = v; changed++; }
+  });
+  render(); updateCounter(); saveDraft();
+  if(changed){
+    showUndoToast(`정돈 완료 (${changed}개 입력 정리됨)`);
+  } else {
+    undoSnapshot = null;
+    const st = document.getElementById('copyStatus');
+    st.textContent = '바꿀 항목 없음.';
+    setTimeout(() => { st.textContent = ''; }, 2500);
+  }
+});
+
+// 전체 화면 검색 미러에 필요한 글꼴·줄바꿈 속성.
+const SEARCH_HL_PROPS = ['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight',
+                       'textTransform','wordSpacing','textIndent','whiteSpace','wordWrap','overflowWrap',
+                       'paddingTop','paddingRight','paddingBottom','paddingLeft'];
+
+// 일치 부분을 metric-neutral span으로 감싼 HTML과 일치 수. 원문에서 찾은 뒤 조각별로 이스케이프 —
+// 이스케이프 후 찾으면 &amp; 때문에 위치·검색어가 어긋난다.
+// base: 이 텍스트 첫 일치의 전역 순번. curGlobal: 연두색으로 칠할 전역 순번(현재 선택).
+// 반환의 offsets: 각 일치의 텍스트 내 시작 위치(현재 항목 스크롤·선택에 사용).
+function searchHlMarkup(text, query, base, curGlobal){
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const hay = normalizeQuotes(text).toLowerCase();
+  const needle = normalizeQuotes(query).toLowerCase();
+  let out = '', last = 0, n = 0;
+  const offsets = [];
+  let at = needle ? hay.indexOf(needle) : -1;
+  while(at !== -1){
+    const isCur = (base + n) === curGlobal;
+    offsets.push(at);
+    out += esc(text.slice(last, at))
+         + '<span class="searchHit' + (isCur ? ' cur' : '') + '">' + esc(text.slice(at, at + query.length)) + '</span>';
+    last = at + query.length;
+    n++;
+    at = hay.indexOf(needle, last);
+  }
+  out += esc(text.slice(last));
+  return { html: out, count: n, offsets };
+}
+
+// 카드 편집기를 사이드바 뷰 안으로만 스크롤 (미리보기·페이지는 밀지 않음)
+function scrollCardIntoSidebar(ed){
+  if(isStackedLayout()) return;
+  const sidebar = document.getElementById('sidebar');
+  const sidebarTop = document.getElementById('sidebarTop');
+  const edRect = ed.getBoundingClientRect();
+  const sbRect = sidebar.getBoundingClientRect();
+  const margin = 12;
+  const headerGap = 28;  // 고정 탭 아래에 카드 헤더가 숨지 않도록 주는 여유
+  // #sidebarTop은 sticky라 카드가 그 아래로 숨을 수 있다. 실제 보이는 시작점은
+  // 사이드바 맨 위가 아니라 고정 헤더의 아랫선이다.
+  const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sbRect.top;
+  const bodyToolbar = document.getElementById('bodyEditorToolbar');
+  const toolbarBottom = bodyToolbar && bodyToolbar.offsetParent !== null
+    ? bodyToolbar.getBoundingClientRect().bottom
+    : headerBottom;
+  const desiredTop = Math.max(sbRect.top + margin, headerBottom + headerGap, toolbarBottom + margin);
+  // 카드가 사이드바보다 길어도 헤더와 입력창의 시작점이 고정 헤더 아래로 오게 한다.
+  if(edRect.top < desiredTop || edRect.bottom > sbRect.bottom - margin){
+    sidebar.scrollTop += edRect.top - desiredTop;
+  }
+}
+
+// ---------- 이름 바꾸기 (조사 자동 변환) ----------
+// 마지막 글자의 받침 유무. 한글 음절이 아니면 null (조사 변환 판단 불가 → 조사 유지)
+function hasBatchim(word){
+  const ch = (word || '').trim().slice(-1);
+  const code = ch.charCodeAt(0);
+  if(!(code >= 0xAC00 && code <= 0xD7A3)) return null;
+  return (code - 0xAC00) % 28 !== 0;
+}
+
+const JOSA_INDEX = { '은': 0, '는': 0, '이': 1, '가': 1, '을': 2, '를': 2, '과': 3, '와': 3 };
+const JOSA_FORMS = [['은','는'], ['이','가'], ['을','를'], ['과','와']];   // [받침 있음, 없음]
+
+// text 안의 from 을 to 로 바꾸면서, 바로 뒤에 붙은 조사(은/는·이/가·을/를·과/와)를
+// 새 이름의 받침 유무에 맞춰 조사를 자연스럽게 변환한다.
+// 받침 있는 이름의 '이' 접미 결합(이가/이는/이를/이와)도 함께 처리한다.
+// 조사 뒤가 한글이면 조사로 보지 않고 이름만 바꿔 원문을 안전하게 보존한다.
+function renameWithJosa(text, from, to){
+  const combos = hasBatchim(from) === true ? '이가|이는|이를|이와|' : '';
+  const re = new RegExp(escRe(from) + '(?:(' + combos + '은|는|이|가|을|를|과|와)(?=$|[^가-힣]))?', 'g');
+  const b = hasBatchim(to);
+  let count = 0;
+  const out = text.replace(re, (m, josa) => {
+    count++;
+    if(!josa) return to;
+    if(b === null) return to + josa;                                        // 새 이름이 한글이 아님 → 조사 유지
+    if(josa.length === 2) return to + (b ? josa : JOSA_FORMS[JOSA_INDEX[josa[1]]][1]);
+    return to + JOSA_FORMS[JOSA_INDEX[josa]][b ? 0 : 1];
+  });
+  return { out, count };
+}
+
+document.getElementById('nameFindBtn').addEventListener('click', () => {
+  const from = document.getElementById('nameFrom').value.trim();
+  const st = document.getElementById('nameStatus');
+  if(!from){ st.textContent = '현재 이름을 입력.'; return; }
+  st.textContent = '';
+  document.getElementById('pvFindInput').value = from;
+  openPreviewSearch();
+});
+
+document.getElementById('nameReplaceBtn').addEventListener('click', () => {
+  const from = document.getElementById('nameFrom').value.trim();
+  const to = document.getElementById('nameTo').value.trim();
+  const st = document.getElementById('nameStatus');
+  if(!from || !to){ st.textContent = '현재 이름과 새 이름을 입력.'; return; }
+  if(from === to){ st.textContent = '두 이름이 같음.'; return; }
+  snapshotCards();
+  let n = 0;
+  bodyCardTextareas().forEach(ta => {
+    const res = renameWithJosa(ta.value, from, to);
+    if(res.count){ n += res.count; ta.value = res.out; }
+  });
+  // 표지·테마의 이름 필드도 정확히 일치하면 함께 변경
+  let fields = 0;
+  ['charName','userName','subChar','subUser'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el.value.trim() === from){ el.value = to; fields++; }
+  });
+  // 커스텀 인물은 항목 이름을 바꿔 지정한 색을 유지 ([이름] 마커는 본문 대치로 이미 변경됨)
+  try {
+    const ec = document.getElementById('extraChars');
+    const list = JSON.parse(ec.value);
+    if(Array.isArray(list)){
+      let touched = false;
+      list.forEach(c => { if(c && c.name === from){ c.name = to; touched = true; } });
+      if(touched){ ec.value = JSON.stringify(list); fields++; }
+    }
+  } catch(e){}
+  if(!n && !fields){ undoSnapshot = null; st.textContent = '일치 없음.'; return; }
+  render(); updateCounter(); saveDraft();
+  showUndoToast('이름 ' + n + '곳 변경.');
+  st.textContent = fields ? '이름 필드 ' + fields + '곳도 변경됨.' : '';
+  // 미리보기 검색이 옛 이름을 보고 있으면 새 이름으로 갱신
+  if(pvSearchOn && document.getElementById('pvFindInput').value === from){
+    document.getElementById('pvFindInput').value = to;
+    pvApplySearch(false);
+  }
+});
+
+// ---------- 키워드 치환 ----------
+// 여러 규칙을 저장하고 입력 순서대로 적용한다. 서로 이어지는 규칙은 되돌리기 결과가
+// 모호해지므로 같은 문구를 다른 규칙의 출발·도착점으로 중복 사용하지 않는다.
+const KEYWORD_RULE_LIMIT = 20;
+const KEYWORD_RULE_LIMIT_MESSAGE = `치환 규칙은 최대 ${KEYWORD_RULE_LIMIT}개까지 추가할 수 있습니다.`;
+
+function keywordRules(){
+  try {
+    const parsed = JSON.parse(document.getElementById('keywordRules').value || '[]');
+    if(!Array.isArray(parsed)) return [];
+    const seenIds = new Set();
+    return parsed
+      .filter(r => r && typeof r.from === 'string' && typeof r.to === 'string')
+      .slice(0, KEYWORD_RULE_LIMIT)
+      .map((rule, index) => {
+        let id = typeof rule.id === 'string' && rule.id ? rule.id : `kr_legacy_${index}`;
+        while(seenIds.has(id)) id += `_${index}`;
+        seenIds.add(id);
+        return { id, from:rule.from, to:rule.to };
+      });
+  } catch(e){ return []; }
+}
+function saveKeywordRules(rules){
+  document.getElementById('keywordRules').value = JSON.stringify(rules);
+  renderKeywordRuleList();
+  scheduleDraftSave();
+}
+function replaceLiteralInTextarea(ta, from, to){
+  if(!from || !ta.value.includes(from)) return 0;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const beforeStart = ta.value.slice(0, start).split(from).join(to).length;
+  const beforeEnd = ta.value.slice(0, end).split(from).join(to).length;
+  const count = ta.value.split(from).length - 1;
+  ta.value = ta.value.split(from).join(to);
+  try { ta.setSelectionRange(beforeStart, beforeEnd); } catch(e){}
+  return count;
+}
+function applyActiveKeywordRulesToTextarea(ta){
+  // 코멘트는 게시판 기본 문단으로 별도 취급하며, 본문용 자동 치환 규칙을 적용하지 않는다.
+  if(!ta || ta.closest('.commentEditor')) return 0;
+  let count = 0;
+  keywordRules().forEach(rule => { count += replaceLiteralInTextarea(ta, rule.from, rule.to); });
+  return count;
+}
+function renderKeywordRuleList(){
+  const list = document.getElementById('keywordRuleList');
+  if(!list) return;
+  list.replaceChildren();
+  const rules = keywordRules();
+  const atLimit = rules.length >= KEYWORD_RULE_LIMIT;
+  const addButton = document.getElementById('keywordAddBtn');
+  const status = document.getElementById('keywordStatus');
+  if(addButton) addButton.disabled = atLimit;
+  if(status){
+    if(atLimit) status.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
+    else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) status.textContent = '';
+  }
+  if(!rules.length){
+    const empty = document.createElement('div');
+    empty.className = 'keywordRuleEmpty';
+    empty.textContent = '활성 치환 규칙이 없습니다.';
+    list.appendChild(empty);
+    return;
+  }
+  rules.forEach(rule => {
+    const row = document.createElement('div');
+    row.className = 'keywordRuleItem';
+    const text = document.createElement('div');
+    text.className = 'keywordRuleText';
+    const from = document.createElement('b'); from.textContent = rule.from;
+    const to = document.createElement('b'); to.textContent = rule.to;
+    text.append(from, document.createTextNode(' → '), to);
+    const undo = document.createElement('button');
+    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '되돌리기';
+    undo.addEventListener('click', () => undoKeywordRule(rule.id));
+    row.append(text, undo);
+    list.appendChild(row);
+  });
+}
+function addKeywordRule(){
+  const fromEl = document.getElementById('keywordFrom');
+  const toEl = document.getElementById('keywordTo');
+  const from = fromEl.value;
+  const to = toEl.value;
+  const st = document.getElementById('keywordStatus');
+  if(!from || !to){ st.textContent = '찾을 키워드와 바꿀 키워드를 모두 입력해 주세요.'; return; }
+  if(from === to){ st.textContent = '두 키워드가 같아 치환하지 않았습니다.'; return; }
+  const rules = keywordRules();
+  if(rules.length >= KEYWORD_RULE_LIMIT){
+    st.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
+    renderKeywordRuleList();
+    return;
+  }
+  if(rules.some(r => r.from === from && r.to === to)){ st.textContent = '이미 활성화된 치환 규칙입니다.'; return; }
+  const overlaps = (a, b) => a.includes(b) || b.includes(a);
+  if(rules.some(r => [r.from, r.to].some(value => overlaps(value, from) || overlaps(value, to)))){
+    st.textContent = '기존 규칙과 문구가 겹칩니다. 각각 정확히 되돌릴 수 있도록 다른 문구를 사용해 주세요.';
+    return;
+  }
+  snapshotCards();
+  let count = 0;
+  bodyCardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, from, to); });
+  rules.push({ id:'kr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from, to });
+  saveKeywordRules(rules);
+  fromEl.value = ''; toEl.value = ''; fromEl.focus();
+  render(); updateCounter(); saveDraft();
+  showUndoToast(`키워드 규칙 추가 · 기존 ${count}곳 변경.`);
+  st.textContent = count ? `기존 본문 ${count}곳을 바꾸고 자동 치환을 시작했습니다.` : '자동 치환 규칙을 추가했습니다.';
+}
+function undoKeywordRule(id){
+  const rules = keywordRules();
+  const rule = rules.find(r => r.id === id);
+  if(!rule) return;
+  snapshotCards();
+  let count = 0;
+  bodyCardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, rule.to, rule.from); });
+  saveKeywordRules(rules.filter(r => r.id !== id));
+  render(); updateCounter(); saveDraft();
+  showUndoToast(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
+  document.getElementById('keywordStatus').textContent = count
+    ? `현재 본문 ${count}곳을 원래 문구로 되돌리고 규칙을 제거했습니다.`
+    : '일치하는 현재 문구가 없어 규칙만 제거했습니다.';
+}
+document.getElementById('keywordAddBtn').addEventListener('click', addKeywordRule);
+['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(e.key === 'Enter'){ e.preventDefault(); addKeywordRule(); }
+}));
+renderKeywordRuleList();
+
+// ---------- 출력 HTML에서 작업 복원 ----------
+document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
+  document.getElementById('restoreHtmlFile').click();
+});
+
+document.getElementById('restoreHtmlFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const status = document.getElementById('restoreHtmlStatus');
+  if(!file) return;
+  if(file.size > 12 * 1024 * 1024){
+    status.style.color = '#c0392b';
+    status.textContent = 'HTML 파일이 너무 큽니다. (최대 12MB)';
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let rawWork;
+    try {
+      rawWork = decodeRestoreState(String(reader.result || ''));
+    } catch(err){
+      status.style.color = '#c0392b';
+      status.textContent = err && err.message ? err.message : 'HTML 복원 데이터를 읽지 못했습니다.';
+      return;
+    }
+    if(!rawWork){
+      status.style.color = '#c0392b';
+      status.textContent = '복원 정보가 없는 HTML입니다. 이 기능이 추가된 뒤 저장한 출력물을 선택해 주세요.';
+      return;
+    }
+    const work = sanitizeImportedWork(rawWork);
+    if(!work){
+      status.style.color = '#c0392b';
+      status.textContent = 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.';
+      return;
+    }
+    if(!confirm('현재 작업을 선택한 출력 HTML의 내용으로 바꿀까요?\n(적용 후 되돌리기로 복구할 수 있습니다.)')) return;
+    snapshotCards();
+    applyWork(work);
+    showUndoToast('출력 HTML에서 작업 복원.');
+    status.style.color = '';
+    status.textContent = `복원 완료: ${work.cards.length}개 블록`;
+  };
+  reader.onerror = () => {
+    status.style.color = '#c0392b';
+    status.textContent = 'HTML 파일을 읽지 못했습니다.';
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ---------- HTML 파일로 저장 ----------
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const title = (document.getElementById('logTitle').value || '').trim();
+  const num = (document.getElementById('logNumber').value || '').trim();
+  const rawName = (num || title) ? `${num}${num && title ? ' ' : ''}${title}` : '조각로그';
+  const name = rawName.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 120) || '조각로그';
+  const blob = new Blob([generateHTML(true)], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name + '.html';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// ---------- 로그 보관함 (초안 슬롯) ----------
+const SLOT_KEY = 'logGenSlots_v1';
+const MAX_ARCHIVE_BYTES = 4 * 1024 * 1024;
+const MAX_IMPORTED_SLOTS = 200;
+const MAX_CARD_CHARS = 500000;
+const MAX_TOTAL_BODY_CHARS = 2000000;
+const MAX_FOLD_TITLE_CHARS = 200;
+
+function validSlotId(id){
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+}
+
+function makeSlotId(){
+  if(globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return 'slot-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function makeLegacySlotId(slot, index){
+  const seed = `${slot && slot.name || ''}|${slot && slot.savedAt || ''}|${index}`;
+  let hash = 2166136261;
+  for(let i = 0; i < seed.length; i++) hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619);
+  return `legacy-${(hash >>> 0).toString(36)}-${index}`;
+}
+
+function loadSlots(){
+  try {
+    const raw = localStorage.getItem(SLOT_KEY);
+    if(raw === null) return [];
+    const parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) return null;
+    const cleaned = [];
+    const seenIds = new Set();
+    for(let index = 0; index < parsed.length; index++){
+      const slot = parsed[index];
+      if(!slot || typeof slot.name !== 'string' || !slot.name.trim() || slot.name.trim().length > 100 || /[\u0000-\u001F\u007F]/.test(slot.name)){
+        return null;
+      }
+      const data = sanitizeImportedWork(slot.data);
+      if(!data) return null;
+      if(slot.id !== undefined && slot.id !== '' && !validSlotId(slot.id)) return null;
+      const id = validSlotId(slot.id) ? slot.id : makeLegacySlotId(slot, index);
+      if(seenIds.has(id)) return null;
+      seenIds.add(id);
+      const savedAt = Number(slot.savedAt);
+      const entry = { id, name: slot.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
+      // 검증에는 정규화된 data를 쓰되, 수정하지 않은 슬롯의 추가 필드가 사라지지 않게 원본도 보존한다.
+      Object.defineProperty(entry, '_stored', { value:slot, writable:true, enumerable:false });
+      cleaned.push(entry);
+    }
+    return cleaned;
+  } catch(e){ return null; }
+}
+function saveSlots(list){
+  if(!Array.isArray(list)) return false;
+  try {
+    const payload = list.map(slot => {
+      const stored = slot && slot._stored && typeof slot._stored === 'object' ? slot._stored : null;
+      const base = stored ? { ...stored } : {};
+      return {
+        ...base,
+        id: slot.id,
+        name: slot.name,
+        savedAt: slot.savedAt,
+        data: stored ? stored.data : slot.data
+      };
+    });
+    localStorage.setItem(SLOT_KEY, JSON.stringify(payload));
+    return true;
+  }
+  catch(e){ return false; }
+}
+
+function showSlotReadError(){
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '#c0392b';
+  status.textContent = '기존 보관함을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+}
+
+function collectValidatedSlotWork(){
+  const data = sanitizeImportedWork(collectSlotWork());
+  if(data) return data;
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '#c0392b';
+  status.textContent = '현재 작업이 보관 한도를 넘었거나 형식이 올바르지 않아 저장하지 않았습니다.';
+  return null;
+}
+
+function sanitizeImportedWork(data){
+  if(!data || !Array.isArray(data.cards) || data.cards.length > 200) return null;
+  const cards = [];
+  let totalBodyChars = 0;
+  for(const card of data.cards){
+    let type = 'card';
+    if(typeof card === 'object' && card !== null){
+      if(card.type !== undefined && !['card','comment'].includes(card.type)) return null;
+      type = card.type === 'comment' ? 'comment' : 'card';
+      if(card.folded !== undefined && typeof card.folded !== 'boolean') return null;
+      if(card.foldTitle !== undefined && typeof card.foldTitle !== 'string') return null;
+      if(card.foldMinimal !== undefined && typeof card.foldMinimal !== 'boolean') return null;
+      if(card.visible !== undefined && typeof card.visible !== 'boolean') return null;
+    }
+    const body = typeof card === 'string' ? card : card && card.body;
+    const foldTitle = typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : '';
+    if(typeof body !== 'string' || body.length > MAX_CARD_CHARS || foldTitle.length > MAX_FOLD_TITLE_CHARS) return null;
+    totalBodyChars += body.length;
+    if(totalBodyChars > MAX_TOTAL_BODY_CHARS) return null;
+    const visible = typeof card !== 'object' || card.visible !== false;
+    cards.push(type === 'comment'
+      ? { type:'comment', body, visible }
+      : {
+          type:'card',
+          body,
+          folded: typeof card === 'object' && !!card.folded,
+          foldTitle,
+          foldMinimal: typeof card === 'object' && !!card.foldMinimal,
+          visible
+        });
+  }
+  const source = data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields) ? data.fields : {};
+  const fields = {};
+  for(const id of WORK_FIELDS){
+    if(source[id] === undefined) continue;
+    if(typeof source[id] !== 'string' && typeof source[id] !== 'number') return null;
+    const value = String(source[id]);
+    if(id === 'profilePlacement' && !['below','top'].includes(value)) return null;
+    if(id === 'creditPlacement' && !['top','bottom'].includes(value)) return null;
+    if(id === 'profileStyle' && !['compact','portrait','showcase'].includes(value)) return null;
+    if(id === 'profileOrder' && !['bot-user','user-bot'].includes(value)) return null;
+    if(id === 'subtitleCoupleSeparator' && !['×','&','·'].includes(value)) return null;
+    if(id === 'profileCharScale' || id === 'profileUserScale'){
+      const scale = Number(value);
+      if(!Number.isFinite(scale) || scale < 100 || scale > 300) return null;
+    }
+    if(id === 'profileCharX' || id === 'profileCharY' || id === 'profileUserX' || id === 'profileUserY'){
+      const position = Number(value);
+      if(!Number.isFinite(position) || position < 0 || position > 100) return null;
+    }
+    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage' || id === 'logNumberUrl' || id === 'logTitleUrl' || id === 'subCharUrl' || id === 'subUserUrl' || id === 'logSubtitleUrl')
+      ? 8192
+      : ((id === 'extraChars' || id === 'creditItems') ? 200000 : 5000);
+    if(value.length > limit) return null;
+    fields[id] = value;
+  }
+  let invalidBoolean = false;
+  WORK_BOOLEAN_FIELDS.forEach(id => {
+    if(source[id] !== undefined){
+      if(typeof source[id] !== 'boolean') invalidBoolean = true;
+      else fields[id] = source[id];
+    }
+  });
+  if(invalidBoolean) return null;
+  if(fields.extraChars !== undefined){
+    try {
+      const cleanChars = sanitizeExtraCharList(JSON.parse(fields.extraChars));
+      if(!cleanChars) return null;
+      fields.extraChars = JSON.stringify(cleanChars);
+    }
+    catch(e){ return null; }
+  }
+  if(fields.creditItems !== undefined){
+    try {
+      const items = JSON.parse(fields.creditItems);
+      if(!Array.isArray(items) || items.length > MAX_CREDIT_ITEMS) return null;
+      const cleaned = items.map((item, index) => {
+        if(!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('invalid credit item');
+        if(typeof item.label !== 'string' || typeof item.value !== 'string' || typeof item.url !== 'string') throw new Error('invalid credit fields');
+        if(item.dividerBefore !== undefined && typeof item.dividerBefore !== 'boolean') throw new Error('invalid credit divider');
+        if(item.label.length > 80 || item.value.length > 500 || item.url.length > 8192) throw new Error('credit field too long');
+        return { label:item.label, value:item.value, url:item.url, dividerBefore:index > 0 && item.dividerBefore === true };
+      });
+      fields.creditItems = JSON.stringify(cleaned);
+    }
+    catch(e){ return null; }
+  }
+  const legacyFoldDividerMinimal = cards.some(card => card.type !== 'comment' && settingFlagOn(card.foldMinimal));
+  const out = { cards: cards.length ? cards : [{ type:'card', body:'', folded:false, foldTitle:'', foldMinimal:false, visible:true }], fields };
+  if(data.style !== undefined){
+    const style = sanitizeImportedPreset({ name:'보관함', values:data.style });
+    if(!style) return null;
+    out.style = style.values;
+    // 카드별 미니멀 저장값은 현재의 전체 접기 구분선 옵션으로 합친다.
+    if(data.style.foldDividerOn === undefined && data.style.foldDividerMinimal === undefined && legacyFoldDividerMinimal){
+      out.style.foldDividerOn = false;
+    }
+  } else {
+    out.style = { ...DEFAULT_STYLE, foldDividerOn: !legacyFoldDividerMinimal };
+  }
+  return out;
+}
+
+function fmtDate(ts){
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function slotCharacterName(slot){
+  const value = slot && slot.data && slot.data.fields && slot.data.fields.subChar;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+const SLOT_PREVIEW_COUNT = 6;
+let slotListExpanded = false;
+
+function renderSlotList(){
+  const container = document.getElementById('slotList');
+  const count = document.getElementById('slotCount');
+  const expandBtn = document.getElementById('slotExpandBtn');
+  container.innerHTML = '';
+  const slots = loadSlots();
+  if(slots === null){
+    count.textContent = '';
+    expandBtn.hidden = true;
+    showSlotReadError();
+    return;
+  }
+  const query = document.getElementById('slotSearch').value.trim().toLocaleLowerCase('ko');
+  const sort = document.getElementById('slotSort').value;
+  const filtered = slots.filter(slot => {
+    if(!query) return true;
+    return slot.name.toLocaleLowerCase('ko').includes(query)
+      || slotCharacterName(slot).toLocaleLowerCase('ko').includes(query);
+  });
+  if(sort === 'oldest') filtered.sort((a, b) => a.savedAt - b.savedAt);
+  else if(sort === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  else filtered.sort((a, b) => b.savedAt - a.savedAt);
+
+  const canExpand = !query && filtered.length > SLOT_PREVIEW_COUNT;
+  const visible = canExpand && !slotListExpanded ? filtered.slice(0, SLOT_PREVIEW_COUNT) : filtered;
+  count.textContent = query
+    ? `${filtered.length}개 찾음 · 전체 ${slots.length}개`
+    : (canExpand && !slotListExpanded ? `${visible.length}개 표시 · 전체 ${slots.length}개` : `전체 ${slots.length}개`);
+  expandBtn.hidden = !canExpand;
+  expandBtn.textContent = slotListExpanded ? '접기' : '전체 보기';
+
+  if(!visible.length){
+    const empty = document.createElement('div');
+    empty.className = 'slotEmpty';
+    empty.textContent = slots.length ? '일치하는 보관함이 없습니다.' : '저장된 보관함이 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+
+  visible.forEach(slot => {
+    const characterName = slotCharacterName(slot);
+    const row = document.createElement('div');
+    row.className = 'slotRow';
+    row.title = '';
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', `${slot.name}${characterName ? `, 캐릭터 ${characterName}` : ''} 보관함 항목`);
+    const identity = document.createElement('span');
+    identity.className = 'slotIdentity';
+    const name = document.createElement('span');
+    name.className = 'slotName';
+    name.textContent = slot.name;
+    identity.appendChild(name);
+    if(characterName){
+      const character = document.createElement('span');
+      character.className = 'slotChar';
+      character.textContent = characterName;
+      identity.appendChild(character);
+    }
+    const date = document.createElement('span');
+    date.className = 'slotDate';
+    date.textContent = fmtDate(slot.savedAt);
+    const over = document.createElement('button');
+    over.type = 'button';
+    over.textContent = '덮어쓰기';
+    over.title = '현재 작업을 이 슬롯에 다시 저장해';
+    over.className = 'slotOverwrite';
+    const load = document.createElement('button');
+    load.type = 'button';
+    load.className = 'slotLoad';
+    load.textContent = '불러오기';
+    load.title = '이 보관함 작업을 불러오기';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'slotDel';
+    del.textContent = '×';
+    del.title = '슬롯 삭제';
+    const actions = document.createElement('div');
+    actions.className = 'slotActions';
+    actions.append(load, over, del);
+
+    load.addEventListener('click', () => {
+      snapshotCards();
+      applyWork(JSON.parse(JSON.stringify(slot.data)));
+      showUndoToast(`'${slot.name}' 불러옴.`);
+      setArchiveDrawerOpen(false);
+    });
+    over.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(!confirm(`현재 작업으로 '${slot.name}' 보관함을 덮어쓸까요?`)) return;
+      const list = loadSlots();
+      if(list === null){ showSlotReadError(); return; }
+      const targetIndex = list.findIndex(item => item.id === slot.id);
+      if(targetIndex < 0){
+        document.getElementById('slotImportStatus').textContent = '덮어쓸 보관함 항목을 찾지 못했습니다.';
+        renderSlotList();
+        return;
+      }
+      const data = collectValidatedSlotWork();
+      if(!data) return;
+      const previousStoredSlots = localStorage.getItem(SLOT_KEY);
+      list[targetIndex].data = data;
+      list[targetIndex]._stored = null;
+      list[targetIndex].savedAt = Date.now();
+      if(!saveSlots(list)){
+        document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 덮어쓰지 못했습니다.';
+        return;
+      }
+      renderSlotList();
+      const status = document.getElementById('slotImportStatus');
+      status.style.color = '';
+      status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
+      showUndoToast(`'${slot.name}' 보관함 덮어씀.`, () => {
+        const restored = restoreStoredValue(SLOT_KEY, previousStoredSlots);
+        const undoStatus = document.getElementById('slotImportStatus');
+        if(!restored){
+          undoStatus.style.color = '#c0392b';
+          undoStatus.textContent = '보관함 덮어쓰기를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+          return;
+        }
+        undoStatus.style.color = '';
+        undoStatus.textContent = `'${slot.name}' 보관함 덮어쓰기를 되돌렸습니다.`;
+        renderSlotList();
+      });
+    });
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(!confirm(`'${slot.name}' 슬롯 삭제?`)) return;
+      const list = loadSlots();
+      if(list === null){ showSlotReadError(); return; }
+      const targetIndex = list.findIndex(item => item.id === slot.id);
+      if(targetIndex < 0) return;
+      list.splice(targetIndex, 1);
+      if(!saveSlots(list)){
+        document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
+        return;
+      }
+      renderSlotList();
+    });
+
+    row.appendChild(identity);
+    row.appendChild(date);
+    row.appendChild(actions);
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('slotSearch').addEventListener('input', renderSlotList);
+document.getElementById('slotSort').addEventListener('change', renderSlotList);
+document.getElementById('slotExpandBtn').addEventListener('click', () => {
+  slotListExpanded = !slotListExpanded;
+  renderSlotList();
+});
+
+document.getElementById('saveSlotBtn').addEventListener('click', () => {
+  const nameInput = document.getElementById('slotName');
+  const name = nameInput.value.trim()
+    || document.getElementById('logTitle').value.trim()
+    || '무제 로그';
+  if(name.length > 100){
+    document.getElementById('slotImportStatus').textContent = '보관함 이름은 100자 이하로 입력해 주세요.';
+    return;
+  }
+  const list = loadSlots();
+  if(list === null){ showSlotReadError(); return; }
+  const data = collectValidatedSlotWork();
+  if(!data) return;
+  const next = [{ id: makeSlotId(), name, savedAt: Date.now(), data }, ...list];
+  if(!saveSlots(next)){
+    document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 보관하지 못했습니다.';
+    return;
+  }
+  nameInput.value = '';
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '';
+  status.textContent = `'${name}'을 보관했습니다.`;
+  renderSlotList();
+});
+
+document.getElementById('exportSlotsBtn').addEventListener('click', () => {
+  const list = loadSlots();
+  if(list === null){ showSlotReadError(); return; }
+  const st = document.getElementById('slotImportStatus');
+  if(!list.length){
+    st.style.color = '';
+    st.textContent = '보관함이 비어 있음. 현재 작업을 먼저 저장.';
+    return;
+  }
+  const exportList = list.map(slot => {
+    const stored = slot._stored && typeof slot._stored === 'object' ? slot._stored : null;
+    return {
+      ...(stored ? stored : {}),
+      id: slot.id,
+      name: slot.name,
+      savedAt: slot.savedAt,
+      data: stored ? stored.data : slot.data
+    };
+  });
+  const blob = new Blob([JSON.stringify(exportList, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '조각로그_보관함.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  st.style.color = '';
+  st.textContent = `보관함 ${list.length}개 저장됨.`;
+});
+
+document.getElementById('importSlotsBtn').addEventListener('click', () => {
+  document.getElementById('importSlotsFile').click();
+});
+
+document.getElementById('importSlotsFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const st = document.getElementById('slotImportStatus');
+  if(!file) return;
+  if(file.size > MAX_ARCHIVE_BYTES){
+    st.style.color = '#c0392b';
+    st.textContent = '보관함 파일이 너무 큽니다. (최대 4MB)';
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let imported;
+    try {
+      imported = JSON.parse(reader.result);
+    } catch(err){
+      st.style.color = '#c0392b';
+      st.textContent = '파일 읽기 실패. JSON 형식을 확인.';
+      return;
+    }
+    // 보관함 슬롯 형식과 각 본문·코멘트 블록 및 필드의 자료형을 함께 검증한다.
+    if(!Array.isArray(imported) || imported.length > MAX_IMPORTED_SLOTS){
+      st.style.color = '#c0392b';
+      st.textContent = '조각로그 보관함 파일이 아니거나 항목이 너무 많습니다. (최대 200개)';
+      return;
+    }
+    const cleaned = imported.map(sl => {
+      const data = sl && sanitizeImportedWork(sl.data);
+      if(!data || typeof sl.name !== 'string' || !sl.name.trim() || sl.name.length > 100 || /[\u0000-\u001F\u007F]/.test(sl.name)) return null;
+      if(sl.id !== undefined && sl.id !== '' && !validSlotId(sl.id)) return null;
+      const savedAt = Number(sl.savedAt);
+      return { id: sl.id || '', name: sl.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
+    });
+    if(!cleaned.length || cleaned.some(sl => !sl)){
+      st.style.color = '#c0392b';
+      st.textContent = '보관함 블록이나 필드 형식이 올바르지 않음.';
+      return;
+    }
+    imported = cleaned;
+    const importedIds = imported.map(sl => sl.id).filter(Boolean);
+    if(new Set(importedIds).size !== importedIds.length){
+      st.style.color = '#c0392b';
+      st.textContent = '보관함 파일 안에 중복된 항목 ID가 있습니다.';
+      return;
+    }
+    const list = loadSlots();
+    if(list === null){
+      showSlotReadError();
+      return;
+    }
+    let added = 0, updated = 0;
+    imported.forEach(sl => {
+      const idx = sl.id
+        ? list.findIndex(existing => existing.id === sl.id)
+        : list.findIndex(existing => existing.name === sl.name);
+      const entry = { id: idx >= 0 ? list[idx].id : (sl.id || makeSlotId()), name: sl.name, savedAt: sl.savedAt || Date.now(), data: sl.data };
+      if(idx >= 0){ list[idx] = entry; updated++; }
+      else { list.unshift(entry); added++; }
+    });
+    if(!saveSlots(list)){
+      st.style.color = '#c0392b';
+      st.textContent = '저장 공간 부족으로 보관함을 불러오지 못했습니다.';
+      return;
+    }
+    renderSlotList();
+    st.style.color = '';
+    st.textContent = `불러오기 완료 — ${added}개 추가, ${updated}개 덮어씀.`;
+  };
+  reader.onerror = () => {
+    st.style.color = '#c0392b';
+    st.textContent = '파일을 읽지 못했습니다.';
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('newLogBtn').addEventListener('click', () => {
+  snapshotCards();
+  // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
+  ['imgUrl','logNumber','logNumberUrl','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('logTitle').value = '';
+  document.getElementById('imgOn').checked = false;
+  document.getElementById('logTitleOn').checked = false;
+  syncCoverControlState();
+  syncDesignSummaries();
+  clearCardEditors();
+  activeTa = null;
+  addCard('', true);
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast('새 로그 시작.');
+  setArchiveDrawerOpen(false);
+});
+
+document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
+  const ok = confirm(
+    '현재 작업을 모두 비울까요?\n\n' +
+    '초기화: 본문, 표제, 이미지, 이름, 디자인과 현재 테마\n' +
+    '유지: 보관함, 내 프리셋, 내보낸 파일\n\n' +
+    '초기화 후 상단 되돌리기로 복구할 수 있습니다.'
+  );
+  if(!ok) return;
+  clearTimeout(styleCommitTimer);
+  snapshotCards();
+
+  // 현재 작업 데이터만 빈 작업 상태로 되돌림. SLOT_KEY·PRESET_KEY는 건드리지 않는다.
+  Object.entries(WORK_FIELD_DEFAULTS).forEach(([id, value]) => {
+    document.getElementById(id).value = value;
+  });
+  syncProfileTagEditorsFromMasters();
+  renderKeywordRuleList();
+  Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, value]) => {
+    document.getElementById(id).checked = value;
+  });
+  syncCoverControlState();
+  document.getElementById('imgHeightVal').value = '300';
+  document.getElementById('xposVal').value = '50';
+  document.getElementById('yposVal').value = '0';
+
+  clearCardEditors();
+  activeTa = null;
+  addCard('', false);
+  activeTa = bodyCardTextareas()[0] || null;
+
+  applyStyleValues(DEFAULT_STYLE);
+  currentPresetName = null;
+  currentComboName = '모노 클래식';
+  currentComboFamily = 'featured';
+  lastClickedPresetKey = null;
+  charRowsKey = null;
+  syncCharList();
+
+  // 검색·선택·임시 입력 같은 화면 상태도 함께 비움.
+  closePreviewSearch();
+  fsClearSearch();
+  hideSelToolbar();
+  ['pvFindInput','pvReplInput','fsFindInput','fsReplInput','nameFrom','nameTo','keywordFrom','keywordTo','slotName','presetName']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  ['nameStatus','keywordStatus','copyStatus','presetStatus','importStatus']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ''; });
+
+  try { localStorage.removeItem(DRAFT_KEY); } catch(e){ /* 저장소 사용 불가 시 무시 */ }
+  renderPresetList();
+  renderComboList();
+  updateSavePresetBtn();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast('현재 작업 전체 초기화.');
+
+  const status = document.getElementById('slotImportStatus');
+  status.style.color = '';
+  status.textContent = '현재 작업을 모두 비웠습니다.';
+  setTimeout(() => { status.textContent = ''; }, 3000);
+  if(activeTa) activeTa.focus();
+});
+
+// ---------- 본문 입력창 서식 단축키 ----------
+// 카드 입력창·전체 화면 입력창에 커서가 있을 때만 동작
+// Ctrl/⌘+B 굵게 · Ctrl/⌘+I 강조 · Ctrl/⌘+E 가운데 정렬
+const FMT_SHORTCUT = { b: 'bold', i: 'emphasis', e: 'center' };
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+  const fmt = FMT_SHORTCUT[e.key.toLowerCase()];
+  if(!fmt) return;
+
+  const el = document.activeElement;
+  if(!el || el.tagName !== 'TEXTAREA') return;
+  const isBodyTa = el.id === 'fsTextarea'
+    || !!el.closest('#cardEditors .cardEditor:not(.commentEditor)');
+  if(!isBodyTa) return;
+
+  e.preventDefault();
+  applyTextareaFormat(el, fmt);
+});
+
+// ---------- 키보드 단축키 ----------
+// Ctrl/⌘+Enter: HTML 복사 · Ctrl/⌘+S: 파일 저장
+// Ctrl/⌘+F: 검색 — 전체 화면 편집 중이면 본문 검색창, 아니면 미리보기 검색
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  if(e.shiftKey) return;
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    document.getElementById('copyBtn').click();
+  } else if(e.key === 's' || e.key === 'S'){
+    e.preventDefault();
+    document.getElementById('downloadBtn').click();
+  } else if(e.key === 'f' || e.key === 'F'){
+    // 코드 전체 화면에서는 대체 검색이 없으므로 브라우저 기본 찾기를 막지 않음
+    if(document.getElementById('codeOverlay').style.display === 'block') return;
+    e.preventDefault();
+    if(document.getElementById('fsOverlay').style.display === 'block'){
+      setFsSearchOpen(true, true);
+    } else {
+      openPreviewSearch();
+    }
+  }
+});
+
+// ---------- 접기 그룹 상태 기억 ----------
+const FOLD_KEY = 'logGenFoldGroup_v1';
+document.querySelectorAll('details.foldGroup').forEach(el => {
+  const key = FOLD_KEY + ':' + el.id;
+  try {
+    const saved = localStorage.getItem(key);
+    if(saved === 'open') el.setAttribute('open', '');
+    else if(saved === 'closed') el.removeAttribute('open');
+  } catch(e){}
+  el.addEventListener('toggle', () => {
+    try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
+  });
+});
+
+// 글자 설정 안의 보조 항목도 서로 독립적으로 열고 닫으며 상태를 기억한다.
+const TYPOGRAPHY_SUBSECTION_KEY = 'logGenTypographySubsection_v1';
+document.querySelectorAll('details.typographySubsection').forEach(el => {
+  const key = TYPOGRAPHY_SUBSECTION_KEY + ':' + el.id;
+  try {
+    const saved = localStorage.getItem(key);
+    if(saved === 'open') el.setAttribute('open', '');
+    else if(saved === 'closed') el.removeAttribute('open');
+  } catch(e){}
+  el.addEventListener('toggle', () => {
+    try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
+  });
+});
+
+// ---------- 사이드바 폭 조절 ----------
+// 드래그해서 왼쪽 작업 영역 폭을 바꾸고, 그 값을 브라우저에 기억한다.
+const LAYOUT_MIRROR_KEY = 'mosaicLayoutMirrored_v1';
+const layoutMirrorBtn = document.getElementById('layoutMirrorBtn');
+
+function isDesktopLayoutMirrored(){
+  return document.body.classList.contains('layoutMirrored')
+    && window.matchMedia('(min-width: 681px)').matches;
+}
+
+function syncLayoutMirrorUi(){
+  const mirrored = document.body.classList.contains('layoutMirrored');
+  const title = mirrored
+    ? '기본 배치로 되돌리기 · 설정 왼쪽, 미리보기 오른쪽'
+    : '좌우 반전 · 미리보기 왼쪽, 설정 오른쪽';
+  layoutMirrorBtn.classList.toggle('active', mirrored);
+  layoutMirrorBtn.setAttribute('aria-pressed', String(mirrored));
+  layoutMirrorBtn.setAttribute('aria-label', title);
+  layoutMirrorBtn.title = title;
+  const handle = document.getElementById('sidebarResizer');
+  if(handle){
+    const side = mirrored ? '오른쪽' : '왼쪽';
+    handle.setAttribute('aria-label', `${side} 설정 영역 너비 조절`);
+    handle.title = `드래그해서 ${side} 설정 영역 폭을 조절해 (더블클릭하면 기본값)`;
+  }
+}
+
+function setLayoutMirrored(on, save){
+  document.body.classList.toggle('layoutMirrored', !!on);
+  syncLayoutMirrorUi();
+  if(save){
+    try { localStorage.setItem(LAYOUT_MIRROR_KEY, on ? 'on' : 'off'); }
+    catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 배치는 유지 */ }
+  }
+  requestAnimationFrame(() => {
+    syncPreviewCommentOutset();
+    layoutPreviewFloatingButtons();
+  });
+}
+
+try { setLayoutMirrored(localStorage.getItem(LAYOUT_MIRROR_KEY) === 'on', false); }
+catch(e){ setLayoutMirrored(false, false); }
+
+layoutMirrorBtn.addEventListener('click', () => {
+  if(!window.matchMedia('(min-width: 681px)').matches) return;
+  setLayoutMirrored(!document.body.classList.contains('layoutMirrored'), true);
+});
+
+const SIDEBAR_KEY = 'logGenSidebarW_v1';
+const SIDEBAR_DEFAULT = 460;
+const SIDEBAR_MIN = 340;
+const SIDEBAR_MAX = 760;
+
+function setSidebarWidth(px, save){
+  const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.round(px)));
+  document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+  const handle = document.getElementById('sidebarResizer');
+  if(handle){
+    handle.setAttribute('aria-valuemin', String(SIDEBAR_MIN));
+    handle.setAttribute('aria-valuemax', String(SIDEBAR_MAX));
+    handle.setAttribute('aria-valuenow', String(w));
+  }
+  if(save){ try { localStorage.setItem(SIDEBAR_KEY, String(w)); } catch(e){} }
+}
+
+(function initSidebarWidth(){
+  let saved = SIDEBAR_DEFAULT;
+  try { const v = parseInt(localStorage.getItem(SIDEBAR_KEY), 10); if(v) saved = v; } catch(e){}
+  setSidebarWidth(saved, false);
+})();
+
+(function initSidebarResizer(){
+  const bar = document.getElementById('sidebarResizer');
+  if(!bar) return;
+  let dragging = false;
+  let activePointerId = null;
+
+  const finishDrag = () => {
+    if(!dragging) return;
+    dragging = false;
+    activePointerId = null;
+    bar.classList.remove('dragging');
+    document.body.classList.remove('resizingSidebar');
+    const w = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10);
+    setSidebarWidth(w, true);
+  };
+
+  bar.addEventListener('pointerdown', (e) => {
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    activePointerId = e.pointerId;
+    try { bar.setPointerCapture(e.pointerId); } catch(err){}
+    bar.classList.add('dragging');
+    document.body.classList.add('resizingSidebar');
+  });
+
+  bar.addEventListener('pointermove', (e) => {
+    if(!dragging || e.pointerId !== activePointerId) return;
+    const width = isDesktopLayoutMirrored() ? window.innerWidth - e.clientX : e.clientX;
+    setSidebarWidth(width, false);
+  });
+
+  bar.addEventListener('pointerup', finishDrag);
+  bar.addEventListener('pointercancel', finishDrag);
+  bar.addEventListener('lostpointercapture', finishDrag);
+
+  // 더블클릭하면 기본 폭으로
+  bar.addEventListener('dblclick', () => setSidebarWidth(SIDEBAR_DEFAULT, true));
+  bar.addEventListener('keydown', (e) => {
+    if(!['ArrowLeft','ArrowRight','Home'].includes(e.key)) return;
+    e.preventDefault();
+    if(e.key === 'Home') return setSidebarWidth(SIDEBAR_DEFAULT, true);
+    const current = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10) || SIDEBAR_DEFAULT;
+    const visualDelta = e.key === 'ArrowRight' ? 20 : -20;
+    setSidebarWidth(current + (isDesktopLayoutMirrored() ? -visualDelta : visualDelta), true);
+  });
+})();
+
+// ---------- 보관함 오버레이 ----------
+function setArchiveDrawerOpen(open){
+  const drawer = document.getElementById('archiveDrawer');
+  const button = document.getElementById('archiveOpenBtn');
+  drawer.hidden = !open;
+  drawer.setAttribute('aria-hidden', String(!open));
+  button.setAttribute('aria-expanded', String(open));
+  if(open){
+    renderSlotList();
+    requestAnimationFrame(() => document.getElementById('archiveCloseBtn').focus());
+  }else{
+    button.focus();
+  }
+}
+document.getElementById('archiveOpenBtn').addEventListener('click', () => {
+  setArchiveDrawerOpen(document.getElementById('archiveDrawer').hidden);
+});
+document.getElementById('archiveCloseBtn').addEventListener('click', () => setArchiveDrawerOpen(false));
+document.getElementById('archiveDrawer').addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    e.preventDefault();
+    e.stopPropagation();
+    setArchiveDrawerOpen(false);
+  }
+});
+
+// ---------- 탭 전환 ----------
+// 탭별 스크롤 위치를 기억해서, 오갈 때 보던 자리로 돌아오게 함.
+// 사이드바 스크롤을 상시 추적해두면, 버튼 클릭으로 브라우저가 스크롤을 건드려도
+// 마지막으로 사용자가 보고 있던 위치가 남는다.
+const tabScroll = {};
+let activeTabId = 'tabCover';
+let tabSwitching = false;
+document.getElementById('sidebar').addEventListener('scroll', () => {
+  if(!tabSwitching) tabScroll[activeTabId] = document.getElementById('sidebar').scrollTop;
+});
+
+document.querySelectorAll('.tabBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const sidebar = document.getElementById('sidebar');
+    tabSwitching = true; // 전환 중 스크롤 변화는 기록하지 않음
+    document.querySelectorAll('.tabBtn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+      b.tabIndex = -1;
+    });
+    document.querySelectorAll('.tabPanel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    btn.tabIndex = 0;
+    activeTabId = btn.dataset.tab;
+    document.getElementById(activeTabId).classList.add('active');
+    // 패널이 바뀌면 사이드바 높이도 바뀌므로, 레이아웃이 확정된 뒤에 스크롤을 복원해야
+    // 브라우저가 값을 잘라버리지(clamp) 않음
+    const target = tabScroll[activeTabId] || 0;
+    requestAnimationFrame(() => {
+      sidebar.scrollTop = target;
+      requestAnimationFrame(() => { tabSwitching = false; });
+    });
+  });
+});
+
+document.querySelector('.tabBar').addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+  const tabs = Array.from(document.querySelectorAll('.tabBtn'));
+  const current = Math.max(0, tabs.indexOf(document.activeElement));
+  let next = current;
+  if(e.key === 'Home') next = 0;
+  else if(e.key === 'End') next = tabs.length - 1;
+  else next = (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  e.preventDefault();
+  tabs[next].click();
+  tabs[next].focus();
+});
+
+// ---------- 본문 글자수/문단수/읽기시간 카운터 ----------
+function updateCounter(){
+  const allCards = getCards();
+  const visibleCards = allCards.filter(card => card.visible !== false);
+  const bodies = visibleCards.map(card => card.body);
+  const bodyCardText = visibleCards
+    .filter(card => card.type !== 'comment')
+    .map(card => card.body)
+    .join('\n');
+  const settings = getSettings();
+  const text = bodies.join('\n');
+  const paraList = text.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const bodyParaList = bodyCardText.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const chars = text.replace(/\s/g, '').length;
+  const paras = paraList.length;
+
+  // 예상 읽기 시간 (한국어 묵독 대략 분당 500자 기준)
+  const mins = chars / 500;
+  const readTime = chars === 0 ? '' : (mins < 1 ? ' · 1분 미만' : ` · 약 ${Math.round(mins)}분`);
+
+  // 긴 문단 감지 (공백 제외 300자 초과) — 소제목/구분선 줄은 제외
+  const longCount = bodyParaList.filter(l => {
+    const structuralLine = l.replace(/^\[C\]\s*/i, '');
+    const u = structuralLine.toUpperCase();
+    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u)
+       || /^#{1,4}>?\s/.test(structuralLine)
+       || /^\[IMG\s/i.test(structuralLine)
+       || /^\[\/?접기(?:\s|\])/i.test(structuralLine)
+       || statusLineContent(structuralLine) !== null) return false;
+    return structuralLine.replace(/\s/g, '').length > 300;
+  }).length;
+  const longNote = longCount > 0 ? ` · 긴 문단 ${longCount}개 (나눠 쓰면 읽기 편해)` : '';
+
+  // 대사/서술/강조 구성비 (강조 글자는 서술에서 빼 중복 없이 합계 100%로 계산)
+  let dlgC = 0, emphasisC = 0, narrC = 0;
+  bodyParaList.forEach(l => {
+    const structuralLine = l.replace(/^\[C\]\s*/i, '');
+    const u = structuralLine.toUpperCase();
+    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}>?\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
+       || statusLineContent(structuralLine) !== null
+       || /^\[접기/.test(structuralLine) || /^\[\/접기\]$/.test(structuralLine)) return;
+    let body = normalizeQuotes(structuralLine);
+    const cm = body.match(/^\{(#?[0-9A-Fa-f]{3,8})\}\s*/);
+    if(cm) body = body.slice(cm[0].length).trim();
+    body = stripSpeaker(body, settings).line;
+    if(/^"[^"]*"$/.test(body)){
+      dlgC += stripMarkers(body.slice(1, -1)).replace(/\s/g, '').length;
+    }else{
+      const plainLength = stripMarkers(body).replace(/\s/g, '').length;
+      const re = new RegExp(FMT_RE.emphasis.source, 'g');
+      let match, emphasized = 0;
+      while((match = re.exec(body)) !== null){
+        emphasized += stripMarkers(formatMatchContent('emphasis', match)).replace(/\s/g, '').length;
+      }
+      emphasisC += emphasized;
+      narrC += Math.max(0, plainLength - emphasized);
+    }
+  });
+  const totalC = dlgC + emphasisC + narrC;
+  const pct = (v) => Math.round(v / totalC * 100);
+  const ratioNote = totalC > 0
+    ? ` · 대사 ${pct(dlgC)}% / 서술 ${pct(narrC)}% / 강조 ${pct(emphasisC)}%`
+    : '';
+
+  const visibleCardCount = visibleCards.filter(card => card.type !== 'comment').length;
+  const visibleCommentCount = visibleCards.filter(card => card.type === 'comment').length;
+  const cardNote = visibleCardCount > 1 ? ` · 카드 ${visibleCardCount}장` : '';
+  const commentNote = visibleCommentCount ? ` · 코멘트 ${visibleCommentCount}개` : '';
+  const hiddenCardCount = allCards.filter(card => card.type !== 'comment' && card.visible === false).length;
+  const hiddenCardNote = hiddenCardCount ? ` · 숨김 ${hiddenCardCount}장` : '';
+  document.getElementById('bodyCounter').textContent =
+    `공백 제외 ${chars.toLocaleString()}자 · ${paras}문단${cardNote}${commentNote}${hiddenCardNote}${readTime}${ratioNote}${longNote}`;
+}
+
+document.getElementById('clearBodyBtn').addEventListener('click', () => {
+  const hasText = getCardBodies().some(v => v.trim() !== '');
+  if(hasText && !confirm('모든 카드의 본문을 비울까?\n(되돌리기로 복구 가능)')) return;
+  snapshotCards();
+  clearCardEditors();
+  activeTa = null;
+  addCard('', true);
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast('본문 전부 비움.');
+});
+
+// ---------- 초안 자동 저장 ----------
+// 본문/이미지 관련 입력을 이 브라우저(localStorage)에 자동 저장해서,
+// 창을 닫거나 새로고침해도 작업 내용이 유지되게 함.
+const DRAFT_KEY = 'logGenDraft_v1';
+// 초안과 보관함은 같은 작업 필드 스키마를 공유한다. 별도 배열을 복제하면 새 필드가
+// 한쪽 저장 경로에서 빠질 수 있으므로 WORK_FIELDS를 단일 기준으로 사용한다.
+const DRAFT_FIELDS = WORK_FIELDS;
+let draftSaveTimer = null;
+let draftDirty = false;
+let draftBaseUpdatedAt = 0;
+
+function setDraftStatus(text, state, detail){
+  const status = document.getElementById('draftStatus');
+  if(!status) return;
+  status.textContent = text;
+  status.dataset.state = state || '';
+  status.title = detail || text;
+  const conflictBtn = document.getElementById('draftConflictBtn');
+  if(conflictBtn) conflictBtn.hidden = state !== 'paused';
+}
+
+function savedTimeLabel(){
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour:'2-digit',
+    minute:'2-digit',
+    hour12:false
+  }).format(new Date());
+}
+
+function storedDraftUpdatedAt(){
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw) return 0;
+    return Number(JSON.parse(raw).updatedAt) || 0;
+  } catch(e){ return 0; }
+}
+
+// 예전 기본 예시가 자동 저장된 브라우저에서는 새 기본 화면이 영원히 가려졌다.
+// 실제 작성 초안은 보존하고, 제목과 본문이 폐기된 예시와 일치하는 경우만 새 기본값으로 교체한다.
+function isRetiredDefaultDraft(d){
+  if(!d || d.logTitle !== '5.5초의 침묵') return false;
+  let bodies = [];
+  if(Array.isArray(d.cards)){
+    bodies = d.cards.map(card => typeof card === 'string' ? card : (card && card.body) || '');
+  }else if(Array.isArray(d.cardBodies)){
+    bodies = d.cardBodies;
+  }else if(typeof d.bodyInput === 'string'){
+    bodies = [d.bodyInput];
+  }
+  if(bodies.length !== 1) return false;
+  const body = String(bodies[0]);
+  return body.includes('나는 살짝 웃으며 대답했다.')
+    && body.includes('고마워요. 다음에 또 올게요.')
+    && body.includes('그럼 약속인가.')
+    && body.includes('...진짜?');
+}
+
+function scheduleDraftSave(){
+  draftDirty = true;
+  clearTimeout(draftSaveTimer);
+  setDraftStatus('저장 중…', 'saving');
+  draftSaveTimer = setTimeout(() => saveDraft(false), 140);
+}
+
+function saveDraft(force = true){
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+  if(!force && !draftDirty) return true;
+  try {
+    const externalUpdatedAt = storedDraftUpdatedAt();
+    if(externalUpdatedAt > draftBaseUpdatedAt){
+      draftDirty = true;
+      setDraftStatus('다른 탭에 최신 작업 있음', 'paused');
+      return false;
+    }
+    const d = {};
+    DRAFT_FIELDS.forEach(id => { d[id] = document.getElementById(id).value; });
+    d.cards = getCards();
+    WORK_BOOLEAN_FIELDS.forEach(id => { d[id] = document.getElementById(id).checked; });
+    d.style = currentStyleValues();
+    d.updatedAt = Math.max(Date.now(), draftBaseUpdatedAt + 1);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    draftBaseUpdatedAt = d.updatedAt;
+    draftDirty = false;
+    const savedAt = savedTimeLabel();
+    setDraftStatus('저장됨', 'saved', `마지막 저장 ${savedAt}`);
+    return true;
+  } catch(e){
+    draftDirty = true;
+    setDraftStatus('저장 실패', 'error');
+    return false;
+  }
+}
+
+// 짧은 저장 지연 중 창을 닫아도 마지막 입력이 빠지지 않게 함.
+window.addEventListener('beforeunload', () => {
+  if(draftDirty || draftSaveTimer) saveDraft(false);
+});
+
+document.getElementById('draftConflictBtn').addEventListener('click', () => {
+  if(!confirm('다른 탭의 최신 초안을 현재 작업으로 덮어쓸까요?')) return;
+  draftBaseUpdatedAt = storedDraftUpdatedAt();
+  saveDraft(true);
+});
+
+function restoreDraft(){
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw) return;
+    const d = JSON.parse(raw);
+    if(isRetiredDefaultDraft(d)){
+      localStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    draftBaseUpdatedAt = Number(d.updatedAt) || 0;
+    draftDirty = false;
+    DRAFT_FIELDS.forEach(id => {
+      if(d[id] !== undefined) document.getElementById(id).value = d[id];
+    });
+    syncTypographyRangeLabels();
+    document.getElementById('xposVal').value = document.getElementById('xpos').value;
+    document.getElementById('yposVal').value = document.getElementById('ypos').value;
+    document.getElementById('imgHeightVal').value = document.getElementById('imgHeight').value;
+    // 과거 배포본에 없던 옵션은 HTML의 현재 기본값을 유지한다. 따라서 v134 초안의
+    // BOT·USER·관계 프로필은 업그레이드 후에도 기존처럼 모두 활성 상태로 열린다.
+    WORK_BOOLEAN_FIELDS.forEach(id => {
+      if(d[id] !== undefined) document.getElementById(id).checked = settingFlagOn(d[id]);
+    });
+    const legacyFoldDividerMinimal = Array.isArray(d.cards)
+      && d.cards.some(card => card && typeof card === 'object'
+        && card.type !== 'comment' && settingFlagOn(card.foldMinimal));
+    if(d.style && typeof d.style === 'object'){
+      const restoredStyle = { ...d.style };
+      // 카드별 미니멀 저장값은 현재의 전체 접기 구분선 옵션으로 합친다.
+      if(restoredStyle.foldDividerOn === undefined && restoredStyle.foldDividerMinimal === undefined && legacyFoldDividerMinimal){
+        restoredStyle.foldDividerOn = false;
+      }
+      applyStyleValues(restoredStyle);
+    } else if(legacyFoldDividerMinimal){
+      document.getElementById('foldDividerOn').checked = false;
+    }
+    syncCharList();
+
+    // 카드 본문은 객체 배열, 문자열 배열, 단일 본문 순으로 저장 형식을 판별한다.
+    if(Array.isArray(d.cards) && d.cards.length){
+      d.cards.forEach(c => addCard(c, false));
+    } else if(Array.isArray(d.cardBodies) && d.cardBodies.length){
+      d.cardBodies.forEach(b => addCard(b, false));
+    } else if(typeof d.bodyInput === 'string'){
+      // 단일 본문에 [NEWCARD] 마커가 있으면 카드 단위로 분할한다.
+      const parts = [];
+      let cur = [];
+      d.bodyInput.split('\n').forEach(l => {
+        if(l.trim().toUpperCase() === '[NEWCARD]'){ parts.push(cur.join('\n')); cur = []; }
+        else cur.push(l);
+      });
+      parts.push(cur.join('\n'));
+      parts.forEach(b => addCard(b, false));
+    }
+  } catch(e){
+    setDraftStatus('초안 복원 실패', 'error', '저장된 초안을 읽지 못해 기본 예시를 표시함');
+  }
+}
+
+// ---------- 아카라이브 게시글 테마 미리보기 ----------
+// 화면 확인용 상태일 뿐 출력 HTML·초안·프리셋에는 저장하지 않는다.
+function syncPreviewCardStyleToggles(){
+  const borderButton = document.getElementById('previewCardBorderBtn');
+  const layoutButton = document.getElementById('previewCardLayoutBtn');
+  const borderInput = document.getElementById('cardBorderOn');
+  const layoutInput = document.getElementById('cardLayoutUnifiedOn');
+  if(borderButton && borderInput){
+    borderButton.setAttribute('aria-pressed', String(borderInput.checked));
+    borderButton.title = borderInput.checked ? '카드 외곽선 숨기기' : '카드 외곽선 표시';
+  }
+  if(layoutButton && layoutInput){
+    layoutButton.setAttribute('aria-pressed', String(layoutInput.checked));
+    layoutButton.title = layoutInput.checked ? '카드 이어보기 해제' : '여러 카드를 이어서 표시';
+  }
+}
+
+document.getElementById('previewCardBorderBtn').addEventListener('click', () => {
+  const input = document.getElementById('cardBorderOn');
+  if(!input || input.disabled) return;
+  input.click();
+  // 프로그램으로 누른 체크박스는 포커스 이탈을 기다리지 않고 한 작업으로 기록한다.
+  commitStyleHistory(true);
+});
+document.getElementById('previewCardLayoutBtn').addEventListener('click', () => {
+  const input = document.getElementById('cardLayoutUnifiedOn');
+  if(!input || input.disabled) return;
+  // 기존 사이드바 체크박스를 통해 바꿔 저장·프리셋·히스토리 경로를 하나로 유지한다.
+  input.click();
+});
+
+function setPreviewArcaTheme(theme){
+  const dark = theme === 'dark';
+  const previewArea = document.getElementById('previewArea');
+  const lightButton = document.getElementById('previewThemeLightBtn');
+  const darkButton = document.getElementById('previewThemeDarkBtn');
+  previewArea.classList.toggle('previewArcaDark', dark);
+  lightButton.classList.toggle('active', !dark);
+  darkButton.classList.toggle('active', dark);
+  lightButton.setAttribute('aria-pressed', String(!dark));
+  darkButton.setAttribute('aria-pressed', String(dark));
+}
+document.getElementById('previewThemeLightBtn').addEventListener('click', () => {
+  setPreviewArcaTheme('light');
+});
+document.getElementById('previewThemeDarkBtn').addEventListener('click', () => {
+  setPreviewArcaTheme('dark');
+});
+
+// ---------- 미리보기 폭 토글 (데스크톱/모바일) ----------
+document.getElementById('widthDesktopBtn').addEventListener('click', () => {
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
+  document.getElementById('widthDesktopBtn').classList.add('active');
+  document.getElementById('widthMobileBtn').classList.remove('active');
+  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
+  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+});
+document.getElementById('widthMobileBtn').addEventListener('click', () => {
+  document.getElementById('previewWrap').style.maxWidth = '380px';
+  document.getElementById('widthMobileBtn').classList.add('active');
+  document.getElementById('widthDesktopBtn').classList.remove('active');
+  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'false');
+  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'true');
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+});
+
+document.getElementById('copyWithOuterBreaks').addEventListener('change', () => {
+  syncPreviewOuterBreaks();
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+});
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const status = document.getElementById('copyStatus');
+  let html;
+  try {
+    html = generateHTML();
+    if(document.getElementById('copyWithOuterBreaks').checked){
+      html = '<br>' + html + '<br>';
+    }
+  } catch(e){
+    status.textContent = 'HTML 생성 중 오류: ' + e.message;
+    return;
+  }
+  const ok = () => {
+    status.textContent = '복사 완료. 아카라이브 에디터에 붙여넣기.';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  };
+
+  // 임시 입력 요소를 이용해 복사하므로 미리보기·편집 원문·코드 보기는 바뀌지 않음.
+  // 로컬 파일(file://)에서도 동작하는 동기 방식을 먼저 쓰고, 실패하면 클립보드 API를 시도함.
+  try {
+    const temp = document.createElement('textarea');
+    temp.value = html;
+    temp.setAttribute('readonly', '');
+    temp.style.position = 'fixed';
+    temp.style.left = '-9999px';
+    temp.style.opacity = '0';
+    document.body.appendChild(temp);
+    temp.select();
+    temp.setSelectionRange(0, temp.value.length);
+    let done = false;
+    try { done = document.execCommand('copy'); } catch(e){ done = false; }
+    document.body.removeChild(temp);
+    if(done){
+      if(window.getSelection) window.getSelection().removeAllRanges();
+      ok();
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(html).then(() => {
+        ok();
+      }).catch(() => {
+        status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
+      });
+    } else {
+      status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
+    }
+  } catch(e){
+    status.textContent = '복사 중 오류: ' + e.message;
+  }
+});
+
+// ---------- 코드 전체 화면 ----------
+let codePrevFocus = null;
+function openCodeFullscreen(){
+  const area = document.getElementById('codeFsArea');
+  area.value = document.getElementById('codeBox').value;
+  codePrevFocus = document.activeElement;
+  const overlay = document.getElementById('codeOverlay');
+  overlay.style.display = 'block';
+  overlay.setAttribute('aria-hidden', 'false');
+  setWorkspaceInert(true);
+  document.body.classList.add('fsLock');
+  area.focus();
+  area.setSelectionRange(0, 0);
+}
+
+function closeCodeFullscreen(){
+  const overlay = document.getElementById('codeOverlay');
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('fsLock');
+  setWorkspaceInert(false);
+  if(codePrevFocus && typeof codePrevFocus.focus === 'function'){
+    try { codePrevFocus.focus({ preventScroll: true }); }
+    catch(e){ codePrevFocus.focus(); }
+  }
+  codePrevFocus = null;
+}
+
+document.getElementById('codeFsBtn').addEventListener('click', openCodeFullscreen);
+document.getElementById('codeFsCloseBtn').addEventListener('click', closeCodeFullscreen);
+document.getElementById('codeOverlay').addEventListener('mousedown', (e) => {
+  if(e.target.id === 'codeOverlay') closeCodeFullscreen();
+});
+document.getElementById('codeOverlay').addEventListener('wheel', (e) => {
+  if(!e.target.closest('#codeFsArea')) e.preventDefault();
+}, { passive: false });
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(e.key === 'Escape' && document.getElementById('codeOverlay').style.display === 'block'){
+    e.preventDefault();
+    closeCodeFullscreen();
+  }
+});
+
+// 전체 화면에서 바로 복사
+document.getElementById('codeFsCopyBtn').addEventListener('click', () => {
+  const area = document.getElementById('codeFsArea');
+  area.focus();
+  area.select();
+  let done = false;
+  try { done = document.execCommand('copy'); } catch(e){ done = false; }
+  const st = document.getElementById('codeFsStatus');
+  st.textContent = done ? '복사 완료.' : 'Ctrl+C(⌘+C)로 복사.';
+  setTimeout(() => { st.textContent = ''; }, 2500);
+});
+
+// ---------- 프리셋 ----------
+const PRESET_KEY = 'logGenPresets_v2';
+const THEME_COLOR_FIELDS = ['bgColor', 'narrColor', 'emphasisColor', 'charColor', 'userColor'];
+const SAVED_PRESET_FIELDS = [...THEME_COLOR_FIELDS, 'dlgStyle'];
+const DEFAULT_STYLE = {
+  textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
+  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', softBreakSpacing: '0',
+  titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
+  charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
+  cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
+};
+
+// 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
+// 밝은 색 계열과 다크 계열을 분리해 필터를 오갈 때 배경 명도가 튀지 않게 한다.
+const COLOR_COMBO_FAMILIES = [
+  { key:'featured', label:'추천' },
+  { key:'mono', label:'모노' },
+  { key:'blue', label:'블루' },
+  { key:'green', label:'그린' },
+  { key:'warm', label:'웜' },
+  { key:'red', label:'레드' },
+  { key:'dark', label:'다크' },
+];
+
+const COLOR_COMBOS = [
+  { name:'모노 클래식', families:['featured','mono'], v:{ bgColor:'#ffffff', narrColor:'#555555', emphasisColor:'#747474', charColor:'#222222', userColor:'#707070' } },
+  { name:'백자', families:['featured','mono'], v:{ bgColor:'#fbfaf7', narrColor:'#55524c', emphasisColor:'#706c64', charColor:'#25231f', userColor:'#5e5a52' } },
+  { name:'쿨 차콜', families:['mono'], v:{ bgColor:'#f2f4f6', narrColor:'#4a5159', emphasisColor:'#616b75', charColor:'#1f2933', userColor:'#604b59' } },
+  { name:'웜 그래파이트', families:['mono'], v:{ bgColor:'#f5f1eb', narrColor:'#534f4a', emphasisColor:'#6f665d', charColor:'#2c2925', userColor:'#61483a' } },
+  { name:'스톤 페이퍼', families:['mono'], v:{ bgColor:'#f3f1ed', narrColor:'#514f4b', emphasisColor:'#69655f', charColor:'#282724', userColor:'#57534e' } },
+  { name:'포슬린', families:['mono'], v:{ bgColor:'#f8f9f7', narrColor:'#505653', emphasisColor:'#68706c', charColor:'#222825', userColor:'#56605b' } },
+
+  { name:'딥 네이비', families:['blue'], v:{ bgColor:'#f3f6fa', narrColor:'#4a5564', emphasisColor:'#596b82', charColor:'#183a63', userColor:'#485f7c' } },
+  { name:'라벤더 블루', families:['featured','blue'], v:{ bgColor:'#f7f5fa', narrColor:'#575263', emphasisColor:'#6b6480', charColor:'#4e4680', userColor:'#6d4f74' } },
+  { name:'포그 블루', families:['blue'], v:{ bgColor:'#f1f5f7', narrColor:'#4b5960', emphasisColor:'#61717a', charColor:'#2f5c73', userColor:'#5e5264' } },
+  { name:'잉크 블루', families:['blue'], v:{ bgColor:'#f2f4f8', narrColor:'#485365', emphasisColor:'#5e6b82', charColor:'#263f69', userColor:'#604f6a' } },
+  { name:'더스크 블루', families:['blue'], v:{ bgColor:'#f4f3f8', narrColor:'#514f61', emphasisColor:'#68657c', charColor:'#3d4f79', userColor:'#705060' } },
+  { name:'파우더 네이비', families:['blue'], v:{ bgColor:'#edf3f8', narrColor:'#465563', emphasisColor:'#5c6b7a', charColor:'#2d5776', userColor:'#675243' } },
+
+  { name:'포레스트', families:['featured','green'], v:{ bgColor:'#f2f5f0', narrColor:'#4b574b', emphasisColor:'#626f61', charColor:'#23543a', userColor:'#5e4a32' } },
+  { name:'올리브 페이퍼', families:['green'], v:{ bgColor:'#f6f5ee', narrColor:'#555548', emphasisColor:'#6c6a52', charColor:'#465a30', userColor:'#6b5332' } },
+  { name:'모스 브릭', families:['green'], v:{ bgColor:'#f4f2e9', narrColor:'#54564a', emphasisColor:'#6a6c59', charColor:'#4a632c', userColor:'#765044' } },
+  { name:'시더 세이지', families:['green'], v:{ bgColor:'#f4f3ec', narrColor:'#54564b', emphasisColor:'#6c705e', charColor:'#3f5b36', userColor:'#6e4f42' } },
+  { name:'티 리프', families:['green'], v:{ bgColor:'#f7f5ec', narrColor:'#565647', emphasisColor:'#6e6c56', charColor:'#4f6230', userColor:'#695044' } },
+  { name:'라이큰 페이퍼', families:['green'], v:{ bgColor:'#f2f4ed', narrColor:'#50584d', emphasisColor:'#687063', charColor:'#3a6246', userColor:'#625766' } },
+
+  { name:'세피아 문고', families:['warm'], v:{ bgColor:'#faf6ef', narrColor:'#5c5245', emphasisColor:'#756b5f', charColor:'#7a4a2a', userColor:'#516044' } },
+  { name:'허니 골드', families:['warm'], v:{ bgColor:'#fbf7ed', narrColor:'#5a5142', emphasisColor:'#796532', charColor:'#6d4d12', userColor:'#6a4b3d' } },
+  { name:'오트 네이비', families:['featured','warm'], v:{ bgColor:'#f8f4ea', narrColor:'#585249', emphasisColor:'#6d665b', charColor:'#735a32', userColor:'#384f6a' } },
+  { name:'카멜 잉크', families:['warm'], v:{ bgColor:'#f6f0e7', narrColor:'#5b5048', emphasisColor:'#746256', charColor:'#7b4f37', userColor:'#596148' } },
+  { name:'애프리콧 페이퍼', families:['warm'], v:{ bgColor:'#fbf1e9', narrColor:'#5e5048', emphasisColor:'#765f54', charColor:'#844a37', userColor:'#48606b' } },
+  { name:'리넨 네이비', families:['warm'], v:{ bgColor:'#f8f5ed', narrColor:'#575149', emphasisColor:'#6e675d', charColor:'#6f5635', userColor:'#374f68' } },
+
+  { name:'로즈 페이퍼', families:['featured','red'], v:{ bgColor:'#fdf3f4', narrColor:'#66565a', emphasisColor:'#7b6067', charColor:'#963b50', userColor:'#4e5e78' } },
+  { name:'더스티 로즈', families:['red'], v:{ bgColor:'#faf4f4', narrColor:'#5f5254', emphasisColor:'#765b60', charColor:'#874351', userColor:'#5c536b' } },
+  { name:'버건디 북', families:['red'], v:{ bgColor:'#f8f3f2', narrColor:'#5d5050', emphasisColor:'#745955', charColor:'#712e38', userColor:'#604c5e' } },
+  { name:'플럼 잉크', families:['red'], v:{ bgColor:'#f8f2f7', narrColor:'#5b4f59', emphasisColor:'#765e71', charColor:'#75365f', userColor:'#4c5267' } },
+  { name:'클라레 페이퍼', families:['red'], v:{ bgColor:'#faf2f2', narrColor:'#5c4f51', emphasisColor:'#745a5f', charColor:'#752f3b', userColor:'#4d586d' } },
+  { name:'피그 페이퍼', families:['red'], v:{ bgColor:'#f7f2f3', narrColor:'#595055', emphasisColor:'#705e65', charColor:'#6d3b52', userColor:'#556048' } },
+
+  { name:'미드나잇', families:['dark'], v:{ bgColor:'#16181f', narrColor:'#b8bcc8', emphasisColor:'#9299aa', charColor:'#9db4e8', userColor:'#d9a679' } },
+  { name:'잉크&골드', families:['dark'], v:{ bgColor:'#1b1a19', narrColor:'#c9c2b6', emphasisColor:'#9c9589', charColor:'#d4af6a', userColor:'#9db4e8' } },
+  { name:'딥 포레스트', families:['dark'], v:{ bgColor:'#18201c', narrColor:'#bfc8c0', emphasisColor:'#93a094', charColor:'#8fb99d', userColor:'#d1b18a' } },
+  { name:'에스프레소 세이지', families:['dark'], v:{ bgColor:'#211b18', narrColor:'#cfc5bd', emphasisColor:'#a3958b', charColor:'#d6a66f', userColor:'#9fc3a9' } },
+  { name:'차콜 페이퍼', families:['dark'], v:{ bgColor:'#18191b', narrColor:'#c5c6c2', emphasisColor:'#999b97', charColor:'#b6bdc5', userColor:'#c7aa91' } },
+  { name:'코코아 플럼', families:['dark'], v:{ bgColor:'#21191d', narrColor:'#c9c1c5', emphasisColor:'#9c9298', charColor:'#c099ac', userColor:'#a8b39b' } },
+];
+
+let currentComboName = null;
+let currentComboFamily = 'featured';
+const DIALOG_STYLE_CYCLE = ['softlight', 'highlight', 'badge', 'gradient', 'box'];
+let lastClickedPresetKey = null;
+
+function nextDialogueStyleValue(value){
+  const current = DIALOG_STYLE_CYCLE.indexOf(value);
+  const base = current >= 0 ? current : 0;
+  return DIALOG_STYLE_CYCLE[(base + 1) % DIALOG_STYLE_CYCLE.length];
+}
+
+function stepDialogueStyle(delta){
+  const select = document.getElementById('dlgStyle');
+  const current = DIALOG_STYLE_CYCLE.indexOf(select.value);
+  const base = current >= 0 ? current : 0;
+  select.value = DIALOG_STYLE_CYCLE[(base + delta + DIALOG_STYLE_CYCLE.length) % DIALOG_STYLE_CYCLE.length];
+  select.dispatchEvent(new Event('input', { bubbles:true }));
+  updateOverwriteBtn();
+  commitStyleHistory(true);
+}
+
+document.getElementById('dlgStylePrev').addEventListener('click', () => stepDialogueStyle(-1));
+document.getElementById('dlgStyleNext').addEventListener('click', () => stepDialogueStyle(1));
+
+function stepSelectOption(selectId, delta){
+  const select = document.getElementById(selectId);
+  const enabledIndexes = Array.from(select.options)
+    .map((option, index) => option.disabled ? -1 : index)
+    .filter(index => index >= 0);
+  if(!enabledIndexes.length) return;
+  const currentPosition = Math.max(0, enabledIndexes.indexOf(select.selectedIndex));
+  const nextPosition = (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length;
+  select.selectedIndex = enabledIndexes[nextPosition];
+  select.dispatchEvent(new Event('input', { bubbles:true }));
+  updateOverwriteBtn();
+  commitStyleHistory(true);
+}
+
+[
+  ['textFont', 'textFontPrev', 'textFontNext'],
+  ['parallelTranslationLayout', 'parallelLayoutPrev', 'parallelLayoutNext'],
+  ['spacingMode', 'spacingModePrev', 'spacingModeNext'],
+  ['cardWidth', 'cardWidthPrev', 'cardWidthNext']
+].forEach(([selectId, prevId, nextId]) => {
+  document.getElementById(prevId).addEventListener('click', () => stepSelectOption(selectId, -1));
+  document.getElementById(nextId).addEventListener('click', () => stepSelectOption(selectId, 1));
+});
+
+document.getElementById('cardLayoutUnifiedOn').addEventListener('change', event => {
+  const select = document.getElementById('cardLayout');
+  const next = event.target.checked ? 'unified' : 'separate';
+  if(select.value === next) return;
+  select.value = next;
+  select.dispatchEvent(new Event('input', { bubbles:true }));
+  commitStyleHistory(true);
+});
+
+const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder', 'creditPlacement'];
+
+function syncSegmentedChoiceControl(selectId){
+  const select = document.getElementById(selectId);
+  const group = document.querySelector(`[data-control="${selectId}"]`);
+  if(!select || !group) return;
+  const displayedValue = select.dataset.forcedValue || select.value;
+  group.title = select.title || '';
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    const active = button.dataset.value === displayedValue;
+    button.setAttribute('aria-pressed', String(active));
+    button.disabled = select.disabled;
+  });
+}
+
+function syncAllSegmentedChoiceControls(){
+  SEGMENTED_CHOICE_SELECT_IDS.forEach(syncSegmentedChoiceControl);
+}
+
+document.querySelectorAll('.segmentedChoice[data-control]').forEach(group => {
+  const selectId = group.dataset.control;
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    button.addEventListener('click', () => {
+      const select = document.getElementById(selectId);
+      if(!select || select.disabled || select.value === button.dataset.value) return;
+      select.value = button.dataset.value;
+      const isOrderControl = selectId === 'titleProfileOrder' || selectId === 'profileProfileOrder';
+      select.dispatchEvent(new Event(isOrderControl ? 'change' : 'input', { bubbles:true }));
+      syncSegmentedChoiceControl(selectId);
+    });
+  });
+});
+
+SEGMENTED_CHOICE_SELECT_IDS.forEach(id => {
+  const select = document.getElementById(id);
+  if(!select) return;
+  select.addEventListener('input', () => syncSegmentedChoiceControl(id));
+  select.addEventListener('change', () => syncSegmentedChoiceControl(id));
+});
+
+const PROFILE_ORDER_VALUES = ['bot-user', 'user-bot'];
+const PROFILE_ORDER_CONTROL_IDS = ['titleProfileOrder', 'profileProfileOrder'];
+
+function normalizedProfileOrder(value){
+  return PROFILE_ORDER_VALUES.includes(value) ? value : PROFILE_ORDER_VALUES[0];
+}
+
+function syncProfileOrderControls(){
+  const canonical = document.getElementById('profileOrder');
+  const value = normalizedProfileOrder(canonical.value);
+  canonical.value = value;
+  PROFILE_ORDER_CONTROL_IDS.forEach(id => {
+    const select = document.getElementById(id);
+    if(select && select.value !== value) select.value = value;
+    syncSegmentedChoiceControl(id);
+  });
+}
+
+function setProfileOrder(value){
+  const canonical = document.getElementById('profileOrder');
+  const next = normalizedProfileOrder(value);
+  if(canonical.value === next){
+    syncProfileOrderControls();
+    return;
+  }
+  canonical.value = next;
+  syncProfileOrderControls();
+  canonical.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+PROFILE_ORDER_CONTROL_IDS.forEach(id => {
+  document.getElementById(id).addEventListener('change', event => setProfileOrder(event.target.value));
+});
+
+// 추천 프리셋은 색상 조합만 제공하므로 같은 카드를 연속해서 누를 때 현재 대사
+// 옵션을 순환한다. 내 프리셋은 저장된 dlgStyle을 직접 적용해 이 경로를 사용하지 않는다.
+function presetDialogueStyle(presetKey){
+  if(lastClickedPresetKey !== presetKey){
+    lastClickedPresetKey = presetKey;
+    return null;
+  }
+  return nextDialogueStyleValue(document.getElementById('dlgStyle').value);
+}
+
+// 추천 프리셋의 반복 클릭으로 대사 옵션을 바꿀 때 select 값뿐 아니라 접힌 디자인 요약도
+// 함께 갱신한다. 일반 input 이벤트를 발생시키면 렌더·저장·작업 기록이 클릭 처리와
+// 중복되므로 여기서는 값과 파생 UI만 맞추고, 나머지는 호출부의 단일 처리에 맡긴다.
+function applyPresetDialogueStyle(presetKey){
+  const next = presetDialogueStyle(presetKey);
+  if(next === null) return false;
+  document.getElementById('dlgStyle').value = next;
+  syncDesignSummaries();
+  return true;
+}
+
+// 추천·저장 프리셋의 호버는 실제 입력값·저장값·작업 기록을 건드리지 않고
+// 미리보기 HTML만 임시 색상으로 다시 그린다.
+let themeHoverPreview = null;
+const themeHoverPreviewCards = new WeakMap();
+
+function beginThemeHoverPreview(key, values){
+  if(themeHoverPreview && themeHoverPreview.key === key) return;
+  themeHoverPreview = { key };
+  // 호버는 팔레트 확인만 제공한다. 내 프리셋에 저장된 대사 옵션은 클릭할 때만 적용한다.
+  const previewColors = {};
+  THEME_COLOR_FIELDS.forEach(id => {
+    if(values[id] !== undefined) previewColors[id] = values[id];
+  });
+  const previewSettings = { ...getSettings(), ...previewColors };
+  renderPreview(buildCard(previewSettings));
+}
+
+function endThemeHoverPreview(key){
+  if(!themeHoverPreview || themeHoverPreview.key !== key) return;
+  themeHoverPreview = null;
+  renderPreview(buildCard(getSettings()));
+}
+
+function commitThemeHoverPreview(){
+  // 클릭 시 현재 호버 색상이 곧 실제 적용값이 되므로 복원하지 않는다.
+  themeHoverPreview = null;
+}
+
+function registerThemeHoverPreviewCard(card, key, values){
+  themeHoverPreviewCards.set(card, { key, values });
+}
+
+// 프리셋 카드는 필터·선택 때마다 새 DOM으로 교체된다. 고정된 목록 요소에서
+// mouseover/out을 받아 새로 만들어진 카드에도 항상 호버 미리보기가 작동하게 한다.
+function bindThemeHoverPreviewList(containerId, cardSelector, manageSensitive = false){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  const cardFrom = target => target && target.closest ? target.closest(cardSelector) : null;
+
+  container.addEventListener('mouseover', e => {
+    const card = cardFrom(e.target);
+    if(!card || !container.contains(card) || (e.relatedTarget && card.contains(e.relatedTarget))) return;
+    if(manageSensitive && presetManageMode) return;
+    const preview = themeHoverPreviewCards.get(card);
+    if(preview) beginThemeHoverPreview(preview.key, preview.values);
+  });
+
+  container.addEventListener('mouseout', e => {
+    const card = cardFrom(e.target);
+    if(!card || !container.contains(card) || (e.relatedTarget && card.contains(e.relatedTarget))) return;
+    const preview = themeHoverPreviewCards.get(card);
+    if(preview) endThemeHoverPreview(preview.key);
+  });
+}
+
+bindThemeHoverPreviewList('comboList', '.comboCard');
+bindThemeHoverPreviewList('presetList', '.presetCard', true);
+
+window.addEventListener('blur', () => {
+  if(themeHoverPreview) endThemeHoverPreview(themeHoverPreview.key);
+});
+
+// 현재 테마의 실제 5색을 추천 프리셋과 같은 순서로 보여준다.
+function renderCurrentThemePalette(){
+  const button = document.getElementById('currentThemePaletteButton');
+  if(!button) return;
+  button.querySelectorAll('[data-theme-color]').forEach(chip => {
+    const input = document.getElementById(chip.dataset.themeColor);
+    if(input) chip.style.background = input.value;
+  });
+  const styleIndex = DIALOG_STYLE_CYCLE.indexOf(document.getElementById('dlgStyle').value);
+  const optionNumber = styleIndex >= 0 ? styleIndex + 1 : 1;
+  const option = document.getElementById('currentThemePaletteOption');
+  if(option) option.textContent = `대사 옵션 ${optionNumber}`;
+  button.setAttribute('aria-label', `현재 테마 컬러칩 · 대사 옵션 ${optionNumber} · 반복해서 누르면 다음 옵션으로 변경`);
+}
+
+document.getElementById('currentThemePaletteButton').addEventListener('click', () => {
+  const select = document.getElementById('dlgStyle');
+  select.value = nextDialogueStyleValue(select.value);
+  syncDesignSummaries();
+  render();
+  updateOverwriteBtn();
+  saveDraft();
+  commitStyleHistory(true);
+});
+
+function syncComboFamilyFilters(){
+  document.querySelectorAll('#comboFamilyFilters .comboFamilyFilter').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.family === currentComboFamily));
+  });
+}
+
+function renderComboFamilyFilters(){
+  const container = document.getElementById('comboFamilyFilters');
+  container.innerHTML = '';
+  COLOR_COMBO_FAMILIES.forEach(family => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'comboFamilyFilter';
+    btn.dataset.family = family.key;
+    btn.textContent = family.label;
+    btn.setAttribute('aria-pressed', String(family.key === currentComboFamily));
+    btn.addEventListener('click', () => {
+      currentComboFamily = family.key;
+      syncComboFamilyFilters();
+      renderComboList();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function renderComboList(){
+  const container = document.getElementById('comboList');
+  container.innerHTML = '';
+  syncComboFamilyFilters();
+  COLOR_COMBOS.filter(combo => combo.families.includes(currentComboFamily)).forEach(combo => {
+    const v = combo.v;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'comboCard' + (combo.name === currentComboName ? ' active' : '');
+    const presetKey = `recommended:${combo.name}`;
+    chip.title = '마우스를 올리면 색상 미리보기 · 처음 클릭은 색상만 적용 · 같은 추천 프리셋을 다시 누르면 현재 대사 옵션부터 순환';
+    chip.setAttribute('aria-label', `${combo.name} 추천 프리셋 적용`);
+    registerThemeHoverPreviewCard(chip, presetKey, v);
+    chip.innerHTML = `
+      <div class="compactPresetHead">
+        <div class="comboName">${combo.name}</div>
+        <span class="comboActiveMark" aria-hidden="true">✓</span>
+      </div>
+      <div class="comboPalette" aria-hidden="true">
+        <span title="배경" style="background:${v.bgColor}"></span>
+        <span title="서술" style="background:${v.narrColor}"></span>
+        <span title="강조" style="background:${v.emphasisColor}"></span>
+        <span title="캐릭터" style="background:${v.charColor}"></span>
+        <span title="유저" style="background:${v.userColor}"></span>
+      </div>
+    `;
+    chip.addEventListener('click', () => {
+      commitThemeHoverPreview();
+      applyPresetDialogueStyle(presetKey);
+      applyThemeColorValues(v);
+      updateHexLabels();
+      currentComboName = combo.name;
+      currentPresetName = null;
+      renderPresetList();
+      renderComboList();
+      render();
+      saveDraft();
+      commitStyleHistory(true);
+    });
+    container.appendChild(chip);
+  });
+}
+
+
+
+let currentPresetName = null;
+
+// 추천 색상·저장 프리셋을 적용한 뒤 값을 직접 바꾸면 선택 맥락은 저장 버튼을 위해
+// 유지하되, 접힌 요약에서는 더 이상 '적용 중'으로 표시하지 않는다.
+SAVED_PRESET_FIELDS.forEach(id => {
+  document.getElementById(id).addEventListener('input', updateOverwriteBtn);
+});
+
+function currentStyleValues(){
+  const v = {};
+  STYLE_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    v[id] = (el.type === 'checkbox') ? el.checked : el.value;
+  });
+  return v;
+}
+
+function currentSavedPresetValues(){
+  const values = {};
+  SAVED_PRESET_FIELDS.forEach(id => { values[id] = document.getElementById(id).value; });
+  return values;
+}
+
+function applyThemeColorValues(values){
+  THEME_COLOR_FIELDS.forEach(id => {
+    if(values[id] === undefined) return;
+    const input = document.getElementById(id);
+    const color = normalizeHex(String(values[id]));
+    if(input && color) input.value = color;
+  });
+  updateHexLabels();
+}
+function applySavedPresetValues(values){
+  applyThemeColorValues(values);
+  const dialogueStyle = document.getElementById('dlgStyle');
+  if(values && Array.from(dialogueStyle.options).some(option => option.value === values.dlgStyle)){
+    dialogueStyle.value = values.dlgStyle;
+  }
+  syncDesignSummaries();
+}
+function savedPresetStateEqual(a, b){
+  if(!a || !b) return false;
+  return SAVED_PRESET_FIELDS.every(id => String(a[id]).toLowerCase() === String(b[id]).toLowerCase());
+}
+
+function applyStyleValues(v){
+  // 따로 저장된 나레이션·대사 폰트는 전체 폰트 값으로 정규화한다.
+  const values = { ...v };
+  // 이전 버전의 `장식/구분선 제거` 값을 긍정형 `표시` 설정으로 변환한다.
+  if(values.foldTitleDecorationOn === undefined && values.foldTitleMinimal !== undefined){
+    values.foldTitleDecorationOn = !settingFlagOn(values.foldTitleMinimal);
+  }
+  if(values.foldDividerOn === undefined && values.foldDividerMinimal !== undefined){
+    values.foldDividerOn = !settingFlagOn(values.foldDividerMinimal);
+  }
+  if(values.textFont === undefined){
+    values.textFont = values.narrFont !== undefined ? values.narrFont : values.dlgFont;
+  }
+  // 이전 버전의 체크박스 저장값을 새 드롭다운의 `미적용` 값으로 변환한다.
+  if(values.parallelTranslationSoft !== undefined){
+    if(!settingFlagOn(values.parallelTranslationSoft)) values.parallelTranslationLayout = 'off';
+    else if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
+  }
+  if(values.paragraphGap === undefined) values.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(values.softBreakSpacing === undefined) values.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  // v1.5.x 초안에는 카드 구성 값이 없으므로 기존 개별 카드 방식으로 읽는다.
+  values.cardLayout = normalizeCardLayout(values.cardLayout);
+  // rev1의 문자열 저장값(normal/relaxed/wide)도 현재 3단계 range 값으로 변환한다.
+  values.softBreakSpacing = softBreakSpacingControlValue(values.softBreakSpacing);
+  if(values.narrCenter === undefined) values.narrCenter = DEFAULT_STYLE.narrCenter;
+  if(values.quoteCenter === undefined) values.quoteCenter = DEFAULT_STYLE.quoteCenter;
+  if(values.bodyFoldTitleCenter === undefined) values.bodyFoldTitleCenter = DEFAULT_STYLE.bodyFoldTitleCenter;
+  // 단일 선택이었던 작업본의 코멘트 배치값도 폭·정렬 두 축으로 안전하게 변환한다.
+  if(values.commentWidth === undefined){
+    values.commentWidth = values.commentLayout === 'card' ? 'card' : DEFAULT_STYLE.commentWidth;
+  }
+  if(values.commentAlign === undefined){
+    values.commentAlign = values.commentLayout === 'center' ? 'center' : DEFAULT_STYLE.commentAlign;
+  }
+  values.commentWidth = normalizeCommentWidth(values.commentWidth);
+  values.commentAlign = normalizeCommentAlign(values.commentAlign);
+  STYLE_FIELDS.forEach(id => {
+    if(values[id] === undefined) return;
+    const el = document.getElementById(id);
+    if(el.type === 'checkbox'){
+      el.checked = settingFlagOn(values[id]);
+    } else if(el.type === 'range' && (id === 'titleSize' || id === 'foldTitleSize')){
+      // 제목 크기는 현재 슬라이더 단위인 1px에 맞춘다.
+      const n = Number(values[id]);
+      const rounded = Number.isFinite(n) ? Math.round(n) : Number(DEFAULT_STYLE[id]);
+      el.value = String(Math.min(Number(el.max), Math.max(Number(el.min), rounded)));
+    } else {
+      el.value = values[id];
+    }
+  });
+  syncParagraphSettingsUI();
+  syncTypographyRangeLabels();
+  syncDesignSummaries();
+  updateHexLabels();
+}
+
+// ---------- 추가 인물 (본문에서 자동 감지) ----------
+// 본문에 [이름]"대사" 를 쓰면 그 이름이 자동으로 인물 목록에 나타난다.
+// 색은 처음엔 나레이션 글자색과 같고, 사용자가 고른 색은 extraChars에 기억된다.
+
+function sanitizeExtraCharList(value){
+  if(!Array.isArray(value) || value.length > 100) return null;
+  const clean = [];
+  const seen = new Set();
+  for(const item of value){
+    if(!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    const color = typeof item.color === 'string' ? normalizeHex(item.color) : null;
+    if(!name || name.length > 24 || /[\[\]\u0000-\u001F\u007F]/.test(name) || !color) return null;
+    const key = name.toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    clean.push({ name, color });
+  }
+  return clean;
+}
+
+function parseExtraChars(){
+  try {
+    const v = JSON.parse(document.getElementById('extraChars').value);
+    return sanitizeExtraCharList(v) || [];
+  } catch(e){ return []; }
+}
+
+// 모든 카드 본문에서 [이름] 마커를 훑어 등장 순서대로 이름 목록을 만듦
+// ([HR...], [GAP], [IMG ...], [C], [접기...] 같은 기능 마커는 제외)
+const RESERVED_MARKERS = /^(HR(?:2|3)?|GAP|C|IMG\b|NEWCARD|\/?접기)/i;
+function detectCharNames(){
+  const names = [];
+  getCards().filter(card => card.type !== 'comment' && card.visible !== false).forEach(card => {
+    const body = card.body;
+    normalizeQuotes(body).split('\n').forEach(line => {
+      const re = /\[([^\[\]\n]{1,24})\]\s*(?=")/g;
+      let m;
+      while((m = re.exec(line)) !== null){
+        const name = m[1].trim();
+        if(!name || RESERVED_MARKERS.test(name)) continue;
+        if(!names.some(existing => existing.toLowerCase() === name.toLowerCase())) names.push(name);
+      }
+    });
+  });
+  return names;
+}
+
+// 본문에서 감지된 이름 + 저장된 색을 합쳐 현재 인물 목록을 만듦
+function currentChars(){
+  const saved = parseExtraChars();
+  const fallback = document.getElementById('narrColor').value;
+  return detectCharNames().map(name => {
+    const prev = saved.find(c => c.name.toLowerCase() === name.toLowerCase());
+    return { name, color: (prev && prev.color) || fallback };
+  });
+}
+
+// 인물 목록을 다시 그리고, extraChars(저장값)도 현재 상태로 정리함.
+// 저장된 색은 지우지 않고 병합한다 — 초기화 중(카드 복원 전) 감지 결과가 비어 있을 때
+// 저장된 색이 날아가는 것을 막기 위함.
+let charRowsKey = null;   // 현재 화면에 그려진 인물 이름 목록
+function syncCharList(){
+  const chars = currentChars();
+  const saved = parseExtraChars();
+  const merged = saved.slice();
+  chars.forEach(c => {
+    if(!merged.some(s => s.name.toLowerCase() === c.name.toLowerCase())) merged.push(c);
+  });
+  document.getElementById('extraChars').value = JSON.stringify(merged);
+
+  const list = document.getElementById('charList');
+  const empty = document.getElementById('charEmpty');
+  empty.style.display = chars.length ? 'none' : '';
+
+  // 이름 목록이 그대로면 행을 다시 만들지 않음.
+  // (색을 고르는 중에 DOM이 교체되면 열려 있던 색상 팔레트가 닫혀버리기 때문)
+  const key = chars.map(c => c.name).join('\u0000');
+  if(key === charRowsKey){
+    // 이름은 같고 색만 바뀐 경우(슬롯 전환·초안 복원 등)에는 값만 조용히 맞춰줌
+    Array.from(list.children).forEach((row, i) => {
+      const c = chars[i];
+      if(!c) return;
+      const color = row.querySelector('input[type="color"]');
+      const hex = row.querySelector('.hexLabel');
+      if(color && color.value !== c.color && document.activeElement !== color) color.value = c.color;
+      if(hex && hex.value !== c.color && document.activeElement !== hex) hex.value = c.color;
+    });
+    return;
+  }
+  charRowsKey = key;
+  list.innerHTML = '';
+
+  chars.forEach((c, index) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const label = document.createElement('label');
+    label.textContent = `${c.name} 대사 색상`;
+
+    const field = document.createElement('div');
+    field.className = 'colorField';
+
+    const hex = document.createElement('input');
+    hex.type = 'text';
+    hex.className = 'hexLabel';
+    hex.maxLength = 7;
+    hex.id = `extraCharHex-${index}`;
+    label.htmlFor = hex.id;
+    hex.value = c.color;
+
+    const color = document.createElement('input');
+    color.type = 'color';
+    color.value = c.color;
+    color.setAttribute('aria-label', `${c.name} 대사 색상 선택`);
+
+    const commit = (val) => {
+      const saved = parseExtraChars();
+      const target = saved.find(x => x.name.toLowerCase() === c.name.toLowerCase());
+      if(target) target.color = val;
+      document.getElementById('extraChars').value = JSON.stringify(saved);
+      render();
+      saveDraft();
+    };
+    color.addEventListener('input', () => { hex.value = color.value; commit(color.value); });
+    hex.addEventListener('input', () => {
+      const n = normalizeHex(hex.value);
+      if(n){ color.value = n; commit(n); }
+    });
+    hex.addEventListener('blur', () => { hex.value = normalizeHex(hex.value) || color.value; });
+
+    field.appendChild(hex);
+    field.appendChild(color);
+    row.appendChild(label);
+    row.appendChild(field);
+    list.appendChild(row);
+  });
+}
+
+// ---------- 큰 작업 + 디자인 변경 통합 히스토리 ----------
+// 본문 타이핑은 기록하지 않고, 파괴적 편집과 디자인 변경만 전체 작업 상태로 보관한다.
+let actionHistory = [];
+let actionIndex = -1;
+let styleCommitTimer = null;
+const ACTION_HISTORY_MAX = 30;
+
+function styleStateEqual(a, b){
+  if(!a || !b) return false;
+  return STYLE_FIELDS.every(id => String(a[id]) === String(b[id]));
+}
+
+function cloneHistoryValue(value){
+  return JSON.parse(JSON.stringify(value));
+}
+
+function captureActionState(label){
+  return {
+    label: label || '작업',
+    work: cloneHistoryValue(collectWork()),
+    style: cloneHistoryValue(currentStyleValues())
+  };
+}
+
+function actionStateEqual(a, b){
+  if(!a || !b) return false;
+  return styleStateEqual(a.style, b.style)
+    && JSON.stringify(a.work) === JSON.stringify(b.work);
+}
+
+function pushActionState(state, label){
+  const snap = cloneHistoryValue(state);
+  if(label) snap.label = label;
+  if(actionIndex >= 0 && actionStateEqual(snap, actionHistory[actionIndex])){
+    // 같은 상태라도 가장 최근 작업명은 유지해 툴팁이 정확하게 보이게 함.
+    actionHistory[actionIndex].label = snap.label;
+    updateHistoryButtons();
+    return false;
+  }
+  actionHistory = actionHistory.slice(0, actionIndex + 1);
+  actionHistory.push(snap);
+  if(actionHistory.length > ACTION_HISTORY_MAX) actionHistory.shift();
+  actionIndex = actionHistory.length - 1;
+  updateHistoryButtons();
+  return true;
+}
+
+function updateHistoryButtons(){
+  const u = document.getElementById('undoStyleBtn');
+  const r = document.getElementById('redoStyleBtn');
+  if(!u || !r) return;
+  u.disabled = actionIndex <= 0;
+  r.disabled = actionIndex >= actionHistory.length - 1;
+  const undoLabel = actionIndex > 0 ? actionHistory[actionIndex].label : '';
+  const redoLabel = actionIndex < actionHistory.length - 1 ? actionHistory[actionIndex + 1].label : '';
+  u.title = undoLabel ? `${undoLabel} 되돌리기 (${MOD_KEY}+Alt+Z)` : `되돌릴 작업 없음 (${MOD_KEY}+Alt+Z)`;
+  r.title = redoLabel ? `${redoLabel} 되살리기 (${MOD_KEY}+Alt+Shift+Z)` : `되살릴 작업 없음 (${MOD_KEY}+Alt+Shift+Z)`;
+}
+
+// 큰 작업은 snapshotCards()가 잡은 직전 상태와 완료 상태를 한 쌍으로 기록.
+function recordCompletedAction(label){
+  if(!undoSnapshot) return;
+  pushActionState(undoSnapshot, `${label} 전`);
+  undoSnapshot = null;
+  pushActionState(captureActionState(label), label);
+}
+
+// 디자인 변경도 통합 기록에 넣되, 그동안 타이핑한 본문은 현재 상태로 보존한다.
+// 슬라이더·색상 드래그는 짧게 묶어 한 단계로 기록한다.
+function commitStyleHistory(immediate){
+  clearTimeout(styleCommitTimer);
+  const doCommit = () => {
+    const after = captureActionState('디자인 변경');
+    if(actionIndex < 0){ pushActionState(after, '초기 상태'); return; }
+    const current = actionHistory[actionIndex];
+    if(styleStateEqual(after.style, current.style)) return;
+    // 본문은 지금 상태, 디자인은 변경 전 상태인 기준점을 먼저 둔다.
+    const before = {
+      label: '디자인 변경 전',
+      work: cloneHistoryValue(after.work),
+      style: cloneHistoryValue(current.style)
+    };
+    pushActionState(before, '디자인 변경 전');
+    pushActionState(after, '디자인 변경');
+  };
+  if(immediate){ doCommit(); }
+  else { styleCommitTimer = setTimeout(doCommit, 350); }
+}
+
+function goActionHistory(delta){
+  const target = actionIndex + delta;
+  if(target < 0 || target >= actionHistory.length) return;
+  actionIndex = target;
+  const state = actionHistory[actionIndex];
+  undoSnapshot = null;
+  imageHistorySession = null;
+  dismissToast();
+  applyWork(cloneHistoryValue(state.work));
+  applyStyleValues(cloneHistoryValue(state.style));
+  currentPresetName = null;
+  currentComboName = null;
+  renderPresetList();
+  renderComboList();
+  render();
+  saveDraft();
+  updateHistoryButtons();
+}
+
+document.getElementById('undoStyleBtn').addEventListener('click', () => goActionHistory(-1));
+document.getElementById('redoStyleBtn').addEventListener('click', () => goActionHistory(1));
+
+// 되돌린 상태에서 새 편집이 시작되면 기존 redo 분기는 더 이상 안전하지 않다.
+// 검색어·프리셋 이름 같은 임시 UI 입력은 제외하고 실제 작업값만 감시한다.
+const HISTORY_WORK_IDS = new Set([
+  ...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS
+]);
+function isHistoryAffectingInput(el){
+  if(!el || el.nodeType !== 1) return false;
+  if(el.id === 'fsTextarea') return true;
+  if(el.matches('.cardFoldChk, .foldTitleInput')) return true;
+  if(el.matches('#cardEditors textarea')) return true;
+  return !!el.id && HISTORY_WORK_IDS.has(el.id);
+}
+document.addEventListener('input', (e) => {
+  if(actionIndex >= actionHistory.length - 1 || !isHistoryAffectingInput(e.target)) return;
+  actionHistory = actionHistory.slice(0, actionIndex + 1);
+  updateHistoryButtons();
+}, true);
+
+// 대표 이미지와 BOT·USER 프로필 이미지는 URL뿐 아니라 크기·위치까지 하나의 편집
+// 단계로 기록한다. range 드래그나 URL 타이핑 중간값을 매번 쌓지 않고, 포커스를
+// 얻은 시점의 상태와 현재 상태 두 항목만 유지해 되돌리기 버튼을 즉시 활성화한다.
+const IMAGE_HISTORY_IDS = new Set([
+  'imgOn', 'imgUrl', 'imgHeight', 'xpos', 'ypos',
+  'profileCharImage', 'profileCharScale', 'profileCharX', 'profileCharY',
+  'profileUserImage', 'profileUserScale', 'profileUserX', 'profileUserY'
+]);
+let imageHistorySession = null;
+
+function imageHistoryLabel(id){
+  if(id.startsWith('profileChar')) return 'BOT 프로필 이미지 변경';
+  if(id.startsWith('profileUser')) return 'USER 프로필 이미지 변경';
+  return '대표 이미지 변경';
+}
+
+document.addEventListener('focusin', event => {
+  const target = event.target;
+  if(!target || !IMAGE_HISTORY_IDS.has(target.id)) return;
+  imageHistorySession = {
+    id: target.id,
+    before: captureActionState(`${imageHistoryLabel(target.id)} 전`),
+    afterIndex: -1
+  };
+});
+
+document.addEventListener('input', event => {
+  const target = event.target;
+  if(!target || !IMAGE_HISTORY_IDS.has(target.id)) return;
+  const label = imageHistoryLabel(target.id);
+  if(!imageHistorySession || imageHistorySession.id !== target.id){
+    // 키보드 포커스 없이 스크립트가 실제 입력 이벤트를 보낸 경우에도 안전하게 기록한다.
+    imageHistorySession = {
+      id: target.id,
+      before: actionIndex >= 0
+        ? cloneHistoryValue(actionHistory[actionIndex])
+        : captureActionState(`${label} 전`),
+      afterIndex: -1
+    };
+  }
+  const after = captureActionState(label);
+  if(actionStateEqual(imageHistorySession.before, after)){
+    updateHistoryButtons();
+    return;
+  }
+  if(imageHistorySession.afterIndex === actionIndex && actionIndex >= 0){
+    actionHistory[actionIndex] = cloneHistoryValue(after);
+    actionHistory[actionIndex].label = label;
+  } else {
+    pushActionState(imageHistorySession.before, `${label} 전`);
+    pushActionState(after, label);
+    imageHistorySession.afterIndex = actionIndex;
+  }
+  updateHistoryButtons();
+}, true);
+
+document.addEventListener('focusout', event => {
+  if(imageHistorySession && event.target && event.target.id === imageHistorySession.id){
+    imageHistorySession = null;
+  }
+});
+
+// 본문 입력의 기본 실행 취소와 충돌하지 않는 작업 단위 단축키.
+document.addEventListener('keydown', (e) => {
+  if(e.isComposing || e.keyCode === 229) return;
+  if(!(e.ctrlKey || e.metaKey) || !e.altKey || e.key.toLowerCase() !== 'z') return;
+  e.preventDefault();
+  goActionHistory(e.shiftKey ? 1 : -1);
+});
+
+function loadPresets(){
+  try {
+    const raw = localStorage.getItem(PRESET_KEY);
+    if(!raw){
+      const defaultPreset = { name: '프리셋 1', values: currentSavedPresetValues() };
+      savePresets([defaultPreset]);
+      return [defaultPreset];
+    }
+    const list = JSON.parse(raw);
+    // 사용자가 마지막 프리셋까지 삭제한 빈 배열도 정상적인 저장 상태다.
+    // 손상된 JSON/자료형만 오류로 취급해야 빈 목록이 오류 안내로 바뀌지 않는다.
+    if(!Array.isArray(list)) return null;
+    const seen = new Set();
+    const cleaned = [];
+    for(const stored of list){
+      if(!stored || !stored.values || typeof stored.values !== 'object') return null;
+      const candidate = { name:stored.name, values:{ ...stored.values } };
+      // 누락된 값은 메모리에서만 보완하고, 읽기만으로 원본 저장값을 덮어쓰지 않는다.
+      if(candidate.values.bgColor === undefined){
+        candidate.values.bgColor = candidate.values.cardTone === 'dark' ? '#1b1a19' : '#ffffff';
+      }
+      const safe = sanitizeImportedPreset(candidate);
+      if(!safe) return null;
+      const key = safe.name.toLowerCase();
+      if(seen.has(key)) return null;
+      seen.add(key);
+      safe.lastUsed = Number.isFinite(Number(stored.lastUsed)) ? Number(stored.lastUsed) : 0;
+      Object.defineProperty(safe, '_stored', { value:stored, writable:true, enumerable:false });
+      cleaned.push(safe);
+    }
+    return cleaned;
+  } catch(e){
+    return null;
+  }
+}
+
+function savePresets(list){
+  if(!Array.isArray(list)) return false;
+  try {
+    const payload = list.map(preset => {
+      const stored = preset && preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
+      return {
+        ...(stored ? stored : {}),
+        name: preset.name,
+        values: stored ? stored.values : preset.values,
+        lastUsed: Number.isFinite(Number(preset.lastUsed)) ? Number(preset.lastUsed) : 0
+      };
+    });
+    localStorage.setItem(PRESET_KEY, JSON.stringify(payload));
+    return true;
+  }
+  catch(e){ return false; }
+}
+
+function showPresetReadError(){
+  const status = document.getElementById('presetStatus');
+  if(status) status.textContent = '저장한 프리셋을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+}
+
+const MAX_PRESET_BYTES = 512 * 1024;
+const MAX_IMPORTED_PRESETS = 100;
+
+// 외부 프리셋 파일의 값을 실제 컨트롤 형식과 범위에 맞는지 확인한다.
+// 알 수 없는 필드는 버리고, 누락된 최신 필드는 기본값으로 채운다.
+// 알려진 필드 하나라도 잘못되면 해당 프리셋을 거부한다.
+function sanitizeImportedPreset(preset){
+  if(!preset || typeof preset.name !== 'string' || !preset.name.trim() || preset.name.length > 80
+     || /[\u0000-\u001F\u007F]/.test(preset.name)
+     || !preset.values || typeof preset.values !== 'object' || Array.isArray(preset.values)) return null;
+  const clean = { ...DEFAULT_STYLE };
+  // 나레이션·대사 폰트가 따로 저장돼 있으면 나레이션 값을 우선해 전체 폰트로 읽는다.
+  const sourceValues = { ...preset.values };
+  if(sourceValues.foldTitleDecorationOn === undefined && sourceValues.foldTitleMinimal !== undefined){
+    if(typeof sourceValues.foldTitleMinimal !== 'boolean') return null;
+    sourceValues.foldTitleDecorationOn = !sourceValues.foldTitleMinimal;
+  }
+  if(sourceValues.foldDividerOn === undefined && sourceValues.foldDividerMinimal !== undefined){
+    if(typeof sourceValues.foldDividerMinimal !== 'boolean') return null;
+    sourceValues.foldDividerOn = !sourceValues.foldDividerMinimal;
+  }
+  if(sourceValues.textFont === undefined){
+    sourceValues.textFont = sourceValues.narrFont !== undefined
+      ? sourceValues.narrFont
+      : sourceValues.dlgFont;
+  }
+  // 이전 버전의 원문 병행 체크박스를 현재 드롭다운 값으로 변환한다.
+  // 검증 전에 옮겨야 `끔`이 DEFAULT_STYLE의 자동 배치로 덮이지 않는다.
+  if(sourceValues.parallelTranslationLayout === undefined && sourceValues.parallelTranslationSoft !== undefined){
+    if(typeof sourceValues.parallelTranslationSoft !== 'boolean') return null;
+    sourceValues.parallelTranslationLayout = sourceValues.parallelTranslationSoft ? 'auto' : 'off';
+  }
+  if(sourceValues.commentWidth === undefined){
+    sourceValues.commentWidth = sourceValues.commentLayout === 'card' ? 'card' : DEFAULT_STYLE.commentWidth;
+  }
+  if(sourceValues.commentAlign === undefined){
+    sourceValues.commentAlign = sourceValues.commentLayout === 'center' ? 'center' : DEFAULT_STYLE.commentAlign;
+  }
+  if(sourceValues.paragraphGap === undefined) sourceValues.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(sourceValues.softBreakSpacing === undefined) sourceValues.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  if(sourceValues.cardLayout === undefined) sourceValues.cardLayout = DEFAULT_STYLE.cardLayout;
+  if(!['0','1','2','normal','relaxed','wide'].includes(String(sourceValues.softBreakSpacing))) return null;
+  sourceValues.softBreakSpacing = softBreakSpacingControlValue(sourceValues.softBreakSpacing);
+  let found = 0;
+  for(const id of STYLE_FIELDS){
+    if(sourceValues[id] === undefined) continue;
+    const el = document.getElementById(id);
+    const raw = sourceValues[id];
+    if(el.type === 'checkbox'){
+      if(typeof raw !== 'boolean') return null;
+      clean[id] = raw;
+    } else if(el.type === 'color'){
+      const color = typeof raw === 'string' ? normalizeHex(raw) : null;
+      if(!color) return null;
+      clean[id] = color;
+    } else if(el.type === 'range'){
+      const n = Number(raw), min = Number(el.min), max = Number(el.max);
+      if(!Number.isFinite(n) || n < min || n > max) return null;
+      clean[id] = (id === 'titleSize' || id === 'foldTitleSize')
+        ? String(Math.round(n))
+        : String(raw);
+    } else if(el.tagName === 'SELECT'){
+      const value = String(raw);
+      if(Array.from(el.options).some(opt => opt.value === value)){
+        clean[id] = value;
+      } else if(id === 'dlgStyle' && value === 'split'){
+        // 저장된 split 표현은 이름 배지 방식으로 읽는다.
+        clean[id] = 'badge';
+      } else if(id === 'dlgStyle' && value === 'quote'){
+        // 저장된 quote 표현은 인용박스 방식으로 읽는다.
+        clean[id] = 'box';
+      } else if(id === 'textFont'){
+        // 더 이상 제공하지 않는 서체만 안전한 기본값으로 교체한다.
+        clean[id] = DEFAULT_STYLE[id];
+      } else {
+        return null;
+      }
+    } else {
+      if(typeof raw !== 'string') return null;
+      if(id === 'commentWidth' && !['default','card'].includes(raw)) return null;
+      if(id === 'commentAlign' && !['left','center'].includes(raw)) return null;
+      clean[id] = raw;
+    }
+    found++;
+  }
+  return found ? { name: preset.name.trim(), values: clean } : null;
+}
+
+// 색 조합 스와치: 배경/나레이션/강조/{{char}}/{{user}} 순서의 소형 컬러칩.
+function buildSwatchRow(v){
+  const bg = v.bgColor || '#ffffff';
+  const dots = [
+    { c: bg,                         t: '배경' },
+    { c: v.narrColor     || '#ccc',  t: '서술' },
+    { c: v.emphasisColor || '#ccc',  t: '강조' },
+    { c: v.charColor     || '#ccc',  t: '캐릭터' },
+    { c: v.userColor     || '#ccc',  t: '유저' },
+  ];
+  return '<div class="swRow">' + dots.map(d =>
+    `<span class="swDot" title="${d.t}" style="background:${d.c};"></span>`
+  ).join('') + '</div>';
+}
+
+const PRESET_VIEW_KEY = 'logGenPresetView_v1';
+let presetSearchQuery = '';
+let presetSortMode = 'manual';
+let presetManageMode = false;
+let draggedPresetCard = null;
+try {
+  const savedView = JSON.parse(localStorage.getItem(PRESET_VIEW_KEY) || '{}');
+  if(['manual','recent','name'].includes(savedView.sort)) presetSortMode = savedView.sort;
+} catch(e){}
+
+function savePresetView(){
+  try { localStorage.setItem(PRESET_VIEW_KEY, JSON.stringify({ sort:presetSortMode })); } catch(e){}
+}
+
+function persistPresetDomOrder(){
+  if(presetSortMode !== 'manual' || presetSearchQuery) return;
+  const names = Array.from(document.querySelectorAll('#presetList .presetCard')).map(card => card.dataset.presetName);
+  const all = loadPresets();
+  if(all === null || names.length !== all.length) return;
+  const byName = new Map(all.map(p => [p.name, p]));
+  const ordered = names.map(name => byName.get(name)).filter(Boolean);
+  if(ordered.length === all.length) savePresets(ordered);
+}
+
+// 평소에는 팔레트·이름·선택만, 관리 모드에서만 검색·정렬·순서 변경·메뉴를 표시한다.
+function renderPresetList(){
+  const all = loadPresets();
+  const container = document.getElementById('presetList');
+  const empty = document.getElementById('presetListEmpty');
+  const count = document.getElementById('presetLibraryCount');
+  const group = document.getElementById('savedPresetGroup');
+  if(group) group.classList.toggle('isManaging', presetManageMode);
+  container.innerHTML = '';
+  if(all === null){
+    currentPresetName = null;
+    showPresetReadError();
+    updateOverwriteBtn();
+    return;
+  }
+
+  const query = presetSearchQuery.trim().toLocaleLowerCase('ko');
+  let list = all.filter(p => !query || p.name.toLocaleLowerCase('ko').includes(query));
+  if(presetSortMode === 'name'){
+    list = list.slice().sort((a,b) => a.name.localeCompare(b.name, 'ko', { numeric:true, sensitivity:'base' }));
+  } else if(presetSortMode === 'recent'){
+    list = list.slice().sort((a,b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  }
+  count.textContent = query ? `${list.length}/${all.length}` : String(all.length);
+  empty.hidden = list.length !== 0;
+  container.hidden = list.length === 0;
+
+  list.forEach(p => {
+    const v = p.values;
+    const card = document.createElement('div');
+    card.className = 'presetCard' + (p.name === currentPresetName ? ' active' : '');
+    card.dataset.presetName = p.name;
+    const canReorder = presetManageMode && presetSortMode === 'manual' && !query;
+    const presetKey = `saved:${p.name}`;
+    card.title = presetManageMode
+      ? (canReorder ? '핸들을 드래그해 순서 변경 · 더보기에서 이름 변경, 복제, 삭제' : '더보기에서 이름 변경, 복제, 삭제')
+      : '마우스를 올리면 색상 미리보기 · 클릭하면 저장된 색상과 대사 옵션 적용';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', `${p.name} 프리셋`);
+    card.draggable = false;
+    registerThemeHoverPreviewCard(card, presetKey, v);
+
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'presetDragHandle';
+    dragHandle.hidden = !canReorder;
+    dragHandle.draggable = canReorder;
+    dragHandle.setAttribute('role', 'img');
+    dragHandle.setAttribute('aria-label', `${p.name} 순서 변경`);
+    dragHandle.title = '드래그해 순서 변경';
+    dragHandle.textContent = '⠿';
+
+    const head = document.createElement('div');
+    head.className = 'presetHead';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'pname';
+    nameEl.textContent = p.name;
+    nameEl.title = p.name;
+
+    const activeMark = document.createElement('span');
+    activeMark.className = 'pActiveMark';
+    activeMark.setAttribute('aria-hidden', 'true');
+    activeMark.textContent = '✓';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'pSwatch';
+    swatch.innerHTML = buildSwatchRow(v);
+
+    const manage = document.createElement('span');
+    manage.className = 'presetManage';
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'presetMenuBtn';
+    menuBtn.textContent = '⋯';
+    menuBtn.title = '프리셋 관리';
+    menuBtn.setAttribute('aria-label', `${p.name} 관리`);
+    menuBtn.setAttribute('aria-expanded', 'false');
+    const menu = document.createElement('span');
+    menu.className = 'presetMenu';
+    menu.hidden = true;
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.textContent = '이름 변경';
+    const duplicateBtn = document.createElement('button');
+    duplicateBtn.type = 'button';
+    duplicateBtn.textContent = '복제';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'presetDeleteAction';
+    deleteBtn.textContent = '삭제';
+    menu.append(renameBtn, duplicateBtn, deleteBtn);
+    manage.append(menuBtn, menu);
+
+    // 카드 클릭 = 적용. 관리 메뉴나 이름 편집 중에는 적용하지 않는다.
+    card.addEventListener('click', (e) => {
+      if(e.target.closest('.presetManage') || e.target.closest('.presetDragHandle') || card.classList.contains('editing')) return;
+      if(presetManageMode) return;
+      commitThemeHoverPreview();
+      // 내 프리셋 적용은 추천 프리셋의 '연속 클릭' 흐름도 끊는다.
+      lastClickedPresetKey = null;
+      applySavedPresetValues(v);
+      const storedList = loadPresets();
+      if(storedList){
+        const used = storedList.find(item => item.name === p.name);
+        if(used) used.lastUsed = Date.now();
+        savePresets(storedList);
+      }
+      currentPresetName = p.name;
+      currentComboName = null;
+      renderPresetList();
+      renderComboList();
+      render();
+      saveDraft();
+      commitStyleHistory(true);
+    });
+    card.addEventListener('keydown', (e) => {
+      if(e.isComposing || e.keyCode === 229 || e.target !== card) return;
+      if(e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      card.click();
+    });
+    const startEdit = () => {
+      if(!presetManageMode || card.classList.contains('editing')) return;
+      menu.hidden = true;
+      menuBtn.setAttribute('aria-expanded', 'false');
+      card.classList.add('editing');
+      card.draggable = false;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'pNameInput';
+      input.maxLength = 80;
+      input.value = p.name;
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      let settled = false;
+      const finish = (save) => {
+        if(settled) return;
+        const name = input.value.trim();
+        if(save && name && name !== p.name){
+          const storedList = loadPresets();
+          if(storedList === null){ showPresetReadError(); input.focus(); return; }
+          if(storedList.some(x => x.name.toLowerCase() === name.toLowerCase())){ alert('같은 이름의 프리셋이 이미 있음.'); input.focus(); return; }
+          const target = storedList.find(x => x.name === p.name);
+          if(target) target.name = name;
+          if(!savePresets(storedList)){
+            document.getElementById('presetStatus').textContent = '저장 공간 부족으로 이름을 바꾸지 못했습니다.';
+            input.focus();
+            return;
+          }
+          if(currentPresetName === p.name) currentPresetName = name;
+        }
+        settled = true;
+        card.classList.remove('editing');
+        renderPresetList();
+      };
+      input.addEventListener('keydown', (e) => {
+        if(e.isComposing || e.keyCode === 229) return;
+        if(e.key === 'Enter'){ e.preventDefault(); finish(true); }
+        if(e.key === 'Escape'){ e.preventDefault(); finish(false); }
+      });
+      input.addEventListener('blur', () => finish(true));
+      input.addEventListener('click', (e) => e.stopPropagation());
+    };
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('#presetList .presetMenu').forEach(other => {
+        if(other !== menu) other.hidden = true;
+      });
+      document.querySelectorAll('#presetList .presetMenuBtn').forEach(otherBtn => {
+        if(otherBtn !== menuBtn) otherBtn.setAttribute('aria-expanded', 'false');
+      });
+      menu.hidden = !menu.hidden;
+      menuBtn.setAttribute('aria-expanded', String(!menu.hidden));
+    });
+    renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startEdit(); });
+    nameEl.addEventListener('dblclick', (e) => {
+      if(!presetManageMode) return;
+      e.stopPropagation();
+      startEdit();
+    });
+    duplicateBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const storedList = loadPresets();
+      if(storedList === null){ showPresetReadError(); return; }
+      let name = `${p.name} 복사본`;
+      let suffix = 2;
+      while(storedList.some(item => item.name.toLowerCase() === name.toLowerCase())) name = `${p.name} 복사본 ${suffix++}`;
+      const index = storedList.findIndex(item => item.name === p.name);
+      storedList.splice(index + 1, 0, { name, values:{ ...p.values }, lastUsed:0 });
+      if(!savePresets(storedList)){
+        document.getElementById('presetStatus').textContent = '저장 공간 부족으로 복제하지 못했습니다.';
+        return;
+      }
+      renderPresetList();
+    });
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const storedList = loadPresets();
+      if(storedList === null){ showPresetReadError(); return; }
+      if(storedList.length <= 1){ alert('프리셋은 최소 1개 유지.'); return; }
+      if(!confirm(`'${p.name}' 프리셋 삭제?\n복구 불가.`)) return;
+      if(!savePresets(storedList.filter(x => x.name !== p.name))){
+        document.getElementById('presetStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
+        return;
+      }
+      if(currentPresetName === p.name) currentPresetName = null;
+      renderPresetList();
+    });
+
+    card.addEventListener('dragstart', (e) => {
+      if(!canReorder || e.target !== dragHandle) return;
+      draggedPresetCard = card;
+      card.classList.add('dragging');
+      if(e.dataTransfer){
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', p.name);
+      }
+    });
+    card.addEventListener('dragover', (e) => {
+      if(!draggedPresetCard || draggedPresetCard === card) return;
+      e.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const nearSameRow = Math.abs(e.clientY - (rect.top + rect.height / 2)) < rect.height * .3;
+      const before = nearSameRow ? e.clientX < rect.left + rect.width / 2 : e.clientY < rect.top + rect.height / 2;
+      container.insertBefore(draggedPresetCard, before ? card : card.nextSibling);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      draggedPresetCard = null;
+      persistPresetDomOrder();
+      renderPresetList();
+    });
+
+    if(presetManageMode) head.append(dragHandle, nameEl, activeMark, manage);
+    else head.append(nameEl, activeMark, manage);
+    card.append(head, swatch);
+    container.appendChild(card);
+  });
+
+  if(!all.find(p => p.name === currentPresetName)) currentPresetName = null;
+  updateOverwriteBtn();
+}
+
+document.getElementById('presetSearch').addEventListener('input', (e) => {
+  presetSearchQuery = e.target.value;
+  renderPresetList();
+});
+document.getElementById('presetManageToggle').addEventListener('click', () => {
+  presetManageMode = !presetManageMode;
+  const toggle = document.getElementById('presetManageToggle');
+  toggle.textContent = presetManageMode ? '완료' : '관리';
+  toggle.setAttribute('aria-pressed', String(presetManageMode));
+  if(!presetManageMode){
+    presetSearchQuery = '';
+    document.getElementById('presetSearch').value = '';
+    document.querySelectorAll('#presetList .presetMenu').forEach(menu => { menu.hidden = true; });
+  }
+  renderPresetList();
+});
+document.getElementById('presetSort').value = presetSortMode;
+document.getElementById('presetSort').addEventListener('change', (e) => {
+  presetSortMode = e.target.value;
+  savePresetView();
+  renderPresetList();
+});
+document.addEventListener('click', (e) => {
+  if(e.target.closest('.presetManage')) return;
+  document.querySelectorAll('#presetList .presetMenu').forEach(menu => { menu.hidden = true; });
+  document.querySelectorAll('#presetList .presetMenuBtn').forEach(btn => { btn.setAttribute('aria-expanded', 'false'); });
+});
+
+function currentAppliedThemeSource(){
+  const currentValues = currentSavedPresetValues();
+  if(currentPresetName){
+    const presets = loadPresets();
+    const selected = presets && presets.find(p => p.name === currentPresetName);
+    if(selected && savedPresetStateEqual(selected.values, currentValues)){
+      return { kind:'saved', name:currentPresetName };
+    }
+  }
+  if(currentComboName){
+    const combo = COLOR_COMBOS.find(item => item.name === currentComboName);
+    const sameColors = combo && THEME_COLOR_FIELDS.every(id =>
+      String(combo.v[id]).toLowerCase() === String(currentValues[id]).toLowerCase()
+    );
+    if(sameColors) return { kind:'recommended', name:currentComboName };
+  }
+  return { kind:'direct', name:'' };
+}
+
+// 선택된 내 프리셋이 있을 때만 '덮어쓰기' 버튼을 활성화한다. 접힌 세 영역은
+// 출처와 현재 상태를 나눠 보여 같은 프리셋 이름이 반복되지 않게 한다.
+function updateOverwriteBtn(){
+  const btn = document.getElementById('overwritePresetBtn');
+  const status = document.getElementById('themeCurrentStatus');
+  const appliedName = document.getElementById('currentThemeAppliedName');
+  const recommendedStatus = document.getElementById('recommendedPresetStatus');
+  const savedActiveName = document.getElementById('savedPresetActiveName');
+  const savedCountWrap = document.getElementById('savedPresetCountWrap');
+  if(!btn) return;
+  btn.disabled = !currentPresetName;
+  btn.textContent = '변경사항 저장';
+  const source = currentAppliedThemeSource();
+  if(appliedName) appliedName.textContent = source.kind === 'direct' ? '직접 편집' : source.name;
+  if(recommendedStatus) recommendedStatus.textContent = source.kind === 'recommended'
+    ? `${source.name} · 적용 중`
+    : '색상 조합';
+  if(savedActiveName){
+    savedActiveName.hidden = source.kind !== 'saved';
+    savedActiveName.textContent = source.kind === 'saved' ? `${source.name} · 적용 중` : '';
+  }
+  if(savedCountWrap) savedCountWrap.hidden = source.kind === 'saved';
+  const styleIndex = DIALOG_STYLE_CYCLE.indexOf(document.getElementById('dlgStyle').value);
+  const optionLabel = `대사 옵션 ${styleIndex >= 0 ? styleIndex + 1 : 1}`;
+  if(status) status.textContent = source.kind === 'direct'
+    ? `직접 편집 · ${optionLabel}`
+    : optionLabel;
+}
+
+
+
+document.getElementById('overwritePresetBtn').addEventListener('click', () => {
+  if(!currentPresetName) return;
+  const list = loadPresets();
+  if(list === null){ showPresetReadError(); return; }
+  const target = list.find(p => p.name === currentPresetName);
+  if(!target) return;
+  if(!confirm(`'${currentPresetName}' 프리셋을 현재 색상과 대사 옵션으로 덮어쓸까?`)) return;
+  const overwrittenPresetName = currentPresetName;
+  const previousStoredPresets = localStorage.getItem(PRESET_KEY);
+  target.values = currentSavedPresetValues();
+  target._stored = null;
+  if(!savePresets(list)){
+    document.getElementById('presetStatus').textContent = '저장 공간 부족으로 변경사항을 저장하지 못했습니다.';
+    return;
+  }
+  renderPresetList();
+  const st = document.getElementById('presetStatus');
+  st.textContent = `'${overwrittenPresetName}'에 덮어씀.`;
+  showUndoToast(`'${overwrittenPresetName}' 프리셋 덮어씀.`, () => {
+    const restored = restoreStoredValue(PRESET_KEY, previousStoredPresets);
+    const undoStatus = document.getElementById('presetStatus');
+    if(!restored){
+      undoStatus.textContent = '프리셋 덮어쓰기를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+      return;
+    }
+    undoStatus.textContent = `'${overwrittenPresetName}' 프리셋 덮어쓰기를 되돌렸습니다.`;
+    renderPresetList();
+    renderComboList();
+  });
+});
+
+function updateSavePresetBtn(){
+  const input = document.getElementById('presetName');
+  document.getElementById('savePresetBtn').disabled = !input.value.trim();
+}
+document.getElementById('presetName').addEventListener('input', updateSavePresetBtn);
+
+document.getElementById('savePresetBtn').addEventListener('click', () => {
+  const nameInput = document.getElementById('presetName');
+  const name = nameInput.value.trim();
+  if(!name){
+    nameInput.placeholder = '이름을 먼저 입력';
+    return;
+  }
+  if(name.length > 80){
+    document.getElementById('presetStatus').textContent = '프리셋 이름은 80자 이하로 입력해 주세요.';
+    return;
+  }
+  const list = loadPresets();
+  if(list === null){ showPresetReadError(); return; }
+  const values = currentSavedPresetValues();
+  const existingIdx = list.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+  if(existingIdx >= 0){
+    document.getElementById('presetStatus').textContent = '같은 이름이 이미 있습니다. 선택 후 변경사항 저장을 사용해 주세요.';
+    return;
+  }
+  list.push({ name, values });
+  if(!savePresets(list)){
+    document.getElementById('presetStatus').textContent = '저장 공간 부족으로 프리셋을 저장하지 못했습니다.';
+    return;
+  }
+  currentPresetName = name;
+  currentComboName = null;
+  renderPresetList();
+  renderComboList();
+  nameInput.value = '';
+  updateSavePresetBtn();
+});
+
+document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
+  if(!confirm('디자인 설정을 기본값으로 되돌릴까?\n(↶ 되돌리기로 취소 가능)')) return;
+  applyStyleValues(DEFAULT_STYLE);
+  currentPresetName = null;
+  currentComboName = '모노 클래식';
+  currentComboFamily = 'featured';
+  lastClickedPresetKey = null;
+  renderPresetList();
+  renderComboList();
+  render();
+  saveDraft();
+  commitStyleHistory(true);
+});
+
+// ---------- 프리셋 내보내기 / 불러오기 ----------
+document.getElementById('exportPresetBtn').addEventListener('click', () => {
+  const list = loadPresets();
+  if(list === null){ showPresetReadError(); return; }
+  const exportList = list.map(preset => {
+    const stored = preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
+    return {
+      ...(stored ? stored : {}),
+      name: preset.name,
+      values: stored ? stored.values : preset.values
+    };
+  });
+  const blob = new Blob([JSON.stringify(exportList, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'log_presets.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importPresetBtn').addEventListener('click', () => {
+  document.getElementById('importPresetFile').click();
+});
+
+document.getElementById('importPresetFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('importStatus');
+  if(!file) return;
+  if(file.size > MAX_PRESET_BYTES){
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '프리셋 파일이 너무 큽니다. (최대 512KB)';
+    e.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let imported;
+    try {
+      imported = JSON.parse(reader.result);
+    } catch(err){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '파일 읽기 실패. JSON 형식을 확인.';
+      return;
+    }
+    if(!Array.isArray(imported) || imported.length > MAX_IMPORTED_PRESETS){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '이 도구의 프리셋 파일이 아니거나 항목이 너무 많습니다. (최대 100개)';
+      return;
+    }
+    const cleaned = imported.map(sanitizeImportedPreset);
+    if(!cleaned.length || cleaned.some(p => !p)){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '프리셋 값이나 색상 형식이 올바르지 않음.';
+      return;
+    }
+    const importedNames = cleaned.map(p => p.name.toLowerCase());
+    if(new Set(importedNames).size !== importedNames.length){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '프리셋 파일 안에 중복된 이름이 있습니다.';
+      return;
+    }
+    imported = cleaned;
+
+    const list = loadPresets();
+    if(list === null){ showPresetReadError(); return; }
+    let addedCount = 0, updatedCount = 0;
+    imported.forEach(p => {
+      const idx = list.findIndex(existing => existing.name.toLowerCase() === p.name.toLowerCase());
+      if(idx >= 0){
+        list[idx].values = p.values;
+        list[idx]._stored = null;
+        updatedCount++;
+      } else {
+        list.push({ name: p.name, values: p.values });
+        addedCount++;
+      }
+    });
+    if(!savePresets(list)){
+      statusEl.style.color = '#c0392b';
+      statusEl.textContent = '저장 공간 부족으로 프리셋을 불러오지 못했습니다.';
+      return;
+    }
+    const appliedPreset = list.find(p => p.name.toLowerCase() === imported[0].name.toLowerCase());
+    currentPresetName = appliedPreset ? appliedPreset.name : imported[0].name;
+    currentComboName = null;
+    applyThemeColorValues(imported[0].values);
+    renderPresetList();
+    renderComboList();
+    render();
+    saveDraft();
+    commitStyleHistory(true);
+
+    statusEl.style.color = '#2a7a2a';
+    statusEl.textContent = `불러오기 완료: 새로 추가 ${addedCount}개, 덮어쓰기 ${updatedCount}개.`;
+  };
+  reader.onerror = () => {
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '프리셋 파일을 읽지 못했습니다.';
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // 같은 파일 다시 선택해도 change가 발생하도록 초기화
+});
+
+// ---------- 대표 이미지와 BOT·USER 사진 상태 확인 ----------
+const IMAGE_STATUS_CONFIGS = [
+  { inputId:'imgUrl', statusId:'imageLoadStatus', enabledIds:['imgOn'], showDimensions:true },
+  { inputId:'profileCharImage', statusId:'profileCharImageStatus', enabledIds:['profileOn','profileCharOn'] },
+  { inputId:'profileUserImage', statusId:'profileUserImageStatus', enabledIds:['profileOn','profileUserOn'] },
+];
+const imageStatusTimers = new Map();
+const imageStatusTokens = new Map();
+
+function probeImage(url, timeoutMs = 6000){
+  return new Promise(resolve => {
+    const img = new Image();
+    let settled = false;
+    const finish = result => {
+      if(settled) return;
+      settled = true;
+      clearTimeout(timer);
+      img.onload = null;
+      img.onerror = null;
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok:false, reason:'시간 초과' }), timeoutMs);
+    img.onload = () => finish({ ok:true, width:img.naturalWidth, height:img.naturalHeight });
+    img.onerror = () => finish({ ok:false, reason:'불러오기 실패' });
+    img.src = url;
+  });
+}
+
+// 이미지 판정이 편집 중인 미리보기를 곧바로 교체하면 contenteditable의 blur 저장이
+// 건너뛰거나 선택이 끊길 수 있다. 편집이 끝난 뒤 한 번만 갱신하고, 그사이 다른 입력이
+// 이미 렌더했다면 중복 렌더를 생략한다.
+function refreshAfterImageStatusChange(){
+  const active = document.activeElement;
+  const editor = active && active.closest
+    ? active.closest('#preview [data-preview-direct-edit="true"]')
+    : null;
+  if(!editor){
+    deferredImageStatusEditor = null;
+    render();
+    updateCounter();
+    return;
+  }
+  if(deferredImageStatusEditor === editor) return;
+  deferredImageStatusEditor = editor;
+  const revision = previewRenderRevision;
+  editor.addEventListener('blur', () => {
+    if(deferredImageStatusEditor === editor) deferredImageStatusEditor = null;
+    requestAnimationFrame(() => {
+      if(previewRenderRevision !== revision) return;
+      render();
+      updateCounter();
+    });
+  }, { once:true });
+}
+
+async function updateSingleImageLoadStatus(config){
+  const status = document.getElementById(config.statusId);
+  if(!status) return;
+  const isProfileStatus = status.classList.contains('profileImageDot');
+  const token = (imageStatusTokens.get(config.statusId) || 0) + 1;
+  imageStatusTokens.set(config.statusId, token);
+  const enabled = config.enabledIds.every(id => document.getElementById(id).checked);
+  const raw = document.getElementById(config.inputId).value.trim();
+  if(!enabled){
+    status.dataset.state = 'idle';
+    status.textContent = '';
+    status.hidden = true;
+    status.title = '';
+    return;
+  }
+  if(!raw){
+    status.dataset.state = 'idle';
+    status.textContent = '';
+    status.hidden = true;
+    status.title = '';
+    return;
+  }
+  let url;
+  try {
+    url = new URL(raw.startsWith('//') ? `https:${raw}` : raw, location.href).href;
+  } catch(e){
+    status.hidden = false;
+    status.dataset.state = 'error';
+    status.textContent = isProfileStatus ? '!' : '주소 형식 확인 필요';
+    status.title = '주소 형식 확인 필요';
+    if(config.inputId === 'imgUrl'){
+      refreshAfterImageStatusChange();
+    }
+    return;
+  }
+  status.hidden = isProfileStatus;
+  status.dataset.state = 'idle';
+  status.textContent = isProfileStatus ? '' : '이미지 확인 중…';
+  status.title = isProfileStatus ? '' : status.textContent;
+  const result = await probeImage(url);
+  if(token !== imageStatusTokens.get(config.statusId)) return;
+  if(result.ok){
+    if(config.inputId === 'profileCharImage' || config.inputId === 'profileUserImage'){
+      const imageKey = normalizeProtocolRelativeUrl(raw);
+      const previous = profileImageDimensions.get(imageKey);
+      const dimensionsChanged = !previous
+        || previous.width !== result.width
+        || previous.height !== result.height;
+      profileImageDimensions.set(imageKey, { width:result.width, height:result.height });
+      profileImageDimensions.set(url, { width:result.width, height:result.height });
+      // 방향을 확인한 뒤 확대 배율을 cover 기준으로 다시 계산해 출력 HTML에도 고정한다.
+      if(dimensionsChanged){
+        refreshAfterImageStatusChange();
+      }
+    }
+    status.dataset.state = 'ok';
+    const successText = config.showDimensions
+      ? `정상 · ${result.width.toLocaleString()}×${result.height.toLocaleString()}`
+      : '정상';
+    status.hidden = isProfileStatus;
+    status.textContent = isProfileStatus ? '' : successText;
+    status.title = isProfileStatus ? '' : successText;
+  }else{
+    status.dataset.state = 'error';
+    const errorText = result.reason || '불러오기 실패';
+    status.hidden = false;
+    status.textContent = isProfileStatus ? '!' : errorText;
+    status.title = errorText;
+  }
+  // 대표 이미지의 성공·실패 판정이 끝난 시점에 출력도 다시 만들어,
+  // 실패한 배경 이미지가 통합 카드의 단색 상단 블록으로 남지 않게 한다.
+  if(config.inputId === 'imgUrl'){
+    refreshAfterImageStatusChange();
+  }
+}
+
+function scheduleImageStatusCheck(config){
+  clearTimeout(imageStatusTimers.get(config.statusId));
+  imageStatusTimers.set(config.statusId, setTimeout(() => updateSingleImageLoadStatus(config), 350));
+}
+
+function updateAllImageLoadStatuses(){
+  IMAGE_STATUS_CONFIGS.forEach(updateSingleImageLoadStatus);
+}
+
+IMAGE_STATUS_CONFIGS.forEach(config => {
+  document.getElementById(config.inputId).addEventListener('input', () => scheduleImageStatusCheck(config));
+});
+
+// ---------- 문서 탐색기 ----------
+const docNavBtn = document.getElementById('docNavBtn');
+const docNavPanel = document.getElementById('docNavPanel');
+
+function lineStartOffset(text, lineIndex){
+  if(lineIndex <= 0) return 0;
+  const lines = text.split('\n');
+  let offset = 0;
+  for(let i = 0; i < Math.min(lineIndex, lines.length); i++) offset += lines[i].length + 1;
+  return Math.min(offset, text.length);
+}
+
+function jumpToDocumentLine(cardIndex, lineIndex){
+  document.getElementById('tabBtnBody').click();
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  const editor = editors[cardIndex];
+  if(!editor) return;
+  const ta = editor.querySelector('textarea');
+  if(getComputedStyle(ta).display === 'none'){
+    const collapse = editor.querySelector('.collapseCtl');
+    if(collapse) collapse.click();
+  }
+  const start = lineStartOffset(ta.value, lineIndex);
+  const line = ta.value.split('\n')[lineIndex] || '';
+  try { ta.focus({ preventScroll:true }); }
+  catch(e){ ta.focus(); }
+  ta.setSelectionRange(start, Math.min(start + line.length, ta.value.length));
+  activeTa = ta;
+  revealEditorOffsetAtTop(ta, start, editor);
+  if(positionSyncEnabled()) requestAnimationFrame(() => focusPreviewOnCaret(ta));
+}
+
+function navigatorItemsForCard(card, index){
+  const items = [];
+  const lines = card.body.split('\n');
+  lines.forEach((raw, lineIndex) => {
+    const line = raw.trim();
+    if(!line) return;
+    const structuralLine = line.replace(/^\[C\]\s*/i, '');
+    const heading = structuralLine.match(/^(#{1,4})>?\s+(.+)$/);
+    if(heading){
+      items.push({ lineIndex, label:`${'·'.repeat(heading[1].length)} ${stripMarkers(heading[2]).trim()}` });
+      return;
+    }
+    if(structuralLine.toUpperCase() === '[HR]') items.push({ lineIndex, label:'— 구분선' });
+    else if(structuralLine.toUpperCase() === '[HR2]') items.push({ lineIndex, label:'✦ 장면 전환' });
+    else if(structuralLine.toUpperCase() === '[HR3]') items.push({ lineIndex, label:'··· 호흡' });
+    else if(structuralLine.toUpperCase() === '[GAP]') items.push({ lineIndex, label:'↕ 넓은 여백' });
+    else if(statusLineContent(structuralLine) !== null) items.push({ lineIndex, label:'◌ 상태창' });
+    else if(/^\[IMG\s/i.test(structuralLine)) items.push({ lineIndex, label:'▧ 본문 이미지' });
+    else if(/^\[접기/i.test(structuralLine)) items.push({ lineIndex, label:`＋ ${structuralLine.replace(/^\[접기\s*|\]$/g, '').trim() || '접기'}` });
+  });
+  if(!items.length){
+    const firstLine = lines.findIndex(line => line.trim());
+    if(firstLine >= 0){
+      const summary = stripMarkers(lines[firstLine])
+        .replace(/^\s*\[C\]\s*/i, '')
+        .replace(/^>{1,2}\s*/, '')
+        .trim();
+      items.push({ lineIndex:firstLine, label:summary.slice(0, 48) || `카드 ${index + 1}` });
+    }
+  }
+  return items;
+}
+
+function buildDocumentNavigator(){
+  if(docNavPanel.hidden) return;
+  const cards = getCards();
+  docNavPanel.innerHTML = '';
+  let visibleCardNumber = 0;
+  let commentNumber = 0;
+  cards.forEach((card, cardIndex) => {
+    const isComment = card.type === 'comment';
+    const displayNumber = isComment ? ++commentNumber : ++visibleCardNumber;
+    const group = document.createElement('div');
+    group.className = 'docNavGroup';
+    const title = document.createElement('button');
+    title.type = 'button';
+    title.className = 'docNavCardTitle';
+    const firstHeading = card.body
+      .split('\n')
+      .map(line => line.trim().replace(/^\[C\]\s*/i, '').match(/^#{1,4}>?\s+(.+)$/))
+      .find(Boolean);
+    const cardNavigatorTitle = String(card.foldTitle || '').trim();
+    const navigatorTitle = cardNavigatorTitle
+      ? cardNavigatorTitle
+      : (firstHeading ? stripMarkers(firstHeading[1]).trim() : '');
+    const cardKindBase = isComment ? `코멘트 ${displayNumber}` : (card.folded ? '접기' : `카드 ${displayNumber}`);
+    const cardKind = card.visible === false ? `${cardKindBase} · 숨김` : cardKindBase;
+    title.textContent = navigatorTitle ? `${cardKind} · ${navigatorTitle}` : cardKind;
+    title.title = title.textContent;
+    const firstLineIndex = card.body.split('\n').findIndex(line => line.trim());
+    title.addEventListener('click', () => jumpToDocumentLine(cardIndex, Math.max(0, firstLineIndex)));
+    group.appendChild(title);
+    const list = document.createElement('div');
+    list.className = 'docNavItems';
+    const items = isComment ? [] : navigatorItemsForCard(card, displayNumber - 1);
+    if(!items.length){
+      const empty = document.createElement('span');
+      empty.className = 'docNavEmpty';
+      empty.textContent = isComment ? (card.body.trim().slice(0, 48) || '빈 코멘트') : '빈 카드';
+      list.appendChild(empty);
+    }else{
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'docNavItem';
+        button.textContent = item.label;
+        button.title = item.label;
+        button.addEventListener('click', () => jumpToDocumentLine(cardIndex, item.lineIndex));
+        list.appendChild(button);
+      });
+    }
+    group.appendChild(list);
+    docNavPanel.appendChild(group);
+  });
+}
+
+docNavBtn.addEventListener('click', () => {
+  const open = docNavPanel.hidden;
+  docNavPanel.hidden = !open;
+  docNavBtn.setAttribute('aria-expanded', String(open));
+  docNavBtn.setAttribute('aria-pressed', String(open));
+  if(open) buildDocumentNavigator();
+});
+document.getElementById('cardEditors').addEventListener('input', buildDocumentNavigator);
+document.getElementById('cardEditors').addEventListener('change', buildDocumentNavigator);
+new MutationObserver(buildDocumentNavigator).observe(document.getElementById('cardEditors'), { childList:true });
+
+// ---------- 집중 작성 모드 ----------
+const focusModeBtn = document.getElementById('focusModeBtn');
+function setFocusMode(enabled){
+  if(enabled) document.getElementById('tabBtnBody').click();
+  document.body.classList.toggle('labFocus', enabled);
+  focusModeBtn.setAttribute('aria-pressed', String(enabled));
+  focusModeBtn.textContent = enabled ? '집중 종료' : '집중 모드';
+  focusModeBtn.title = enabled ? '일반 화면으로 돌아가기 (Esc)' : '본문 입력과 미리보기만 보기';
+  requestAnimationFrame(() => {
+    if(activeTa) activeTa.scrollIntoView({ block:'nearest' });
+  });
+}
+focusModeBtn.addEventListener('click', () => setFocusMode(!document.body.classList.contains('labFocus')));
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.body.classList.contains('labFocus')) setFocusMode(false);
+});
+
+// ---------- 출력 전 점검 ----------
+const preflightBtn = document.getElementById('preflightBtn');
+const preflightPanel = document.getElementById('preflightPanel');
+let preflightRunToken = 0;
+
+function focusPreflightTarget(issue){
+  if(issue.cardIndex !== undefined){
+    jumpToDocumentLine(issue.cardIndex, issue.lineIndex || 0);
+    return;
+  }
+  if(issue.targetId){
+    document.getElementById('tabBtnCover').click();
+    const target = document.getElementById(issue.targetId);
+    if(target){
+      const folds = [];
+      let fold = target.closest('details');
+      while(fold){ folds.push(fold); fold = fold.parentElement && fold.parentElement.closest('details'); }
+      folds.reverse().forEach(details => { details.open = true; });
+      target.focus();
+      target.scrollIntoView({ behavior:'smooth', block:'center' });
+    }
+  }
+}
+
+function renderPreflightIssues(issues, checking){
+  const summary = document.getElementById('preflightSummary');
+  const list = document.getElementById('preflightList');
+  list.innerHTML = '';
+  if(checking){
+    summary.textContent = '출력물을 점검하는 중…';
+    return;
+  }
+  if(!issues.length){
+    summary.textContent = '문제 없음 · 바로 출력해도 좋습니다.';
+    return;
+  }
+  const errors = issues.filter(issue => issue.severity === 'error').length;
+  summary.textContent = `확인할 항목 ${issues.length}개${errors ? ` · 오류 ${errors}개` : ''}`;
+  issues.forEach(issue => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'preflightIssue';
+    button.dataset.severity = issue.severity;
+    button.textContent = `${issue.severity === 'error' ? '오류' : '확인'} · ${issue.message}`;
+    button.addEventListener('click', () => focusPreflightTarget(issue));
+    list.appendChild(button);
+  });
+}
+
+function basicPreflightIssues(){
+  const issues = [];
+  const cards = getCards();
+  let cardNumber = 0;
+  let commentNumber = 0;
+  cards.forEach((card, cardIndex) => {
+    if(card.visible === false) return;
+    const isComment = card.type === 'comment';
+    const blockLabel = isComment ? `코멘트 ${++commentNumber}` : `카드 ${++cardNumber}`;
+    if(!card.body.trim()){
+      if(!isComment) issues.push({ severity:'warn', message:`${blockLabel}이 비어 있습니다.`, cardIndex, lineIndex:0 });
+      return;
+    }
+    // 코멘트는 이번 버전에서 문법을 해석하지 않는 순수 텍스트이므로
+    // 본문용 굵게·강조·접기·이미지 문법 점검 대상에서 제외한다.
+    if(isComment) return;
+    const underscoreStrongMarkers = (card.body.match(/__/g) || []).length;
+    const asteriskStrongMarkers = (card.body.match(/\*\*/g) || []).length;
+    if(underscoreStrongMarkers % 2 || asteriskStrongMarkers % 2){
+      issues.push({ severity:'error', message:`${blockLabel}의 굵게 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
+    }
+    const withoutStrong = card.body.replace(/__/g, '');
+    const emphasisMarkers = (withoutStrong.match(/(?<!\\)\*/g) || []).length;
+    if(emphasisMarkers % 2){
+      issues.push({ severity:'error', message:`${blockLabel}의 강조(*) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
+    }
+    const openFolds = (card.body.match(/^(?:\[C\]\s*)?\[접기(?:[^\]]*)\]\s*$/gmi) || []).length;
+    const closeFolds = (card.body.match(/^\[\/접기\]\s*$/gmi) || []).length;
+    if(openFolds !== closeFolds){
+      issues.push({ severity:'warn', message:`${blockLabel}의 일부 접기 시작·끝 개수가 다릅니다.`, cardIndex, lineIndex:0 });
+    }
+    card.body.split('\n').forEach((raw, lineIndex) => {
+      const line = raw.trim();
+      if(/^\[IMG\b/i.test(line) && !/^\[IMG\s+\S+?(?:\s+@\d{1,3})?(?:\s*\|\s*.+?)?\s*\]$/i.test(line)){
+        issues.push({ severity:'error', message:`${blockLabel}의 이미지 문법을 확인해 주세요.`, cardIndex, lineIndex });
+      }
+    });
+  });
+  if(document.getElementById('imgOn').checked && !document.getElementById('imgUrl').value.trim()){
+    issues.push({ severity:'error', message:'대표 이미지 표시가 켜져 있지만 주소가 비어 있습니다.', targetId:'imgUrl' });
+  }
+  [
+    { urlId:'logNumberUrl', textId:'logNumber', label:'메모' },
+    { urlId:'logTitleUrl', textId:'logTitle', label:'제목' },
+    { urlId:'subCharUrl', textIds:['subChar','profileCharName'], label:'BOT 이름' },
+    { urlId:'subUserUrl', textIds:['subUser','profileUserName'], label:'USER 이름' },
+    { urlId:'logSubtitleUrl', textId:'logSubtitle', label:'부제' }
+  ].forEach(item => {
+    // 연결할 글자가 없는 동안에는 링크 입력도 비활성 상태이므로 검사 대상에서 제외한다.
+    const textIds = item.textIds || [item.textId];
+    const hasLinkedText = textIds.some(id => {
+      if(id === 'profileCharName' || id === 'profileUserName'){
+        const entityToggleId = id === 'profileCharName' ? 'profileCharOn' : 'profileUserOn';
+        return document.getElementById('profileOn').checked
+          && document.getElementById(entityToggleId).checked
+          && document.getElementById(id).value.trim();
+      }
+      return document.getElementById(id).value.trim();
+    });
+    if(!hasLinkedText) return;
+    const rawUrl = document.getElementById(item.urlId).value.trim();
+    if(!rawUrl) return;
+    if(!normalizeHttpLinkUrl(rawUrl)){
+      let targetId = item.urlId;
+      if(!document.getElementById('logTitleOn').checked){
+        if(item.urlId === 'subCharUrl') targetId = 'profileCharUrl';
+        if(item.urlId === 'subUserUrl') targetId = 'profileUserUrl';
+      }
+      issues.push({ severity:'error', message:`${item.label} 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`, targetId });
+    }
+  });
+  if(document.getElementById('creditOn').checked){
+    storedCreditItems().forEach((item, index) => {
+      const rawUrl = item.url.trim();
+      if(rawUrl && !normalizeHttpLinkUrl(rawUrl)){
+        issues.push({
+          severity:'error',
+          message:`크레딧 ${index + 1}의 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`,
+          targetId:`creditUrl${index}`
+        });
+      }
+    });
+  }
+  if(document.getElementById('charSpeakerOn').checked && !document.getElementById('charName').value.trim()){
+    issues.push({ severity:'warn', message:'빈 {{char}} 이름은 {{char}} 변수로 출력됩니다.', targetId:'charName' });
+  }
+  if(document.getElementById('userSpeakerOn').checked && !document.getElementById('userName').value.trim()){
+    issues.push({ severity:'warn', message:'빈 {{user}} 이름은 {{user}} 변수로 출력됩니다.', targetId:'userName' });
+  }
+  render();
+  const bytes = new Blob([document.getElementById('codeBox').value]).size;
+  if(bytes > 1024 * 1024){
+    issues.push({ severity:'warn', message:`출력 HTML이 ${(bytes / 1024 / 1024).toFixed(1)}MB로 큽니다.` });
+  }
+  return issues;
+}
+
+async function runPreflight(){
+  const token = ++preflightRunToken;
+  preflightPanel.hidden = false;
+  preflightBtn.setAttribute('aria-expanded', 'true');
+  renderPreflightIssues([], true);
+  const issues = basicPreflightIssues();
+  const imgOn = document.getElementById('imgOn').checked;
+  const imgUrl = document.getElementById('imgUrl').value.trim();
+  if(imgOn && imgUrl){
+    let normalized = imgUrl;
+    try { normalized = new URL(imgUrl.startsWith('//') ? `https:${imgUrl}` : imgUrl, location.href).href; }
+    catch(e){ normalized = ''; }
+    if(!normalized){
+      issues.push({ severity:'error', message:'대표 이미지 주소 형식이 올바르지 않습니다.', targetId:'imgUrl' });
+    }else{
+      const result = await probeImage(normalized);
+      if(token !== preflightRunToken) return;
+      if(!result.ok){
+        issues.push({ severity:'error', message:'대표 이미지를 불러오지 못했습니다.', targetId:'imgUrl' });
+      }else if(result.width > 5000 || result.height > 5000){
+        issues.push({ severity:'warn', message:`대표 이미지 원본이 ${result.width}×${result.height}로 매우 큽니다.`, targetId:'imgUrl' });
+      }
+    }
+  }
+  const bodyImages = [];
+  let visibleBodyCardNumber = 0;
+  getCards().forEach((card, cardIndex) => {
+    if(card.type === 'comment' || card.visible === false) return;
+    const cardNumber = ++visibleBodyCardNumber;
+    card.body.split('\n').forEach((raw, lineIndex) => {
+      const match = raw.trim().match(/^\[IMG\s+(\S+?)(?:\s+@\d{1,3})?(?:\s*\|\s*(.+?))?\s*\]$/i);
+      if(!match) return;
+      let url = match[1];
+      if(url.startsWith('//')) url = `https:${url}`;
+      try {
+        url = new URL(url, location.href).href;
+        // 원본 배열 위치는 입력창 이동에, 화면 카드 번호는 안내 문구에 각각 사용한다.
+        bodyImages.push({ url, cardIndex, cardNumber, lineIndex });
+      } catch(e){ /* 형식 오류는 기본 점검에서 이미 표시됨 */ }
+    });
+  });
+  const uniqueBodyImages = [];
+  const seenImageUrls = new Set();
+  bodyImages.forEach(item => {
+    if(seenImageUrls.has(item.url)) return;
+    seenImageUrls.add(item.url);
+    uniqueBodyImages.push(item);
+  });
+  const bodyChecks = uniqueBodyImages.slice(0, 12);
+  const bodyResults = await Promise.all(bodyChecks.map(async item => ({
+    item,
+    result:await probeImage(item.url)
+  })));
+  if(token !== preflightRunToken) return;
+  bodyResults.forEach(({ item, result }) => {
+    if(!result.ok){
+      issues.push({
+        severity:'error',
+        message:`카드 ${item.cardNumber}의 본문 이미지를 불러오지 못했습니다.`,
+        cardIndex:item.cardIndex,
+        lineIndex:item.lineIndex
+      });
+    }else if(result.width > 5000 || result.height > 5000){
+      issues.push({
+        severity:'warn',
+        message:`카드 ${item.cardNumber}의 본문 이미지 원본이 ${result.width}×${result.height}로 매우 큽니다.`,
+        cardIndex:item.cardIndex,
+        lineIndex:item.lineIndex
+      });
+    }
+  });
+  if(uniqueBodyImages.length > bodyChecks.length){
+    issues.push({ severity:'warn', message:`본문 이미지가 많아 앞의 ${bodyChecks.length}개만 연결 상태를 확인했습니다.` });
+  }
+  if(token !== preflightRunToken) return;
+  renderPreflightIssues(issues, false);
+}
+
+preflightBtn.addEventListener('click', () => {
+  if(!preflightPanel.hidden){
+    preflightPanel.hidden = true;
+    preflightBtn.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  runPreflight();
+});
+
+// 표지·본문·디자인·테마 등 왼쪽 입력 컨트롤을 조작하는 동안에는
+// 실시간으로 다시 그려지는 미리보기 문단에 편집용 테두리가 나타나지 않게 한다.
+function syncSidebarFieldActive(){
+  const active = document.activeElement;
+  const isSidebarField = !!(active && active.matches
+    && active.closest('#sidebar')
+    && active.matches('input, textarea, select, [contenteditable="true"]'));
+  document.body.classList.toggle('sidebarFieldActive', isSidebarField);
+  if(isSidebarField){
+    hideSelToolbar();
+    hideBlockToolbar();
+  }
+}
+document.addEventListener('focusin', syncSidebarFieldActive);
+document.addEventListener('focusout', () => requestAnimationFrame(syncSidebarFieldActive));
+
+// 전역 에러 표시: 어떤 에러든 조용히 삼켜지지 않고 화면에 보이게 (문제 파악용)
+window.addEventListener('error', (e) => {
+  const bar = document.getElementById('errorBar');
+  if(bar){
+    bar.style.display = 'block';
+    bar.textContent = '⚠ 오류: ' + e.message + ' — 이 메시지를 캡처해 개발자에게 전달.';
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const bar = document.getElementById('errorBar');
+  if(bar){
+    const message = e.reason && e.reason.message ? e.reason.message : String(e.reason || '알 수 없는 비동기 오류');
+    bar.style.display = 'block';
+    bar.textContent = '⚠ 오류: ' + message + ' — 이 메시지를 캡처해 개발자에게 전달.';
+  }
+});
+
+// 맥이면 단축키 표기를 ⌘ 로 바꿔줌 (툴팁·도움말)
+if(IS_MAC){
+  document.querySelectorAll('[title*="Ctrl+"]').forEach(el => {
+    el.title = el.title.replace(/Ctrl\+/g, '⌘+');
+  });
+  document.querySelectorAll('.hint code').forEach(el => {
+    if(/^Ctrl\+/.test(el.textContent)) el.textContent = el.textContent.replace(/^Ctrl\+/, '⌘+');
+  });
+}
+
+// 초기 렌더
+restoreDraft();
+renderCreditItemsEditor();
+renderCreditPresetOptions();
+renderKeywordRuleList();
+syncProfileTagEditorsFromMasters();
+syncCoverControlState();
+if(bodyCardTextareas().length === 0){
+  addCard(EXAMPLE_BODY, false); // 초안이 없으면 예시 본문으로 시작
+}
+activeTa = bodyCardTextareas()[0] || null;
+updateHexLabels();
+syncTypographyRangeLabels();
+syncDesignSummaries();
+previewDirectEditReady = true;
+render();
+updateCounter();
+const initialList = loadPresets();
+const matchingInitialPreset = initialList && initialList.find(p => savedPresetStateEqual(p.values, currentSavedPresetValues()));
+const matchingInitialCombo = COLOR_COMBOS.find(combo =>
+  Object.entries(combo.v).every(([id, value]) =>
+    String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
+  )
+);
+currentComboName = matchingInitialCombo ? matchingInitialCombo.name : null;
+if(matchingInitialCombo && !matchingInitialCombo.families.includes('featured')){
+  currentComboFamily = matchingInitialCombo.families[0];
+}
+currentPresetName = matchingInitialCombo ? null : (matchingInitialPreset ? matchingInitialPreset.name : null);
+renderPresetList();
+renderComboFamilyFilters();
+renderComboList();
+renderSlotList();
+commitStyleHistory(true); // 초기 작업 상태를 기록의 첫 항목으로
+updateHistoryButtons();
