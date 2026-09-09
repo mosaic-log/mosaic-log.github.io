@@ -1308,7 +1308,9 @@
   }
   .archiveSaveRow input,
   .archiveSaveRow button { width: 100%; }
-  .archiveFileRow { margin-top: 8px; }
+  #archiveDrawer .archiveFileRow { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; margin-top:8px; }
+  #archiveDrawer .archiveFileRow[hidden] { display:none; }
+  #archiveDrawer .archiveFileRow button { width:100%; min-width:0; min-height:34px; padding:6px; }
   .archiveListTools {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 104px;
@@ -1400,25 +1402,27 @@
     font-size: 11.5px;
   }
   .slotRow {
+    margin-inline:6px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 12px 10px;
     border: 1px solid var(--line);
-    border-radius: 9px;
+    border-radius: 8px;
     cursor: default;
     background: var(--bg-panel);
   }
   .slotRow:hover { border-color: var(--line-strong); background: var(--bg-field); }
-  .slotRow .slotIdentity {
-    display: flex;
-    align-items: baseline;
-    flex: 1;
-    min-width: 0;
-    gap: 6px;
-  }
-  .slotRow .slotActions { grid-column:1 / -1; display:flex; justify-content:flex-end; gap:5px; padding-top:2px; }
+  .slotRow .slotIdentity, .slotRow .slotActions { display:contents; }
+  .slotRow .slotName { grid-column:1; grid-row:1; }
+  .slotRow .slotMeta { grid-column:1; grid-row:2; display:flex; align-items:center; gap:6px; min-width:0; color:var(--ink-faint); }
+  .slotRow .slotMeta .slotDate { min-width:0; }
+  .slotRow .slotDel { grid-column:2; grid-row:1; justify-self:end; }
+  .slotRow.isSelecting .slotName, .slotRow.isSelecting .slotMeta { grid-column:2; }
+  .slotRow .slotOverwrite { grid-column:2; grid-row:2; justify-self:end; }
+  .slotRow.isSelecting .slotDel, .slotRow.isSelecting .slotOverwrite { grid-column:3; }
+  .slotRow .slotExportCheck { grid-column:1; grid-row:1 / 3; }
   .slotRow .slotName {
     flex: 0 1 auto;
     min-width: 0;
@@ -1439,10 +1443,11 @@
     font-size: 10.5px;
     font-weight: 400;
   }
-  .slotRow .slotDate { font-size: 10.5px; color: var(--ink-faint); flex-shrink: 0; }
+  .slotRow .slotDate { font-size: 10.5px; color: var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .slotRow button {
     font-size: 10.5px;
-    padding: 3px 7px;
+    padding: 6px 8px;
+    min-height:32px;
     border: 1px solid var(--line);
     background: var(--bg-panel);
     color: var(--ink-faint);
@@ -1450,10 +1455,32 @@
     flex-shrink: 0;
   }
   .slotRow button:hover { color: var(--ink-soft); border-color: var(--line-strong); }
-  .slotRow .slotLoad { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:color-mix(in srgb, var(--accent) 7%, var(--bg-panel)); color:var(--accent); font-weight:650; }
-  .slotRow .slotLoad:hover { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--bg-panel)); color:var(--accent-hover); }
-  .slotRow .slotOverwrite { background:transparent; }
-  .slotRow .slotDel:hover { color: #b23b3b; border-color: #d9a5a5; }
+  #archiveDrawer .slotRow .slotOverwrite {
+    background:transparent;
+    min-height:24px;
+    padding:2px 5px;
+    border:0;
+    border-radius:4px;
+    transition:background-color .15s, color .15s;
+    font-size:10px !important;
+    line-height:1.4;
+  }
+  #archiveDrawer .slotRow .slotOverwrite:hover,
+  #archiveDrawer .slotRow .slotOverwrite:focus-visible {
+    background:color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    color:var(--accent);
+  }
+  .slotRow .slotDel { border:0; background:transparent; min-width:24px; min-height:24px; padding:2px; }
+  .slotRow .slotDel:hover { color:#b23b3b; background:transparent; }
+  .slotRow.isSelecting { grid-template-columns:16px minmax(0,1fr) auto; }
+  #slotSelectionBar[hidden], .slotExportCheck[hidden] { display:none; }
+  .archiveMetaActions { display:flex; align-items:center; gap:10px; }
+  #archiveDrawer .archiveMetaActions button { border:0; background:transparent; padding:6px 2px; min-height:32px; }
+  #archiveDrawer #slotSelectBtn[aria-pressed="true"] { color:var(--accent); font-weight:700; }
+  #archiveDrawer #saveSlotBtn { flex:0 0 auto; min-width:70px; background:var(--accent); color:white; border-color:var(--accent); }
+  #archiveDrawer #saveSlotBtn:hover { background:var(--accent-hover); }
+  #archiveDrawer .archiveFileRow button { border-radius:6px; }
+  #archiveDrawer button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
   /* 카드 에디터 헤더 컨트롤 */
   .cardEditorHead .miniCtl {
@@ -4454,20 +4481,20 @@
     gap: 12px;
     margin: 0 0 5px;
   }
-  #preflightBtn {
+  #sidebar #preflightBtn {
     min-height: 28px;
     padding: 3px 1px;
     border: 0;
     background: transparent;
-    color: var(--ink-faint);
+    color: color-mix(in srgb, var(--ink-faint) 72%, var(--bg-panel));
     font: inherit;
-    font-size: 11px;
-    font-weight: 650;
+    font-size: 10px !important;
+    font-weight: 400;
     cursor: pointer;
   }
   #preflightBtn::before { content: "✓"; margin-right: 5px; font-weight: 500; }
-  #preflightBtn:hover,
-  #preflightBtn[aria-expanded="true"] { color: var(--ink-soft); }
+  #sidebar #preflightBtn:hover,
+  #sidebar #preflightBtn[aria-expanded="true"] { color: var(--ink-soft); }
   #preflightSummary { margin: 0 0 7px; color: var(--ink); font-size: 11.5px; font-weight: 700; }
   .preflightList { display: flex; flex-direction: column; }
   .preflightIssue {
@@ -4848,3 +4875,17 @@
     outline: 2px solid var(--ink-faint);
     outline-offset: 1px;
   }
+
+/* 보관함 내보내기 선택 */
+.slotRow input.slotExportCheck { width:16px; height:16px; flex:0 0 16px; margin:0; padding:0; accent-color:var(--accent); cursor:pointer; }
+
+/* 보관함 제목은 키보드로도 불러올 수 있는 텍스트 버튼 */
+.slotRow button.slotName { display:block; width:100%; text-align:left; border:0; background:transparent; padding:0; min-height:24px; border-radius:2px; font-size:12px; font-weight:600; color:var(--ink-soft); cursor:pointer; }
+.slotRow button.slotName:hover { color:var(--accent); background:transparent; }
+.slotRow button.slotName[aria-pressed="true"] { color:var(--accent); }
+
+#slotSelectionBar button { white-space:nowrap; }
+
+#sidebarNewLogBtn { display:flex; align-items:center; min-height:26px; margin-top:0; padding:0; border:0; background:transparent; color:var(--ink-faint); text-align:left; }
+#sidebarNewLogBtn::before { content:''; flex:none; width:7px; height:7px; margin-right:6px; opacity:.58; background:linear-gradient(currentColor,currentColor) center / 7px 1px no-repeat, linear-gradient(currentColor,currentColor) center / 1px 7px no-repeat; }
+#sidebarNewLogBtn:hover { color:var(--accent); background:transparent; }

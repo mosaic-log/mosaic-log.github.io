@@ -9070,6 +9070,18 @@ function slotCharacterName(slot){
 
 const SLOT_PREVIEW_COUNT = 6;
 let slotListExpanded = false;
+let slotSelectionMode = false;
+const selectedSlotIds = new Set();
+function updateSlotExportSelection(){
+  const button = document.getElementById('exportSelectedSlotsBtn');
+  button.disabled = selectedSlotIds.size === 0;
+  button.textContent = `선택 내보내기 (${selectedSlotIds.size})`;
+  const deleteButton = document.getElementById('deleteSelectedSlotsBtn');
+  deleteButton.disabled = selectedSlotIds.size === 0;
+  deleteButton.textContent = `선택 삭제 (${selectedSlotIds.size})`;
+  document.getElementById('slotSelectionBar').hidden = !slotSelectionMode;
+  document.getElementById('slotSelectBtn').setAttribute('aria-pressed', String(slotSelectionMode));
+}
 
 function renderSlotList(){
   const container = document.getElementById('slotList');
@@ -9083,6 +9095,9 @@ function renderSlotList(){
     showSlotReadError();
     return;
   }
+  const existingIds = new Set(slots.map(slot => slot.id));
+  for(const id of selectedSlotIds) if(!existingIds.has(id)) selectedSlotIds.delete(id);
+  updateSlotExportSelection();
   const query = document.getElementById('slotSearch').value.trim().toLocaleLowerCase('ko');
   const sort = document.getElementById('slotSort').value;
   const filtered = slots.filter(slot => {
@@ -9119,39 +9134,57 @@ function renderSlotList(){
     row.setAttribute('aria-label', `${slot.name}${characterName ? `, 캐릭터 ${characterName}` : ''} 보관함 항목`);
     const identity = document.createElement('span');
     identity.className = 'slotIdentity';
-    const name = document.createElement('span');
+    const select = document.createElement('input');
+    select.type = 'checkbox';
+    select.className = 'slotExportCheck';
+    select.checked = selectedSlotIds.has(slot.id);
+    select.setAttribute('aria-label', `${slot.name} 내보내기 선택`);
+    select.addEventListener('change', () => {
+      if(select.checked) selectedSlotIds.add(slot.id);
+      else selectedSlotIds.delete(slot.id);
+      name.setAttribute('aria-pressed', String(select.checked));
+      updateSlotExportSelection();
+    });
+    select.hidden = !slotSelectionMode;
+    row.appendChild(select);
+    row.classList.toggle('isSelecting', slotSelectionMode);
+    const name = document.createElement('button');
+    name.type = 'button';
     name.className = 'slotName';
     name.textContent = slot.name;
     identity.appendChild(name);
-    if(characterName){
-      const character = document.createElement('span');
-      character.className = 'slotChar';
-      character.textContent = characterName;
-      identity.appendChild(character);
-    }
+    name.title = `${slot.name} · ${slotSelectionMode ? '내보내기 선택' : '불러오기'}`;
+    if(slotSelectionMode) name.setAttribute('aria-pressed', String(select.checked));
     const date = document.createElement('span');
     date.className = 'slotDate';
-    date.textContent = fmtDate(slot.savedAt);
+    date.textContent = [characterName, fmtDate(slot.savedAt)].filter(Boolean).join(' · ');
+    date.title = date.textContent;
+    identity.appendChild(date);
     const over = document.createElement('button');
     over.type = 'button';
     over.textContent = '덮어쓰기';
     over.title = '현재 작업을 이 슬롯에 다시 저장해';
     over.className = 'slotOverwrite uiButton';
-    const load = document.createElement('button');
-    load.type = 'button';
-    load.className = 'slotLoad uiButton';
-    load.textContent = '불러오기';
-    load.title = '이 보관함 작업을 불러오기';
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'slotDel uiButton';
     del.textContent = '×';
     del.title = '슬롯 삭제';
+    del.setAttribute('aria-label', `${slot.name} 삭제`);
     const actions = document.createElement('div');
     actions.className = 'slotActions';
-    actions.append(load, over, del);
+    const meta = document.createElement('div');
+    meta.className = 'slotMeta';
+    meta.append(date);
+    identity.appendChild(meta);
+    actions.append(del, over);
 
-    load.addEventListener('click', () => {
+    name.addEventListener('click', () => {
+      if(slotSelectionMode){
+        select.checked = !select.checked;
+        select.dispatchEvent(new Event('change'));
+        return;
+      }
       snapshotCards();
       applyWork(JSON.parse(JSON.stringify(slot.data)));
       showUndoToast(`'${slot.name}' 불러옴.`);
@@ -9211,7 +9244,6 @@ function renderSlotList(){
     });
 
     row.appendChild(identity);
-    row.appendChild(date);
     row.appendChild(actions);
     container.appendChild(row);
   });
@@ -9249,13 +9281,14 @@ document.getElementById('saveSlotBtn').addEventListener('click', () => {
   renderSlotList();
 });
 
-document.getElementById('exportSlotsBtn').addEventListener('click', () => {
-  const list = loadSlots();
+function exportSlots(selectedOnly = false){
+  const slots = loadSlots();
+  const list = slots === null ? null : slots.filter(slot => !selectedOnly || selectedSlotIds.has(slot.id));
   if(list === null){ showSlotReadError(); return; }
   const st = document.getElementById('slotImportStatus');
   if(!list.length){
     st.style.color = '';
-    st.textContent = '보관함이 비어 있음. 현재 작업을 먼저 저장.';
+    st.textContent = selectedOnly ? '내보낼 항목을 선택해 주세요.' : '보관함이 비어 있음. 현재 작업을 먼저 저장.';
     return;
   }
   const exportList = list.map(slot => {
@@ -9272,14 +9305,51 @@ document.getElementById('exportSlotsBtn').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = '조각로그_보관함.json';
+  a.download = selectedOnly ? '조각로그_보관함_선택.json' : '조각로그_보관함.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   st.style.color = '';
   st.textContent = `보관함 ${list.length}개 저장됨.`;
+}
+document.getElementById('exportSlotsBtn').addEventListener('click', () => exportSlots());
+document.getElementById('exportSelectedSlotsBtn').addEventListener('click', () => exportSlots(true));
+function deleteSelectedSlots(){
+  const list = loadSlots();
+  if(list === null){ showSlotReadError(); return; }
+  const removed = list.filter(slot => selectedSlotIds.has(slot.id));
+  if(!removed.length) return;
+  if(!confirm(`선택한 보관함 ${removed.length}개를 삭제할까요?\n검색 결과에 보이지 않는 선택 항목도 포함됩니다.`)) return;
+  const status = document.getElementById('slotImportStatus');
+  if(!saveSlots(list.filter(slot => !selectedSlotIds.has(slot.id)))){
+    status.textContent = '보관함을 삭제하지 못했습니다. 저장 공간을 확인해 주세요.';
+    return;
+  }
+  selectedSlotIds.clear();
+  renderSlotList();
+  status.textContent = `보관함 ${removed.length}개를 삭제했습니다.`;
+  showUndoToast(`보관함 ${removed.length}개 삭제됨.`, () => {
+    const current = loadSlots();
+    if(current === null){ showSlotReadError(); return; }
+    // 삭제 이후 저장한 항목은 유지하고, 사라진 항목만 복원한다.
+    const existingIds = new Set(current.map(slot => slot.id));
+    const restored = removed.filter(slot => !existingIds.has(slot.id));
+    if(!saveSlots(current.concat(restored))){
+      status.textContent = '삭제를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+      return;
+    }
+    renderSlotList();
+    status.textContent = `보관함 ${restored.length}개를 복원했습니다.`;
+  });
+}
+document.getElementById('deleteSelectedSlotsBtn').addEventListener('click', deleteSelectedSlots);
+document.getElementById('slotSelectBtn').addEventListener('click', () => {
+  slotSelectionMode = !slotSelectionMode;
+  if(!slotSelectionMode) selectedSlotIds.clear();
+  renderSlotList();
 });
+
 
 document.getElementById('importSlotsBtn').addEventListener('click', () => {
   document.getElementById('importSlotsFile').click();
@@ -9361,7 +9431,7 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-document.getElementById('newLogBtn').addEventListener('click', () => {
+function startNewLog(){
   snapshotCards();
   // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
   ['imgUrl','logNumber','logNumberUrl','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'].forEach(id => { document.getElementById(id).value = ''; });
@@ -9378,7 +9448,9 @@ document.getElementById('newLogBtn').addEventListener('click', () => {
   saveDraft();
   showUndoToast('새 로그 시작.');
   setArchiveDrawerOpen(false);
-});
+}
+document.getElementById('newLogBtn').addEventListener('click', startNewLog);
+document.getElementById('sidebarNewLogBtn').addEventListener('click', startNewLog);
 
 document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   const ok = confirm(

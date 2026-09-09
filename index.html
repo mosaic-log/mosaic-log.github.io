@@ -911,12 +911,16 @@
     </div>
     <div class="archiveListMeta">
       <span id="slotCount" aria-live="polite"></span>
-      <button class="uiButton" type="button" id="slotExpandBtn" hidden>전체 보기</button>
+      <div class="archiveMetaActions"><button class="uiButton" type="button" id="slotSelectBtn" aria-pressed="false">선택</button><button class="uiButton" type="button" id="slotExpandBtn" hidden>전체 보기</button></div>
     </div>
     <div id="slotList"></div>
+    <div class="presetRow archiveFileRow" id="slotSelectionBar" hidden>
+      <button type="button" class="secondary btnSecondary uiButton" id="exportSelectedSlotsBtn" style="flex:1;" disabled>선택 내보내기 (0)</button>
+      <button type="button" class="btnDanger uiButton" id="deleteSelectedSlotsBtn" disabled>선택 삭제 (0)</button>
+    </div>
     <div class="presetRow archiveFileRow">
-      <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" style="flex:1;">내보내기</button>
-      <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">불러오기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" style="flex:1;">전체 내보내기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">파일 가져오기</button>
       <input type="file" id="importSlotsFile" accept="application/json" style="display:none;">
     </div>
     <div id="slotImportStatus" class="hint" aria-live="polite"></div>
@@ -925,7 +929,7 @@
     </div>
     <details class="helpFold">
       <summary>보관함 사용법</summary>
-      <p class="hint"><b>저장</b> 슬롯에 보관 · <b>슬롯 클릭</b> 전환(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>내보내기</b> 보관함 전체 백업</p>
+      <p class="hint"><b>저장</b> 슬롯에 보관 · <b>제목 클릭</b> 작업 전환(선택 모드에서는 선택 전환)(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>선택 → 선택 내보내기</b> 체크한 항목만 백업(검색·정렬 후에도 선택 유지) · <b>전체 내보내기</b> 보관함 전체 백업</p>
     </details>
   </div>
 </div><!-- /archiveDrawer -->
@@ -958,6 +962,7 @@
         <textarea id="codeBox" aria-label="생성된 HTML 코드" readonly spellcheck="false"></textarea>
       </div>
     </details>
+    <button type="button" class="btnQuiet uiButton" id="sidebarNewLogBtn">새 로그 시작하기</button>
     <div id="errorBar" role="alert" aria-live="assertive"></div>
   </div>
 </div>
