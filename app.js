@@ -2160,21 +2160,16 @@ function applyUnifiedCardLayout(html, settings){
     section.style.setProperty('margin', '0 auto');
     section.style.setProperty('background-color', pal.cardBg);
     section.style.setProperty('border', '0');
-    // 인접한 본문 카드의 아래·위 여백은 합계 16px로 조밀하게 유지한다.
+    // 상단 8px은 앞에 본문 카드가 있을 때만 카드 사이 간격으로 사용한다.
+    // 첫 카드에는 내용 종류나 표지 구성과 무관하게 추가 상단 여백을 두지 않는다.
     if(bodyCard){
-      section.style.setProperty('padding-top', '8px');
+      section.style.setProperty('padding-top', previousBodyCard ? '8px' : '0');
       section.style.setProperty('padding-bottom', '8px');
-    }
-    // 표제 바로 아래의 첫 일반 카드는 제목·본문 래퍼에 이미 상단 여백이 있다.
-    // 제목 유무와 관계없이 카드 사이용 8px을 더하지 않아 첫 내용의 위치를 유지한다.
-    if(bodyCard && !foldedCard && index === firstBodyIndex
-      && previousSection && previousSection.hasAttribute('data-mosaic-title')){
-      section.style.setProperty('padding-top', '0');
     }
     if(foldedCard){
       const summary = section.querySelector(':scope > summary');
       const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
-      section.style.setProperty('padding', '8px 16px');
+      section.style.setProperty('padding', `${previousBodyCard ? 8 : 0}px 16px 8px`);
       if(summary){
         summary.style.setProperty('background-color', foldPanelBg);
         summary.style.setProperty('border-radius', '10px 10px 2px 2px');
@@ -2184,11 +2179,6 @@ function applyUnifiedCardLayout(html, settings){
         foldBody.style.setProperty('border-radius', '2px 2px 10px 10px');
       }
     }
-    // 표지 묶음의 구분선 바로 다음에 첫 접기 카드가 오면 기본 8px은 지나치게
-    // 붙어 보인다. 마지막 카드 아래의 마감 여백과 같은 24px로 맞춰 위아래 호흡을 잡는다.
-    if(showIntroBoundary && foldedCard && index === firstBodyIndex){
-      section.style.setProperty('padding-top', '24px');
-    }
     // 색면만으로 충분히 구분되는 접기 카드끼리는 선을 생략한다. 그 밖의 카드 경계에는
     // 내부 구분선과 혼동되지 않도록 카드 폭의 중앙 24%에만 짧은 선을 그린다.
     if(bodyCard && previousBodyCard && !(foldedCard && previousFoldedCard)){
@@ -2196,17 +2186,6 @@ function applyUnifiedCardLayout(html, settings){
       section.style.setProperty('background-repeat', 'no-repeat');
       section.style.setProperty('background-position', 'center top');
       section.style.setProperty('background-size', '100% 1px');
-    }
-    // 일반 카드 다음에 접기 카드가 오면 앞 카드의 넉넉한 하단 호흡은 유지하고,
-    // 구분선 아래도 같은 수준으로 넓혀 선이 전환 여백의 중앙에 놓이게 한다.
-    if(foldedCard && previousBodyCard && !previousFoldedCard){
-      section.style.setProperty('padding-top', '36px');
-    }
-    // 접기 카드 다음 일반 카드에서는 선 아래 본문이 아니라 접기 카드와 선 사이를
-    // 넓혀야 한다. 구분선은 다음 section의 top에 그려지므로 이전 접기 카드의 하단
-    // padding을 늘려 선 자체를 아래로 보내고, 아래 본문 간격은 기본값으로 유지한다.
-    if(bodyCard && !foldedCard && previousFoldedCard){
-      previousSection.style.setProperty('padding-bottom', '36px');
     }
     // 카드 사이의 조밀한 간격은 유지하되 통합 묶음의 끝에는 충분한 마감 여백을 둔다.
     if(last && bodyCard){
@@ -2228,6 +2207,32 @@ function applyUnifiedCardLayout(html, settings){
       ? '16px'
       : (first ? '16px 16px 0 0' : (last ? '0 0 16px 16px' : '0')));
     section.style.setProperty('overflow', 'hidden');
+  });
+  // 카드 경계의 여백은 여기서 한 번만 결정한다. 본문 래퍼의 padding과
+  // 끝 문단의 margin을 중복 합산하지 않아 구분선 양쪽을 같은 40px로 맞춘다.
+  const trimBoundary = (card, edge) => {
+    if(card.tagName === 'DETAILS') return; // 접기 카드의 색면 바깥을 기준으로 한다.
+    const wrapper = edge === 'top' ? card.firstElementChild : card.lastElementChild;
+    if(!wrapper) return;
+    wrapper.style.setProperty(`padding-${edge}`, '0');
+    let content = edge === 'top' ? wrapper.firstElementChild : wrapper.lastElementChild;
+    if(wrapper.hasAttribute('data-mosaic-card-title')) return;
+    while(content){
+      content.style.setProperty(`margin-${edge}`, '0');
+      // 화자 이름이 있는 대사의 투명 래퍼 내부 margin도 경계에 포함된다.
+      if(content.style.display !== 'flow-root') break;
+      content = edge === 'top' ? content.firstElementChild : content.lastElementChild;
+    }
+  };
+  sections.forEach((card, index) => {
+    const previous = sections[index - 1];
+    if(!previous || !card.hasAttribute('data-mosaic-card-index')
+      || !previous.hasAttribute('data-mosaic-card-index')) return;
+    if(card.tagName === 'DETAILS' && previous.tagName === 'DETAILS') return;
+    trimBoundary(previous, 'bottom');
+    trimBoundary(card, 'top');
+    previous.style.setProperty('padding-bottom', '40px');
+    card.style.setProperty('padding-top', '40px');
   });
   return template.innerHTML;
 }
