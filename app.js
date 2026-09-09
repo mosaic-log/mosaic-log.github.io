@@ -12212,4 +12212,54 @@ window.addEventListener('error', (e) => {
 window.addEventListener('unhandledrejection', (e) => {
   const bar = document.getElementById('errorBar');
   if(bar){
-    const message = e.r
+    const message = e.reason && e.reason.message ? e.reason.message : String(e.reason || '알 수 없는 비동기 오류');
+    bar.style.display = 'block';
+    bar.textContent = '⚠ 오류: ' + message + ' — 이 메시지를 캡처해 개발자에게 전달.';
+  }
+});
+
+// 맥이면 단축키 표기를 ⌘ 로 바꿔줌 (툴팁·도움말)
+if(IS_MAC){
+  document.querySelectorAll('[title*="Ctrl+"]').forEach(el => {
+    el.title = el.title.replace(/Ctrl\+/g, '⌘+');
+  });
+  document.querySelectorAll('.hint code').forEach(el => {
+    if(/^Ctrl\+/.test(el.textContent)) el.textContent = el.textContent.replace(/^Ctrl\+/, '⌘+');
+  });
+}
+
+// 초기 렌더
+restoreDraft();
+renderCreditItemsEditor();
+renderCreditPresetOptions();
+renderKeywordRuleList();
+syncProfileTagEditorsFromMasters();
+syncCoverControlState();
+if(bodyCardTextareas().length === 0){
+  addCard(EXAMPLE_BODY, false); // 초안이 없으면 예시 본문으로 시작
+}
+activeTa = bodyCardTextareas()[0] || null;
+updateHexLabels();
+syncTypographyRangeLabels();
+syncDesignSummaries();
+previewDirectEditReady = true;
+render();
+updateCounter();
+const initialList = loadPresets();
+const matchingInitialPreset = initialList && initialList.find(p => savedPresetStateEqual(p.values, currentSavedPresetValues()));
+const matchingInitialCombo = COLOR_COMBOS.find(combo =>
+  Object.entries(combo.v).every(([id, value]) =>
+    String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
+  )
+);
+currentComboName = matchingInitialCombo ? matchingInitialCombo.name : null;
+if(matchingInitialCombo && !matchingInitialCombo.families.includes('featured')){
+  currentComboFamily = matchingInitialCombo.families[0];
+}
+currentPresetName = matchingInitialCombo ? null : (matchingInitialPreset ? matchingInitialPreset.name : null);
+renderPresetList();
+renderComboFamilyFilters();
+renderComboList();
+renderSlotList();
+commitStyleHistory(true); // 초기 작업 상태를 기록의 첫 항목으로
+updateHistoryButtons();
