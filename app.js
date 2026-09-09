@@ -2127,6 +2127,20 @@ function buildCommentBlock(comment, settings){
 // 통합 카드는 새 부모 요소를 씌우지 않고 최상위 블록의 외곽선을 이어 붙인다.
 // 미리보기의 카드별 위치 연동·직접 편집·복사 기능이 최상위 형제 구조를 사용하므로,
 // DOM 계층을 유지하면서도 출력에서는 하나의 배경과 외곽 카드처럼 보이게 한다.
+// 이어보기의 바깥 여백과 카드 경계 여백을 한 곳에서 결정한다.
+function unifiedCardSpacing({folded, previousKind, nextKind, introDivider}){
+  const previousCard = previousKind === 'plain' || previousKind === 'fold';
+  const nextCard = nextKind === 'plain' || nextKind === 'fold';
+  const top = previousCard
+    ? (folded && previousKind === 'fold' ? 8 : 40)
+    : folded ? (previousKind === 'none' || introDivider ? 24 : 8) : 0;
+  const bottom = nextCard
+    ? (folded && nextKind === 'fold' ? 8 : 40)
+    : nextKind === 'none' ? 24 : 8;
+  return {top, bottom, trimTop:previousCard && !(folded && previousKind === 'fold'),
+    trimBottom:nextCard && !(folded && nextKind === 'fold')};
+}
+
 function applyUnifiedCardLayout(html, settings){
   if(normalizeCardLayout(settings && settings.cardLayout) !== 'unified') return html;
   const template = document.createElement('template');
@@ -2174,20 +2188,10 @@ function applyUnifiedCardLayout(html, settings){
     section.style.setProperty('margin', '0 auto');
     section.style.setProperty('background-color', pal.cardBg);
     section.style.setProperty('border', '0');
-    // 상단 8px은 앞에 본문 카드가 있을 때만 카드 사이 간격으로 사용한다.
-    // 첫 카드에는 기본적으로 추가 상단 여백을 두지 않는다.
-    if(bodyCard){
-      section.style.setProperty('padding-top', previousBodyCard ? '8px' : '0');
-      section.style.setProperty('padding-bottom', '8px');
-    }
     if(foldedCard){
       const summary = section.querySelector(':scope > summary');
       const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
-      section.style.setProperty('padding', `${previousBodyCard ? 8 : 0}px 16px 8px`);
-      // 표지 다음 첫 접기 카드: 구분선이 있으면 24px, 없으면 8px 여백을 둔다.
-      if(index === firstBodyIndex && introBoundary && previousSection === introBoundary){
-        section.style.setProperty('padding-top', showIntroBoundary ? '24px' : '8px');
-      }
+      section.style.setProperty('padding', '0 16px');
       if(summary){
         summary.style.setProperty('background-color', foldPanelBg);
         summary.style.setProperty('border-radius', '10px 10px 2px 2px');
@@ -2204,10 +2208,6 @@ function applyUnifiedCardLayout(html, settings){
       section.style.setProperty('background-repeat', 'no-repeat');
       section.style.setProperty('background-position', 'center top');
       section.style.setProperty('background-size', '100% 1px');
-    }
-    // 카드 사이의 조밀한 간격은 유지하되 통합 묶음의 끝에는 충분한 마감 여백을 둔다.
-    if(last && bodyCard){
-      section.style.setProperty('padding-bottom', '24px');
     }
     if(showOuterBorder){
       section.style.setProperty('border-left', `1px solid ${pal.shellBorder}`);
@@ -2242,15 +2242,20 @@ function applyUnifiedCardLayout(html, settings){
       content = edge === 'top' ? content.firstElementChild : content.lastElementChild;
     }
   };
+  const sectionKind = section => !section ? 'none'
+    : section.hasAttribute('data-mosaic-card-index') ? (section.tagName === 'DETAILS' ? 'fold' : 'plain') : 'intro';
   sections.forEach((card, index) => {
+    if(!card.hasAttribute('data-mosaic-card-index')) return;
     const previous = sections[index - 1];
-    if(!previous || !card.hasAttribute('data-mosaic-card-index')
-      || !previous.hasAttribute('data-mosaic-card-index')) return;
-    if(card.tagName === 'DETAILS' && previous.tagName === 'DETAILS') return;
-    trimBoundary(previous, 'bottom');
-    trimBoundary(card, 'top');
-    previous.style.setProperty('padding-bottom', '40px');
-    card.style.setProperty('padding-top', '40px');
+    const spacing = unifiedCardSpacing({
+      folded:card.tagName === 'DETAILS',
+      previousKind:sectionKind(previous), nextKind:sectionKind(sections[index + 1]),
+      introDivider:showIntroBoundary && previous === introBoundary
+    });
+    if(spacing.trimTop) trimBoundary(card, 'top');
+    if(spacing.trimBottom) trimBoundary(card, 'bottom');
+    card.style.setProperty('padding-top', `${spacing.top}px`);
+    card.style.setProperty('padding-bottom', `${spacing.bottom}px`);
   });
   return template.innerHTML;
 }
