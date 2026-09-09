@@ -679,11 +679,13 @@ function buildParagraph(rawLine, settings, opts){
     const text = processInline(headingMatch.title.trim(), settings.emphasisColor);
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight };
-    const marginBottom = Math.round((opts.extraBottom ? 36 : 14) * sm);
+    const headingSpacing = paragraphGapPx(settings) / 20;
+    // 소제목 아래는 단락 간격에 추가 여백을 더해 다음 내용과 분리한다.
+    const marginBottom = opts.extraBottom ? Math.round(36 * sm) : baseParagraphGap + Math.round(8 * sm);
     // 카드 첫 출력 제목은 #만 2px, ##~####는 0px로 붙이고,
     // 본문 중간 제목은 단계와 관계없이 20px로 통일한다.
     const firstHeadingTop = level === 1 ? 2 : 0;
-    const marginTop = Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm);
+    const marginTop = Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm * headingSpacing);
     const align = (forceCenter || settings.headingCenter) ? 'text-align:center; ' : '';
     return `    <p style="margin:${marginTop}px 0 ${marginBottom}px 0; ${align}color:${pal.heading[level]}; font-size:${HEADING.size}px; font-weight:${HEADING.weight}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${text}</p>\n`;
   }
@@ -696,8 +698,10 @@ function buildParagraph(rawLine, settings, opts){
     if(/^\[C\]\s*/i.test(qInner)){ forceCenter = true; qInner = qInner.replace(/^\[C\]\s*/i, ''); }
     const qSize = Math.max(9, (parseFloat(settings.narrSize) || 13.5) - 0.5);
     // 인용은 앞뒤로 넉넉히 띄워 본문과 확실히 분리 (구분선 인접 시엔 HR 여백 우선)
-    const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap;
-    const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : baseParagraphGap);
+    const quoteNarrationGap = baseParagraphGap + Math.round(6 * sm);
+    // 아래 내용이 대사·상태창이어도 같은 여백을 확보한다.
+    const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap + Math.round(8 * sm);
+    const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : (opts.prevIsNarration ? quoteNarrationGap : baseParagraphGap));
     const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
     const sourceColor = safeHexColor(settings.narrColor, pal.caption);
     const softQuoteText = softBodyTextColor(settings, sourceColor);
@@ -1584,6 +1588,14 @@ function assembleBody(lines, settings){
   };
 
 
+  const isNarrationLine = raw => {
+    if(raw === undefined) return false;
+    const text = normalizeQuotes(String(raw).trim()).replace(/^\[C\]\s*/i, '');
+    return !!text && !isSep(text) && !isStatusBodyLine(text)
+      && !parseBodyHeading(text) && !parseOutputBodyImage(text)
+      && !/^>(?!>)/.test(text) && !/^\[\/?접기(?:\s|\])/.test(text)
+      && text.toUpperCase() !== '[GAP]' && !isPureDialogueLine(text, settings);
+  };
   renderLines.forEach((line, i) => {
     const centeredSyntax = /^\[C\]\s*/i.test(line);
     const structuralLine = centeredSyntax ? line.replace(/^\[C\]\s*/i, '') : line;
@@ -1614,7 +1626,9 @@ function assembleBody(lines, settings){
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
     const isFirst = bodyHTML === '' && manualBuf === null;
     const isLast = i === renderLines.length - 1;
-    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus }));
+    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus,
+      prevIsNarration:isNarrationLine(renderLines[i - 1]),
+      }));
   });
 
   // 닫는 마커 없이 끝났으면 카드 끝에서 닫는다.
@@ -2161,7 +2175,7 @@ function applyUnifiedCardLayout(html, settings){
     section.style.setProperty('background-color', pal.cardBg);
     section.style.setProperty('border', '0');
     // 상단 8px은 앞에 본문 카드가 있을 때만 카드 사이 간격으로 사용한다.
-    // 첫 카드에는 내용 종류나 표지 구성과 무관하게 추가 상단 여백을 두지 않는다.
+    // 첫 카드에는 기본적으로 추가 상단 여백을 두지 않는다.
     if(bodyCard){
       section.style.setProperty('padding-top', previousBodyCard ? '8px' : '0');
       section.style.setProperty('padding-bottom', '8px');
@@ -2170,6 +2184,10 @@ function applyUnifiedCardLayout(html, settings){
       const summary = section.querySelector(':scope > summary');
       const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
       section.style.setProperty('padding', `${previousBodyCard ? 8 : 0}px 16px 8px`);
+      // 표지 다음 첫 접기 카드: 구분선이 있으면 24px, 없으면 8px 여백을 둔다.
+      if(index === firstBodyIndex && introBoundary && previousSection === introBoundary){
+        section.style.setProperty('padding-top', showIntroBoundary ? '24px' : '8px');
+      }
       if(summary){
         summary.style.setProperty('background-color', foldPanelBg);
         summary.style.setProperty('border-radius', '10px 10px 2px 2px');
@@ -6914,7 +6932,9 @@ function positionCardEditorDropMarker(clientY){
   if(!dragged || !marker) return;
   const candidates = cardEditorElements(cardEditorContainer).filter(editor => editor !== dragged);
   const nextEditor = candidates.find(editor => {
-    const rect = editor.getBoundingClientRect();
+    // 본문이 길어도 헤더를 지나면 다음 위치로 이동할 수 있게 한다.
+    const head = editor.querySelector('.cardEditorHead') || editor;
+    const rect = head.getBoundingClientRect();
     return clientY < rect.top + rect.height / 2;
   });
   if(nextEditor) cardEditorContainer.insertBefore(marker, nextEditor);
@@ -6963,7 +6983,7 @@ const cardEditorContainer = document.getElementById('cardEditors');
 cardEditorContainer.addEventListener('pointerdown', event => {
   // 헤더 버튼을 누른 채 포인터를 바깥에서 놓아도 draggable 속성이 고착되지 않도록
   // 카드별 속성을 바꾸지 않고 이번 포인터 동작만 컨테이너 상태로 차단한다.
-  cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select, .cardEditorHead .cardNum');
+  cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select');
 });
 document.addEventListener('pointerup', () => { cardEditorDragState.blockedByControl = false; });
 document.addEventListener('pointercancel', () => { cardEditorDragState.blockedByControl = false; });
