@@ -372,22 +372,22 @@ function tonePalette(settings){
   const shellMix = isLight ? 0.09 - (0.01 * surfacePresence) : 0.10;
   const shellBorder = mixHex(bg, to, shellMix);
   const divider = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.11 : 0.13)
-    : mixHex(bg, to, isLight ? 0.13 : 0.15);
+    ? mixHex(bg, structuralAccent, isLight ? 0.13 : 0.15)
+    : mixHex(bg, to, isLight ? 0.15 : 0.17);
   // 내용 장식선과 꼬리말은 카드 연결선과 역할이 다르므로 별도 토큰으로 둔다.
   // divider를 직접 연하게 만들면 표지·프로필·연결 카드의 경계까지 흐려진다.
   // 본문 [HR]은 카드 내부의 문단 경계로 즉시 인식되도록 기존보다 한 단계 진하게 둔다.
   // 외곽·연결선에 쓰는 divider와 분리되어 있어 다른 구분선의 위계에는 영향을 주지 않는다.
   const contentDivider = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.15 : 0.17)
-    : mixHex(bg, to, isLight ? 0.16 : 0.18);
+    ? mixHex(bg, structuralAccent, isLight ? 0.17 : 0.19)
+    : mixHex(bg, to, isLight ? 0.18 : 0.20);
   const sceneOrnament = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.14 : 0.16)
-    : mixHex(bg, to, isLight ? 0.15 : 0.17);
+    ? mixHex(bg, structuralAccent, isLight ? 0.16 : 0.18)
+    : mixHex(bg, to, isLight ? 0.17 : 0.19);
   // 점은 면적이 작아 같은 색도 더 흐리게 보이므로 HR3 전용으로 대비를 조금 높인다.
   const breathOrnament = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.23 : 0.25)
-    : mixHex(bg, to, isLight ? 0.24 : 0.26);
+    ? mixHex(bg, structuralAccent, isLight ? 0.25 : 0.27)
+    : mixHex(bg, to, isLight ? 0.26 : 0.28);
   const caption = mixHex(bg, to, isLight ? 0.38 : 0.52);
   // 꼬리말은 항상 구분선 없는 미니멀 서명이므로 caption보다 한 단계 연하게 둔다.
   const footerText = mixHex(bg, caption, 0.65);
@@ -699,8 +699,15 @@ function buildParagraph(rawLine, settings, opts){
     const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap;
     const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : baseParagraphGap);
     const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
-    const quoteBg = pal.boxBg;
-    const quoteText = softBodyTextColor(settings, safeHexColor(settings.narrColor, pal.caption));
+    const sourceColor = safeHexColor(settings.narrColor, pal.caption);
+    const softQuoteText = softBodyTextColor(settings, sourceColor);
+    // 이어보기 접기 카드의 색면 안에서도 인용이 구분되도록 이 문맥에서만 대비를 높인다.
+    const strongerQuote = settings.unifiedFoldQuoteContrast === true;
+    const darkBackground = textColorFor(pal.cardBg) === '#ffffff';
+    const quoteBg = strongerQuote
+      ? mixHex(pal.cardBg, darkBackground ? '#ffffff' : '#000000', darkBackground ? 0.12 : 0.08)
+      : pal.boxBg;
+    const quoteText = strongerQuote ? mixHex(softQuoteText, sourceColor, 0.25) : softQuoteText;
     return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processBodyInline(qInner, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</div>\n`;
   }
 
@@ -2123,7 +2130,7 @@ function applyUnifiedCardLayout(html, settings){
   // 접기 카드는 제목만 강조하지 않고 제목과 본문을 같은 낮은 위계의 색면으로 묶는다.
   // 최상위 details 구조는 유지하고 내부만 들여 위치 연동·직접 편집 대상이 바뀌지 않게 한다.
   const foldPanelBg = mixHex(pal.cardBg, pal.boxBg, 0.55);
-  const cardSeparator = mixHex(pal.cardBg, pal.shellBorder, 0.65);
+  const cardSeparator = mixHex(pal.cardBg, pal.shellBorder, 0.75);
   const firstBodyIndex = sections.findIndex(section => section.hasAttribute('data-mosaic-card-index'));
   // 통합 카드의 도입부와 본문은 성격이 다르므로 마지막 표제·프로필 아래에만
   // 한 번 경계를 둔다. 대표 이미지만 있는 경우에는 이미지 끝이 이미 경계가 되므로
@@ -2442,7 +2449,10 @@ function buildCard(settings){
     const connected = isFirst && card.sourceIndex === firstBodySourceIndex
       && !hasAttachedProfile && (hasImg || hasTitle); // 표지 다음 블록이 카드일 때만 한 덩어리로 연결
     // 전역 옵션 하나로 모든 접기 카드와 본문 내부 접기의 제목 아래 구분선을 함께 제어한다.
-    const bodySettings = Object.assign({}, settings, { foldBodyMinimal: foldDividerMinimal });
+    const bodySettings = Object.assign({}, settings, {
+      foldBodyMinimal: foldDividerMinimal,
+      unifiedFoldQuoteContrast: unifiedLayout && card.folded
+    });
     const bodyHTML = assembleBody(card.lines, bodySettings);
     const footer = isLast ? buildFooter(settings) : '';
     const marginCss = isFirst ? '0 auto' : '20px auto 0 auto';
@@ -12202,54 +12212,4 @@ window.addEventListener('error', (e) => {
 window.addEventListener('unhandledrejection', (e) => {
   const bar = document.getElementById('errorBar');
   if(bar){
-    const message = e.reason && e.reason.message ? e.reason.message : String(e.reason || '알 수 없는 비동기 오류');
-    bar.style.display = 'block';
-    bar.textContent = '⚠ 오류: ' + message + ' — 이 메시지를 캡처해 개발자에게 전달.';
-  }
-});
-
-// 맥이면 단축키 표기를 ⌘ 로 바꿔줌 (툴팁·도움말)
-if(IS_MAC){
-  document.querySelectorAll('[title*="Ctrl+"]').forEach(el => {
-    el.title = el.title.replace(/Ctrl\+/g, '⌘+');
-  });
-  document.querySelectorAll('.hint code').forEach(el => {
-    if(/^Ctrl\+/.test(el.textContent)) el.textContent = el.textContent.replace(/^Ctrl\+/, '⌘+');
-  });
-}
-
-// 초기 렌더
-restoreDraft();
-renderCreditItemsEditor();
-renderCreditPresetOptions();
-renderKeywordRuleList();
-syncProfileTagEditorsFromMasters();
-syncCoverControlState();
-if(bodyCardTextareas().length === 0){
-  addCard(EXAMPLE_BODY, false); // 초안이 없으면 예시 본문으로 시작
-}
-activeTa = bodyCardTextareas()[0] || null;
-updateHexLabels();
-syncTypographyRangeLabels();
-syncDesignSummaries();
-previewDirectEditReady = true;
-render();
-updateCounter();
-const initialList = loadPresets();
-const matchingInitialPreset = initialList && initialList.find(p => savedPresetStateEqual(p.values, currentSavedPresetValues()));
-const matchingInitialCombo = COLOR_COMBOS.find(combo =>
-  Object.entries(combo.v).every(([id, value]) =>
-    String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
-  )
-);
-currentComboName = matchingInitialCombo ? matchingInitialCombo.name : null;
-if(matchingInitialCombo && !matchingInitialCombo.families.includes('featured')){
-  currentComboFamily = matchingInitialCombo.families[0];
-}
-currentPresetName = matchingInitialCombo ? null : (matchingInitialPreset ? matchingInitialPreset.name : null);
-renderPresetList();
-renderComboFamilyFilters();
-renderComboList();
-renderSlotList();
-commitStyleHistory(true); // 초기 작업 상태를 기록의 첫 항목으로
-updateHistoryButtons();
+    const message = e.r
