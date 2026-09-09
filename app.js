@@ -379,8 +379,8 @@ function tonePalette(settings){
   // 본문 [HR]은 카드 내부의 문단 경계로 즉시 인식되도록 기존보다 한 단계 진하게 둔다.
   // 외곽·연결선에 쓰는 divider와 분리되어 있어 다른 구분선의 위계에는 영향을 주지 않는다.
   const contentDivider = structuralAccent
-    ? mixHex(bg, structuralAccent, isLight ? 0.17 : 0.19)
-    : mixHex(bg, to, isLight ? 0.18 : 0.20);
+    ? mixHex(bg, structuralAccent, isLight ? 0.16 : 0.18)
+    : mixHex(bg, to, isLight ? 0.17 : 0.19);
   const sceneOrnament = structuralAccent
     ? mixHex(bg, structuralAccent, isLight ? 0.16 : 0.18)
     : mixHex(bg, to, isLight ? 0.17 : 0.19);
