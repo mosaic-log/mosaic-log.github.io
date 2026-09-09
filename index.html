@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.6.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.6.1 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -17,14 +17,14 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.6.0 GitHub 저장소 열기">v1.6.0</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.6.1 GitHub 저장소 열기">v1.6.1</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
-        <button type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
-        <button type="button" id="draftConflictBtn" title="다른 탭의 최신 초안을 현재 작업으로 덮어씀" hidden>이 탭 저장</button>
+        <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
+        <button class="uiButton" type="button" id="draftConflictBtn" title="다른 탭의 최신 초안을 현재 작업으로 덮어씀" hidden>이 탭 저장</button>
         <span class="styleHistoryBtns" aria-label="작업 기록" title="큰 작업과 디자인 변경을 작업 단위로 되돌립니다.">
-          <button type="button" id="undoStyleBtn" aria-label="작업 되돌리기" title="작업 되돌리기 (Ctrl+Alt+Z)">↶</button>
-          <button type="button" id="redoStyleBtn" aria-label="작업 되살리기" title="작업 되살리기 (Ctrl+Alt+Shift+Z)">↷</button>
+          <button class="uiHistoryButton" type="button" id="undoStyleBtn" aria-label="작업 되돌리기" title="작업 되돌리기 (Ctrl+Alt+Z)">↶</button>
+          <button class="uiHistoryButton" type="button" id="redoStyleBtn" aria-label="작업 되살리기" title="작업 되살리기 (Ctrl+Alt+Shift+Z)">↷</button>
         </span>
       </span>
     </div>
@@ -104,8 +104,8 @@
         <option value="user-bot">USER → BOT</option>
       </select>
       <span class="segmentedChoice" data-control="titleProfileOrder" role="group" aria-labelledby="titleProfileOrderLabel">
-        <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
-        <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
+        <button class="uiButton" type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
+        <button class="uiButton" type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
       </span>
     </div>
     <details class="titleLinkFold">
@@ -157,8 +157,8 @@
           <option value="below" selected>표지 아래</option>
         </select>
         <span class="segmentedChoice" data-control="profilePlacement" role="group" aria-labelledby="profilePlacementLabel">
-          <button type="button" data-value="top" aria-pressed="false">최상단</button>
-          <button type="button" data-value="below" aria-pressed="true">표지 아래</button>
+          <button class="uiButton" type="button" data-value="top" aria-pressed="false">최상단</button>
+          <button class="uiButton" type="button" data-value="below" aria-pressed="true">표지 아래</button>
         </span>
       </div>
       <div class="row segmentedChoiceRow">
@@ -169,9 +169,9 @@
           <option value="showcase">포트레이트</option>
         </select>
         <span class="segmentedChoice" data-control="profileStyle" role="group" aria-labelledby="profileStyleLabel">
-          <button type="button" data-value="compact" aria-pressed="true">미니</button>
-          <button type="button" data-value="portrait" aria-pressed="false">클래식</button>
-          <button type="button" data-value="showcase" aria-pressed="false">포트레이트</button>
+          <button class="uiButton" type="button" data-value="compact" aria-pressed="true">미니</button>
+          <button class="uiButton" type="button" data-value="portrait" aria-pressed="false">클래식</button>
+          <button class="uiButton" type="button" data-value="showcase" aria-pressed="false">포트레이트</button>
         </span>
       </div>
       <div class="row segmentedChoiceRow">
@@ -181,8 +181,8 @@
           <option value="user-bot">USER → BOT</option>
         </select>
         <span class="segmentedChoice" data-control="profileProfileOrder" role="group" aria-labelledby="profileProfileOrderLabel">
-          <button type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
-          <button type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
+          <button class="uiButton" type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
+          <button class="uiButton" type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
         </span>
       </div>
       <input type="hidden" id="profileOrder" value="bot-user">
@@ -238,7 +238,7 @@
           <input type="range" id="profileCharY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileCharYVal" data-range="profileCharY" value="50" aria-label="봇 사진 세로 위치 직접 입력"></span>
         </div>
-        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn" id="profileCharImageResetBtn">사진 초기화</button></div>
+        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn uiButton" id="profileCharImageResetBtn">사진 초기화</button></div>
         </div>
       </div>
         </div>
@@ -293,7 +293,7 @@
           <input type="range" id="profileUserY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileUserYVal" data-range="profileUserY" value="50" aria-label="유저 사진 세로 위치 직접 입력"></span>
         </div>
-        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn" id="profileUserImageResetBtn">사진 초기화</button></div>
+        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn uiButton" id="profileUserImageResetBtn">사진 초기화</button></div>
         </div>
       </div>
         </div>
@@ -352,13 +352,13 @@
               <option value="bottom" selected>최하단</option>
             </select>
             <span class="segmentedChoice" data-control="creditPlacement" role="group" aria-labelledby="creditPlacementLabel">
-              <button type="button" data-value="top" aria-pressed="false">최상단</button>
-              <button type="button" data-value="bottom" aria-pressed="true">최하단</button>
+              <button class="uiButton" type="button" data-value="top" aria-pressed="false">최상단</button>
+              <button class="uiButton" type="button" data-value="bottom" aria-pressed="true">최하단</button>
             </span>
           </div>
           <div class="creditItemsSection">
             <div id="creditEditorList" class="creditEditorList" aria-label="크레딧 항목"></div>
-            <button type="button" id="creditAddBtn" class="creditAddBtn">+ 항목 추가</button>
+            <button type="button" id="creditAddBtn" class="creditAddBtn uiButton">+ 항목 추가</button>
           </div>
           <details class="creditPresetSection">
             <summary class="creditPresetSummary">프리셋</summary>
@@ -367,12 +367,12 @@
                 <select id="creditPresetSelect" aria-label="저장한 크레딧 항목 프리셋">
                   <option value="">저장된 프리셋 선택</option>
                 </select>
-                <button type="button" id="creditPresetLoadBtn" disabled>불러오기</button>
-                <button type="button" id="creditPresetDeleteBtn" disabled>삭제</button>
+                <button class="uiButton" type="button" id="creditPresetLoadBtn" disabled>불러오기</button>
+                <button class="uiButton" type="button" id="creditPresetDeleteBtn" disabled>삭제</button>
               </div>
               <div class="creditPresetSaveRow">
                 <input type="text" id="creditPresetName" maxlength="80" placeholder="프리셋 이름" aria-label="크레딧 항목 프리셋 이름">
-                <button type="button" id="creditPresetSaveBtn" disabled>저장</button>
+                <button class="uiButton" type="button" id="creditPresetSaveBtn" disabled>저장</button>
               </div>
             </div>
           </details>
@@ -391,19 +391,19 @@
     <div class="bodyEditorOptions">
       <p class="group-desc bodyEditorDesc">카드 단위 작성·편집</p>
       <span class="labInlineTools">
-        <button type="button" id="docNavBtn" aria-expanded="false" aria-controls="docNavPanel">목차</button>
-        <button type="button" id="focusModeBtn" aria-pressed="false">집중 모드</button>
+        <button class="uiButton" type="button" id="docNavBtn" aria-expanded="false" aria-controls="docNavPanel">목차</button>
+        <button class="uiButton" type="button" id="focusModeBtn" aria-pressed="false">집중 모드</button>
       </span>
     </div>
     <div id="docNavPanel" hidden aria-label="문서 탐색기"></div>
     <div class="editorToolbar" id="bodyEditorToolbar">
       <span class="tbGroup">
-        <button type="button" id="tidyBtn" title="단독 --- 변환, 백틱·둥근 따옴표·빈 줄·잔공백 정리">정돈</button>
+        <button class="uiToolbarButton" type="button" id="tidyBtn" title="단독 --- 변환, 백틱·둥근 따옴표·빈 줄·잔공백 정리">정돈</button>
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
         <span class="separatorInsertSplit">
-          <button type="button" id="insertHrBtn" title="얇은 구분선 [HR] 삽입">구분선</button>
+          <button class="uiToolbarButton" type="button" id="insertHrBtn" title="얇은 구분선 [HR] 삽입">구분선</button>
           <select id="separatorInsertSelect" class="separatorInsertSelect" aria-label="다른 구분 요소 삽입" title="장면 전환·호흡·넓은 여백 선택">
             <option value="" selected disabled>다른 구분 요소</option>
             <option value="hr2">장면 전환</option>
@@ -414,17 +414,17 @@
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
-        <button type="button" id="insertImgBtn" title="본문 중간 이미지 삽입">이미지</button>
-        <button type="button" id="insertQuoteBtn" title="인용/편지/시스템 메시지 블록">인용</button>
-        <button type="button" id="insertFoldBtn" title="선택 부분을 접기로 감싸기">접기</button>
+        <button class="uiToolbarButton" type="button" id="insertImgBtn" title="본문 중간 이미지 삽입">이미지</button>
+        <button class="uiToolbarButton" type="button" id="insertQuoteBtn" title="인용/편지/시스템 메시지 블록">인용</button>
+        <button class="uiToolbarButton" type="button" id="insertFoldBtn" title="선택 부분을 접기로 감싸기">접기</button>
       </span>
     </div>
     <div id="cardEditors"></div>
     <div class="blockAddRow" aria-label="본문 블록 추가">
-      <button type="button" id="addCardBtn">+ 카드</button>
-      <button type="button" id="addCommentBtn">+ 코멘트</button>
+      <button class="uiButton" type="button" id="addCardBtn">+ 카드</button>
+      <button class="uiButton" type="button" id="addCommentBtn">+ 코멘트</button>
     </div>
-    <div class="counterRow"><span id="bodyCounter"></span><button type="button" class="btnDanger" id="clearBodyBtn">전체 비우기</button></div>
+    <div class="counterRow"><span id="bodyCounter"></span><button type="button" class="btnDanger uiButton" id="clearBodyBtn">전체 비우기</button></div>
     <details class="helpFold">
       <summary>카드·드래그 도움말</summary>
       <p class="hint">카드 1개 = 아카라이브 둥근 박스 1개 · 대표 이미지: 첫 카드 위 · 꼬리말: 마지막 카드 아래</p>
@@ -457,7 +457,7 @@
         <p class="hint"><b>카드 접기:</b> 헤더의 <b>접기 카드</b> 체크 · <b>✦ 제목 ✦</b> 표지 · 빈 제목 <b>✦ ✦ ✦</b> · 대표 이미지·표제 상시 노출</p>
         <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
         <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
-        <p class="hint"><b>소제목 접기:</b> <code>#&gt; 제목</code> · 같거나 큰 소제목 전까지 자동 접기</p>
+        <p class="hint"><b>접기 제목 크기:</b> <code>[접기 ## 제목]</code> … <code>[/접기]</code> · #부터 ####까지 사용 가능</p>
         <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
       </div>
       <div class="syntaxHelpSection">
@@ -478,8 +478,8 @@
         <div class="paragraphCenterLine" id="narrIndentRow">
           <span class="paragraphCenterCategory">들여쓰기</span>
           <div class="paragraphSegmented" role="group" aria-label="첫 줄 들여쓰기">
-            <button type="button" id="narrIndentNone" aria-pressed="true">없음</button>
-            <button type="button" id="narrIndentFirst" aria-pressed="false">첫 줄</button>
+            <button class="uiButton" type="button" id="narrIndentNone" aria-pressed="true">없음</button>
+            <button class="uiButton" type="button" id="narrIndentFirst" aria-pressed="false">첫 줄</button>
           </div>
           <input class="paragraphHiddenInput" type="checkbox" id="narrIndent" tabindex="-1" aria-hidden="true">
         </div>
@@ -506,16 +506,16 @@
           <div class="paragraphCenterLine" id="commentWidthRow">
             <span class="paragraphCenterCategory">코멘트 폭</span>
             <div class="paragraphSegmented" role="group" aria-label="코멘트 폭">
-              <button type="button" id="commentWidthDefault" aria-pressed="true">기본</button>
-              <button type="button" id="commentWidthCard" aria-pressed="false">카드 폭</button>
+              <button class="uiButton" type="button" id="commentWidthDefault" aria-pressed="true">기본</button>
+              <button class="uiButton" type="button" id="commentWidthCard" aria-pressed="false">카드 폭</button>
             </div>
             <input class="paragraphHiddenInput" type="hidden" id="commentWidth" value="default">
           </div>
           <div class="paragraphCenterLine" id="commentAlignRow">
             <span class="paragraphCenterCategory">코멘트 정렬</span>
             <div class="paragraphSegmented" role="group" aria-label="코멘트 정렬">
-              <button type="button" id="commentAlignLeft" aria-pressed="true">기본</button>
-              <button type="button" id="commentAlignCenter" aria-pressed="false">가운데</button>
+              <button class="uiButton" type="button" id="commentAlignLeft" aria-pressed="true">기본</button>
+              <button class="uiButton" type="button" id="commentAlignCenter" aria-pressed="false">가운데</button>
             </div>
             <input class="paragraphHiddenInput" type="hidden" id="commentAlign" value="left">
           </div>
@@ -535,8 +535,8 @@
           <input type="text" id="nameTo" aria-label="새 이름" placeholder="새 이름">
         </div>
         <div class="nameActionGroup">
-          <button type="button" id="nameFindBtn">찾기</button>
-          <button type="button" id="nameReplaceBtn">바꾸기</button>
+          <button class="uiButton" type="button" id="nameFindBtn">찾기</button>
+          <button class="uiButton" type="button" id="nameReplaceBtn">바꾸기</button>
         </div>
       </div>
       <div id="nameStatus" class="hint" aria-live="polite"></div>
@@ -559,7 +559,7 @@
           <input type="text" id="keywordTo" maxlength="80" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
         </div>
         <div class="nameActionGroup">
-          <button type="button" id="keywordAddBtn">치환</button>
+          <button class="uiButton" type="button" id="keywordAddBtn">치환</button>
         </div>
       </div>
       <input type="hidden" id="keywordRules" value="[]">
@@ -596,8 +596,8 @@
         <option value="notoSerif">Noto Serif KR</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="전체 폰트 이전·다음">
-        <button type="button" id="textFontPrev" aria-label="이전 전체 폰트" title="이전 전체 폰트">‹</button>
-        <button type="button" id="textFontNext" aria-label="다음 전체 폰트" title="다음 전체 폰트">›</button>
+        <button class="uiStepperButton" type="button" id="textFontPrev" aria-label="이전 전체 폰트" title="이전 전체 폰트">‹</button>
+        <button class="uiStepperButton" type="button" id="textFontNext" aria-label="다음 전체 폰트" title="다음 전체 폰트">›</button>
       </span>
     </div>
     <div class="typeSectionLabel designSectionLabel">본문</div>
@@ -678,8 +678,8 @@
         </optgroup>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="대사 표현 방식 이전·다음">
-        <button type="button" id="dlgStylePrev" aria-label="이전 대사 표현" title="이전 대사 표현">‹</button>
-        <button type="button" id="dlgStyleNext" aria-label="다음 대사 표현" title="다음 대사 표현">›</button>
+        <button class="uiStepperButton" type="button" id="dlgStylePrev" aria-label="이전 대사 표현" title="이전 대사 표현">‹</button>
+        <button class="uiStepperButton" type="button" id="dlgStyleNext" aria-label="다음 대사 표현" title="다음 대사 표현">›</button>
       </span>
     </div>
     <div class="row selectCycleRow" id="parallelTranslationLayoutRow">
@@ -691,8 +691,8 @@
         <option value="off">미적용</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="원문 병행 이전·다음">
-        <button type="button" id="parallelLayoutPrev" aria-label="이전 원문 병행 설정" title="이전 원문 병행 설정">‹</button>
-        <button type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
+        <button class="uiStepperButton" type="button" id="parallelLayoutPrev" aria-label="이전 원문 병행 설정" title="이전 원문 병행 설정">‹</button>
+        <button class="uiStepperButton" type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
       </span>
     </div>
     <div id="speakerNames">
@@ -726,8 +726,8 @@
         <option value="relaxed">넉넉</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="내용 간격 이전·다음">
-        <button type="button" id="spacingModePrev" aria-label="이전 내용 간격" title="이전 내용 간격">‹</button>
-        <button type="button" id="spacingModeNext" aria-label="다음 내용 간격" title="다음 내용 간격">›</button>
+        <button class="uiStepperButton" type="button" id="spacingModePrev" aria-label="이전 내용 간격" title="이전 내용 간격">‹</button>
+        <button class="uiStepperButton" type="button" id="spacingModeNext" aria-label="다음 내용 간격" title="다음 내용 간격">›</button>
       </span>
     </div>
     <div class="row selectCycleRow">
@@ -739,8 +739,8 @@
         <option value="900">최대 (900px)</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="본문 폭 이전·다음">
-        <button type="button" id="cardWidthPrev" aria-label="이전 본문 폭" title="이전 본문 폭">‹</button>
-        <button type="button" id="cardWidthNext" aria-label="다음 본문 폭" title="다음 본문 폭">›</button>
+        <button class="uiStepperButton" type="button" id="cardWidthPrev" aria-label="이전 본문 폭" title="이전 본문 폭">‹</button>
+        <button class="uiStepperButton" type="button" id="cardWidthNext" aria-label="다음 본문 폭" title="다음 본문 폭">›</button>
       </span>
     </div>
     <select id="cardLayout" hidden aria-hidden="true" tabindex="-1">
@@ -793,7 +793,7 @@
           <option value="recent">최근 사용</option>
           <option value="name">이름순</option>
         </select>
-        <button type="button" id="presetManageToggle" aria-pressed="false">관리</button>
+        <button class="uiButton" type="button" id="presetManageToggle" aria-pressed="false">관리</button>
       </div>
       <div id="presetList"></div>
       <div id="presetListEmpty" class="presetListEmpty" hidden>일치하는 프리셋이 없습니다.</div>
@@ -805,9 +805,9 @@
     <div class="foldBody">
     <div class="currentThemeApplied"><span>적용 중인 테마</span><strong class="currentThemeAppliedName" id="currentThemeAppliedName">직접 편집</strong></div>
     <div class="themeEditorActions">
-      <button type="button" class="secondary btnQuiet" id="resetDefaultsBtn">테마 초기화</button>
+      <button type="button" class="secondary btnQuiet uiButton" id="resetDefaultsBtn">테마 초기화</button>
     </div>
-    <button type="button" id="currentThemePaletteButton" class="currentThemePaletteButton" title="같은 컬러칩을 다시 누르면 대사 옵션 1→2→3→4→5 순환">
+    <button type="button" id="currentThemePaletteButton" class="currentThemePaletteButton uiButton" title="같은 컬러칩을 다시 누르면 대사 옵션 1→2→3→4→5 순환">
       <span class="currentThemePaletteBar" aria-hidden="true">
         <span data-theme-color="bgColor"></span>
         <span data-theme-color="narrColor"></span>
@@ -863,8 +863,8 @@
       <input type="text" id="presetName" maxlength="80" aria-label="새 프리셋 이름" placeholder="새 이름으로 저장">
     </div>
     <div class="themeSaveActions">
-      <button type="button" class="secondary btnSecondary" id="savePresetBtn" disabled>새 프리셋으로 저장</button>
-      <button type="button" class="secondary btnSecondary" id="overwritePresetBtn">변경사항 저장</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="savePresetBtn" disabled>새 프리셋으로 저장</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="overwritePresetBtn">변경사항 저장</button>
     </div>
     <div id="presetStatus" class="hint" aria-live="polite"></div>
     </div>
@@ -875,8 +875,8 @@
     <div class="foldBody">
       <p class="group-desc">저장 테마 파일 백업·불러오기 / 기기 간 이동용</p>
       <div class="presetRow">
-        <button type="button" class="secondary btnSecondary" id="exportPresetBtn" style="flex:1;">내보내기</button>
-        <button type="button" class="secondary btnSecondary" id="importPresetBtn" style="flex:1;">불러오기</button>
+        <button type="button" class="secondary btnSecondary uiButton" id="exportPresetBtn" style="flex:1;">내보내기</button>
+        <button type="button" class="secondary btnSecondary uiButton" id="importPresetBtn" style="flex:1;">불러오기</button>
         <input type="file" id="importPresetFile" accept="application/json" style="display:none;">
       </div>
       <div id="importStatus" class="hint" aria-live="polite"></div>
@@ -895,11 +895,11 @@
       <div>
         <p class="group-desc">현재 작업 자동 저장 · 보관함 별도 저장</p>
       </div>
-      <button type="button" class="btnQuiet" id="newLogBtn">＋ 새 로그</button>
+      <button type="button" class="btnQuiet uiButton" id="newLogBtn">＋ 새 로그</button>
     </div>
     <div class="presetRow archiveSaveRow">
       <input type="text" id="slotName" maxlength="100" aria-label="보관함 이름" placeholder="이름 (비우면 로그 제목 사용)">
-      <button type="button" class="secondary btnSecondary" id="saveSlotBtn">저장</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="saveSlotBtn">저장</button>
     </div>
     <div class="archiveListTools">
       <input type="search" id="slotSearch" aria-label="보관함 검색" placeholder="보관함 검색" autocomplete="off">
@@ -911,17 +911,17 @@
     </div>
     <div class="archiveListMeta">
       <span id="slotCount" aria-live="polite"></span>
-      <button type="button" id="slotExpandBtn" hidden>전체 보기</button>
+      <button class="uiButton" type="button" id="slotExpandBtn" hidden>전체 보기</button>
     </div>
     <div id="slotList"></div>
     <div class="presetRow archiveFileRow">
-      <button type="button" class="secondary btnSecondary" id="exportSlotsBtn" style="flex:1;">내보내기</button>
-      <button type="button" class="secondary btnSecondary" id="importSlotsBtn" style="flex:1;">불러오기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" style="flex:1;">내보내기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">불러오기</button>
       <input type="file" id="importSlotsFile" accept="application/json" style="display:none;">
     </div>
     <div id="slotImportStatus" class="hint" aria-live="polite"></div>
     <div class="archiveResetRow">
-      <button type="button" class="btnDanger" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
+      <button type="button" class="btnDanger uiButton" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
     </div>
     <details class="helpFold">
       <summary>보관함 사용법</summary>
@@ -937,24 +937,24 @@
         <input type="checkbox" id="copyWithOuterBreaks">
         <span>카드 전체 위아래 여백</span>
       </label>
-      <button type="button" id="preflightBtn" aria-expanded="false" aria-controls="preflightPanel">출력 점검</button>
+      <button class="uiButton" type="button" id="preflightBtn" aria-expanded="false" aria-controls="preflightPanel">출력 점검</button>
     </div>
     <div id="preflightPanel" hidden>
       <p id="preflightSummary"></p>
       <div id="preflightList" class="preflightList"></div>
     </div>
-    <button type="button" class="btnPrimary" id="copyBtn">HTML 복사하기</button>
+    <button type="button" class="btnPrimary uiCopyButton" id="copyBtn">HTML 복사하기</button>
     <div id="copyStatus" aria-live="polite"></div>
     <div class="presetRow htmlFileRow">
-      <button type="button" class="secondary btnSecondary" id="downloadBtn" style="flex:1;">HTML 내보내기</button>
-      <button type="button" class="secondary btnSecondary" id="restoreHtmlBtn" style="flex:1;">HTML 불러오기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="downloadBtn" style="flex:1;">HTML 내보내기</button>
+      <button type="button" class="secondary btnSecondary uiButton" id="restoreHtmlBtn" style="flex:1;">HTML 불러오기</button>
       <input type="file" id="restoreHtmlFile" accept="text/html,.html,.htm" style="display:none;">
     </div>
     <div id="restoreHtmlStatus" class="hint" aria-live="polite"></div>
     <details class="helpFold outputAdvanced" id="outputAdvanced">
       <summary>코드 직접 보기</summary>
       <div id="codeWrap" class="open">
-        <button type="button" id="codeFsBtn" title="코드를 전체 화면으로 보기">⛶ 전체 화면</button>
+        <button class="uiButton" type="button" id="codeFsBtn" title="코드를 전체 화면으로 보기">⛶ 전체 화면</button>
         <textarea id="codeBox" aria-label="생성된 HTML 코드" readonly spellcheck="false"></textarea>
       </div>
     </details>
@@ -1093,7 +1093,7 @@
       <span><code>*강조*</code></span>
       <span><code>'속마음'</code></span>
       <span><code># 소제목</code></span>
-      <span><code>#&gt; 소제목 접기</code></span>
+      <span><code>[접기 ## 제목]…[/접기]</code></span>
       <span><code>&gt; 인용</code></span>
       <span><code>[C]</code> 가운데</span>
       <span><code>[HR]</code> 구분선</span>

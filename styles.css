@@ -4824,13 +4824,13 @@
   #sidebar select {
     font-size: 11.5px !important;
   }
-  #sidebar button:where(:not(.tabBtn):not(.fmtBtn):not(.miniCtl):not(.delCardBtn):not(.subtitleSepButton):not(.profileResetIconBtn):not(.profileImageAdjustBtn):not(.presetMenuBtn):not(.creditDeleteBtn):not(#archiveCloseBtn)) {
-    font-size: 11.5px !important;
-  }
-  #sidebar .styleHistoryBtns button { font-size: 15px !important; }
-  #sidebar .settingsForm .selectCycleStepper button { font-size: 17px !important; }
-  #sidebar #bodyEditorToolbar button { font-size: 10.5px !important; }
-  #sidebar #copyBtn { font-size: 12.5px !important; }
+  /* 일반 작업 버튼에 명시적으로 적용한다. 아이콘·서식·탭은 각 컴포넌트 스타일을 사용한다.
+     새 버튼은 아래 역할 중 하나를 지정해 크기를 선택한다. */
+  #sidebar button:where(.uiButton) { font-size: 11.5px !important; }
+  #sidebar .uiHistoryButton { font-size: 15px !important; }
+  #sidebar .uiStepperButton { font-size: 17px !important; }
+  #sidebar .uiToolbarButton { font-size: 10.5px !important; }
+  #sidebar .uiCopyButton { font-size: 12.5px !important; }
 
   /* 카드·코멘트·크레딧의 순서 이동은 아이콘만 남긴다.
      값 순환 스테퍼와 검색 탐색 버튼은 조작 묶음이 보이도록 테두리를 유지한다. */

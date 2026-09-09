@@ -537,6 +537,14 @@ function stripSpeaker(line, settings){
   return { speaker: null, line };
 }
 
+// 호출부에서 공백·정렬 접두어를 처리한 소제목의 단계와 제목을 읽는다.
+// 출력과 탐색기가 동일한 1~4단계 문법을 사용하되 제목 원문은 그대로 둔다.
+function parseBodyHeading(line){
+  const match = String(line).match(/^(#{1,4})\s+(.+)$/);
+  if(!match) return null;
+  return { level:match[1].length, title:match[2] };
+}
+
 function headingSpec(level){
   return {
     1: { size: 22,   weight: 800 },
@@ -544,6 +552,38 @@ function headingSpec(level){
     3: { size: 16.5, weight: 700 },
     4: { size: 14.5, weight: 700 },
   }[level];
+}
+
+// 이미지 출력·점검·편집이 같은 문법을 사용한다.
+// 편집 시 원문의 들여쓰기, [C] 접두어, 뒤쪽 공백과 따옴표를 보존한다.
+function parseBodyImageLine(line){
+  const source = String(line);
+  const leading = source.match(/^\s*(?:\[C\]\s*)?/i)[0];
+  const trailing = source.match(/\s*$/)[0];
+  const body = source.slice(leading.length, source.length - trailing.length);
+  const match = body.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?(\s*\])$/i);
+  if(!match) return null;
+  const rawCaption = match[3] || '';
+  const caption = rawCaption.trim();
+  // 문자열 검색 대신 문법이 소비한 길이로 위치를 구한다.
+  // 주소에도 캡션과 같은 글자가 있어도 실제 캡션 위치를 가리킨다.
+  const captionStart = caption
+    ? leading.length + body.length - match[4].length - rawCaption.trimStart().length
+    : null;
+  return {
+    leading,
+    src: match[1],
+    width: Math.max(10, Math.min(100, parseInt(match[2] || '100', 10))),
+    caption,
+    captionStart,
+    captionEnd: captionStart === null ? null : captionStart + caption.length,
+    trailing
+  };
+}
+
+// 출력은 기존과 같이 스마트 따옴표를 정규화하되 편집 원문은 변경하지 않는다.
+function parseOutputBodyImage(line){
+  return parseBodyImageLine(normalizeQuotes(String(line)));
 }
 
 function buildParagraph(rawLine, settings, opts){
@@ -613,12 +653,12 @@ function buildParagraph(rawLine, settings, opts){
 
   // 본문 중간 이미지: [IMG 주소], [IMG 주소 @60], [IMG 주소 @60 | 캡션]
   // @뒤 숫자는 카드 폭 대비 가로 비율이며, height:auto로 원본 종횡비를 유지한다.
-  const imgMatch = line.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]$/i);
+  const imgMatch = parseOutputBodyImage(rawLine);
   if(imgMatch){
-    let src = imgMatch[1];
+    let src = imgMatch.src;
     if(src.startsWith('//')) src = 'https:' + src;
-    const imageWidth = Math.max(10, Math.min(100, parseInt(imgMatch[2] || '100', 10)));
-    const captionText = imgMatch[3] ? imgMatch[3].trim() : '';
+    const imageWidth = imgMatch.width;
+    const captionText = imgMatch.caption;
     const caption = captionText ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(captionText, settings.emphasisColor)}</p>` : '';
     const alt = captionText ? stripMarkers(captionText) : '';
     // 카드의 첫 요소면 위 마진을 없애되, 구분선과 맞닿은 쪽은 일반 문단과 같은
@@ -633,10 +673,10 @@ function buildParagraph(rawLine, settings, opts){
   }
 
   // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
-  const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+  const headingMatch = parseBodyHeading(line);
   if(headingMatch){
-    const level = headingMatch[1].length;
-    const text = processInline(headingMatch[2].trim(), settings.emphasisColor);
+    const level = headingMatch.level;
+    const text = processInline(headingMatch.title.trim(), settings.emphasisColor);
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight };
     const marginBottom = Math.round((opts.extraBottom ? 36 : 14) * sm);
@@ -959,7 +999,7 @@ function renderCreditItemsEditor(){
     actions.className = 'creditRowActions';
     const divider = document.createElement('button');
     divider.type = 'button';
-    divider.className = 'creditDividerBtn';
+    divider.className = 'creditDividerBtn uiButton';
     divider.textContent = '―';
     divider.title = index === 0 ? '첫 항목 위에는 구분선을 넣을 수 없습니다.' : '이 항목 위 구분선 표시 전환';
     divider.setAttribute('aria-label', `크레딧 ${index + 1} 위 구분선 표시 전환`);
@@ -969,14 +1009,14 @@ function renderCreditItemsEditor(){
     moveGroup.className = 'creditMoveGroup';
     const up = document.createElement('button');
     up.type = 'button';
-    up.className = 'itemMoveBtn';
+    up.className = 'itemMoveBtn uiButton';
     up.textContent = '↑';
     up.title = '항목을 위로';
     up.setAttribute('aria-label', `크레딧 ${index + 1} 위로 이동`);
     up.disabled = index === 0;
     const down = document.createElement('button');
     down.type = 'button';
-    down.className = 'itemMoveBtn';
+    down.className = 'itemMoveBtn uiButton';
     down.textContent = '↓';
     down.title = '항목을 아래로';
     down.setAttribute('aria-label', `크레딧 ${index + 1} 아래로 이동`);
@@ -1329,6 +1369,8 @@ function foldDividerStyle(minimal, palette){
 // 접기 블록 (<details>/<summary>) — 스크립트 없이 동작하는 순수 HTML 토글.
 // 배경 칩 없이 테두리와 제목 줄만으로 구성한 미니멀 스타일.
 function buildFold(title, innerHTML, settings, forceCenter){
+  const heading = parseBodyHeading(title);
+  if(heading) return buildHeadingFold(heading.level, heading.title.trim(), innerHTML, settings, forceCenter);
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
   const inlinePadding = CARD_INLINE_PADDING;
@@ -1344,7 +1386,7 @@ function buildFold(title, innerHTML, settings, forceCenter){
 }
 
 
-// 소제목 접기 (#> 제목): 소제목이 접기 헤더가 되는 블록 — 배경 칩 없는 미니멀 스타일
+// 일부 접기의 마크다운 제목 ([접기 ## 제목]): 소제목이 접기 헤더가 되는 블록 — 배경 칩 없는 미니멀 스타일
 function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
@@ -1393,7 +1435,7 @@ function isStructuralBodyLine(line){
     || /^\[IMG\s+/i.test(trimmed)
     || /^\[접기(?:\s+.+?)?\]$/.test(trimmed)
     || /^\[\/접기\]$/.test(trimmed)
-    || /^#{1,4}>?\s+/.test(trimmed)
+    || /^#{1,4}\s+/.test(trimmed)
     || /^>(?!>)/.test(trimmed)
     || statusLineContent(trimmed) !== null;
 }
@@ -1514,18 +1556,16 @@ function combineSoftBreakLines(lines){
   return combined;
 }
 
-// 한 카드 분량의 줄들을 문단 HTML로 조립 (수동 접기 + 소제목 접기 포함)
+// 한 카드 분량의 줄들을 문단 HTML로 조립 (일부 접기 포함)
 function assembleBody(lines, settings){
   const renderLines = expandDialogueLinesForOutput(combineSoftBreakLines(lines), settings);
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
   let bodyHTML = '';
   let manualBuf = null, manualTitle = '', manualForceCenter = false;   // [접기 제목] ... [/접기]
-  let headBuf = null, headTitle = '', headLevel = 0, headForceCenter = false; // #> 제목 (다음 같은/큰 소제목까지)
 
   const push = (html) => {
     if(manualBuf !== null) manualBuf += html;
-    else if(headBuf !== null) headBuf += html;
     else bodyHTML += html;
   };
   const closeManual = () => {
@@ -1535,12 +1575,7 @@ function assembleBody(lines, settings){
     manualForceCenter = false;
     push(html);
   };
-  const closeHead = () => {
-    if(headBuf === null) return;
-    bodyHTML += buildHeadingFold(headLevel, headTitle, headBuf, settings, headForceCenter);
-    headBuf = null;
-    headForceCenter = false;
-  };
+
 
   renderLines.forEach((line, i) => {
     const centeredSyntax = /^\[C\]\s*/i.test(line);
@@ -1553,32 +1588,11 @@ function assembleBody(lines, settings){
       manualBuf = '';
       return;
     }
-    // ----- 접기 닫기: 수동 접기가 우선, 없으면 소제목 접기를 닫음 -----
+    // ----- 일부 접기 닫기 -----
     if(/^\[\/접기\]$/.test(line)){
       if(manualBuf !== null){ closeManual(); return; }
-      if(headBuf !== null){ closeHead(); return; }
       return; // 열린 접기가 없으면 무시
     }
-    // ----- 소제목 접기 열기: #> 제목 -----
-    const headFoldMatch = structuralLine.match(/^(#{1,4})>\s+(.+)$/);
-    if(headFoldMatch && manualBuf === null){
-      closeHead(); // 이전 소제목 접기가 열려 있으면 먼저 닫음
-      headLevel = headFoldMatch[1].length;
-      headTitle = headFoldMatch[2].trim();
-      headForceCenter = centeredSyntax;
-      headBuf = '';
-      return;
-    }
-    // 수동 접기 안에서의 #> 는 일반 소제목으로 처리 (접기 중첩 방지)
-    if(headFoldMatch && manualBuf !== null){
-      line = (centeredSyntax ? '[C] ' : '') + headFoldMatch[1] + ' ' + headFoldMatch[2];
-    }
-    // ----- 같거나 더 큰 일반 소제목이 나오면 소제목 접기 자동 닫힘 -----
-    const plainHeadMatch = structuralLine.match(/^(#{1,4})\s+/);
-    if(plainHeadMatch && headBuf !== null && manualBuf === null && plainHeadMatch[1].length <= headLevel){
-      closeHead();
-    }
-
     const isHR = isSep(line);
     const nextIsHR = !isHR && renderLines[i + 1] !== undefined && isSep(renderLines[i + 1]);
     const prevIsHR = !isHR && renderLines[i - 1] !== undefined && isSep(renderLines[i - 1]);
@@ -1591,14 +1605,13 @@ function assembleBody(lines, settings){
     // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
     // 무시되는 닫기 마커가 있어도 첫 소제목의 위 여백이 다시 커지지 않게 한다.
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
-    const isFirst = bodyHTML === '' && manualBuf === null && headBuf === null;
+    const isFirst = bodyHTML === '' && manualBuf === null;
     const isLast = i === renderLines.length - 1;
     push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus }));
   });
 
-  // 닫는 마커 없이 끝났으면 자동으로 닫아줌 (수동 접기 -> 소제목 접기 순)
+  // 닫는 마커 없이 끝났으면 카드 끝에서 닫는다.
   closeManual();
-  closeHead();
   return bodyHTML;
 }
 
@@ -2145,6 +2158,13 @@ function applyUnifiedCardLayout(html, settings){
       section.style.setProperty('padding-top', '8px');
       section.style.setProperty('padding-bottom', '8px');
     }
+    // 표제 바로 아래의 첫 일반 카드 제목에는 자체 상단 여백(26px)이 있다.
+    // 카드 사이용 8px을 더하지 않아 이어보기 전환 시 표제와 제목 간격을 유지한다.
+    if(bodyCard && !foldedCard && index === firstBodyIndex
+      && previousSection && previousSection.hasAttribute('data-mosaic-title')
+      && section.querySelector(':scope > [data-mosaic-card-title="true"]')){
+      section.style.setProperty('padding-top', '0');
+    }
     if(foldedCard){
       const summary = section.querySelector(':scope > summary');
       const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
@@ -2195,7 +2215,8 @@ function applyUnifiedCardLayout(html, settings){
     // 일반 표제는 표지 묶음의 마지막 요소 아래 선으로 본문과 구분한다.
     // 표제 미니멀을 켜면 그 선도 함께 없애 표지와 본문을 여백만으로 잇는다.
     if(showIntroBoundary && section === introBoundary){
-      section.style.setProperty('border-bottom', `1px solid ${pal.shellBorder}`);
+      // 일반 보기의 표지·첫 카드 연결선과 같은 내부 구분선 색을 사용한다.
+      section.style.setProperty('border-bottom', `1px solid ${pal.divider}`);
     }
     section.style.setProperty('border-radius', sections.length === 1
       ? '16px'
@@ -2261,8 +2282,8 @@ function lockOutputTypographyForArca(html){
       if(child.tagName !== 'BR') lockDialogueTree(child, effectiveColor, effectiveSize);
     });
   };
-  // 모바일 게시판이 summary와 내부 span/strong에 별도 제목 스타일을 강제해도
-  // 접기 제목의 설정값은 유지한다. 장식처럼 자체 크기·색이 있는 자식은 그 값을
+  // 모바일 게시판이 제목 div/summary와 내부 span/strong에 별도 스타일을 강제해도
+  // 일반 카드와 접기 카드 제목의 설정값은 유지한다. 장식처럼 자체 크기·색이 있는 자식은 그 값을
   // 우선하므로 제목 크기가 커져도 장식까지 함께 커지지 않는다.
   const foldTitleProperties = ['color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'font-family'];
   const foldTitleRootProperties = ['display', 'align-items', 'justify-content', 'column-gap', 'list-style', 'padding', 'text-align'];
@@ -2319,7 +2340,7 @@ function lockOutputTypographyForArca(html){
     }
     lockDeclaredTypography(element);
     element.querySelectorAll('[style]').forEach(lockDeclaredTypography);
-    element.querySelectorAll('[data-mosaic-fold-title="true"]').forEach(title => {
+    element.querySelectorAll('[data-mosaic-fold-title="true"], [data-mosaic-card-title="true"]').forEach(title => {
       lockFoldTitleTree(title);
       foldTitleRootProperties.forEach(property => {
         const value = title.style.getPropertyValue(property).trim();
@@ -2659,9 +2680,11 @@ function sourceProjectionMeta(line){
     const titlePrefix = rest.match(/^(?:\[C\]\s*)?\[접기\s+/i);
     const titleAt = titlePrefix ? titlePrefix[0].length : rest.indexOf(fold[1]);
     const visibleTitle = fold[1].trim();
-    hide(offset, offset + titleAt);
+    const heading = parseBodyHeading(visibleTitle);
+    const headingPrefixLength = heading ? visibleTitle.match(/^#{1,4}\s+/)[0].length : 0;
+    hide(offset, offset + titleAt + headingPrefixLength);
     hide(offset + titleAt + visibleTitle.length, normalized.length);
-    return { normalized, hidden, start: offset + titleAt, maskInlineSpeakers:false };
+    return { normalized, hidden, start: offset + titleAt + headingPrefixLength, maskInlineSpeakers:false };
   }
 
   // 가운데 정렬은 이미지·소제목·인용보다 먼저 처리된다.
@@ -2681,24 +2704,23 @@ function sourceProjectionMeta(line){
     return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
   }
 
-  // 본문 이미지에서는 캡션만 화면에 보인다.
-  const image = rest.match(/^\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.+?))?\s*\]\s*$/i);
+  // 공통 파서의 원문 범위로 캡션만 남긴다. 주소 안의 동일한 글자는 숨긴다.
+  const image = parseBodyImageLine(normalized);
   if(image){
-    if(!image[3]){
+    if(image.captionStart === null){
       hide(offset, normalized.length);
       return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
     }
-    const captionAt = rest.indexOf(image[3]);
-    hide(offset, offset + captionAt);
-    hide(offset + captionAt + image[3].length, normalized.length);
-    return { normalized, hidden, start: offset + captionAt, maskInlineSpeakers:false };
+    hide(offset, image.captionStart);
+    hide(image.captionEnd, normalized.length);
+    return { normalized, hidden, start: image.captionStart, maskInlineSpeakers:false };
   }
 
   // 일반 소제목과 소제목 접기는 접두어 뒤 제목을 그대로 출력한다.
-  const heading = rest.match(/^(#{1,4})>?\s+(.+)$/);
+  const heading = rest.match(/^(#{1,4})\s+(.+)$/);
   if(heading){
     // 제목이 # 자체로 시작해도 마커를 제목으로 오인하지 않게 접두어 길이를 사용한다.
-    const headingPrefix = rest.match(/^#{1,4}>?\s+/);
+    const headingPrefix = rest.match(/^#{1,4}\s+/);
     const textAt = headingPrefix ? headingPrefix[0].length : rest.indexOf(heading[2]);
     hide(offset, offset + textAt);
     return { normalized, hidden, start: offset + textAt, maskInlineSpeakers:false };
@@ -2967,28 +2989,15 @@ function editHeadingLevelText(text, raw, action){
   const nextLevel = Number(levelMatch[1]);
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
-  // [C]와 접기용 >는 그대로 두고 # 개수만 바꾼다.
-  const token = lines[raw].match(/^(\s*)(\[C\]\s*)?(#{1,4})(>?)(\s+)(.+?)(\s*)$/i);
+  // 정렬·일부 접기 표시는 그대로 두고 제목의 # 개수만 바꾼다.
+  const token = lines[raw].match(/^(\s*(?:\[C\]\s*)?(?:\[접기\s+)?)(#{1,4})(\s+)(.+?)(\s*)$/i);
   if(!token) return null;
-  const currentLevel = token[3].length;
+  const currentLevel = token[2].length;
   if(currentLevel === nextLevel) return null;
-  lines[raw] = token[1] + (token[2] || '') + '#'.repeat(nextLevel)
-    + (token[4] || '') + token[5] + token[6] + token[7];
+  lines[raw] = token[1] + '#'.repeat(nextLevel) + token[3] + token[4] + token[5];
   return {
     text:lines.join('\n'),
     message:`소제목 단계를 ${'#'.repeat(nextLevel)}로 변경.`
-  };
-}
-
-function parseBodyImageLine(line){
-  const token = String(line).match(/^(\s*)\[IMG\s+(\S+?)(?:\s+@(\d{1,3}))?(?:\s*\|\s*(.*?))?\](\s*)$/i);
-  if(!token) return null;
-  return {
-    leading: token[1],
-    src: token[2],
-    width: Math.max(10, Math.min(100, parseInt(token[3] || '100', 10))),
-    caption: token[4] ? token[4].trim() : '',
-    trailing: token[5]
   };
 }
 
@@ -4226,7 +4235,7 @@ function decoratePreviewDirectEditors(){
           sourceBounds:entry.sourceBounds || null
         }, '본문 문단 수정');
         const sourceLine = (ctx.ta.value.split('\n')[entry.raw] || '').trim();
-        const headingMatch = sourceLine.match(/^(?:\[C\]\s*)?(#{1,4})>?\s+/i);
+        const headingMatch = sourceLine.match(/^(?:\[C\]\s*)?(?:\[접기\s+)?(#{1,4})\s+/i);
         if(headingMatch){
           bindHeadingLevelInteraction(block, {
             block,
@@ -4588,53 +4597,24 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
 function topLevelMap(entries){
   const res = [];
   let manual = false, manualStart = -1;
-  let head = false, headStart = -1, headLevel = 0;
-
   entries.forEach(e => {
-    let line = e.text;
-    let structuralLine = line.replace(/^\[C\]\s*/i, '');
-
+    const line = e.text;
+    const structuralLine = line.replace(/^\[C\]\s*/i, '');
     const openMatch = structuralLine.match(/^\[접기(?:\s+(.+?))?\]$/);
     if(openMatch && !manual){ manual = true; manualStart = e.raw; return; }
-
     if(/^\[\/접기\]$/.test(line)){
       if(manual){
         manual = false;
-        // 수동 접기가 닫히면 head 버퍼로 들어가거나(중첩) 최상위로 나옴
-        if(!head) res.push({ kind:'fold', startRaw: manualStart });
-        return;
+        res.push({ kind:'fold', startRaw:manualStart });
       }
-      if(head){ head = false; res.push({ kind:'fold', startRaw: headStart }); return; }
       return;
     }
-
-    const headFoldMatch = structuralLine.match(/^(#{1,4})>\s+(.+)$/);
-    if(headFoldMatch && !manual){
-      if(head) res.push({ kind:'fold', startRaw: headStart });
-      head = true; headStart = e.raw; headLevel = headFoldMatch[1].length;
-      return;
-    }
-    if(headFoldMatch && manual){
-      line = headFoldMatch[1] + ' ' + headFoldMatch[2];
-      structuralLine = line;
-    }
-
-    const plainHeadMatch = structuralLine.match(/^(#{1,4})\s+/);
-    if(plainHeadMatch && head && !manual && plainHeadMatch[1].length <= headLevel){
-      head = false; res.push({ kind:'fold', startRaw: headStart });
-    }
-
-    if(!manual && !head) res.push({
-      kind:'line',
-      startRaw:e.raw,
-      text:structuralLine,
-      partIndex:e.partIndex || 0,
-      partCount:e.partCount || 1
+    if(!manual) res.push({
+      kind:'line', startRaw:e.raw, text:structuralLine,
+      partIndex:e.partIndex || 0, partCount:e.partCount || 1
     });
   });
-
-  if(manual){ if(!head) res.push({ kind:'fold', startRaw: manualStart }); }
-  if(head) res.push({ kind:'fold', startRaw: headStart });
+  if(manual) res.push({ kind:'fold', startRaw:manualStart });
   return res;
 }
 
@@ -5206,45 +5186,44 @@ if(previewCopyResizeObserver){
   previewCopyResizeObserver.observe(document.getElementById('pvSearchBox'));
 }
 
-// 현재 설정 또는 미리 만들어 둔 HTML로 미리보기를 다시 그림.
-function renderPreview(prebuiltHTML){
-  const preview = document.getElementById('preview');
-  // 모든 외곽 버튼은 #previewWrap의 형제 요소다. 미리보기 HTML을 교체해도 남기 때문에
-  // 새 대상을 연결하기 전에 한 번에 제거해 오래된 좌표·이벤트 참조를 남기지 않는다.
-  document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
-  preview.classList.add('previewRefreshing');
-  hideBlockToolbar();
-  // 카드 번호와 카드 안쪽 순번을 함께 기록한다. 전체 details 순번만 쓰면 앞 카드가
-  // 비거나 접기 구조가 달라졌을 때 다음 카드의 펼침 상태가 엉뚱한 곳으로 이동한다.
-  const openStates = new Map();
+// 접기 카드 자체와 카드 안의 일부 접기를 같은 순서로 다룬다.
+function previewDetailsForCard(cardEl){
+  return [
+    ...(cardEl.tagName === 'DETAILS' ? [cardEl] : []),
+    ...cardEl.querySelectorAll('details')
+  ];
+}
+
+function capturePreviewFoldState(){
+  // 카드 번호와 내부 순번을 함께 사용해 다른 카드의 접힘 상태와 섞이지 않게 한다.
+  const states = new Map();
   previewCardContexts().forEach(ctx => {
-    const details = [
-      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
-      ...ctx.cardEl.querySelectorAll('details')
-    ];
-    details.forEach((detail, index) => openStates.set(`${ctx.sourceIndex}:${index}`, detail.open));
+    previewDetailsForCard(ctx.cardEl).forEach((detail, index) => {
+      states.set(`${ctx.sourceIndex}:${index}`, detail.open);
+    });
   });
-  previewSourceHTML = prebuiltHTML !== undefined
-    ? prebuiltHTML
-    : buildCard(getSettings());
-  preview.innerHTML = previewSourceHTML;
-  syncPreviewOuterBreaks();
-  // 미리보기에서 링크를 눌러 편집 화면을 이탈하지 않게 한다.
-  // 복사·다운로드되는 실제 출력 HTML의 링크 동작에는 영향을 주지 않는다.
+  return states;
+}
+
+function restorePreviewFoldState(states){
+  previewCardContexts().forEach(ctx => {
+    previewDetailsForCard(ctx.cardEl).forEach((detail, index) => {
+      if(states.get(`${ctx.sourceIndex}:${index}`) === true) detail.open = true;
+    });
+  });
+}
+
+function preventPreviewTitleNavigation(){
+  // 복사·다운로드용 HTML은 그대로 두고 미리보기의 표제 링크에만 적용한다.
   const previewTitle = previewParts().title;
   if(previewTitle) previewTitle.querySelectorAll('a').forEach(link => {
     link.title = '출력물에서 열리는 링크';
     link.addEventListener('click', event => event.preventDefault());
   });
-  previewCardContexts().forEach(ctx => {
-    const details = [
-      ...(ctx.cardEl.tagName === 'DETAILS' ? [ctx.cardEl] : []),
-      ...ctx.cardEl.querySelectorAll('details')
-    ];
-    details.forEach((detail, index) => {
-      if(openStates.get(`${ctx.sourceIndex}:${index}`) === true) detail.open = true;
-    });
-  });
+}
+
+// HTML 교체로 사라진 편집·검색·버튼 기능을 기존 순서로 연결한다.
+function bindPreviewInteractions(preview){
   enableBlockDrag(preview);
   if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
   decoratePreviewDirectEditors();
@@ -5255,13 +5234,34 @@ function renderPreview(prebuiltHTML){
   decoratePreviewProfilePlacementButton();
   decoratePreviewCreditPlacementButton();
   decoratePreviewOptionButtons();
-  // 새 버튼이 기본 CSS 좌표(top:8px)에 한 프레임이라도 남지 않게 즉시 배치하고,
-  // 이미지·웹폰트·줄바꿈이 확정되는 다음 프레임에 한 번 더 보정한다.
+}
+
+function finishPreviewLayout(preview){
+  // 즉시 배치한 뒤 다음 프레임에 한 번 더 보정한다.
   layoutPreviewFloatingButtons();
   requestAnimationFrame(() => {
     layoutPreviewFloatingButtons();
     preview.classList.remove('previewRefreshing');
   });
+}
+
+// 미리보기 갱신 순서: 이전 UI 정리 → 상태 보관 → HTML 교체 → 상태 복원 → 기능 연결.
+function renderPreview(prebuiltHTML){
+  const preview = document.getElementById('preview');
+  // 외곽 버튼은 HTML 교체 후에도 남으므로 이전 대상을 참조하는 버튼부터 제거한다.
+  document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
+  preview.classList.add('previewRefreshing');
+  hideBlockToolbar();
+  const openStates = capturePreviewFoldState();
+  previewSourceHTML = prebuiltHTML !== undefined
+    ? prebuiltHTML
+    : buildCard(getSettings());
+  preview.innerHTML = previewSourceHTML;
+  syncPreviewOuterBreaks();
+  preventPreviewTitleNavigation();
+  restorePreviewFoldState(openStates);
+  bindPreviewInteractions(preview);
+  finishPreviewLayout(preview);
 }
 
 function syncPreviewOuterBreaks(){
@@ -5431,7 +5431,7 @@ function enableBlockDrag(preview){
       const info = map[i];
       if(info.kind !== 'line') return;
       const text = info.text;
-      const isImg = /^\[IMG\s/i.test(text);
+      const isImg = !!parseBodyImageLine(text);
       const isHr = /^\[HR\]$/i.test(text);
       const isHr2 = /^\[HR2\]$/i.test(text);
       const isHr3 = /^\[HR3\]$/i.test(text);
@@ -5706,8 +5706,8 @@ function focusPreviewOnCaret(ta){
   focusPreviewOn(() => previewBlockFor(ta, raw));
 }
 
-function render(){
-  previewRenderRevision += 1;
+// 출력 설정을 읽기 전에 컨트롤과 자동 감지 인물을 동기화한다.
+function syncRenderInputs(){
   syncCardLayoutAvailability();
   syncPreviewCardStyleToggles();
   syncDesignSummaries();
@@ -5716,6 +5716,10 @@ function render(){
     syncingChars = true;
     try { syncCharList(); } finally { syncingChars = false; }
   }
+}
+
+// 한 번 만든 카드 HTML을 미리보기와 복사·다운로드 출력에 함께 사용한다.
+function renderOutputViews(){
   // 미리보기에는 카드 연결 표식을 보존하고, 복사·다운로드용 HTML에서는 제거한다.
   // buildCard를 두 번 실행하지 않아 비동기 이미지 상태가 바뀌는 순간에도 두 결과가 같다.
   const previewHTML = buildCard(getSettings());
@@ -5724,7 +5728,10 @@ function render(){
   renderPreview(previewHTML);
   renderCurrentThemePalette();
 
-  // 렌더가 끝난 뒤, 편집 중인 부분으로 스크롤
+}
+
+// DOM 교체가 끝난 다음 프레임에 편집 위치로 이동한다.
+function schedulePreviewFocusAfterRender(){
   if(pendingPreviewFocus && positionSyncEnabled()){
     const getter = pendingPreviewFocus;
     const fallbackScrollTop = pendingPreviewFallbackScrollTop;
@@ -5742,7 +5749,14 @@ function render(){
     pendingPreviewFocus = null;
     pendingPreviewFallbackScrollTop = null;
   }
-  // 본문 검색 하이라이트 재적용 (검색 중이 아니면 즉시 반환) — 미리보기의 pvApplySearch 재적용과 같은 원리
+}
+
+// 전체 갱신의 실행 순서를 한곳에서 관리한다.
+function render(){
+  previewRenderRevision += 1;
+  syncRenderInputs();
+  renderOutputViews();
+  schedulePreviewFocusAfterRender();
 }
 
 function updateHexLabels(){
@@ -6279,7 +6293,7 @@ function hasMarkdownCardContent(){
     if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
     const textarea = editor.querySelector('textarea');
     if(!textarea) return false;
-    // #> 접기 소제목은 아래의 '접기 제목' 정렬이 담당한다. 일반 소제목만 감지해
+    // 일부 접기 제목은 아래의 '접기 제목' 정렬이 담당한다. 일반 소제목만 감지해
     // 접기 소제목밖에 없을 때 효과 없는 마크다운 버튼이 활성화되지 않게 한다.
     return /^(?:\s*\[C\]\s*)?\s*#{1,4}\s+\S/im.test(textarea.value);
   });
@@ -6297,7 +6311,7 @@ function hasBodyFoldTitleContent(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
     if(editor.dataset.blockType === 'comment' || editor.dataset.outputVisible === 'false') return false;
     const textarea = editor.querySelector('textarea');
-    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*(?:\[접기(?:\s+.*?)?\]|#{1,4}>\s+\S)/im.test(textarea.value));
+    return !!(textarea && /^(?:\s*\[C\]\s*)?\s*\[접기(?:\s+.*?)?\]/im.test(textarea.value));
   });
 }
 
@@ -7102,7 +7116,7 @@ function createCardEditor(value){
   autoExpandBtn.setAttribute('aria-pressed', 'false');
   const duplicateBtn = document.createElement('button');
   duplicateBtn.type = 'button';
-  duplicateBtn.className = 'duplicateCardBtn';
+  duplicateBtn.className = 'duplicateCardBtn uiButton';
   duplicateBtn.textContent = '⧉';
   duplicateBtn.title = '이 카드를 바로 아래에 복제';
   duplicateBtn.setAttribute('aria-label', '카드 복제');
@@ -7240,7 +7254,7 @@ function createCardEditor(value){
     const first = ta.value.split('\n').map(l => l.trim()).find(l => l !== '') || '';
     const plain = first
       .replace(/^\[C\]\s*/i, '')
-      .replace(/^#{1,4}>?\s*/, '')
+      .replace(/^#{1,4}\s*/, '')
       .replace(/^>{1,2}\s*/, '')
       .replace(/^<<\s*/, '')
       .replace(/^\[[^\]]{1,24}\]\s*/, '')
@@ -7520,7 +7534,8 @@ function collectSlotWork(){
   return data;
 }
 
-function applyWork(data){
+// 저장된 값과 입력 UI를 복원한다. 출력 렌더링과 초안 저장은 완료 단계에서 수행한다.
+function applyWorkState(data){
   const fields = data.fields || {};
   WORK_FIELDS.forEach(id => {
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
@@ -7544,9 +7559,19 @@ function applyWork(data){
   activeTa = bodyCardTextareas()[0] || null;
   charRowsKey = null;
   syncCharList();
+}
+
+// 본문·디자인 적용이 모두 끝난 상태만 출력하고 저장한다.
+function finishWorkRestore(){
   render();
   updateCounter();
   saveDraft();
+}
+
+// HTML·보관함 불러오기는 적용과 완료를 한 번에 수행한다.
+function applyWork(data){
+  applyWorkState(data);
+  finishWorkRestore();
 }
 
 function snapshotCards(){
@@ -8136,6 +8161,8 @@ function setFsSearchOpen(open, focusInput){
 let pvSearchOn = false;
 let pvHits = [];
 let pvCur = -1;
+// 삭제로 검색 결과가 잠시 없어져도 되돌리기 후 선택 결과를 다시 펼칠 수 있게 기억한다.
+let pvLastActiveIndex = -1;
 
 function pvScopeTextarea(){
   const scope = document.getElementById('pvScopeSelect').value;
@@ -8263,7 +8290,8 @@ function pvUpdateCount(){
 
 // keepPos: 리렌더 후 재적용 시 현재 위치를 유지하고 스크롤하지 않음 (타이핑이 화면을 끌고 다니지 않게)
 function pvApplySearch(keepPos){
-  const prevCur = pvCur;
+  const prevCur = keepPos ? (pvCur >= 0 ? pvCur : pvLastActiveIndex) : -1;
+  pvLastActiveIndex = prevCur;
   pvRefreshScopeOptions(false);
   pvClearHits();
   const q = document.getElementById('pvFindInput').value;
@@ -8286,6 +8314,7 @@ function pvMarkCurrent(scroll){
   pvHits.forEach(sp => sp.classList.remove('pvHitCur'));
   const cur = pvHits[pvCur];
   if(!cur) return;
+  pvLastActiveIndex = pvCur;
   cur.classList.add('pvHitCur');
   // 닫힌 접기(details) 안의 일치는 조상을 열어서 보이게 함
   let el = cur.parentElement;
@@ -8318,6 +8347,7 @@ function openPreviewSearch(){
 
 function closePreviewSearch(){
   pvSearchOn = false;
+  pvLastActiveIndex = -1;
   const box = document.getElementById('pvSearchBox');
   box.style.display = 'none';
   pvClearHits();
@@ -8699,7 +8729,7 @@ function renderKeywordRuleList(){
     const to = document.createElement('b'); to.textContent = rule.to;
     text.append(from, document.createTextNode(' → '), to);
     const undo = document.createElement('button');
-    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '되돌리기';
+    undo.type = 'button'; undo.className = 'keywordUndoBtn uiButton'; undo.textContent = '되돌리기';
     undo.addEventListener('click', () => undoKeywordRule(rule.id));
     row.append(text, undo);
     list.appendChild(row);
@@ -9092,15 +9122,15 @@ function renderSlotList(){
     over.type = 'button';
     over.textContent = '덮어쓰기';
     over.title = '현재 작업을 이 슬롯에 다시 저장해';
-    over.className = 'slotOverwrite';
+    over.className = 'slotOverwrite uiButton';
     const load = document.createElement('button');
     load.type = 'button';
-    load.className = 'slotLoad';
+    load.className = 'slotLoad uiButton';
     load.textContent = '불러오기';
     load.title = '이 보관함 작업을 불러오기';
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'slotDel';
+    del.className = 'slotDel uiButton';
     del.textContent = '×';
     del.title = '슬롯 삭제';
     const actions = document.createElement('div');
@@ -9692,7 +9722,7 @@ function updateCounter(){
     const structuralLine = l.replace(/^\[C\]\s*/i, '');
     const u = structuralLine.toUpperCase();
     if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u)
-       || /^#{1,4}>?\s/.test(structuralLine)
+       || /^#{1,4}\s/.test(structuralLine)
        || /^\[IMG\s/i.test(structuralLine)
        || /^\[\/?접기(?:\s|\])/i.test(structuralLine)
        || statusLineContent(structuralLine) !== null) return false;
@@ -9705,7 +9735,7 @@ function updateCounter(){
   bodyParaList.forEach(l => {
     const structuralLine = l.replace(/^\[C\]\s*/i, '');
     const u = structuralLine.toUpperCase();
-    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}>?\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
+    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
        || statusLineContent(structuralLine) !== null
        || /^\[접기/.test(structuralLine) || /^\[\/접기\]$/.test(structuralLine)) return;
     let body = normalizeQuotes(structuralLine);
@@ -10417,7 +10447,7 @@ function renderComboFamilyFilters(){
   COLOR_COMBO_FAMILIES.forEach(family => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'comboFamilyFilter';
+    btn.className = 'comboFamilyFilter uiButton';
     btn.dataset.family = family.key;
     btn.textContent = family.label;
     btn.setAttribute('aria-pressed', String(family.key === currentComboFamily));
@@ -10438,7 +10468,7 @@ function renderComboList(){
     const v = combo.v;
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'comboCard' + (combo.name === currentComboName ? ' active' : '');
+    chip.className = 'comboCard uiButton' + (combo.name === currentComboName ? ' active' : '');
     const presetKey = `recommended:${combo.name}`;
     chip.title = '마우스를 올리면 색상 미리보기 · 처음 클릭은 색상만 적용 · 같은 추천 프리셋을 다시 누르면 현재 대사 옵션부터 순환';
     chip.setAttribute('aria-label', `${combo.name} 추천 프리셋 적용`);
@@ -10812,14 +10842,15 @@ function goActionHistory(delta){
   undoSnapshot = null;
   imageHistorySession = null;
   dismissToast();
-  applyWork(cloneHistoryValue(state.work));
-  applyStyleValues(cloneHistoryValue(state.style));
+  applyWorkState({
+    ...cloneHistoryValue(state.work),
+    style: cloneHistoryValue(state.style)
+  });
   currentPresetName = null;
   currentComboName = null;
   renderPresetList();
   renderComboList();
-  render();
-  saveDraft();
+  finishWorkRestore();
   updateHistoryButtons();
 }
 
@@ -11184,13 +11215,15 @@ function renderPresetList(){
 
     const renameBtn = document.createElement('button');
     renameBtn.type = 'button';
+    renameBtn.className = 'uiButton';
     renameBtn.textContent = '이름 변경';
     const duplicateBtn = document.createElement('button');
     duplicateBtn.type = 'button';
+    duplicateBtn.className = 'uiButton';
     duplicateBtn.textContent = '복제';
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
-    deleteBtn.className = 'presetDeleteAction';
+    deleteBtn.className = 'presetDeleteAction uiButton';
     deleteBtn.textContent = '삭제';
     menu.append(renameBtn, duplicateBtn, deleteBtn);
     manage.append(menuBtn, menu);
@@ -11799,9 +11832,9 @@ function navigatorItemsForCard(card, index){
     const line = raw.trim();
     if(!line) return;
     const structuralLine = line.replace(/^\[C\]\s*/i, '');
-    const heading = structuralLine.match(/^(#{1,4})>?\s+(.+)$/);
+    const heading = parseBodyHeading(structuralLine);
     if(heading){
-      items.push({ lineIndex, label:`${'·'.repeat(heading[1].length)} ${stripMarkers(heading[2]).trim()}` });
+      items.push({ lineIndex, label:`${'·'.repeat(heading.level)} ${stripMarkers(heading.title).trim()}` });
       return;
     }
     if(structuralLine.toUpperCase() === '[HR]') items.push({ lineIndex, label:'— 구분선' });
@@ -11809,8 +11842,12 @@ function navigatorItemsForCard(card, index){
     else if(structuralLine.toUpperCase() === '[HR3]') items.push({ lineIndex, label:'··· 호흡' });
     else if(structuralLine.toUpperCase() === '[GAP]') items.push({ lineIndex, label:'↕ 넓은 여백' });
     else if(statusLineContent(structuralLine) !== null) items.push({ lineIndex, label:'◌ 상태창' });
-    else if(/^\[IMG\s/i.test(structuralLine)) items.push({ lineIndex, label:'▧ 본문 이미지' });
-    else if(/^\[접기/i.test(structuralLine)) items.push({ lineIndex, label:`＋ ${structuralLine.replace(/^\[접기\s*|\]$/g, '').trim() || '접기'}` });
+    else if(parseOutputBodyImage(raw)) items.push({ lineIndex, label:'▧ 본문 이미지' });
+    else if(/^\[접기/i.test(structuralLine)){
+      const foldTitle = structuralLine.replace(/^\[접기\s*|\]$/g, '').trim();
+      const heading = parseBodyHeading(foldTitle);
+      items.push({ lineIndex, label:`＋ ${heading ? stripMarkers(heading.title).trim() : (foldTitle || '접기')}` });
+    }
   });
   if(!items.length){
     const firstLine = lines.findIndex(line => line.trim());
@@ -11838,15 +11875,15 @@ function buildDocumentNavigator(){
     group.className = 'docNavGroup';
     const title = document.createElement('button');
     title.type = 'button';
-    title.className = 'docNavCardTitle';
+    title.className = 'docNavCardTitle uiButton';
     const firstHeading = card.body
       .split('\n')
-      .map(line => line.trim().replace(/^\[C\]\s*/i, '').match(/^#{1,4}>?\s+(.+)$/))
+      .map(line => parseBodyHeading(line.trim().replace(/^\[C\]\s*/i, '')))
       .find(Boolean);
     const cardNavigatorTitle = String(card.foldTitle || '').trim();
     const navigatorTitle = cardNavigatorTitle
       ? cardNavigatorTitle
-      : (firstHeading ? stripMarkers(firstHeading[1]).trim() : '');
+      : (firstHeading ? stripMarkers(firstHeading.title).trim() : '');
     const cardKindBase = isComment ? `코멘트 ${displayNumber}` : (card.folded ? '접기' : `카드 ${displayNumber}`);
     const cardKind = card.visible === false ? `${cardKindBase} · 숨김` : cardKindBase;
     title.textContent = navigatorTitle ? `${cardKind} · ${navigatorTitle}` : cardKind;
@@ -11866,7 +11903,7 @@ function buildDocumentNavigator(){
       items.forEach(item => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'docNavItem';
+        button.className = 'docNavItem uiButton';
         button.textContent = item.label;
         button.title = item.label;
         button.addEventListener('click', () => jumpToDocumentLine(cardIndex, item.lineIndex));
@@ -11947,7 +11984,7 @@ function renderPreflightIssues(issues, checking){
   issues.forEach(issue => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'preflightIssue';
+    button.className = 'preflightIssue uiButton';
     button.dataset.severity = issue.severity;
     button.textContent = `${issue.severity === 'error' ? '오류' : '확인'} · ${issue.message}`;
     button.addEventListener('click', () => focusPreflightTarget(issue));
@@ -11987,8 +12024,8 @@ function basicPreflightIssues(){
       issues.push({ severity:'warn', message:`${blockLabel}의 일부 접기 시작·끝 개수가 다릅니다.`, cardIndex, lineIndex:0 });
     }
     card.body.split('\n').forEach((raw, lineIndex) => {
-      const line = raw.trim();
-      if(/^\[IMG\b/i.test(line) && !/^\[IMG\s+\S+?(?:\s+@\d{1,3})?(?:\s*\|\s*.+?)?\s*\]$/i.test(line)){
+      const line = raw.trim().replace(/^\[C\]\s*/i, '');
+      if(/^\[IMG\b/i.test(line) && !parseOutputBodyImage(raw)){
         issues.push({ severity:'error', message:`${blockLabel}의 이미지 문법을 확인해 주세요.`, cardIndex, lineIndex });
       }
     });
@@ -12082,9 +12119,9 @@ async function runPreflight(){
     if(card.type === 'comment' || card.visible === false) return;
     const cardNumber = ++visibleBodyCardNumber;
     card.body.split('\n').forEach((raw, lineIndex) => {
-      const match = raw.trim().match(/^\[IMG\s+(\S+?)(?:\s+@\d{1,3})?(?:\s*\|\s*(.+?))?\s*\]$/i);
+      const match = parseOutputBodyImage(raw);
       if(!match) return;
-      let url = match[1];
+      let url = match.src;
       if(url.startsWith('//')) url = `https:${url}`;
       try {
         url = new URL(url, location.href).href;
