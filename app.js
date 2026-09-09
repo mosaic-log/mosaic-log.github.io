@@ -2158,11 +2158,10 @@ function applyUnifiedCardLayout(html, settings){
       section.style.setProperty('padding-top', '8px');
       section.style.setProperty('padding-bottom', '8px');
     }
-    // 표제 바로 아래의 첫 일반 카드 제목에는 자체 상단 여백(26px)이 있다.
-    // 카드 사이용 8px을 더하지 않아 이어보기 전환 시 표제와 제목 간격을 유지한다.
+    // 표제 바로 아래의 첫 일반 카드는 제목·본문 래퍼에 이미 상단 여백이 있다.
+    // 제목 유무와 관계없이 카드 사이용 8px을 더하지 않아 첫 내용의 위치를 유지한다.
     if(bodyCard && !foldedCard && index === firstBodyIndex
-      && previousSection && previousSection.hasAttribute('data-mosaic-title')
-      && section.querySelector(':scope > [data-mosaic-card-title="true"]')){
+      && previousSection && previousSection.hasAttribute('data-mosaic-title')){
       section.style.setProperty('padding-top', '0');
     }
     if(foldedCard){
