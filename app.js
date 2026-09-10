@@ -2036,6 +2036,11 @@ function normalizeCreditPlacement(value){
   return value === 'top' ? 'top' : 'bottom';
 }
 
+// 모바일 게시판이 셀의 색을 재해석해도 실제 텍스트에는 지정 색을 유지한다.
+function buildCreditText(contentHTML, color){
+  return `<span style="color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:inherit !important; font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;">${contentHTML}</span>`;
+}
+
 function buildCredit(settings){
   if(!settings.creditOn) return '';
   const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
@@ -2057,10 +2062,12 @@ function buildCredit(settings){
   // 중성 회색 축에서 본문 카드와 분리한 뒤 보조색을 극소량만 얹는다.
   // 회색의 낮은 위계는 유지하면서 테마 색조가 미묘하게 느껴지는 정도로 제한한다.
   const creditNeutralBg = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.03 : 0.01);
-  const creditBg = mixHex(creditNeutralBg, creditAccent, darkBackground ? 0.025 : 0.02);
+  const creditBaseBg = mixHex(creditNeutralBg, creditAccent, darkBackground ? 0.025 : 0.02);
+  // 밝은 테마는 흰색 쪽으로, 어두운 테마는 기존 중성 배경 쪽으로 30% 혼합한다.
+  const creditBg = mixHex(creditBaseBg, darkBackground ? neutralCardBg : '#ffffff', 0.30);
   // 외곽선은 색조를 넣지 않아 배경과 함께 탁해지거나 과하게 강조되지 않도록 한다.
   const creditBorder = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.11 : 0.07);
-  const creditDivider = mixHex(creditBg, creditNeutral, darkBackground ? 0.07 : 0.045);
+  const creditDivider = mixHex(creditBaseBg, creditNeutral, darkBackground ? 0.07 : 0.045);
   const labelColor = mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
   const valueColor = mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
   const font = fontStack(settings.narrFont);
@@ -2070,7 +2077,7 @@ function buildCredit(settings){
     const valueText = escapeTextHTML(item.value);
     const linkedValue = item.url
       ? buildCreditLink(valueText || labelText, item.url, valueColor)
-      : (valueText || labelText);
+      : buildCreditText(valueText || labelText, valueColor);
     const divider = renderedIndex > 0 && settingFlagOn(item.dividerBefore)
       ? `<div data-mosaic-generated="true" data-mosaic-credit-divider-before="${item.sourceIndex}" aria-hidden="true" style="box-sizing:border-box; width:100%; height:1px; margin:7px 0 9px; padding:0; border:0; background-color:${creditDivider} !important;"></div>`
       : '';
@@ -2078,7 +2085,7 @@ function buildCredit(settings){
       const field = item.value ? 'value' : 'label';
       return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="${field}" style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
     }
-    return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${labelText}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
+    return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${buildCreditText(labelText, labelColor)}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
   }).join('');
 
   const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
@@ -9105,7 +9112,9 @@ function updateSlotExportSelection(){
   deleteButton.disabled = selectedSlotIds.size === 0;
   deleteButton.textContent = `선택 삭제 (${selectedSlotIds.size})`;
   document.getElementById('slotSelectionBar').hidden = !slotSelectionMode;
-  document.getElementById('slotSelectBtn').setAttribute('aria-pressed', String(slotSelectionMode));
+  const selectButton = document.getElementById('slotSelectBtn');
+  selectButton.setAttribute('aria-pressed', String(slotSelectionMode));
+  selectButton.textContent = slotSelectionMode ? '취소' : '선택';
 }
 
 function renderSlotList(){
