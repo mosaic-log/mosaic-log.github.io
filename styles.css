@@ -381,50 +381,6 @@
     opacity: .42;
     cursor: default;
   }
-  /* 표제의 선택 기능은 본 입력 흐름을 방해하지 않도록 얇은 하위 접기로 분리한다. */
-  .titleLinkFold {
-    margin: 12px 0 0;
-    padding-top: 2px;
-    border-top: 1px solid var(--line);
-  }
-  .titleLinkFold > summary {
-    display: flex;
-    align-items: center;
-    min-height: 38px;
-    gap: 10px;
-    padding: 0 2px;
-    list-style: none;
-    cursor: pointer;
-    user-select: none;
-    color: var(--ink-soft);
-    font-size: 12.5px;
-    font-weight: 750;
-  }
-  .titleLinkFold > summary::-webkit-details-marker { display: none; }
-  .titleLinkFold > summary::after {
-    content: "+";
-    flex: none;
-    margin-left: auto;
-    color: var(--ink-faint);
-    font-size: 15px;
-    font-weight: 400;
-  }
-  .titleLinkFold[open] > summary::after { content: "−"; }
-  .titleLinkFold:not([open]) > *:not(summary) { display: none; }
-  .titleLinkMeta {
-    min-width: 0;
-    margin-left: auto;
-    overflow: hidden;
-    color: var(--ink-faint);
-    font-size: 10.5px;
-    font-weight: 500;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .titleLinkFold > summary::after { margin-left: 0; }
-  .titleLinkFold[open] > summary .titleLinkMeta { display: none; }
-  .titleLinkFold[open] > summary::after { margin-left: auto; }
-  .titleLinkBody { padding: 3px 2px 6px; }
   input[type="text"], input[type="url"], input[type="number"], select, textarea {
     font-family: inherit;
     color: var(--ink);
@@ -1544,7 +1500,7 @@
   .cardEditor.isOutputHidden .cardNum { color: var(--ink-faint); }
   .cardEditorHead .headLeft { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
 
-  /* ---------- 추천 프리셋 / 내 프리셋 ---------- */
+  /* ---------- 색상 프리셋 / 내 프리셋 ---------- */
   #comboList {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2727,16 +2683,17 @@
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleDivider { background:#484b50; }
   body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn,
   body.previewFullscreen #previewArea.previewArcaDark .layoutMirrorBtn {
-    border-color: #484b50;
     color: #c5c8cc;
   }
   body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn:hover,
   body.previewFullscreen #previewArea.previewArcaDark .layoutMirrorBtn:hover {
-    background: #292b2f;
-    color: #fff;
+    background: color-mix(in srgb, var(--accent) 19%, #292b2f);
+    color: #d7e9dc;
   }
   /* 코멘트는 의도적으로 색상을 출력 HTML에 넣지 않으므로 호스트 게시판의
      기본 본문색을 미리보기에서만 재현한다. 카드의 인라인 스타일은 그대로 유지된다. */
+  #previewArea #preview { color: #212529; }
+  body.previewFullscreen #previewArea.previewArcaDark #preview { color: #dedede; }
   #previewArea #preview > [data-mosaic-comment-index] { color: #212529; }
   body.previewFullscreen #previewArea.previewArcaDark #preview > [data-mosaic-comment-index] { color: #dedede; }
   /* 실제 출력에서 기본·가운데 코멘트는 게시글 폭을 사용한다. 데스크톱 미리보기의
@@ -2752,19 +2709,26 @@
     width:30px;
     height:30px;
     padding:0;
-    border:1px solid var(--line);
+    border:0;
     border-radius:7px;
     background:transparent;
     color:var(--ink-faint);
     font-size:16px;
     line-height:1;
+    cursor:pointer;
   }
   .previewFullscreenBtn:hover,
-  .layoutMirrorBtn:hover { background:var(--bg-field); color:var(--ink); }
+  .layoutMirrorBtn:hover {
+    background:color-mix(in srgb, var(--accent) 10%, var(--bg-panel));
+    color:var(--accent);
+  }
   .layoutMirrorBtn.active {
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-    background: color-mix(in srgb, var(--accent) 9%, var(--bg-panel));
     color: var(--accent);
+  }
+  .previewFullscreenBtn:focus-visible,
+  .layoutMirrorBtn:focus-visible {
+    outline:2px solid var(--accent);
+    outline-offset:2px;
   }
   body.previewFullscreen { overflow:hidden; }
   body.previewFullscreen #sidebar,
@@ -2804,7 +2768,6 @@
   body.previewFullscreen #previewArea.previewArcaDark #previewToolbar { background:#1f2023; }
   body.previewFullscreen .previewFullscreenBtn {
     color:var(--ink);
-    border-color:var(--line-strong);
   }
   #preview {
     position: relative;
@@ -3114,17 +3077,14 @@
     color: var(--ink);
   }
 
-  /* 프로필 기본 설정: 짧은 선택지는 드롭다운보다 한눈에 비교되는 텍스트 선택으로 표시한다. */
-  #profileGroup .profileConfigurationLabel {
-    margin: 16px 0 7px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 700;
-  }
+  /* 프로필의 짧은 선택지는 드롭다운보다 한눈에 비교되는 텍스트 선택으로 표시한다. */
   .settingsForm .segmentedChoiceRow {
     grid-template-columns: var(--settings-label-w) minmax(0, 1fr) auto;
   }
   .settingsForm .segmentedChoiceSource {
+    display: none;
+  }
+  #tabCover .segmentedChoiceRow > input[type="checkbox"][hidden] {
     display: none;
   }
   /* 표지 탭의 단일 선택은 문단 설정과 같은 텍스트·밑줄 방식으로 통일한다. */
@@ -3292,6 +3252,13 @@
   #tabCover .coverFold[open] .coverFoldMeta {
     display: none;
   }
+  #tabCover .coverFoldActions {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+  }
+  #tabCover .coverFold[open] .coverFoldActions { margin-left: auto; }
+  #tabCover .coverFoldActions + .foldArrow { margin-left: 0; }
   #tabCover .coverFold .foldArrow {
     flex: 0 0 auto;
   }
@@ -3351,8 +3318,7 @@
     border-color: var(--line-strong);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
   }
-  /* URL은 내용 설정을 보조하는 메타 정보다. 대표 이미지·프로필 사진·이름 링크·
-     표제 링크 모두 같은 낮은 위계로 묶고, 값이 채워져도 일반 텍스트보다 조용하게 보인다. */
+  /* 이미지 URL은 내용 설정을 보조하는 메타 정보다. */
   #tabCover input[type="url"] {
     color: var(--help-ink-strong);
     background: var(--bg-subtle);
@@ -3377,25 +3343,7 @@
   }
   #tabCover .row:has(input[type="url"]) > label { color: var(--ink-soft); }
   #tabCover .row:has(input[type="url"]):has(input[type="url"]:placeholder-shown) > label { color: var(--help-ink); }
-  /* 프로필 이미지 주소만 다른 URL보다 한 단계 잘 보이게 해 이미지 설정임을 빠르게 구분한다.
-     대표 이미지 주소는 상단의 공통 URL 규칙을 따라 차분한 회색조로 유지한다. */
-  #profileGroup #profileCharImage,
-  #profileGroup #profileUserImage,
-  #profileGroup #profileCharImage:not(:placeholder-shown):not(:focus),
-  #profileGroup #profileUserImage:not(:placeholder-shown):not(:focus) {
-    color: color-mix(in srgb, var(--accent) 78%, var(--ink-soft));
-    background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel));
-    border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
-  }
-  #profileGroup #profileCharImage:focus,
-  #profileGroup #profileUserImage:focus {
-    color: var(--ink);
-    background: color-mix(in srgb, var(--accent) 4%, #fff);
-    border-color: color-mix(in srgb, var(--accent) 42%, var(--line-strong));
-  }
-  #profileGroup .profileImageRow > label {
-    color: color-mix(in srgb, var(--accent) 82%, var(--ink-soft));
-  }
+  #tabCover #profileGroup .profileImageRow.isControlDisabled > label { color: var(--ink-faint); }
   /* 프로필에서 사용하던 작고 옅은 예시 문구 위계를 모든 입력창으로 확장한다.
      실제 입력 글자도 같은 크기로 맞추되 각 입력의 기존 글자색·배경·테두리는 유지한다. */
   input[placeholder],
@@ -3408,13 +3356,12 @@
     font-size: 11.5px !important;
     opacity: 1;
   }
-  /* 상단 프로필의 긴 입력 목록을 기능별 얇은 하위 아코디언으로 구분한다. */
+  /* 인물별 입력 목록은 얇은 하위 아코디언으로 구분한다. */
   #profileGroup .profileSubFold {
     position: relative;
     margin: 0;
     border-top: 1px solid var(--line);
   }
-  #profileGroup .profileSubFold:first-of-type { border-top: 0; }
   #profileGroup .profileSubHead {
     display: flex;
     align-items: center;
@@ -3433,22 +3380,6 @@
     flex: 0 0 auto;
     font-size: 12.5px;
     font-weight: 750;
-  }
-  #profileGroup .profileSubMeta {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin-left: 8px;
-    overflow: hidden;
-    color: var(--ink-faint);
-    font-size: 10.5px;
-    font-weight: 500;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #profileGroup .profileSubMeta:empty { display: none; }
-  #profileGroup .profileSubFold[open] > .profileSubHead .profileSubMeta {
-    display: none;
   }
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubArrow {
     margin-left: auto;
@@ -3482,7 +3413,7 @@
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubActions + .profileSubArrow {
     margin-left: 0;
   }
-  #profileGroup .profileEntitySwitch {
+  #tabCover .coverVisibilitySwitch {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -3491,7 +3422,7 @@
     min-height: 32px;
     justify-content: center;
   }
-  #profileGroup .profileEntitySwitch input {
+  #tabCover .coverVisibilitySwitch input {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -3500,7 +3431,7 @@
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
   }
-  #profileGroup .profileEntitySwitchTrack {
+  #tabCover .coverVisibilitySwitchTrack {
     position: relative;
     width: 28px;
     height: 16px;
@@ -3509,7 +3440,7 @@
     background: var(--bg-field);
     transition: border-color .14s ease, background .14s ease;
   }
-  #profileGroup .profileEntitySwitchTrack::after {
+  #tabCover .coverVisibilitySwitchTrack::after {
     content: '';
     position: absolute;
     top: 2px;
@@ -3520,25 +3451,25 @@
     background: var(--ink-faint);
     transition: transform .14s ease, background .14s ease;
   }
-  #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack {
+  #tabCover .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--accent) 28%, var(--bg-field));
     background: color-mix(in srgb, var(--accent) 14%, var(--bg-field));
   }
-  #profileGroup .profileEntitySwitch input:checked + .profileEntitySwitchTrack::after {
+  #tabCover .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     transform: translateX(12px);
     background: color-mix(in srgb, var(--accent) 68%, white);
   }
-  #profileGroup .profileEntitySwitch input:focus-visible + .profileEntitySwitchTrack {
+  #tabCover .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
     outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
     outline-offset: 2px;
   }
-  #profileGroup .profileEntitySwitch:has(input:disabled) { cursor: default; }
-  #profileGroup .profileEntitySwitch input:disabled + .profileEntitySwitchTrack {
+  #tabCover .coverVisibilitySwitch:has(input:disabled) { cursor: default; }
+  #tabCover .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--line-strong) 70%, var(--bg-field));
     background: var(--bg-muted);
     opacity: .52;
   }
-  #profileGroup .profileEntitySwitch input:disabled + .profileEntitySwitchTrack::after {
+  #tabCover .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--ink-faint) 58%, var(--bg-field));
   }
   #profileGroup .profileResetIconBtn {
@@ -3558,6 +3489,8 @@
     color: #a65f59;
   }
   #profileGroup .profileSubBody.isEntityDisabled { opacity: .46; }
+  /* 상위 프로필 비활성 opacity와 행 비활성 opacity가 중복되지 않도록 한다. */
+  #profileGroup .profileSubBody.isEntityDisabled .profileImageRow.isControlDisabled { opacity: 1; }
   #profileGroup .profileTagsRow { align-items: center; }
   #profileGroup .profileImageRow { align-items: center; }
   #profileGroup .profileImageField {
@@ -3605,20 +3538,6 @@
     padding-left: 10px;
     border-left: 1px solid var(--line);
   }
-  #profileGroup .profileImageAdjustFooter {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 2px;
-  }
-  #profileGroup .profileImageResetBtn {
-    min-height: 26px;
-    padding: 0 2px;
-    border: 0;
-    background: transparent;
-    color: var(--ink-faint);
-    font-size: 10.5px;
-  }
-  #profileGroup .profileImageResetBtn:hover { color: #a65f59; background: transparent; }
   #profileGroup .profileImageAdjustments input[type="range"] {
     height: 18px;
     padding: 0;
@@ -3692,8 +3611,6 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  #titleMinimal,
-  #profileMinimal { accent-color: #85837f; }
   #creditGroup .creditConfigurationSection {
     margin-top: 14px;
   }
@@ -4889,3 +4806,27 @@
 #sidebarNewLogBtn { display:flex; align-items:center; min-height:26px; margin-top:0; padding:0; border:0; background:transparent; color:var(--ink-faint); text-align:left; }
 #sidebarNewLogBtn::before { content:''; flex:none; width:7px; height:7px; margin-right:6px; opacity:.58; background:linear-gradient(currentColor,currentColor) center / 7px 1px no-repeat, linear-gradient(currentColor,currentColor) center / 1px 7px no-repeat; }
 #sidebarNewLogBtn:hover { color:var(--accent); background:transparent; }
+
+.transparentSwatch { margin-top:8px; padding:6px 8px; border-radius:6px; background:repeating-conic-gradient(#e8e7e4 0% 25%,#fff 0% 50%) 0 / 12px 12px; color:#555; font-size:11px; }
+#transparentThemeHint { color:var(--muted, #777); font-size:11px; line-height:1.4; margin:8px 0 0; text-align:center; }
+
+.expressionThemeRow { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px 20px; }
+.expressionThemeLabel { color:var(--ink-soft); font-size:12px; font-weight:700; white-space:nowrap; }
+.expressionThemeOptions { display:inline-flex; align-items:center; min-width:0; height:34px; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:var(--bg-panel); }
+.expressionThemeOptions button { display:inline-flex; align-items:center; justify-content:center; width:42px; height:32px; padding:0; border:0; background:transparent; color:var(--ink-soft); }
+.expressionShapeIcon { position:relative; display:block; width:20px; height:17px; border:1.5px solid currentColor; border-radius:5px; }
+.expressionShapeIcon::before, .expressionShapeIcon::after { content:''; position:absolute; left:4px; height:1px; border-radius:1px; background:currentColor; opacity:.55; }
+.expressionShapeIcon::before { top:5px; width:10px; }
+.expressionShapeIcon::after { top:9px; width:7px; }
+.expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius:1px; }
+.expressionThemeOptions button + button { border-left:1px solid var(--line); }
+.expressionThemeOptions button:hover { color:var(--accent); background:color-mix(in srgb,var(--accent) 3%,var(--bg-panel)); }
+.expressionThemeOptions button.active { color:var(--accent); background:color-mix(in srgb,var(--accent) 10%,var(--bg-panel)); }
+.expressionThemeOptions button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.expressionTransparentChoice { position:relative; display:inline-flex; align-items:center; gap:7px; min-height:26px; padding-left:14px; color:var(--ink-faint); font-size:11px; font-weight:500; white-space:nowrap; cursor:pointer; }
+.expressionTransparentChoice::before { content:''; position:absolute; left:0; top:50%; width:1px; height:16px; background:var(--line-strong); transform:translateY(-50%); }
+.expressionTransparentChoice input { flex:none; width:14px; height:14px; margin:0; }
+.expressionTransparentChoice input:checked + span { color:var(--accent); }
+#tabTheme > .expressionThemeGroup { margin-top:18px; padding:16px 14px; border-radius:10px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 7%,var(--line)); }
+#tabTheme > .expressionThemeGroup + .themeFold { padding-top:16px; border-top:0; }
+.paletteUnavailable #comboList { opacity:.4; }

@@ -48,8 +48,7 @@ function normalizeSubtitleCoupleSeparator(value){
   return ['×', '&', '·'].includes(value) ? value : '×';
 }
 
-// 사용자 링크는 절대 http(s) 주소만 허용한다. 이미지 주소와 같은 방식으로
-// https:를 보완하고, 그 외 스킴은 출력하지 않아 javascript: 주입을 막는다.
+// 크레딧 링크는 절대 http(s) 주소만 허용한다.
 function normalizeHttpLinkUrl(value){
   const normalized = normalizeProtocolRelativeUrl(value);
   if(!normalized) return '';
@@ -59,15 +58,6 @@ function normalizeHttpLinkUrl(value){
   } catch(e){
     return '';
   }
-}
-
-// 아카라이브의 기본 링크색·밑줄이 표제 스타일을 덮어쓰지 못하도록
-// a와 내부 span 양쪽에 현재 글자 속성을 직접 고정한다.
-function buildStylePreservingLink(contentHTML, rawUrl, color){
-  const href = normalizeHttpLinkUrl(rawUrl);
-  if(!href) return contentHTML;
-  const style = `color:${color} !important; -webkit-text-fill-color:${color} !important; text-decoration:none !important; border:0 !important; border-bottom:none !important; background:none !important; box-shadow:none !important; font-family:inherit !important; font-size:inherit !important; font-weight:inherit !important; font-style:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;`;
-  return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
 }
 
 // style="background-image:url('…')" 안에서 URL이 CSS 문자열을 벗어나지 않게 함.
@@ -143,20 +133,22 @@ function parallelTranslationHTML(segment, settings, color, requestedMode){
   // 번역 괄호 안의 작은따옴표는 속마음 문법이 아니라 번역 표기의 일부다.
   // 글자로 보존해야 바깥 병행 번역의 보조색·축소 크기를 그대로 유지한다.
   const content = processInline(segment.translationGroup, settings.emphasisColor, { literalSingleQuotes:true });
-  const textColor = parallelTranslationTextColor(settings, color);
+  const thoughtColor = /^#[0-9A-Fa-f]{6}$/.test(settings.emphasisColor || '') ? settings.emphasisColor : '#747474';
+  const textColor = parallelTranslationTextColor(settings, thoughtParallel ? thoughtColor : color);
+  const thoughtAttribute = thoughtParallel ? ' data-mosaic-thought="true"' : '';
   if(mode === 'inline'){
-    return `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="inline" style="color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
+    return `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="inline" style="color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
   }
-  return `<span data-mosaic-parallel-translation="true" data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
+  return `<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${textColor} !important; -webkit-text-fill-color:${textColor} !important; font-size:${size}px !important; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
 }
 
 // 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 원문의 서식을 적용한다.
 // 완성된 강조 HTML에 나중에 번역 span을 복원해 속성 따옴표가 대사로 오인되는 것을 방지한다.
-function prepareMixedParallelTranslations(line, settings, color){
+function prepareMixedParallelTranslations(line, settings, color, thoughtsOnly = false){
   if(!settings.parallelTranslationSoft) return { line:String(line), tokens:[] };
   const mode = resolvedParallelTranslationMode(settings);
   const source = String(line);
-  const segments = parallelDialogueSegments(source);
+  const segments = parallelDialogueSegments(source).filter(segment => !thoughtsOnly || segment.original.startsWith("'"));
   if(!segments.length) return { line:source, tokens:[] };
   const tokens = [];
   let prepared = '';
@@ -438,40 +430,6 @@ function syncCardLayoutCheckbox(){
   checkbox.checked = normalizeCardLayout(select.value) === 'unified';
 }
 
-function hasVisibleCommentOutput(){
-  return Array.from(document.querySelectorAll('#cardEditors .cardEditor[data-block-type="comment"]'))
-    .some(editor => {
-      const textarea = editor.querySelector('textarea');
-      return editor.dataset.outputVisible !== 'false' && textarea && textarea.value.trim();
-    });
-}
-
-// 코멘트가 있어도 통합 카드를 사용할 수 있다. 이 조합에서는 코멘트를 통합 본문 아래에
-// 모으고 크레딧으로 문서를 닫으므로, 크레딧 배치만 결과와 일치하게 최하단으로 고정한다.
-function syncCardLayoutAvailability(){
-  const select = document.getElementById('cardLayout');
-  if(!select) return false;
-  const unifiedOption = Array.from(select.options).find(option => option.value === 'unified');
-  if(unifiedOption){
-    unifiedOption.disabled = false;
-    unifiedOption.title = '';
-  }
-  select.title = '';
-  syncCardLayoutCheckbox();
-  const forceCreditBottom = select.value === 'unified' && hasVisibleCommentOutput();
-  const creditPlacement = document.getElementById('creditPlacement');
-  if(creditPlacement){
-    const creditOn = document.getElementById('creditOn');
-    creditPlacement.disabled = !(creditOn && creditOn.checked) || forceCreditBottom;
-    creditPlacement.dataset.forcedValue = forceCreditBottom ? 'bottom' : '';
-    creditPlacement.title = forceCreditBottom
-      ? '카드 이어보기에서는 코멘트 아래에서 크레딧이 문서를 마무리합니다.'
-      : '';
-    if(typeof syncSegmentedChoiceControl === 'function') syncSegmentedChoiceControl('creditPlacement');
-  }
-  return forceCreditBottom;
-}
-
 // 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
 const CARD_INLINE_PADDING = 'clamp(16px,4vw,22px)';
 
@@ -543,6 +501,39 @@ function parseBodyHeading(line){
   const match = String(line).match(/^(#{1,4})\s+(.+)$/);
   if(!match) return null;
   return { level:match[1].length, title:match[2] };
+}
+
+// 인용 내부의 줄에도 본문과 동일한 #~#### 소제목 문법을 적용한다.
+function renderQuoteContent(text, settings){
+  const renderInline = value => {
+    const prepared = prepareMixedParallelTranslations(value, settings, settings.emphasisColor, true);
+    return restoreMixedParallelTranslations(
+      processBodyInline(prepared.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing }),
+      prepared.tokens
+    );
+  };
+  const lines = String(text).split(SOFT_BREAK_TOKEN);
+  if(!lines.some(line => parseBodyHeading(line.trim()))){
+    return renderInline(text);
+  }
+  const parts = [];
+  let plain = [];
+  const flush = () => {
+    if(plain.length){
+      parts.push(renderInline(plain.join(SOFT_BREAK_TOKEN)));
+      plain = [];
+    }
+  };
+  lines.forEach((line, index) => {
+    const heading = parseBodyHeading(line.trim());
+    if(!heading){ plain.push(line); return; }
+    flush();
+    const spec = headingSpec(heading.level);
+    const gap = paragraphGapPx(settings);
+    parts.push(`<div data-mosaic-quote-heading="${heading.level}" data-mosaic-quote-line="${index}" style="margin:${index ? gap : 0}px 0 ${index < lines.length - 1 ? gap : 0}px; font-size:${spec.size}px !important; font-weight:${spec.weight} !important; line-height:1.4 !important; color:inherit !important; -webkit-text-fill-color:inherit !important;">${renderInline(heading.title)}</div>`);
+  });
+  flush();
+  return parts.join('');
 }
 
 function headingSpec(level){
@@ -699,8 +690,9 @@ function buildParagraph(rawLine, settings, opts){
     const qSize = Math.max(9, (parseFloat(settings.narrSize) || 13.5) - 0.5);
     // 인용은 앞뒤로 넉넉히 띄워 본문과 확실히 분리 (구분선 인접 시엔 HR 여백 우선)
     const quoteNarrationGap = baseParagraphGap + Math.round(6 * sm);
-    // 아래 내용이 대사·상태창이어도 같은 여백을 확보한다.
-    const qMb = opts.extraBottom ? Math.round(36*sm) : baseParagraphGap + Math.round(8 * sm);
+    // 카드의 마지막 인용문은 카드 자체의 아래 패딩만 남겨 여백이 중복되지 않게 한다.
+    // 뒤에 다른 내용이 있으면 기존 문단 간격을 유지한다.
+    const qMb = opts.isLast ? 0 : (opts.extraBottom ? Math.round(36*sm) : baseParagraphGap + Math.round(8 * sm));
     const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : (opts.prevIsNarration ? quoteNarrationGap : baseParagraphGap));
     const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
     const sourceColor = safeHexColor(settings.narrColor, pal.caption);
@@ -712,7 +704,7 @@ function buildParagraph(rawLine, settings, opts){
       ? mixHex(pal.cardBg, darkBackground ? '#ffffff' : '#000000', darkBackground ? 0.12 : 0.08)
       : pal.boxBg;
     const quoteText = strongerQuote ? mixHex(softQuoteText, sourceColor, 0.25) : softQuoteText;
-    return `    <div style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${processBodyInline(qInner, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</div>\n`;
+    return `    <div data-mosaic-quote="true" style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${renderQuoteContent(qInner, settings)}</div>\n`;
   }
 
   let overrideColor = null;
@@ -802,7 +794,7 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
       const txtColor = soft ? color : textColorFor(bgColor);
-      return wrapDialogue(`      <p data-mosaic-dialogue="true" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>${parallelTranslationHtml}</p>\n`);
+      return wrapDialogue(`      <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor} !important; -webkit-text-fill-color:${txtColor} !important; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>${parallelTranslationHtml}</p>\n`);
     }
 
     const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
@@ -816,16 +808,23 @@ function buildParagraph(rawLine, settings, opts){
       const badgeLabel = speakerNameHtml
         ? `<span data-mosaic-speaker-label="true" style="display:inline-block; margin:0 0 7px 0; padding:2px 7px; border-radius:999px; background-color:${badgeBg}; color:${textColorFor(badgeBg)} !important; -webkit-text-fill-color:${textColorFor(badgeBg)} !important; font-size:10px !important; font-weight:700; line-height:1.35; letter-spacing:0.3px;">${speakerNameHtml}</span>`
         : '';
-      return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
+      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
     }
 
     // 옵션4: 왼쪽에서 오른쪽으로 자연스럽게 사라지는 연한 색면
     if(settings.dlgStyle === 'gradient'){
-      return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:10px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:10px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+    }
+
+    // 옵션6: 화자별 말풍선. 기존 대사·이름표·번역 처리를 그대로 사용한다.
+    if(settings.dlgStyle === 'messenger'){
+      const userSide = speaker === 'user';
+      const bubbleBg = accentTint(settings.bgColor, color);
+      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mt}px ${userSide ? '0' : 'auto'} ${mb}px ${userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:left; color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
     }
 
     // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
-    return `    <p data-mosaic-dialogue="true" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:13px 18px; border-left:3px solid ${color}; background-color:${pal.boxBg}; color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+    return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:13px 18px; border-left:2px solid ${color}; background-color:${pal.boxBg}; color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
     const mb = opts.extraBottom ? HR_GAP : baseParagraphGap;
     const baseColor = overrideColor
@@ -1284,16 +1283,11 @@ function getSettings(){
     logTitleOn: document.getElementById('logTitleOn').checked,
     titleMinimal: document.getElementById('titleMinimal').checked,
     logNumber: document.getElementById('logNumber').value,
-    logNumberUrl: normalizeProtocolRelativeUrl(document.getElementById('logNumberUrl').value),
     logTitle: document.getElementById('logTitle').value,
-    logTitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logTitleUrl').value),
     subChar: document.getElementById('subChar').value,
-    subCharUrl: normalizeProtocolRelativeUrl(document.getElementById('subCharUrl').value),
     subUser: document.getElementById('subUser').value,
-    subUserUrl: normalizeProtocolRelativeUrl(document.getElementById('subUserUrl').value),
     subtitleCoupleSeparator: normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value),
     logSubtitle: document.getElementById('logSubtitle').value,
-    logSubtitleUrl: normalizeProtocolRelativeUrl(document.getElementById('logSubtitleUrl').value),
     profileOn: document.getElementById('profileOn').checked,
     profileMinimal: document.getElementById('profileMinimal').checked,
     profileCharOn: document.getElementById('profileCharOn').checked,
@@ -1320,6 +1314,7 @@ function getSettings(){
     profileSituation: document.getElementById('profileSituation').value,
     paragraphGap: document.getElementById('paragraphGap').value,
     softBreakSpacing: normalizeSoftBreakSpacing(document.getElementById('softBreakSpacing').value),
+    outputTheme: document.getElementById('outputTheme').value,
     cardLayout: normalizeCardLayout(document.getElementById('cardLayout').value),
     spacingMode: document.getElementById('spacingMode').value,
     cardWidth: document.getElementById('cardWidth').value,
@@ -1430,10 +1425,10 @@ function isPureDialogueLine(line, settings){
     || Boolean(parallel && parallel.original.startsWith('"'));
 }
 
-// 옵션 3·4·5는 입력값을 바꾸지 않고 출력용 줄 배열에서만
+// 옵션 3~6은 입력값을 바꾸지 않고 출력용 줄 배열에서만
 // 문장 속 대사를 독립 문단으로 분리한다.
 function usesSeparatedDialogueOutput(settings){
-  return ['badge', 'gradient', 'box'].includes(settings.dlgStyle);
+  return ['badge', 'gradient', 'box', 'messenger'].includes(settings.dlgStyle);
 }
 
 function isStructuralBodyLine(line){
@@ -1653,32 +1648,20 @@ function buildTitleBlock(settings, hasImg){
   const sm = spacingMult(settings);
   const processedNum = processInline(num, settings.emphasisColor);
   const processedTitle = processInline(title, settings.emphasisColor);
-  const processedSc = buildStylePreservingLink(
-    processInline(sc, settings.emphasisColor),
-    settings.subCharUrl,
-    pal.caption
-  );
-  const processedSu = buildStylePreservingLink(
-    processInline(su, settings.emphasisColor),
-    settings.subUserUrl,
-    pal.caption
-  );
+  const processedSc = processInline(sc, settings.emphasisColor);
+  const processedSu = processInline(su, settings.emphasisColor);
   const orderedNameHTML = settings.profileOrder === 'user-bot'
     ? [su ? processedSu : '', sc ? processedSc : '']
     : [sc ? processedSc : '', su ? processedSu : ''];
   const coupleSeparator = escapeTextHTML(normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
   const coupleHTML = orderedNameHTML.filter(Boolean).join(` ${coupleSeparator} `);
-  const freeHTML = buildStylePreservingLink(
-    processInline(free, settings.emphasisColor),
-    settings.logSubtitleUrl,
-    pal.caption
-  );
+  const freeHTML = processInline(free, settings.emphasisColor);
   const subHTML = coupleHTML && freeHTML
     ? `${coupleHTML} · ${freeHTML}`
     : (coupleHTML || freeHTML);
   let inner = '';
-  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${buildStylePreservingLink(processedNum, settings.logNumberUrl, pal.caption)}</p>`;
-  if(title) inner += `<p style="margin:0; font-size:${settings.titleSize}px; font-weight:${settings.titleBold ? 800 : 500}; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${buildStylePreservingLink(processedTitle, settings.logTitleUrl, pal.heading[1])}</p>`;
+  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processedNum}</p>`;
+  if(title) inner += `<p style="margin:0; font-size:${settings.titleSize}px; font-weight:${settings.titleBold ? 800 : 500}; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${processedTitle}</p>`;
   if(hasSubtitle) inner += `<p style="box-sizing:border-box; width:100%; margin:${title ? 8 : 0}px 0 0 0; padding-left:0.5px; text-align:center; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${subHTML}</p>`;
   // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
@@ -1694,7 +1677,7 @@ function buildTitleBlock(settings, hasImg){
   const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
   const inlinePadding = CARD_INLINE_PADDING;
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div data-mosaic-title="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+  return `<div data-mosaic-title="true" style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
 `;
 }
 
@@ -1716,7 +1699,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   if(!settings.profileOn) return '';
   const commonEnabled = settings.profileCommonOn !== false;
   const relationship = commonEnabled ? (settings.profileRelationship || '').trim() : '';
-  const situation = commonEnabled ? (settings.profileSituation || '').trim() : '';
+  const situation = commonEnabled ? (settings.profileSituation || '').trim().replace(/(^|[\s,，])#+(?=\S)/g, '$1') : '';
   let profiles = [
     {
       role:'BOT',
@@ -1789,7 +1772,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     .split(/\r?\n/)
     .reduce((lines, line) => lines + Math.max(1, Math.ceil(visualTextWidth(line, fontSize) / Math.max(40, availableWidth))), 0);
   const estimatedTagLines = (raw, availableWidth, fontSize) => {
-    const widths = formatTags(raw).map(tag => visualTextWidth(`#${tag}`, fontSize) + 13);
+    const widths = formatTags(raw).map(tag => visualTextWidth(tag, fontSize) + 13);
     if(!widths.length) return 0;
     let lines = 1;
     let used = 0;
@@ -1852,12 +1835,8 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       ? ''
       : `<p style="margin:0 0 3px; color:${softBodyTextColor(settings, profile.color)}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${profile.role}</p>`;
     const profileNameHTML = multiline(profile.name);
-    const profileLinkUrl = profile.role === 'BOT'
-      ? settings.subCharUrl
-      : (profile.role === 'USER' ? settings.subUserUrl : '');
-    const linkedProfileNameHTML = buildStylePreservingLink(profileNameHTML, profileLinkUrl, profile.color);
     const name = profile.name
-      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${linkedProfileNameHTML}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${profileNameHTML}</p>`
       : '';
     const tagsList = formatTags(profile.tags);
     const chipBg = accentTint(settings.bgColor, profile.color);
@@ -1865,7 +1844,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     // 구분 요소까지 정리해 하나의 span으로 합칠 수 있다. 칩과 칩 목록을 각각 독립 div로
     // 만들면 인라인 서식 병합이 블록 경계를 넘을 수 없어 세 칩의 배경과 간격이 보존된다.
     const tags = tagsList.length
-      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(`#${tag}`, settings.emphasisColor)}</div>`).join('')}</div>`
+      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(tag, settings.emphasisColor)}</div>`).join('')}</div>`
       : '';
     const desc = profile.desc
       ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${softBodyTextColor(settings, profile.color)}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${multiline(profile.desc)}</p>`
@@ -1947,7 +1926,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
 
   const relationshipItems = relationship
     .split(/[,，]/)
-    .map(item => item.trim())
+    .map(item => item.trim().replace(/^#+\s*/, ''))
     .filter(Boolean)
     .slice(0, 3);
   const relationshipDots = relationshipItems
@@ -1998,7 +1977,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     : (standaloneProfileOnly
         ? 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);'
         : 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);');
-  return `<div data-mosaic-profile="true" style="display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto 20px; ${border} border-radius:${radius}; background-color:${pal.cardBg}; ${outerPadding}"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
+  return `<div data-mosaic-profile="true" style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto 20px; ${border} border-radius:${radius}; background-color:${pal.cardBg}; ${outerPadding}"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
 }
 
 
@@ -2019,7 +1998,10 @@ function buildFooter(settings){
   // 링크·내부 글자·작성자 모두 동일한 구체 크기와 text-size-adjust를 직접 가진다.
   const fixedTextStyle = `font-size:${footerFontSize}px !important; line-height:1.5 !important; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;`;
   const linkStyle = `color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; text-decoration:none !important; ${fixedTextStyle}`;
-  const toolLink = `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}"><span style="${linkStyle}">조각로그</span></a>`;
+  const toolText = `<span style="${linkStyle}">조각로그</span>`;
+  const toolLink = outputThemeTransparent(settings.outputTheme)
+    ? toolText
+    : `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
   const authorText = author ? ` <span style="color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
   return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px !important; line-height:1.5 !important; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${toolLink}${authorText}</div>\n`;
 }
@@ -2076,14 +2058,22 @@ function buildCredit(settings){
     const labelText = escapeTextHTML(item.label);
     const valueText = escapeTextHTML(item.value);
     const linkedValue = item.url
-      ? buildCreditLink(valueText || labelText, item.url, valueColor)
-      : buildCreditText(valueText || labelText, valueColor);
+      ? buildCreditLink(valueText, item.url, valueColor)
+      : buildCreditText(valueText, valueColor);
     const divider = renderedIndex > 0 && settingFlagOn(item.dividerBefore)
       ? `<div data-mosaic-generated="true" data-mosaic-credit-divider-before="${item.sourceIndex}" aria-hidden="true" style="box-sizing:border-box; width:100%; height:1px; margin:7px 0 9px; padding:0; border:0; background-color:${creditDivider} !important;"></div>`
       : '';
     if(!item.label || !item.value){
-      const field = item.value ? 'value' : 'label';
-      return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="${field}" style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div>`;
+      const labelOnly = Boolean(item.label);
+      const field = labelOnly ? 'label' : 'value';
+      const color = labelOnly ? labelColor : valueColor;
+      const content = labelOnly
+        ? (item.url ? buildCreditLink(labelText, item.url, labelColor) : buildCreditText(labelText, labelColor))
+        : linkedValue;
+      const textStyle = labelOnly
+        ? 'text-align:left; font-size:9.5px !important; font-weight:600; letter-spacing:0.35px;'
+        : 'text-align:right; font-size:10.5px !important; font-weight:400; letter-spacing:-0.05px;';
+      return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="${field}" style="box-sizing:border-box; width:100%; margin:0 0 6px; color:${color} !important; -webkit-text-fill-color:${color} !important; ${textStyle} line-height:1.55 !important; overflow-wrap:anywhere; word-break:break-word;">${content}</div>`;
     }
     return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${buildCreditText(labelText, labelColor)}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
   }).join('');
@@ -2326,7 +2316,7 @@ function lockOutputTypographyForArca(html){
   // 모바일 게시판이 제목 div/summary와 내부 span/strong에 별도 스타일을 강제해도
   // 일반 카드와 접기 카드 제목의 설정값은 유지한다. 장식처럼 자체 크기·색이 있는 자식은 그 값을
   // 우선하므로 제목 크기가 커져도 장식까지 함께 커지지 않는다.
-  const foldTitleProperties = ['color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'font-family'];
+  const foldTitleProperties = ['color', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'font-family'];
   const foldTitleRootProperties = ['display', 'align-items', 'justify-content', 'column-gap', 'list-style', 'padding', 'text-align'];
   const isCssWideKeyword = value => !value || /^(?:inherit|initial|unset|revert(?:-layer)?)$/i.test(value);
   const lockFoldTitleTree = (element, inherited = {}) => {
@@ -2388,6 +2378,11 @@ function lockOutputTypographyForArca(html){
         if(value) title.style.setProperty(property, value, 'important');
       });
     });
+    // 프로필·관계·상황 및 표지 부제의 무스타일 span까지 실제 상속값을 고정한다.
+    const profileSelector = '[data-mosaic-profile="true"], [data-mosaic-title="true"]';
+    const profileRoots = [...element.querySelectorAll(profileSelector)];
+    if(element.matches(profileSelector)) profileRoots.unshift(element);
+    profileRoots.forEach(root => lockFoldTitleTree(root, { 'font-style':'normal', 'font-weight':'400' }));
     element.querySelectorAll('strong, em, [data-mosaic-thought="true"]').forEach(lockInlineFormatTree);
     element.querySelectorAll('[data-mosaic-dialogue="true"], [data-mosaic-speaker-label="true"]').forEach(dialogue => {
       dialogue.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
@@ -2410,6 +2405,130 @@ function stripEditorOutputMetadata(html){
     });
   });
   return template.innerHTML;
+}
+
+// 색상만 호스트 문서에 맡긴다. 타이포그래피 잠금과 이미지/레이아웃은 유지한다.
+function transparentOutput(html){
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  template.content.querySelectorAll('*').forEach(el => {
+    const style = el.style;
+    const image = style.backgroundImage;
+    // em 단위 줄바꿈 여백은 구분선이 아니다. 실제 px 높이만 판정한다.
+    const thinRule = /^(?:\d+(?:\.\d+)?|\.\d+)px$/.test(style.height)
+      && parseFloat(style.height) > 0 && parseFloat(style.height) <= 2;
+    // 게시판의 라이트/다크 글자색 규칙이 적용되도록 색상 선언 자체를 비운다.
+    style.removeProperty('color');
+    style.removeProperty('-webkit-text-fill-color');
+    el.removeAttribute('color');
+    style.setProperty('background-color', thinRule ? 'rgba(128,128,128,.22)' : 'transparent', 'important');
+    // URL 이미지는 보존하고 색상 장식만 무채색으로 바꾼다.
+    if(image && !image.includes('url(')){
+      const lineImage = thinRule || /(?:^|\s)(?:0?\.5|1|2)px$/.test(style.backgroundSize);
+      style.setProperty('background-image', lineImage
+        ? image.replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/gi, 'rgba(128,128,128,.22)') : 'none', 'important');
+    }
+    if(style.border || style.borderColor || style.borderTop || style.borderBottom || style.borderLeft || style.borderRight){
+      style.setProperty('border-color', 'rgba(128,128,128,.22)', 'important');
+    }
+    if(style.boxShadow) style.setProperty('box-shadow', 'none', 'important');
+    if(style.textShadow) style.setProperty('text-shadow', 'none', 'important');
+  });
+  // 투명 구분선도 게시판의 본문(p) 라이트/다크 규칙을 받는다.
+  // 색상을 고정하지 않고 실선은 currentColor, 장식은 기본 글자색을 사용한다.
+  template.content.querySelectorAll('[data-mosaic-separator="hr"], [data-mosaic-separator="hr2"], [data-mosaic-separator="hr3"]').forEach(separator => {
+    const paragraph = document.createElement('p');
+    Array.from(separator.attributes).forEach(attribute => paragraph.setAttribute(attribute.name, attribute.value));
+    paragraph.innerHTML = separator.innerHTML;
+    paragraph.style.removeProperty('color');
+    paragraph.style.removeProperty('-webkit-text-fill-color');
+    const type = separator.dataset.mosaicSeparator;
+    paragraph.style.setProperty('opacity', type === 'hr3' ? '.32' : '.22');
+    if(type === 'hr') paragraph.style.setProperty('background-color', 'currentColor', 'important');
+    separator.replaceWith(paragraph);
+  });
+  // 투명 테마에서도 옵션 6의 말풍선 형태는 약한 무채색 면으로 구분한다.
+  template.content.querySelectorAll('p[data-mosaic-dialogue-side]').forEach(dialogue => {
+    if(dialogue.style.width === 'fit-content'){
+      dialogue.style.setProperty('background-color', 'rgba(128,128,128,.10)', 'important');
+    }
+  });
+  // 투명 테마의 인용만 모노 클래식 기본 인용색을 사용한다. 강조만 진한 회색으로 구분한다.
+  template.content.querySelectorAll('[data-mosaic-quote="true"]').forEach(quote => {
+    quote.style.setProperty('background-color', '#f4f4f4', 'important');
+    [quote, ...quote.querySelectorAll('*')].forEach(el => {
+      const color = el.closest('em, [data-mosaic-thought]') ? '#707070' : '#9c9c9c';
+      el.style.setProperty('color', color, 'important');
+      el.style.setProperty('-webkit-text-fill-color', color, 'important');
+    });
+  });
+  return template.innerHTML;
+}
+
+// 특수 테마는 내용과 접기 동작을 보존하고 출력 장식만 바꾼다.
+function normalizeOutputTheme(value){
+  return ['transparent', 'document', 'document-transparent'].includes(value) ? value : 'solid';
+}
+function outputThemeShape(value){
+  return ['document', 'document-transparent'].includes(value) ? 'document' : 'solid';
+}
+function outputThemeTransparent(value){
+  return ['transparent', 'document-transparent'].includes(value);
+}
+function composeOutputTheme(shape, transparent){
+  return shape === 'document'
+    ? (transparent ? 'document-transparent' : 'document')
+    : (transparent ? 'transparent' : 'solid');
+}
+function specialThemeOutput(html, mode, settings){
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  template.content.querySelectorAll('*').forEach(el => {
+    if(el.closest('[data-mosaic-comment-index]')) return;
+    const style = el.style;
+    style.setProperty('box-shadow', 'none', 'important');
+    style.setProperty('text-shadow', 'none', 'important');
+    style.setProperty('border-radius', '0', 'important');
+
+  });
+  if(mode === 'document'){
+    const palette = tonePalette(settings);
+    // 카드 외곽선과 별개로, 일반 표제의 본문 연결선은 보존한다.
+    const title = template.content.querySelector('[data-mosaic-title]');
+    const firstCard = template.content.querySelector('[data-mosaic-card-index]');
+    template.content.querySelectorAll('[data-mosaic-card-index], [data-mosaic-profile], [data-mosaic-credit]').forEach(el => {
+      // 카드와 크레딧의 원래 외곽선을 보존한다. 독립 프로필 블록의 선만 제거한다.
+      if(el.hasAttribute('data-mosaic-profile') && !el.hasAttribute('data-mosaic-unified-item')){
+        el.style.setProperty('border', '0', 'important');
+      }
+      if(!el.style.backgroundImage.includes('url(')) el.style.setProperty('background-image', 'none', 'important');
+      el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
+    });
+    if(title && firstCard && !firstCard.hasAttribute('data-mosaic-unified-item') && !settingFlagOn(settings.titleMinimal)){
+      firstCard.style.setProperty('border-top', `1px solid ${palette.divider}`, 'important');
+    }
+    template.content.querySelectorAll('summary, [data-mosaic-fold-body]').forEach(el => {
+      el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
+    });
+    template.content.querySelectorAll('summary').forEach(el => {
+      el.style.setProperty('text-align', 'left');
+      el.style.setProperty('border-bottom', settingFlagOn(settings.foldDividerMinimal) ? 'none' : `1px solid ${palette.divider}`, 'important');
+      const body = el.nextElementSibling;
+      if(body && body.hasAttribute('data-mosaic-fold-body')) body.style.setProperty('border-top', 'none', 'important');
+    });
+    template.content.querySelectorAll('[data-mosaic-quote]').forEach(el => {
+      el.style.setProperty('background-color', palette.boxBg, 'important');
+    });
+  }
+  return template.innerHTML;
+}
+
+// 숨길 때의 편집 상태를 기억한다. 숨긴 상태에서도 수동 펼치기는 허용한다.
+function syncHiddenEditorCollapse(ed, collapseBtn, hiding){
+  if(hiding) ed.dataset.collapsedBeforeHide = String(ed.classList.contains('isCollapsed'));
+  const collapsed = hiding || ed.dataset.collapsedBeforeHide === 'true';
+  if(ed.classList.contains('isCollapsed') !== collapsed) collapseBtn.click();
+  if(!hiding) delete ed.dataset.collapsedBeforeHide;
 }
 
 function buildCard(settings){
@@ -2581,22 +2700,25 @@ ${bodyHTML}${footer}  </div>
   const renderedCardFlow = cardList.map(card => renderedCards.get(card.sourceIndex)).filter(Boolean);
   const renderedCommentFlow = visibleComments.map(comment => renderedComments.get(comment.sourceIndex)).filter(Boolean);
 
-  // 꼬리말은 마지막 본문 카드 안에 붙인다. 크레딧은 최상단 또는 전체 카드 흐름
-  // 뒤의 독립 블록으로 둔다. 통합 모드의 코멘트는 본문 뒤에 원래 상대 순서대로 모으고,
-  // 이때는 크레딧을 그 아래에 고정해 문서의 마지막 요소로 사용한다.
-  const forceCreditBottom = unifiedLayout && renderedCommentFlow.length > 0;
-  const credit = buildCredit(forceCreditBottom
-    ? Object.assign({}, settings, { creditPlacement:'bottom' })
-    : settings);
-  const creditAtTop = !forceCreditBottom && normalizeCreditPlacement(settings.creditPlacement) === 'top';
+  // 꼬리말은 마지막 본문 카드 안에 붙인다. 통합 모드의 코멘트는 본문 뒤에 모으되,
+  // 크레딧은 코멘트 유무와 관계없이 사용자가 선택한 최상단·최하단에 둔다.
+  const credit = buildCredit(settings);
+  const creditAtTop = normalizeCreditPlacement(settings.creditPlacement) === 'top';
   const topCredit = creditAtTop ? credit : '';
   const bottomCredit = creditAtTop ? '' : credit;
   const introFlow = topProfileBlock + imgBlock + titleBand + attachedProfileBlock;
   const mainFlow = introFlow + (unifiedLayout ? renderedCardFlow : orderedBody).join('\n');
   const arrangedMainFlow = unifiedLayout ? applyUnifiedCardLayout(mainFlow, settings) : mainFlow;
-  const collectedComments = forceCreditBottom ? `\n${renderedCommentFlow.join('\n')}` : '';
+  const collectedComments = unifiedLayout && renderedCommentFlow.length
+    ? `\n${renderedCommentFlow.join('\n')}` : '';
   const output = recognitionImg + topCredit + arrangedMainFlow + collectedComments + bottomCredit;
-  return lockOutputTypographyForArca(output);
+  const lockedOutput = lockOutputTypographyForArca(output);
+  const shapedOutput = outputThemeShape(settings.outputTheme) === 'document'
+    ? specialThemeOutput(lockedOutput, 'document', settings)
+    : lockedOutput;
+  return outputThemeTransparent(settings.outputTheme)
+    ? transparentOutput(shapedOutput)
+    : shapedOutput;
 }
 
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
@@ -2986,13 +3108,19 @@ function showBlockToolbar(ctx){
     button.classList.toggle('active', isHeading && level === ctx.level);
     button.setAttribute('aria-pressed', isHeading && level === ctx.level ? 'true' : 'false');
   });
-  const r = ctx.block.getBoundingClientRect();
+  let r = ctx.block.getBoundingClientRect();
+  if(isHeading){
+    // 전체 너비의 문단 박스 대신 실제 소제목 글자 영역을 기준으로 배치한다.
+    const range = document.createRange();
+    range.selectNodeContents(ctx.block);
+    const textRect = range.getBoundingClientRect();
+    if(textRect.width && textRect.height) r = textRect;
+  }
   bar.style.display = 'flex';
   const bw = bar.offsetWidth || 100;
   const above = r.top - bar.offsetHeight - 8;
-  // 마크다운 단계 메뉴는 소제목의 왼쪽 시작선에 맞추고,
-  // 이미지·구분선 메뉴만 기존처럼 블록 중앙에 배치한다.
-  const preferredLeft = isHeading ? r.left : r.left + r.width / 2 - bw / 2;
+  // 소제목은 글자 중앙 위에, 이미지·구분선은 블록 중앙 위에 배치한다.
+  const preferredLeft = r.left + r.width / 2 - bw / 2;
   bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, preferredLeft)) + 'px';
   bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, above > 8 ? above : r.bottom + 8)) + 'px';
 }
@@ -3034,7 +3162,7 @@ function editHeadingLevelText(text, raw, action){
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
   // 정렬·일부 접기 표시는 그대로 두고 제목의 # 개수만 바꾼다.
-  const token = lines[raw].match(/^(\s*(?:\[C\]\s*)?(?:\[접기\s+)?)(#{1,4})(\s+)(.+?)(\s*)$/i);
+  const token = lines[raw].match(/^(\s*(?:\[C\]\s*)?(?:>(?!>)\s*(?:\[C\]\s*)?)?(?:\[접기\s+)?)(#{1,4})(\s+)(.+?)(\s*)$/i);
   if(!token) return null;
   const currentLevel = token[2].length;
   if(currentLevel === nextLevel) return null;
@@ -3169,6 +3297,8 @@ function previewSourceBlocks(cardEl){
     && cardEl.firstElementChild.tagName === 'SUMMARY' ? cardEl.firstElementChild : null;
   return Array.from(cardEl.querySelectorAll('p, summary, div')).filter(el => {
     if(el === cardSummary) return false;
+    if(el.matches('[data-mosaic-quote="true"]')) return true;
+    if(el.closest('[data-mosaic-quote="true"]')) return false;
     if(el.matches('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
     if(el.closest('[data-mosaic-card-title="true"], [data-mosaic-speaker-label="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-generated="true"]')) return false;
     if(el.tagName === 'DIV' && el.querySelector('p, summary, div')) return false;
@@ -4278,6 +4408,19 @@ function decoratePreviewDirectEditors(){
           segmented:entry.segmented,
           sourceBounds:entry.sourceBounds || null
         }, '본문 문단 수정');
+        // 인용 전체는 하나의 원문 문단으로 유지하고 내부 소제목만 기존 단계 메뉴에 연결한다.
+        if(block.matches('[data-mosaic-quote="true"]')){
+          const sourceLines = ctx.ta.value.split('\n');
+          block.querySelectorAll('[data-mosaic-quote-heading]').forEach(heading => {
+            const raw = entry.raw + Number(heading.dataset.mosaicQuoteLine || 0);
+            const source = sourceLines[raw] || '';
+            if(!/^\s*(?:\[C\]\s*)?(?:>(?!>)\s*(?:\[C\]\s*)?)?#{1,4}\s+/.test(source)) return;
+            bindHeadingLevelInteraction(heading, {
+              block:heading, ta:ctx.ta, raw, type:'heading',
+              level:Number(heading.dataset.mosaicQuoteHeading)
+            });
+          });
+        }
         const sourceLine = (ctx.ta.value.split('\n')[entry.raw] || '').trim();
         const headingMatch = sourceLine.match(/^(?:\[C\]\s*)?(?:\[접기\s+)?(#{1,4})\s+/i);
         if(headingMatch){
@@ -5107,8 +5250,6 @@ function decoratePreviewCreditPlacementButton(){
   if(!credit) return;
   const placement = document.getElementById('creditPlacement');
   if(!placement || placement.disabled) return;
-  // 통합 카드에 표시 코멘트가 있으면 크레딧은 코멘트 아래에 고정된다.
-  if(document.getElementById('cardLayout').value === 'unified' && previewParts().comments.length) return;
   const atTop = normalizeCreditPlacement(placement.value) === 'top';
   const title = atTop ? '크레딧을 최하단으로 이동' : '크레딧을 최상단으로 이동';
   const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
@@ -5257,15 +5398,6 @@ function restorePreviewFoldState(states){
   });
 }
 
-function preventPreviewTitleNavigation(){
-  // 복사·다운로드용 HTML은 그대로 두고 미리보기의 표제 링크에만 적용한다.
-  const previewTitle = previewParts().title;
-  if(previewTitle) previewTitle.querySelectorAll('a').forEach(link => {
-    link.title = '출력물에서 열리는 링크';
-    link.addEventListener('click', event => event.preventDefault());
-  });
-}
-
 // HTML 교체로 사라진 편집·검색·버튼 기능을 기존 순서로 연결한다.
 function bindPreviewInteractions(preview){
   enableBlockDrag(preview);
@@ -5302,7 +5434,6 @@ function renderPreview(prebuiltHTML){
     : buildCard(getSettings());
   preview.innerHTML = previewSourceHTML;
   syncPreviewOuterBreaks();
-  preventPreviewTitleNavigation();
   restorePreviewFoldState(openStates);
   bindPreviewInteractions(preview);
   finishPreviewLayout(preview);
@@ -5752,7 +5883,7 @@ function focusPreviewOnCaret(ta){
 
 // 출력 설정을 읽기 전에 컨트롤과 자동 감지 인물을 동기화한다.
 function syncRenderInputs(){
-  syncCardLayoutAvailability();
+  syncCardLayoutCheckbox();
   syncPreviewCardStyleToggles();
   syncDesignSummaries();
   // 본문에 새 [이름] 마커가 생기면 인물 목록을 자동 갱신 (재진입 방지)
@@ -5803,7 +5934,67 @@ function render(){
   schedulePreviewFocusAfterRender();
 }
 
+function syncOutputThemeControls(){
+  const mode = document.getElementById('outputTheme').value;
+  const shape = outputThemeShape(mode);
+  const transparent = outputThemeTransparent(mode);
+  document.querySelectorAll('[data-output-shape]').forEach(button => {
+    const selected = button.dataset.outputShape === shape;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  document.getElementById('outputTransparentOn').checked = transparent;
+  const colors = document.getElementById('comboGroup');
+  colors.classList.toggle('paletteUnavailable', transparent);
+  const list = document.getElementById('comboList');
+  list.inert = transparent;
+  ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
+    document.getElementById(id).disabled = transparent;
+    document.getElementById(id + 'Hex').disabled = transparent;
+  });
+}
+
+function setCardDefaultsForShapeChange(previousTheme, nextTheme){
+  const previousShape = outputThemeShape(previousTheme);
+  const nextShape = outputThemeShape(nextTheme);
+  if(previousShape === nextShape) return;
+  // 카드 모양을 새로 고를 때만 이어보기와 외곽선 기본값을 적용한다.
+  // 이후 체크박스와 미리보기 버튼에서 바꾼 값은 그대로 유지한다.
+  document.getElementById('cardLayout').value = nextShape === 'document' ? 'unified' : 'separate';
+  document.getElementById('cardBorderOn').checked = nextShape !== 'document';
+  syncCardLayoutCheckbox();
+}
+
+function chooseOutputTheme(shape, transparent){
+  commitThemeHoverPreview();
+  const outputTheme = document.getElementById('outputTheme');
+  const nextTheme = composeOutputTheme(shape, transparent);
+  setCardDefaultsForShapeChange(outputTheme.value, nextTheme);
+  outputTheme.value = nextTheme;
+  updateHexLabels();
+  renderComboList();
+  renderPresetList();
+  render();
+  saveDraft();
+  commitStyleHistory(true);
+}
+
+document.querySelectorAll('[data-output-shape]').forEach(button => {
+  button.addEventListener('click', () => {
+    const mode = document.getElementById('outputTheme').value;
+    chooseOutputTheme(button.dataset.outputShape, outputThemeTransparent(mode));
+  });
+});
+
+document.getElementById('outputTransparentOn').addEventListener('change', event => {
+  const mode = document.getElementById('outputTheme').value;
+  chooseOutputTheme(outputThemeShape(mode), event.target.checked);
+});
+
 function updateHexLabels(){
+  syncOutputThemeControls();
+  const transparentHint = document.getElementById('transparentThemeHint');
+  if(transparentHint) transparentHint.hidden = !outputThemeTransparent(document.getElementById('outputTheme').value);
   ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
     document.getElementById(id + 'Hex').value = document.getElementById(id).value;
   });
@@ -5969,6 +6160,7 @@ function syncDesktopPreviewWidth(){
 
 function syncDesignSummaries(){
   syncCardLayoutCheckbox();
+  syncMinimalChoiceControls();
   const font = selectedControlText('textFont');
   const dialogue = selectedControlText('dlgStyle');
   const cardLayout = selectedControlText('cardLayout');
@@ -5987,51 +6179,31 @@ function syncDesignSummaries(){
 
   const imageOn = document.getElementById('imgOn').checked;
   document.getElementById('imageCoverSummary').textContent = imageOn
-    ? `표시 · ${document.getElementById('imgHeight').value}px`
-    : '숨김';
+    ? `${document.getElementById('imgHeight').value}px`
+    : '';
 
   const titleOn = document.getElementById('logTitleOn').checked;
   const profileOrderSummary = selectedControlText('titleProfileOrder').replace(/\s+/g, '');
   document.getElementById('titleCoverSummary').textContent = titleOn
-    ? `표시 · ${document.getElementById('titleMinimal').checked ? '미니멀' : '일반'} · ${profileOrderSummary}`
-    : '숨김';
-  const titleLinkSummary = document.getElementById('titleLinkSummary');
-  if(titleLinkSummary){
-    const linked = [];
-    const activeProfileBotName = document.getElementById('profileOn').checked
-      && document.getElementById('profileCharOn').checked
-      && document.getElementById('profileCharName').value.trim();
-    const activeProfileUserName = document.getElementById('profileOn').checked
-      && document.getElementById('profileUserOn').checked
-      && document.getElementById('profileUserName').value.trim();
-    if(document.getElementById('logNumber').value.trim() && document.getElementById('logNumberUrl').value.trim()) linked.push('메모');
-    if(document.getElementById('logTitle').value.trim() && document.getElementById('logTitleUrl').value.trim()) linked.push('제목');
-    if((document.getElementById('subChar').value.trim() || activeProfileBotName) && document.getElementById('subCharUrl').value.trim()) linked.push('BOT');
-    if((document.getElementById('subUser').value.trim() || activeProfileUserName) && document.getElementById('subUserUrl').value.trim()) linked.push('USER');
-    if(document.getElementById('logSubtitle').value.trim() && document.getElementById('logSubtitleUrl').value.trim()) linked.push('부제');
-    titleLinkSummary.textContent = linked.length ? linked.join(' · ') : '미설정';
-  }
-
+    ? `${document.getElementById('titleMinimal').checked ? '미니멀' : '일반'} · ${profileOrderSummary}`
+    : '';
   const profileOn = document.getElementById('profileOn').checked;
-  const profilePlacementSummary = selectedControlText('profilePlacement');
+  const profilePlacementSummary = document.getElementById('profilePlacement').value === 'top'
+    ? '최상단'
+    : selectedControlText('profilePlacement');
   document.getElementById('profileCoverSummary').textContent = profileOn
-    ? `표시 · ${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
-    : '숨김';
-
-  const profileBaseSummary = document.getElementById('profileBaseSummary');
-  if(profileBaseSummary) profileBaseSummary.textContent = profileOn
     ? `${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
-    : '숨김';
+    : '';
 
-  const footerOn = document.getElementById('footerOn').checked;
-  document.getElementById('footerCoverSummary').textContent = footerOn
-    ? '표시'
-    : '숨김';
+  const footerAuthorSummary = document.getElementById('footerAuthor').value.trim();
+  document.getElementById('footerCoverSummary').textContent = document.getElementById('footerOn').checked && footerAuthorSummary
+    ? `©${footerAuthorSummary}`
+    : '';
   const creditOn = document.getElementById('creditOn').checked;
   const creditCount = storedCreditItems().filter(item => item.label.trim() || item.value.trim()).length;
   document.getElementById('creditCoverSummary').textContent = creditOn
-    ? `표시 · ${selectedControlText('creditPlacement')} · ${creditCount}개 항목`
-    : '숨김';
+    ? `${selectedControlText('creditPlacement')} · ${creditCount}개 항목`
+    : '';
 }
 
 function normalizeProtocolRelativeUrl(value){
@@ -6079,16 +6251,14 @@ function syncProfileTagEditorsFromMasters(){
 
 const PROFILE_ENTITY_CONFIGS = [
   {
-    label:'BOT', toggleId:'profileCharOn', groupId:'profileCharGroup', resetButtonId:'profileCharResetBtn', imageResetButtonId:'profileCharImageResetBtn',
-    controlIds:['profileCharName','profileCharUrl','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
-    resetValues:{ profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' },
-    imageResetValues:{ profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
+    label:'BOT', toggleId:'profileCharOn', groupId:'profileCharGroup', resetButtonId:'profileCharResetBtn',
+    controlIds:['profileCharName','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
+    resetValues:{ profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
   },
   {
-    label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn', imageResetButtonId:'profileUserImageResetBtn',
-    controlIds:['profileUserName','profileUserUrl','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
-    resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' },
-    imageResetValues:{ profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
+    label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn',
+    controlIds:['profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
+    resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
   },
   {
     label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
@@ -6125,30 +6295,21 @@ function resetProfileEntity(config){
   applyProfileReset(entries, config.completeMessage || `${config.label} 프로필을 초기화했습니다.`);
 }
 
-function resetProfileImage(config){
-  const entries = Object.entries(config.imageResetValues || {});
-  if(!entries.some(([id, value]) => document.getElementById(id).value !== value)){
-    showNoticeToast(`${config.label} 사진은 이미 초기 상태입니다.`);
-    return;
-  }
-  if(!confirm(`${config.label} 사진 URL과 이미지 조정을 초기화할까요?\n(되돌리기로 복구할 수 있습니다.)`)) return;
-  applyProfileReset(entries, `${config.label} 사진을 초기화했습니다.`);
-}
-
 PROFILE_ENTITY_CONFIGS.forEach(config => {
   document.getElementById(config.resetButtonId).addEventListener('click', () => {
     resetProfileEntity(config);
   });
-  if(config.imageResetButtonId){
-    document.getElementById(config.imageResetButtonId).addEventListener('click', () => {
-      resetProfileImage(config);
-    });
-  }
   const actions = document.getElementById(config.toggleId).closest('.profileSubActions');
   if(actions){
     actions.addEventListener('click', event => event.stopPropagation());
     actions.addEventListener('keydown', event => event.stopPropagation());
   }
+});
+
+// 표지 섹션 헤더의 표시 스위치는 접기/펼치기와 독립적으로 작동한다.
+document.querySelectorAll('#tabCover .coverFoldActions').forEach(actions => {
+  actions.addEventListener('click', event => event.stopPropagation());
+  actions.addEventListener('keydown', event => event.stopPropagation());
 });
 
 PROFILE_TAG_GROUPS.forEach(group => {
@@ -6172,7 +6333,7 @@ PROFILE_TAG_GROUPS.forEach(group => {
 
 // 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여줌
 // (이 도구가 로컬 파일로 열려있을 때 미리보기에서 못 불러오는 경우 방지)
-['imgUrl','profileCharImage','profileUserImage','logNumberUrl','logTitleUrl','subCharUrl','subUserUrl','logSubtitleUrl'].forEach(id => {
+['imgUrl','profileCharImage','profileUserImage'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     const input = document.getElementById(id);
     const url = normalizeProtocolRelativeUrl(input.value);
@@ -6208,11 +6369,11 @@ syncSubtitleCoupleSeparatorControl();
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','subtitleCoupleSeparator','logSubtitle','logSubtitleUrl','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
-  logNumber:'', logNumberUrl:'', logTitle:'', logTitleUrl:'', subChar:'', subCharUrl:'', subUser:'', subUserUrl:'', subtitleCoupleSeparator:'×', logSubtitle:'', logSubtitleUrl:'',
+  logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'',
   profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
   keywordRules:'[]'
 });
@@ -6223,7 +6384,7 @@ const WORK_BOOLEAN_DEFAULTS = Object.freeze({
 // 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
 // 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
 const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
-const STYLE_FIELDS = ['textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
+const STYLE_FIELDS = ['outputTheme','textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
@@ -6273,16 +6434,11 @@ function activeCreditPreviewTarget(){
 }
 const PREVIEW_FOCUS_MAP = {
   logNumber:  () => previewParts().title,
-  logNumberUrl:() => previewParts().title,
   logTitle:   () => previewParts().title,
-  logTitleUrl:() => previewParts().title,
   subChar:    () => previewParts().title,
-  subCharUrl: () => previewParts().title,
   subUser:    () => previewParts().title,
-  subUserUrl: () => previewParts().title,
   subtitleCoupleSeparator:() => previewParts().title,
   logSubtitle:() => previewParts().title,
-  logSubtitleUrl:() => previewParts().title,
   logTitleOn: () => previewParts().title,
   titleMinimal:() => previewParts().title,
   imgOn:      () => previewParts().image,
@@ -6483,10 +6639,6 @@ document.getElementById('profileGroup').addEventListener('focusin', event => {
   let target = null;
   if(/^(?:profileCharTag|profileUserTag|profileRelationship)[1-3]$/.test(id)){
     target = previewProfileFieldTarget(id);
-  }else if(id === 'profileCharUrl'){
-    target = previewProfileFieldTarget('profileCharName');
-  }else if(id === 'profileUserUrl'){
-    target = previewProfileFieldTarget('profileUserName');
   }else if(PREVIEW_FOCUS_MAP[id]){
     target = PREVIEW_FOCUS_MAP[id]();
   }
@@ -6516,96 +6668,6 @@ document.getElementById('creditGroup').addEventListener('focusin', event => {
 
 document.getElementById('textFont').addEventListener('change', () => loadSelectedWebFont('textFont'));
 
-const TITLE_LINK_DEPENDENCIES = [
-  { sourceId:'logNumber', linkId:'logNumberUrl' },
-  { sourceId:'logTitle', linkId:'logTitleUrl' },
-  { sourceId:'subChar', linkId:'subCharUrl' },
-  { sourceId:'subUser', linkId:'subUserUrl' },
-  { sourceId:'logSubtitle', linkId:'logSubtitleUrl' },
-];
-
-// 표제와 상단 프로필은 BOT·USER별로 하나의 링크 값을 공유한다. 화면에는 각 문맥에 맞는
-// 입력칸을 제공하되 저장·내보내기 데이터는 subCharUrl·subUserUrl에 한 번씩만 유지한다.
-const profileBotLinkInput = document.getElementById('profileCharUrl');
-const sharedBotLinkInput = document.getElementById('subCharUrl');
-const profileUserLinkInput = document.getElementById('profileUserUrl');
-const sharedUserLinkInput = document.getElementById('subUserUrl');
-
-function syncProfileBotLinkControl(){
-  if(!profileBotLinkInput || !sharedBotLinkInput) return;
-  if(profileBotLinkInput.value !== sharedBotLinkInput.value){
-    profileBotLinkInput.value = sharedBotLinkInput.value;
-  }
-  const enabled = document.getElementById('profileOn').checked
-    && document.getElementById('profileCharOn').checked
-    && document.getElementById('profileCharName').value.trim() !== '';
-  profileBotLinkInput.disabled = !enabled;
-  const row = profileBotLinkInput.closest('.row');
-  if(row) row.classList.toggle('isControlDisabled', !enabled);
-}
-
-if(profileBotLinkInput && sharedBotLinkInput){
-  profileBotLinkInput.addEventListener('input', () => {
-    if(sharedBotLinkInput.value === profileBotLinkInput.value) return;
-    sharedBotLinkInput.value = profileBotLinkInput.value;
-    sharedBotLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
-  });
-  profileBotLinkInput.addEventListener('change', () => {
-    const normalized = normalizeProtocolRelativeUrl(profileBotLinkInput.value);
-    profileBotLinkInput.value = normalized;
-    if(sharedBotLinkInput.value !== normalized){
-      sharedBotLinkInput.value = normalized;
-      sharedBotLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
-    }
-  });
-  sharedBotLinkInput.addEventListener('input', syncProfileBotLinkControl);
-  document.getElementById('profileCharName').addEventListener('input', syncProfileBotLinkControl);
-}
-
-function syncProfileUserLinkControl(){
-  if(!profileUserLinkInput || !sharedUserLinkInput) return;
-  if(profileUserLinkInput.value !== sharedUserLinkInput.value){
-    profileUserLinkInput.value = sharedUserLinkInput.value;
-  }
-  const enabled = document.getElementById('profileOn').checked
-    && document.getElementById('profileUserOn').checked
-    && document.getElementById('profileUserName').value.trim() !== '';
-  profileUserLinkInput.disabled = !enabled;
-  const row = profileUserLinkInput.closest('.row');
-  if(row) row.classList.toggle('isControlDisabled', !enabled);
-}
-
-if(profileUserLinkInput && sharedUserLinkInput){
-  profileUserLinkInput.addEventListener('input', () => {
-    if(sharedUserLinkInput.value === profileUserLinkInput.value) return;
-    sharedUserLinkInput.value = profileUserLinkInput.value;
-    sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
-  });
-  profileUserLinkInput.addEventListener('change', () => {
-    const normalized = normalizeProtocolRelativeUrl(profileUserLinkInput.value);
-    profileUserLinkInput.value = normalized;
-    if(sharedUserLinkInput.value !== normalized){
-      sharedUserLinkInput.value = normalized;
-      sharedUserLinkInput.dispatchEvent(new Event('input', { bubbles:true }));
-    }
-  });
-  sharedUserLinkInput.addEventListener('input', syncProfileUserLinkControl);
-  document.getElementById('profileUserName').addEventListener('input', syncProfileUserLinkControl);
-}
-
-function syncTitleLinkControlState(){
-  const titleOn = document.getElementById('logTitleOn').checked;
-  TITLE_LINK_DEPENDENCIES.forEach(({ sourceId, linkId }) => {
-    const source = document.getElementById(sourceId);
-    const link = document.getElementById(linkId);
-    if(!source || !link) return;
-    const enabled = titleOn && source.value.trim() !== '';
-    link.disabled = !enabled;
-    const row = link.closest('.row');
-    if(row) row.classList.toggle('isControlDisabled', !enabled);
-  });
-}
-
 function syncProfileEntityControlState(){
   const profileOn = document.getElementById('profileOn').checked;
   PROFILE_ENTITY_CONFIGS.forEach(config => {
@@ -6615,7 +6677,7 @@ function syncProfileEntityControlState(){
     // 상위 프로필 표시를 꺼도 하위 선택값은 바꾸지 않는다. 토글만 잠가 두었다가
     // 프로필을 다시 켜면 BOT·USER·관계의 기존 활성 상태를 그대로 복원한다.
     toggle.disabled = !profileOn;
-    const switchLabel = toggle.closest('.profileEntitySwitch');
+    const switchLabel = toggle.closest('.coverVisibilitySwitch');
     if(switchLabel) switchLabel.title = profileOn
       ? `${config.label} 표시 전환`
       : '프로필 표시를 켜야 변경할 수 있습니다.';
@@ -6641,7 +6703,7 @@ function syncCoverControlState(){
   syncProfileImageRangeLabels();
   const groups = [
     { on: document.getElementById('imgOn').checked, ids: ['imgUrl','imgHeight','xpos','ypos'] },
-    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logNumberUrl','logTitle','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'] },
+    { on: document.getElementById('logTitleOn').checked, ids: ['titleMinimal','titleProfileOrder','logNumber','logTitle','subChar','subUser','logSubtitle'] },
     { on: document.getElementById('profileOn').checked, ids: ['profileMinimal','profilePlacement','profileStyle','profileProfileOrder','profileRelationship','profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'] },
     { on: document.getElementById('footerOn').checked, ids: ['footerAuthor'] },
   ];
@@ -6657,18 +6719,13 @@ function syncCoverControlState(){
   subtitleCoupleSeparatorBtn.disabled = !document.getElementById('logTitleOn').checked;
   syncProfileEntityControlState();
   syncProfileImageUiState();
-  syncProfileBotLinkControl();
-  syncProfileUserLinkControl();
-  // 표제 전체가 켜져 있어도 실제 연결 문구가 비어 있으면 해당 링크만 잠근다.
-  syncTitleLinkControlState();
   syncAllSegmentedChoiceControls();
+  syncMinimalChoiceControls();
   updateAllImageLoadStatuses();
   syncCreditControlState();
 }
 function syncCreditControlState(){
   const on = document.getElementById('creditOn').checked;
-  const forceBottom = document.getElementById('cardLayout').value === 'unified'
-    && hasVisibleCommentOutput();
   const area = document.getElementById('creditEditorArea');
   if(!area) return;
   area.classList.toggle('creditControlsDisabled', !on);
@@ -6676,11 +6733,7 @@ function syncCreditControlState(){
   area.querySelectorAll('input, select, button').forEach(control => { control.disabled = !on; });
   const placement = document.getElementById('creditPlacement');
   if(placement){
-    placement.disabled = !on || forceBottom;
-    placement.dataset.forcedValue = forceBottom ? 'bottom' : '';
-    placement.title = forceBottom
-      ? '카드 이어보기에서는 코멘트 아래에서 크레딧이 문서를 마무리합니다.'
-      : '';
+    placement.disabled = !on;
   }
   const presetSummary = area.querySelector('.creditPresetSummary');
   if(presetSummary){
@@ -6714,9 +6767,6 @@ document.getElementById('creditPresetName').addEventListener('input', syncCredit
 document.getElementById('creditPresetLoadBtn').addEventListener('click', loadSelectedCreditPreset);
 document.getElementById('creditPresetSaveBtn').addEventListener('click', saveCurrentCreditPreset);
 document.getElementById('creditPresetDeleteBtn').addEventListener('click', deleteSelectedCreditPreset);
-TITLE_LINK_DEPENDENCIES.forEach(({ sourceId }) => {
-  document.getElementById(sourceId).addEventListener('input', syncTitleLinkControlState);
-});
 
 // ---------- 카드별 본문 입력 ----------
 const EXAMPLE_BODY = `<<"이리야."
@@ -7235,6 +7285,7 @@ function createCardEditor(value){
     snapshotCards();
     const visible = ed.dataset.outputVisible !== 'false';
     ed.dataset.outputVisible = String(!visible);
+    syncHiddenEditorCollapse(ed, collapseBtn, visible);
     syncVisibilityUi();
     renumberCards();
     refresh();
@@ -7430,6 +7481,7 @@ function createCardEditor(value){
   ed.appendChild(head);
   ed.appendChild(fmt);
   ed.appendChild(ta);
+  if(ed.dataset.outputVisible === 'false') syncHiddenEditorCollapse(ed, collapseBtn, true);
   return ed;
 }
 
@@ -7485,6 +7537,7 @@ function createCommentEditor(value){
   visibilityBtn.addEventListener('click', () => {
     snapshotCards();
     ed.dataset.outputVisible = String(ed.dataset.outputVisible === 'false');
+    syncHiddenEditorCollapse(ed, collapseBtn, ed.dataset.outputVisible === 'false');
     syncVisibility(); renumberCards(); refresh(); buildDocumentNavigator();
     showUndoToast(ed.dataset.outputVisible === 'false' ? '코멘트 출력 숨김.' : '코멘트 출력 다시 표시.');
   });
@@ -7521,6 +7574,7 @@ function createCommentEditor(value){
     if(focusEditor){ activeTa = focusEditor.querySelector('textarea'); if(activeTa) activeTa.focus(); }
     showUndoToast('코멘트 삭제됨.');
   });
+  if(ed.dataset.outputVisible === 'false') syncHiddenEditorCollapse(ed, collapseBtn, true);
   return ed;
 }
 
@@ -9037,7 +9091,7 @@ function sanitizeImportedWork(data){
       const position = Number(value);
       if(!Number.isFinite(position) || position < 0 || position > 100) return null;
     }
-    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage' || id === 'logNumberUrl' || id === 'logTitleUrl' || id === 'subCharUrl' || id === 'subUserUrl' || id === 'logSubtitleUrl')
+    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage')
       ? 8192
       : ((id === 'extraChars' || id === 'creditItems') ? 200000 : 5000);
     if(value.length > limit) return null;
@@ -9468,7 +9522,7 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
 function startNewLog(){
   snapshotCards();
   // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
-  ['imgUrl','logNumber','logNumberUrl','logTitleUrl','subChar','subCharUrl','subUser','subUserUrl','logSubtitle','logSubtitleUrl'].forEach(id => { document.getElementById(id).value = ''; });
+  ['imgUrl','logNumber','subChar','subUser','logSubtitle'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('logTitle').value = '';
   document.getElementById('imgOn').checked = false;
   document.getElementById('logTitleOn').checked = false;
@@ -9520,7 +9574,6 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   currentPresetName = null;
   currentComboName = '모노 클래식';
   currentComboFamily = 'featured';
-  lastClickedPresetKey = null;
   charRowsKey = null;
   syncCharList();
 
@@ -9848,7 +9901,7 @@ function updateCounter(){
        || statusLineContent(structuralLine) !== null) return false;
     return structuralLine.replace(/\s/g, '').length > 300;
   }).length;
-  const longNote = longCount > 0 ? ` · 긴 문단 ${longCount}개 (나눠 쓰면 읽기 편해)` : '';
+  const longNote = longCount > 0 ? ` · 긴 문단 ${longCount}개` : '';
 
   // 대사/서술/강조 구성비 (강조 글자는 서술에서 빼 중복 없이 합계 100%로 계산)
   let dlgC = 0, emphasisC = 0, narrC = 0;
@@ -10251,13 +10304,13 @@ document.getElementById('codeFsCopyBtn').addEventListener('click', () => {
 // ---------- 프리셋 ----------
 const PRESET_KEY = 'logGenPresets_v2';
 const THEME_COLOR_FIELDS = ['bgColor', 'narrColor', 'emphasisColor', 'charColor', 'userColor'];
-const SAVED_PRESET_FIELDS = [...THEME_COLOR_FIELDS, 'dlgStyle'];
+const SAVED_PRESET_FIELDS = [...THEME_COLOR_FIELDS, 'outputTheme', 'dlgStyle'];
 const DEFAULT_STYLE = {
   textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', softBreakSpacing: '0',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
+  outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 };
 
 // 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
@@ -10278,7 +10331,7 @@ const COLOR_COMBOS = [
   { name:'쿨 차콜', families:['mono'], v:{ bgColor:'#f2f4f6', narrColor:'#4a5159', emphasisColor:'#616b75', charColor:'#1f2933', userColor:'#604b59' } },
   { name:'웜 그래파이트', families:['mono'], v:{ bgColor:'#f5f1eb', narrColor:'#534f4a', emphasisColor:'#6f665d', charColor:'#2c2925', userColor:'#61483a' } },
   { name:'스톤 페이퍼', families:['mono'], v:{ bgColor:'#f3f1ed', narrColor:'#514f4b', emphasisColor:'#69655f', charColor:'#282724', userColor:'#57534e' } },
-  { name:'포슬린', families:['mono'], v:{ bgColor:'#f8f9f7', narrColor:'#505653', emphasisColor:'#68706c', charColor:'#222825', userColor:'#56605b' } },
+  { name:'종이', families:['mono'], v:{ bgColor:'#faf9f5', narrColor:'#494740', emphasisColor:'#78644b', charColor:'#303530', userColor:'#666259' } },
 
   { name:'딥 네이비', families:['blue'], v:{ bgColor:'#f3f6fa', narrColor:'#4a5564', emphasisColor:'#596b82', charColor:'#183a63', userColor:'#485f7c' } },
   { name:'라벤더 블루', families:['featured','blue'], v:{ bgColor:'#f7f5fa', narrColor:'#575263', emphasisColor:'#6b6480', charColor:'#4e4680', userColor:'#6d4f74' } },
@@ -10318,8 +10371,7 @@ const COLOR_COMBOS = [
 
 let currentComboName = null;
 let currentComboFamily = 'featured';
-const DIALOG_STYLE_CYCLE = ['softlight', 'highlight', 'badge', 'gradient', 'box'];
-let lastClickedPresetKey = null;
+const DIALOG_STYLE_CYCLE = ['softlight', 'highlight', 'badge', 'gradient', 'box', 'messenger'];
 
 function nextDialogueStyleValue(value){
   const current = DIALOG_STYLE_CYCLE.indexOf(value);
@@ -10375,11 +10427,34 @@ document.getElementById('cardLayoutUnifiedOn').addEventListener('change', event 
 
 const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder', 'creditPlacement'];
 
+function syncMinimalChoiceControls(){
+  document.querySelectorAll('[data-minimal-control]').forEach(group => {
+    const input = document.getElementById(group.dataset.minimalControl);
+    group.querySelectorAll('button[data-value]').forEach(button => {
+      button.setAttribute('aria-pressed', String(input.checked === (button.dataset.value === 'minimal')));
+      button.disabled = input.disabled;
+    });
+  });
+}
+
+document.querySelectorAll('[data-minimal-control]').forEach(group => {
+  const input = document.getElementById(group.dataset.minimalControl);
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    button.addEventListener('click', () => {
+      const next = button.dataset.value === 'minimal';
+      if(input.disabled || input.checked === next) return;
+      input.checked = next;
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+      input.dispatchEvent(new Event('change', { bubbles:true }));
+    });
+  });
+});
+
 function syncSegmentedChoiceControl(selectId){
   const select = document.getElementById(selectId);
   const group = document.querySelector(`[data-control="${selectId}"]`);
   if(!select || !group) return;
-  const displayedValue = select.dataset.forcedValue || select.value;
+  const displayedValue = select.value;
   group.title = select.title || '';
   group.querySelectorAll('button[data-value]').forEach(button => {
     const active = button.dataset.value === displayedValue;
@@ -10447,33 +10522,13 @@ PROFILE_ORDER_CONTROL_IDS.forEach(id => {
   document.getElementById(id).addEventListener('change', event => setProfileOrder(event.target.value));
 });
 
-// 추천 프리셋은 색상 조합만 제공하므로 같은 카드를 연속해서 누를 때 현재 대사
-// 옵션을 순환한다. 내 프리셋은 저장된 dlgStyle을 직접 적용해 이 경로를 사용하지 않는다.
-function presetDialogueStyle(presetKey){
-  if(lastClickedPresetKey !== presetKey){
-    lastClickedPresetKey = presetKey;
-    return null;
-  }
-  return nextDialogueStyleValue(document.getElementById('dlgStyle').value);
-}
-
-// 추천 프리셋의 반복 클릭으로 대사 옵션을 바꿀 때 select 값뿐 아니라 접힌 디자인 요약도
-// 함께 갱신한다. 일반 input 이벤트를 발생시키면 렌더·저장·작업 기록이 클릭 처리와
-// 중복되므로 여기서는 값과 파생 UI만 맞추고, 나머지는 호출부의 단일 처리에 맡긴다.
-function applyPresetDialogueStyle(presetKey){
-  const next = presetDialogueStyle(presetKey);
-  if(next === null) return false;
-  document.getElementById('dlgStyle').value = next;
-  syncDesignSummaries();
-  return true;
-}
-
 // 추천·저장 프리셋의 호버는 실제 입력값·저장값·작업 기록을 건드리지 않고
 // 미리보기 HTML만 임시 색상으로 다시 그린다.
 let themeHoverPreview = null;
 const themeHoverPreviewCards = new WeakMap();
 
 function beginThemeHoverPreview(key, values){
+  if(outputThemeTransparent(document.getElementById('outputTheme').value)) return;
   if(themeHoverPreview && themeHoverPreview.key === key) return;
   themeHoverPreview = { key };
   // 호버는 팔레트 확인만 제공한다. 내 프리셋에 저장된 대사 옵션은 클릭할 때만 적용한다.
@@ -10481,7 +10536,7 @@ function beginThemeHoverPreview(key, values){
   THEME_COLOR_FIELDS.forEach(id => {
     if(values[id] !== undefined) previewColors[id] = values[id];
   });
-  const previewSettings = { ...getSettings(), ...previewColors };
+  const previewSettings = { ...getSettings(), ...previewColors, outputTheme: document.getElementById('outputTheme').value };
   renderPreview(buildCard(previewSettings));
 }
 
@@ -10530,7 +10585,7 @@ window.addEventListener('blur', () => {
   if(themeHoverPreview) endThemeHoverPreview(themeHoverPreview.key);
 });
 
-// 현재 테마의 실제 5색을 추천 프리셋과 같은 순서로 보여준다.
+// 현재 테마의 실제 5색을 색상 프리셋과 같은 순서로 보여준다.
 function renderCurrentThemePalette(){
   const button = document.getElementById('currentThemePaletteButton');
   if(!button) return;
@@ -10590,8 +10645,8 @@ function renderComboList(){
     chip.type = 'button';
     chip.className = 'comboCard uiButton' + (combo.name === currentComboName ? ' active' : '');
     const presetKey = `recommended:${combo.name}`;
-    chip.title = '마우스를 올리면 색상 미리보기 · 처음 클릭은 색상만 적용 · 같은 추천 프리셋을 다시 누르면 현재 대사 옵션부터 순환';
-    chip.setAttribute('aria-label', `${combo.name} 추천 프리셋 적용`);
+    chip.title = '마우스를 올리면 색상 미리보기 · 클릭하면 색상 적용';
+    chip.setAttribute('aria-label', `${combo.name} 색상 프리셋 적용`);
     registerThemeHoverPreviewCard(chip, presetKey, v);
     chip.innerHTML = `
       <div class="compactPresetHead">
@@ -10608,11 +10663,10 @@ function renderComboList(){
     `;
     chip.addEventListener('click', () => {
       commitThemeHoverPreview();
-      applyPresetDialogueStyle(presetKey);
       applyThemeColorValues(v);
-      updateHexLabels();
       currentComboName = combo.name;
       currentPresetName = null;
+      updateHexLabels();
       renderPresetList();
       renderComboList();
       render();
@@ -10658,6 +10712,10 @@ function applyThemeColorValues(values){
   updateHexLabels();
 }
 function applySavedPresetValues(values){
+  const outputTheme = document.getElementById('outputTheme');
+  const nextTheme = normalizeOutputTheme(values.outputTheme);
+  setCardDefaultsForShapeChange(outputTheme.value, nextTheme);
+  outputTheme.value = nextTheme;
   applyThemeColorValues(values);
   const dialogueStyle = document.getElementById('dlgStyle');
   if(values && Array.from(dialogueStyle.options).some(option => option.value === values.dlgStyle)){
@@ -10667,12 +10725,12 @@ function applySavedPresetValues(values){
 }
 function savedPresetStateEqual(a, b){
   if(!a || !b) return false;
-  return SAVED_PRESET_FIELDS.every(id => String(a[id]).toLowerCase() === String(b[id]).toLowerCase());
+  return SAVED_PRESET_FIELDS.every(id => String(id === 'outputTheme' ? (a[id] || 'solid') : a[id]).toLowerCase() === String(id === 'outputTheme' ? (b[id] || 'solid') : b[id]).toLowerCase());
 }
 
 function applyStyleValues(v){
   // 따로 저장된 나레이션·대사 폰트는 전체 폰트 값으로 정규화한다.
-  const values = { ...v };
+  const values = { ...v, outputTheme: normalizeOutputTheme(v.outputTheme) };
   // 이전 버전의 `장식/구분선 제거` 값을 긍정형 `표시` 설정으로 변환한다.
   if(values.foldTitleDecorationOn === undefined && values.foldTitleMinimal !== undefined){
     values.foldTitleDecorationOn = !settingFlagOn(values.foldTitleMinimal);
@@ -11214,6 +11272,7 @@ function sanitizeImportedPreset(preset){
 
 // 색 조합 스와치: 배경/나레이션/강조/{{char}}/{{user}} 순서의 소형 컬러칩.
 function buildSwatchRow(v){
+  if(outputThemeTransparent(v.outputTheme)) return '<div class="transparentSwatch">배경 없이 · 기본 글자색</div>';
   const bg = v.bgColor || '#ffffff';
   const dots = [
     { c: bg,                         t: '배경' },
@@ -11353,8 +11412,6 @@ function renderPresetList(){
       if(e.target.closest('.presetManage') || e.target.closest('.presetDragHandle') || card.classList.contains('editing')) return;
       if(presetManageMode) return;
       commitThemeHoverPreview();
-      // 내 프리셋 적용은 추천 프리셋의 '연속 클릭' 흐름도 끊는다.
-      lastClickedPresetKey = null;
       applySavedPresetValues(v);
       const storedList = loadPresets();
       if(storedList){
@@ -11654,7 +11711,6 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
   currentPresetName = null;
   currentComboName = '모노 클래식';
   currentComboFamily = 'featured';
-  lastClickedPresetKey = null;
   renderPresetList();
   renderComboList();
   render();
@@ -12153,36 +12209,6 @@ function basicPreflightIssues(){
   if(document.getElementById('imgOn').checked && !document.getElementById('imgUrl').value.trim()){
     issues.push({ severity:'error', message:'대표 이미지 표시가 켜져 있지만 주소가 비어 있습니다.', targetId:'imgUrl' });
   }
-  [
-    { urlId:'logNumberUrl', textId:'logNumber', label:'메모' },
-    { urlId:'logTitleUrl', textId:'logTitle', label:'제목' },
-    { urlId:'subCharUrl', textIds:['subChar','profileCharName'], label:'BOT 이름' },
-    { urlId:'subUserUrl', textIds:['subUser','profileUserName'], label:'USER 이름' },
-    { urlId:'logSubtitleUrl', textId:'logSubtitle', label:'부제' }
-  ].forEach(item => {
-    // 연결할 글자가 없는 동안에는 링크 입력도 비활성 상태이므로 검사 대상에서 제외한다.
-    const textIds = item.textIds || [item.textId];
-    const hasLinkedText = textIds.some(id => {
-      if(id === 'profileCharName' || id === 'profileUserName'){
-        const entityToggleId = id === 'profileCharName' ? 'profileCharOn' : 'profileUserOn';
-        return document.getElementById('profileOn').checked
-          && document.getElementById(entityToggleId).checked
-          && document.getElementById(id).value.trim();
-      }
-      return document.getElementById(id).value.trim();
-    });
-    if(!hasLinkedText) return;
-    const rawUrl = document.getElementById(item.urlId).value.trim();
-    if(!rawUrl) return;
-    if(!normalizeHttpLinkUrl(rawUrl)){
-      let targetId = item.urlId;
-      if(!document.getElementById('logTitleOn').checked){
-        if(item.urlId === 'subCharUrl') targetId = 'profileCharUrl';
-        if(item.urlId === 'subUserUrl') targetId = 'profileUserUrl';
-      }
-      issues.push({ severity:'error', message:`${item.label} 링크 주소는 http:// 또는 https:// 형식이어야 합니다.`, targetId });
-    }
-  });
   if(document.getElementById('creditOn').checked){
     storedCreditItems().forEach((item, index) => {
       const rawUrl = item.url.trim();

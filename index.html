@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.6.2 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.7.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -10,14 +10,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./styles.css?v=ccd7aa63bddb">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.6.2 GitHub 저장소 열기">v1.6.2</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.7.0 GitHub 저장소 열기">v1.7.0</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -40,12 +40,9 @@
 <div class="tabPanel active" id="tabCover" role="tabpanel" aria-labelledby="tabBtnCover">
 
   <details class="group foldGroup coverFold halfControls imageControls settingsForm" id="imageGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">대표 이미지</span><span class="coverFoldMeta" id="imageCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">대표 이미지</span><span class="coverFoldMeta" id="imageCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="대표 이미지 표시 전환"><input type="checkbox" id="imgOn" checked aria-label="대표 이미지 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
     <p class="group-desc">첫 화면 대표 이미지·위치</p>
-    <div class="row">
-      <label><input type="checkbox" id="imgOn" checked> 대표 이미지 표시</label>
-    </div>
     <div class="row">
       <input type="url" id="imgUrl" maxlength="8192" aria-label="대표 이미지 URL" placeholder="이미지 URL 붙여넣기" value="https://mosaic-log.github.io/Top_image.png">
     </div>
@@ -69,14 +66,16 @@
   </details>
 
   <details class="group foldGroup coverFold halfControls titleControls settingsForm" id="titleGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">표제</span><span class="coverFoldMeta" id="titleCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">표제</span><span class="coverFoldMeta" id="titleCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="표제 표시 전환"><input type="checkbox" id="logTitleOn" aria-label="표제 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
     <p class="group-desc">제목·부제 구성 · 빈 항목 자동 생략</p>
-    <div class="row">
-      <label><input type="checkbox" id="logTitleOn"> 표제 표시</label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="titleMinimal"> 미니멀</label>
+    <div class="row segmentedChoiceRow">
+      <label id="titleMinimalLabel">표현</label>
+      <input type="checkbox" id="titleMinimal" hidden>
+      <span class="segmentedChoice" data-minimal-control="titleMinimal" role="group" aria-labelledby="titleMinimalLabel">
+        <button class="uiButton" type="button" data-value="default" aria-pressed="true">기본</button>
+        <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">미니멀</button>
+      </span>
     </div>
     <div class="row titleFieldRow">
       <label for="logNumber">메모</label>
@@ -108,48 +107,22 @@
         <button class="uiButton" type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
       </span>
     </div>
-    <details class="titleLinkFold">
-      <summary><span>URL</span><span class="titleLinkMeta" id="titleLinkSummary">미설정</span></summary>
-      <div class="titleLinkBody">
-        <div class="row">
-          <label for="logNumberUrl">메모 링크</label>
-          <input type="url" id="logNumberUrl" maxlength="8192" placeholder="https://…">
-        </div>
-        <div class="row">
-          <label for="logTitleUrl">제목 링크</label>
-          <input type="url" id="logTitleUrl" maxlength="8192" placeholder="https://…">
-        </div>
-        <div class="row">
-          <label for="subCharUrl">BOT 링크</label>
-          <input type="url" id="subCharUrl" maxlength="8192" placeholder="https://…">
-        </div>
-        <div class="row">
-          <label for="subUserUrl">USER 링크</label>
-          <input type="url" id="subUserUrl" maxlength="8192" placeholder="https://…">
-        </div>
-        <div class="row">
-          <label for="logSubtitleUrl">부제 링크</label>
-          <input type="url" id="logSubtitleUrl" maxlength="8192" placeholder="https://…">
-        </div>
-      </div>
-    </details>
     </div>
   </details>
 
   <details class="group foldGroup coverFold halfControls settingsForm" id="profileGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">프로필</span><span class="coverFoldMeta" id="profileCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">프로필</span><span class="coverFoldMeta" id="profileCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="프로필 표시 전환"><input type="checkbox" id="profileOn" aria-label="프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <details class="profileSubFold" id="profileBaseGroup" open>
-        <summary class="profileSubHead"><span class="profileSubTitle">기본 설정</span><span class="profileSubMeta" id="profileBaseSummary"></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
-        <div class="profileSubBody">
+      <div class="profileSubBody profileBaseSettings">
       <p class="group-desc">최상단 또는 표지 아래에 봇과 유저 소개</p>
-      <div class="row">
-        <label><input type="checkbox" id="profileOn"> 프로필 표시</label>
+      <div class="row segmentedChoiceRow">
+        <label id="profileMinimalLabel">표현</label>
+        <input type="checkbox" id="profileMinimal" hidden>
+        <span class="segmentedChoice" data-minimal-control="profileMinimal" role="group" aria-labelledby="profileMinimalLabel">
+          <button class="uiButton" type="button" data-value="default" aria-pressed="true">기본</button>
+          <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">미니멀</button>
+        </span>
       </div>
-      <div class="row">
-        <label><input type="checkbox" id="profileMinimal"> 미니멀</label>
-      </div>
-      <div class="profileConfigurationLabel">구성</div>
       <div class="row segmentedChoiceRow">
         <label id="profilePlacementLabel">배치</label>
         <select id="profilePlacement" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
@@ -186,33 +159,11 @@
         </span>
       </div>
       <input type="hidden" id="profileOrder" value="bot-user">
-        </div>
-      </details>
+      </div>
 
       <details class="profileSubFold" id="profileCharGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCharResetBtn" aria-label="BOT 전체 초기화" title="BOT 전체 초기화">↺</button><label class="profileEntitySwitch" title="BOT 프로필 표시 전환"><input type="checkbox" id="profileCharOn" checked aria-label="BOT 프로필 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCharResetBtn" aria-label="BOT 전체 초기화" title="BOT 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="BOT 프로필 표시 전환"><input type="checkbox" id="profileCharOn" checked aria-label="BOT 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
-      <div class="row">
-        <label for="profileCharName">이름</label>
-        <input type="text" id="profileCharName" maxlength="100" placeholder="표시 이름">
-      </div>
-      <div class="row">
-        <label for="profileCharUrl">BOT 링크</label>
-        <input type="url" id="profileCharUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
-      </div>
-      <div class="row profileTagsRow">
-        <label id="profileCharTagsLabel">태그</label>
-        <div class="profileTagFields" role="group" aria-labelledby="profileCharTagsLabel">
-          <input type="text" id="profileCharTag1" maxlength="150" placeholder="태그 1">
-          <input type="text" id="profileCharTag2" maxlength="150" placeholder="태그 2">
-          <input type="text" id="profileCharTag3" maxlength="150" placeholder="태그 3">
-        </div>
-        <input type="hidden" id="profileCharTags" value="">
-      </div>
-      <div class="row">
-        <label for="profileCharDesc">소개</label>
-        <textarea id="profileCharDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
-      </div>
       <div class="row profileImageRow">
         <label for="profileCharImage">이미지 URL</label>
         <div class="profileImageField">
@@ -238,36 +189,31 @@
           <input type="range" id="profileCharY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileCharYVal" data-range="profileCharY" value="50" aria-label="봇 사진 세로 위치 직접 입력"></span>
         </div>
-        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn uiButton" id="profileCharImageResetBtn">사진 초기화</button></div>
         </div>
+      </div>
+      <div class="row">
+        <label for="profileCharName">이름</label>
+        <input type="text" id="profileCharName" maxlength="100" placeholder="표시 이름">
+      </div>
+      <div class="row profileTagsRow">
+        <label id="profileCharTagsLabel">태그</label>
+        <div class="profileTagFields" role="group" aria-labelledby="profileCharTagsLabel">
+          <input type="text" id="profileCharTag1" maxlength="150" placeholder="태그 1">
+          <input type="text" id="profileCharTag2" maxlength="150" placeholder="태그 2">
+          <input type="text" id="profileCharTag3" maxlength="150" placeholder="태그 3">
+        </div>
+        <input type="hidden" id="profileCharTags" value="">
+      </div>
+      <div class="row">
+        <label for="profileCharDesc">소개</label>
+        <textarea id="profileCharDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
         </div>
       </details>
 
       <details class="profileSubFold" id="profileUserGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileUserResetBtn" aria-label="USER 전체 초기화" title="USER 전체 초기화">↺</button><label class="profileEntitySwitch" title="USER 프로필 표시 전환"><input type="checkbox" id="profileUserOn" checked aria-label="USER 프로필 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileUserResetBtn" aria-label="USER 전체 초기화" title="USER 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="USER 프로필 표시 전환"><input type="checkbox" id="profileUserOn" checked aria-label="USER 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
-      <div class="row">
-        <label for="profileUserName">이름</label>
-        <input type="text" id="profileUserName" maxlength="100" placeholder="표시 이름">
-      </div>
-      <div class="row">
-        <label for="profileUserUrl">USER 링크</label>
-        <input type="url" id="profileUserUrl" maxlength="8192" placeholder="표제와 공유 · https://…">
-      </div>
-      <div class="row profileTagsRow">
-        <label id="profileUserTagsLabel">태그</label>
-        <div class="profileTagFields" role="group" aria-labelledby="profileUserTagsLabel">
-          <input type="text" id="profileUserTag1" maxlength="150" placeholder="태그 1">
-          <input type="text" id="profileUserTag2" maxlength="150" placeholder="태그 2">
-          <input type="text" id="profileUserTag3" maxlength="150" placeholder="태그 3">
-        </div>
-        <input type="hidden" id="profileUserTags" value="">
-      </div>
-      <div class="row">
-        <label for="profileUserDesc">소개</label>
-        <textarea id="profileUserDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
-      </div>
       <div class="row profileImageRow">
         <label for="profileUserImage">이미지 URL</label>
         <div class="profileImageField">
@@ -293,14 +239,30 @@
           <input type="range" id="profileUserY" min="0" max="100" step="1" value="50">
           <span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileUserYVal" data-range="profileUserY" value="50" aria-label="유저 사진 세로 위치 직접 입력"></span>
         </div>
-        <div class="profileImageAdjustFooter"><button type="button" class="profileImageResetBtn uiButton" id="profileUserImageResetBtn">사진 초기화</button></div>
         </div>
+      </div>
+      <div class="row">
+        <label for="profileUserName">이름</label>
+        <input type="text" id="profileUserName" maxlength="100" placeholder="표시 이름">
+      </div>
+      <div class="row profileTagsRow">
+        <label id="profileUserTagsLabel">태그</label>
+        <div class="profileTagFields" role="group" aria-labelledby="profileUserTagsLabel">
+          <input type="text" id="profileUserTag1" maxlength="150" placeholder="태그 1">
+          <input type="text" id="profileUserTag2" maxlength="150" placeholder="태그 2">
+          <input type="text" id="profileUserTag3" maxlength="150" placeholder="태그 3">
+        </div>
+        <input type="hidden" id="profileUserTags" value="">
+      </div>
+      <div class="row">
+        <label for="profileUserDesc">소개</label>
+        <textarea id="profileUserDesc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea>
       </div>
         </div>
       </details>
 
       <details class="profileSubFold" id="profileCommonGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCommonResetBtn" aria-label="관계와 상황 내용 초기화" title="관계와 상황 내용 초기화">↺</button><label class="profileEntitySwitch" title="관계와 상황 표시 전환"><input type="checkbox" id="profileCommonOn" checked aria-label="관계와 상황 표시"><span class="profileEntitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCommonResetBtn" aria-label="관계와 상황 내용 초기화" title="관계와 상황 내용 초기화">↺</button><label class="coverVisibilitySwitch" title="관계와 상황 표시 전환"><input type="checkbox" id="profileCommonOn" checked aria-label="관계와 상황 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row profileTagsRow">
         <label id="profileRelationshipLabel">관계·키워드</label>
@@ -322,12 +284,9 @@
 
 
   <details class="group foldGroup coverFold halfControls settingsForm" id="footerGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">꼬리말</span><span class="coverFoldMeta" id="footerCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">꼬리말</span><span class="coverFoldMeta" id="footerCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="꼬리말 표시 전환"><input type="checkbox" id="footerOn" checked aria-label="꼬리말 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
       <p class="group-desc">마지막 카드 아래 작성자 정보</p>
-      <div class="row">
-        <label><input type="checkbox" id="footerOn" checked> 꼬리말 표시</label>
-      </div>
       <div class="row">
         <label for="footerAuthor">작성자</label>
         <input type="text" class="miniInput" id="footerAuthor" placeholder="이름">
@@ -336,12 +295,9 @@
   </details>
 
   <details class="group foldGroup coverFold settingsForm" id="creditGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">크레딧</span><span class="coverFoldMeta" id="creditCoverSummary"></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">크레딧</span><span class="coverFoldMeta" id="creditCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="크레딧 표시 전환"><input type="checkbox" id="creditOn" aria-label="크레딧 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
       <p class="group-desc">로그 최상단 또는 최하단의 모델·링크·메모</p>
-      <div class="row">
-        <label><input type="checkbox" id="creditOn"> 크레딧 표시</label>
-      </div>
       <input type="hidden" id="creditItems" value="[]">
       <div id="creditEditorArea" class="creditControlsDisabled" aria-disabled="true">
         <div class="creditConfigurationSection">
@@ -675,6 +631,7 @@
           <option value="badge">옵션 3 - 이름 배지</option>
           <option value="gradient">옵션 4 - 그라데이션</option>
           <option value="box">옵션 5 - 인용박스</option>
+          <option value="messenger">옵션 6 - 메신저</option>
         </optgroup>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="대사 표현 방식 이전·다음">
@@ -768,10 +725,24 @@
 
 <div class="tabPanel" id="tabTheme" role="tabpanel" aria-labelledby="tabBtnTheme">
 
+
+  <section class="group expressionThemeGroup" aria-label="카드 모양과 배경">
+    <div class="expressionThemeRow">
+      <span class="expressionThemeLabel" id="outputShapeLabel">카드 모양</span>
+      <div class="expressionThemeOptions" role="group" aria-labelledby="outputShapeLabel">
+        <button type="button" data-output-shape="solid" aria-label="둥근 카드" title="둥근 카드" aria-pressed="false"><span class="expressionShapeIcon" aria-hidden="true"></span></button>
+        <button type="button" data-output-shape="document" aria-label="각진 카드" title="각진 카드" aria-pressed="false"><span class="expressionShapeIcon" aria-hidden="true"></span></button>
+      </div>
+      <label class="expressionTransparentChoice"><input type="checkbox" id="outputTransparentOn"><span>투명</span></label>
+    </div>
+    <select id="outputTheme" hidden aria-label="카드 형태와 배경 조합"><option value="solid">둥근 카드 · 색상 배경</option><option value="document">각진 카드 · 색상 배경</option><option value="transparent">둥근 카드 · 투명 배경</option><option value="document-transparent">각진 카드 · 투명 배경</option></select>
+    <p id="transparentThemeHint" hidden>투명 배경 적용 중 · 게시판 기본 글자색</p>
+  </section>
+
   <details class="group foldGroup themeFold" id="comboGroup">
-    <summary class="group-title foldHead"><span class="themeFoldTitle">추천 프리셋</span><span class="themeFoldMeta" id="recommendedPresetStatus">색상 조합</span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="themeFoldTitle">색상 프리셋</span><span class="themeFoldMeta" id="recommendedPresetStatus">색상 조합</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <div class="comboFamilyFilters" id="comboFamilyFilters" role="group" aria-label="추천 프리셋 색상 계열"></div>
+      <div class="comboFamilyFilters" id="comboFamilyFilters" role="group" aria-label="색상 프리셋 색상 계열"></div>
       <div id="comboList"></div>
     </div>
   </details>
@@ -1136,7 +1107,7 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./app.js" defer></script>
+<script src="./app.js?v=f90f7f2fab18" defer></script>
 
 </body>
 </html>
