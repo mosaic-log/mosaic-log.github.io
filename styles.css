@@ -425,7 +425,7 @@
   }
   #titleSize,
   #foldTitleSize {
-    accent-color: #555b58;
+    accent-color: #717674;
   }
   .row select {
     width: 100%;
@@ -433,27 +433,20 @@
     font-size: 13px;
     cursor: pointer;
   }
-  /* 표지·디자인 탭 셀렉트: 기본 화살표를 같은 위치의 작은 캐럿으로 통일 */
-  #tabCover .row select,
-  #tabDesign .row select,
-  #creditPresetSelect {
+  /* 보이는 선택창은 디자인 탭과 같은 작은 채움 삼각형을 쓴다.
+     본문 도구 모음의 ⋯ 메뉴와 화면에서 숨긴 상태 저장용 select는 제외한다. */
+  select:not([hidden]):not(.segmentedChoiceSource):not(.separatorInsertSelect) {
     -webkit-appearance: none;
     appearance: none;
-    padding-right: 34px;
+    padding-right: 25px;
     background-image:
       linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
       linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
     background-position:
-      calc(100% - 17px) 50%,
-      calc(100% - 12px) 50%;
-    background-size: 5px 5px, 5px 5px;
+      calc(100% - 11px) 50%,
+      calc(100% - 8px) 50%;
+    background-size: 3px 3px, 3px 3px;
     background-repeat: no-repeat;
-  }
-  /* 데스크톱: 슬라이더 + 값의 전체 폭을 위 선택창(50%)과 일치시킴 */
-  #tabDesign .halfControls .row > label ~ input[type="range"] {
-    flex: none;
-    width: calc(50% - 40px);
-    margin-left: auto;
   }
   .row input[type="checkbox"] {
     accent-color: var(--accent);
@@ -764,14 +757,13 @@
   }
   .presetRow button.secondary:hover { border-color: var(--ink-faint); background: var(--bg-field); }
 
-  /* 이름 바꾸기·키워드 치환: 입력창 옆에 가벼운 텍스트 실행 버튼을 둔다. */
+  /* 이름 바꾸기·키워드 치환: 같은 너비의 입력 줄 아래에 실행 버튼을 둔다. */
   #tabBody .nameReplaceRow {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
   }
-  #tabBody .nameReplaceRow.keywordAutoRow { grid-template-columns:minmax(150px, 1fr) auto; }
   #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
   #tabBody .keywordRuleEmpty { padding:4px 2px 2px; color:var(--ink-faint); font-size:11px; text-align:left; }
   #tabBody .keywordRuleItem { display:flex; align-items:center; gap:8px; min-height:36px; padding:6px 8px 6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg-panel); }
@@ -806,7 +798,7 @@
     justify-content: flex-end;
     align-items: center;
     gap: 2px;
-    width: auto;
+    width: 100%;
   }
   #tabBody .nameActionGroup button {
     width: auto;
@@ -845,10 +837,6 @@
     color: var(--ink-faint);
     opacity: .45;
     cursor: default;
-  }
-  @container sidebar (max-width: 380px) {
-    #tabBody .nameReplaceRow { grid-template-columns: 1fr; }
-    #tabBody .nameActionGroup { width: auto; justify-self: end; }
   }
   /* 문단 옵션은 항목별 선택 행으로 보여준다. */
   #paragraphSettingsGroup .paragraphCheckList { display:flex; flex-direction:column; gap:0; margin:0; }
@@ -1023,6 +1011,12 @@
     padding: 5px;
     border: 1px solid var(--line);
     border-radius: 9px;
+    background: var(--bg-subtle);
+  }
+  #fsToolbar {
+    padding: 8px 5px 5px;
+    border: 0;
+    border-radius: 0;
     background: var(--bg-subtle);
   }
   #bodyInputGroup > .foldBody > .editorToolbar { justify-content: center; }
@@ -1452,11 +1446,23 @@
   }
   .cardEditorHead .miniCtl:hover { color: var(--ink-soft); border-color: var(--line-strong); }
   .cardEditorHead .autoExpandBtn {
-    width: auto;
-    min-width: 42px;
-    padding: 0 7px;
-    font-size: 10.5px;
-    letter-spacing: -0.2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+  }
+  .cardEditorHead .autoExpandBtn[aria-pressed="false"] { color: var(--help-ink); }
+  .cardEditorHead .autoExpandIcon {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
   }
   .cardEditorHead .autoExpandBtn[aria-pressed="true"] {
     color: var(--accent);
@@ -1794,12 +1800,16 @@
     font-weight:600;
     letter-spacing:0;
   }
-  .commentEditor .cardEditorHead .miniCtl { border-color:var(--line); background:transparent; color:var(--help-ink); }
+  .commentEditor .cardEditorHead .miniCtl { border:0; background:transparent; color:var(--help-ink); }
+  .commentEditor .cardEditorHead .miniCtl:hover {
+    background:color-mix(in srgb,var(--comment-accent) 9%,transparent);
+    color:var(--ink-soft);
+  }
   .commentEditor .cardEditorHead .autoExpandBtn[aria-pressed="true"] {
-    border-color:var(--line-strong);
     background:var(--bg-muted);
     color:var(--ink-soft);
   }
+  .commentEditor .cardEditorHead .visibilityCtl.isHidden { background:var(--bg-muted); }
   .commentEditor .cardEditorHead .delCardBtn {
     display:inline-flex;
     align-items:center;
@@ -1820,6 +1830,25 @@
     background:#fff4f3;
     color:#a7473f;
   }
+  .cardFoldGroup .delCardBtn,
+  .commentEditor .cardEditorHead .delCardBtn { position: relative; }
+  .cardFoldGroup .delCardBtn::before,
+  .cardFoldGroup .delCardBtn::after,
+  .commentEditor .cardEditorHead .delCardBtn::before,
+  .commentEditor .cardEditorHead .delCardBtn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 1px;
+    background: currentColor;
+    pointer-events: none;
+  }
+  .cardFoldGroup .delCardBtn::before,
+  .commentEditor .cardEditorHead .delCardBtn::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .cardFoldGroup .delCardBtn::after,
+  .commentEditor .cardEditorHead .delCardBtn::after { transform: translate(-50%, -50%) rotate(-45deg); }
   .commentEditor textarea {
     height:96px;
     min-height:96px;
@@ -1889,32 +1918,66 @@
   #fsSearchBar {
     display: none;
     align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding: 5px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
+    gap: 5px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px;
+    border: 0;
+    border-radius: 0;
     background: var(--bg-subtle);
   }
   #fsPanel.fsSearchOpen #fsSearchBar { display: flex; }
   #fsToolbar .fsSearchTools { margin-left: auto; }
-  #fsSearchToggle[aria-expanded="true"] { border-color: var(--line) !important; background: #fff !important; color: var(--ink) !important; }
-  #fsFindInput, #fsReplInput { width: 190px; padding: 6px 10px; font-size: 12px; }
-  .fsNavGroup, .fsReplaceActions { display: inline-flex; flex: none; }
-  #fsSearchBar button {
-    height: var(--control-h);
-    padding: 0 10px;
-    border: 1px solid var(--line-strong);
-    background: #fff;
-    color: var(--ink-soft);
-    font-size: 12px;
+  #fsToolbar #fsSearchToggle {
+    border: 0;
   }
-  #fsFindPrevBtn, #fsFindNextBtn { width: 34px; padding: 0; text-align: center; flex: none; }
-  .fsNavGroup button, .fsReplaceActions button { margin-left: -1px; border-radius: 0; }
-  .fsNavGroup button:first-child, .fsReplaceActions button:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
-  .fsNavGroup button:last-child, .fsReplaceActions button:last-child { border-radius: 0 8px 8px 0; }
-  #fsSearchBar button:hover { position: relative; z-index: 1; border-color: var(--ink-faint); color: var(--ink); }
-  #fsFindCount { font-size: 11px; color: var(--ink-faint); margin-left: 3px; white-space: nowrap; }
+  #fsToolbar #fsSearchToggle:hover { border: 0; }
+  #fsToolbar #fsSearchToggle[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel));
+  }
+  #fsFindInput, #fsReplInput {
+    box-sizing: border-box;
+    flex: 1 1 190px;
+    min-width: 120px;
+    width: auto;
+    height: 34px;
+    padding: 6px 11px;
+    font-size: 11.5px;
+  }
+  #fsPanel input[type="text"]:focus {
+    outline: none;
+    border-color: var(--line-strong);
+    background: var(--bg-field);
+    box-shadow: none;
+  }
+  .fsNavGroup, .fsReplaceActions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+  #fsSearchBar button {
+    box-sizing: border-box;
+    height: 30px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 11.5px;
+  }
+  #fsFindPrevBtn, #fsFindNextBtn { width: 30px; padding: 0; text-align: center; flex: none; }
+  #fsSearchBar #fsReplBtn, #fsSearchBar #fsReplAllBtn { color: var(--accent); white-space: nowrap; }
+  #fsSearchBar button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+  #fsSearchBar #fsReplBtn:hover, #fsSearchBar #fsReplAllBtn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #fsFindCount {
+    min-width: 38px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #e9e8e5;
+    color: var(--ink-soft);
+    font-size: 10.5px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #fsFindCount:empty { visibility: hidden; }
 
   /* 미리보기 검색 (Ctrl/⌘+F) — 강조 span 은 미리보기 DOM 에만 존재, 출력물과 무관 */
   #pvSearchBox {
@@ -1985,8 +2048,8 @@
   .cardToolRow {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: flex-start;
+    gap: 15px;
   }
   /* 입력창을 접었을 때 보이는 본문 첫 줄 */
   .cardPeek {
@@ -2008,21 +2071,24 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1 1 0;
     min-width: 0;
   }
+  .cardEditor.isCollapsed .cardFoldGroup { flex: 0 1 auto; }
   .cardFmtBar .fmtBtn {
-    width: 30px;
-    height: 28px;
+    width: 20px;
+    height: 26px;
     padding: 0;
-    font-size: 12px;
-    background: var(--bg-panel);
-    border-color: var(--line-strong);
-    border-radius: 0;
-    margin-left: -1px;
+    font-size: 10.5px;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    margin-left: 0;
   }
-  .cardFmtBar .fmtBtn:first-child { margin-left: 0; border-radius: 6px 0 0 6px; }
-  .cardFmtBar .fmtBtn:last-child { border-radius: 0 6px 6px 0; }
-  .cardFmtBar .fmtBtn:hover { background: #fff; border-color: var(--ink-faint); color: var(--ink); }
+  .cardFmtBar .fmtBtn:hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel));
+    color: var(--accent);
+  }
 
   /* 회색 줄의 접기 제목 입력 */
   .cardFoldGroup .foldTitleInput {
@@ -2037,7 +2103,7 @@
     background: var(--bg-panel);
   }
   .cardFoldGroup .foldTitleInput:focus { border-color: var(--accent); background: #fff; }
-  .cardFoldGroup .foldChk { white-space: nowrap; }
+  .cardFoldGroup .foldChk { margin-left: auto; white-space: nowrap; }
   .cardFoldGroup .delCardBtn {
     display: inline-flex;
     align-items: center;
@@ -2049,11 +2115,12 @@
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
-    color: var(--ink-faint);
+    color: var(--help-ink);
     font-size: 17px;
     line-height: 1;
   }
-  .cardFoldGroup .delCardBtn:hover { border-color: #ebd0cc; background: #fff4f3; color: #a7473f; }
+  .cardFoldGroup .delCardBtn:hover { border-color: transparent; background: #fff4f3; color: #a7473f; }
+  .cardFoldGroup .duplicateCardBtn + .delCardBtn { margin-left: -6px; }
 
   /* 카드 이동 버튼은 하나의 분할 버튼처럼 보이게 묶음 */
   .arrowGroup {
@@ -2065,6 +2132,66 @@
   .arrowGroup .miniCtl { border-radius: 0; margin-left: -1px; }
   .arrowGroup .miniCtl:first-child { margin-left: 0; border-radius: 6px 0 0 6px; }
   .arrowGroup .miniCtl:last-child { border-radius: 0 6px 6px 0; }
+  .cardEditor:not(.commentEditor) .cardEditorHead .miniCtl { border: 0; background: transparent; }
+  .cardEditor:not(.commentEditor) .cardEditorHead .miniCtl:hover {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+  }
+  .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn[aria-pressed="true"] {
+    background: #f4f8f5;
+  }
+  .cardEditor:not(.commentEditor) .cardEditorHead .visibilityCtl.isHidden {
+    background: var(--bg-muted);
+  }
+  .cardEditor:not(.commentEditor) .cardEditorHead .headLeft,
+  .cardEditor:not(.commentEditor) .cardEditorHead .headRight { gap: 2px; }
+  .cardEditor:not(.commentEditor) .cardEditorHead .cardNum { margin-left: 5px; }
+  .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn {
+    min-width: 28px;
+    margin-left: 12px;
+    padding: 0;
+  }
+  .cardEditor:not(.commentEditor) .cardEditorHead .fsBtn { margin-left: -2px; }
+  .cardEditor:not(.commentEditor) .arrowGroup { gap: 0; }
+  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl,
+  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl:first-child,
+  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl:last-child {
+    margin-left: 0;
+    border-radius: 6px;
+  }
+  .commentEditor .cardEditorHead .headLeft,
+  .commentEditor .cardEditorHead .headRight { gap: 2px; }
+  .commentEditor .cardEditorHead .cardNum { margin-left: 5px; }
+  .commentEditor .cardEditorHead .autoExpandBtn {
+    min-width: 28px;
+    margin-left: 12px;
+    padding: 0;
+  }
+  .commentEditor .cardEditorHead .delCardBtn { margin-left: -2px; }
+  .commentEditor .arrowGroup { gap: 0; }
+  .commentEditor .arrowGroup .miniCtl,
+  .commentEditor .arrowGroup .miniCtl:first-child,
+  .commentEditor .arrowGroup .miniCtl:last-child {
+    margin-left: 0;
+    border-radius: 6px;
+  }
+  .cardEditorHead .cardNum {
+    position: relative;
+    padding-left: 10px;
+  }
+  .cardEditorHead .cardNum::before,
+  .cardEditorHead .autoExpandBtn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 1px;
+    height: 14px;
+    background: color-mix(in srgb, var(--line) 65%, var(--bg-panel));
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .cardEditorHead .cardNum::before { left: 0; }
+  .cardEditorHead .autoExpandBtn { position: relative; }
+  .cardEditorHead .autoExpandBtn::before { left: -7px; }
   .foldChk { width: auto; justify-content: flex-end; }
 
   /* 접기 카드 상태 표시 */
@@ -2098,7 +2225,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
   #fsTitle {
     font-size: 13px;
@@ -2130,14 +2257,29 @@
     font-size: 12px;
   }
   #fsCloseBtn {
-    font-size: 12px;
-    padding: 6px 12px;
-    border: 1px solid var(--line-strong);
-    background: var(--bg-field);
+    position: relative;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: var(--ink-soft);
-    border-radius: 7px;
+    border-radius: 6px;
   }
-  #fsCloseBtn:hover { border-color: var(--ink-faint); color: var(--ink); }
+  #fsCloseBtn:hover { background: var(--bg-muted); color: var(--ink); }
+  #fsCloseBtn .fsCloseIcon::before,
+  #fsCloseBtn .fsCloseIcon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 1.5px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+  #fsCloseBtn .fsCloseIcon::before { transform: translate(-50%, -50%) rotate(45deg); }
+  #fsCloseBtn .fsCloseIcon::after { transform: translate(-50%, -50%) rotate(-45deg); }
   #fsTextareaWrap {
     position: relative;
     flex: 1;
@@ -2155,11 +2297,16 @@
     line-height: 1.85;
     resize: none;
     border: 1px solid var(--line-strong);
-    border-radius: 10px;
+    border-radius: 0;
     background: #fff;
     box-sizing: border-box;
   }
-  #fsTextarea:focus { outline: none; border-color: var(--accent); background: #fff; }
+  #fsTextarea:focus {
+    outline: none;
+    border-color: var(--line-strong);
+    background: #fff;
+    box-shadow: none;
+  }
   #fsTextarea { overscroll-behavior: contain; }
   /* 전체 화면 검색 강조: 비활성 textarea selection은 브라우저에 따라 보이지 않으므로
      입력창 뒤의 미러 레이어에 모든 결과(회색)와 현재 결과(연두)를 직접 표시한다. */
@@ -2177,28 +2324,65 @@
     overflow-wrap: break-word;
     word-wrap: break-word;
     border: 1px solid var(--line-strong);
-    border-radius: 10px;
+    border-radius: 0;
     background: #fff;
     color: transparent;
   }
   #fsTextarea.fsHlOn, #fsTextarea.fsHlOn:focus { background: transparent; }
   #fsCheat {
+    margin-top: 6px;
+    color: var(--help-ink);
+  }
+  #fsCheat > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 24px;
+    padding: 0 2px;
+    list-style: none;
+    color: var(--help-ink);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  #fsCheat > summary::-webkit-details-marker { display: none; }
+  #fsCheat > summary::before {
+    content: '';
+    display: block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    background:
+      linear-gradient(currentColor, currentColor) center / 9px 1px no-repeat,
+      linear-gradient(currentColor, currentColor) center / 1px 9px no-repeat;
+  }
+  #fsCheat[open] > summary::before {
+    background: linear-gradient(currentColor, currentColor) center / 9px 1px no-repeat;
+  }
+  #fsCheat > summary:hover { color: var(--ink-soft); }
+  #fsCheat > summary:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--help-ink) 55%, transparent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  #fsCheat .fsCheatList {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px 14px;
-    margin-top: 12px;
-    font-size: 11px;
-    color: var(--ink-faint);
-    line-height: 1.7;
+    gap: 4px 12px;
+    max-height: min(22vh, 140px);
+    overflow-y: auto;
+    padding: 5px 2px 2px;
+    font-size: 10px;
+    line-height: 1.6;
   }
+  #fsCheat:not([open]) .fsCheatList { display: none; }
   #fsCheat code {
-    background: var(--bg-muted);
-    border: 1px solid var(--line);
-    padding: 1px 5px;
+    background: color-mix(in srgb, var(--bg-muted) 45%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+    padding: 1px 4px;
     border-radius: 4px;
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    font-size: 10.5px;
-    color: var(--ink-soft);
+    font-size: 9.5px;
+    color: var(--help-ink);
     margin-right: 3px;
   }
   /* ---------- 미리보기 선택 서식 도구막대 ---------- */
@@ -2365,7 +2549,7 @@
     padding: 5px 8px;
     border: 1px solid var(--line);
     border-radius: 7px;
-    background: var(--bg-panel);
+    background-color: var(--bg-panel);
     color: var(--ink-soft);
     font-size: 11px;
   }
@@ -2484,6 +2668,7 @@
     justify-content: space-between;
     gap: 12px;
     min-height: 44px;
+    margin-bottom: 0;
     padding: 5px 2px;
     border: 0;
     border-bottom: 1px solid var(--line);
@@ -2971,20 +3156,22 @@
   }
   #tabDesign #speakerGroup #speakerNames .row > .speakerNameToggle {
     grid-column: 3;
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
-    width: auto;
+    width: 100%;
     min-width: 0;
     color: var(--ink-soft);
     font-size: 11.5px;
     cursor: pointer;
   }
   #tabDesign #speakerGroup #speakerNames .speakerNameToggle input {
-    flex: none;
-    width: auto;
+    width: 14px;
+    height: 14px;
     margin: 0;
   }
+  #tabDesign #speakerGroup #speakerNames .speakerNameToggle span { white-space: nowrap; }
 
   /* 디자인 탭: 컨트롤을 화면 끝까지 늘이지 않고, 같은 기준선에 여유 있게 정렬한다. */
   #tabDesign .designFold .foldBody {
@@ -3024,24 +3211,32 @@
     margin-bottom: 0;
   }
 
-  /* 체크 옵션 묶음은 안쪽 카드를 만들지 않고, 짧은 소제목 아래 한 열로 정돈한다. */
-  #tabDesign .foldCardOptionTitle {
-    margin-bottom: 6px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 700;
-  }
-  #tabDesign #speakerGroup .dialogueSectionLabel {
-    margin: 0 0 8px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 700;
-  }
   .settingsForm .selectCycleRow {
     grid-template-columns: var(--settings-label-w) minmax(0, 1fr) 46px;
   }
   .settingsForm .selectCycleRow > select {
     grid-column: 2;
+  }
+  #tabDesign .settingsForm .selectCycleRow > select {
+    min-width: 0;
+    padding: 6px 25px 6px 2px;
+    border: 0;
+    border-bottom: 1px solid var(--line-strong);
+    border-radius: 0;
+    background-color: transparent;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+      linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 11px) 50%, calc(100% - 8px) 50%;
+    background-size: 3px 3px, 3px 3px;
+    box-shadow: none;
+  }
+  #tabDesign .settingsForm .selectCycleRow > select:hover {
+    border-bottom-color: var(--ink-soft);
+  }
+  #tabDesign .settingsForm .selectCycleRow > select:focus {
+    border-bottom-color: var(--accent);
+    box-shadow: 0 1px 0 var(--accent);
   }
   .settingsForm .selectCycleStepper {
     grid-column: 3;
@@ -3058,23 +3253,23 @@
     height: 100%;
     min-height: 0;
     padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 7px 0 0 7px;
-    background: var(--bg-field);
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
     color: var(--ink-soft);
     font-size: 17px;
     line-height: 1;
   }
   .settingsForm .selectCycleStepper button + button {
-    margin-left: -1px;
-    border-radius: 0 7px 7px 0;
+    margin-left: 0;
   }
   .settingsForm .selectCycleStepper button:hover {
-    position: relative;
-    z-index: 1;
-    border-color: var(--line-strong);
     background: var(--bg-muted);
     color: var(--ink);
+  }
+  .settingsForm .selectCycleStepper button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   /* 프로필의 짧은 선택지는 드롭다운보다 한눈에 비교되는 텍스트 선택으로 표시한다. */
@@ -3230,6 +3425,12 @@
     background: var(--bg-muted);
     color: var(--ink);
   }
+  #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead {
+    background: color-mix(in srgb, var(--accent) 7%, var(--bg-panel));
+  }
+  #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead:hover {
+    background: color-mix(in srgb, var(--accent) 11%, var(--bg-panel));
+  }
   #tabCover .coverFold[open] > summary.foldHead {
     margin-bottom: 14px;
   }
@@ -3264,6 +3465,11 @@
   }
   #tabCover .coverFold .foldBody {
     padding: 0 10px 4px;
+    transition: opacity .15s ease, filter .15s ease;
+  }
+  #tabCover .coverFold.isCoverInactive > .foldBody {
+    opacity: .48;
+    filter: grayscale(1);
   }
   /* 본문 입력 아래의 보조 설정도 다른 탭과 같은 아코디언 카드 위계를 사용한다. */
   #tabBody > .bodyFold {
@@ -3343,7 +3549,6 @@
   }
   #tabCover .row:has(input[type="url"]) > label { color: var(--ink-soft); }
   #tabCover .row:has(input[type="url"]):has(input[type="url"]:placeholder-shown) > label { color: var(--help-ink); }
-  #tabCover #profileGroup .profileImageRow.isControlDisabled > label { color: var(--ink-faint); }
   /* 프로필에서 사용하던 작고 옅은 예시 문구 위계를 모든 입력창으로 확장한다.
      실제 입력 글자도 같은 크기로 맞추되 각 입력의 기존 글자색·배경·테두리는 유지한다. */
   input[placeholder],
@@ -3451,13 +3656,15 @@
     background: var(--ink-faint);
     transition: transform .14s ease, background .14s ease;
   }
-  #tabCover .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
-    border-color: color-mix(in srgb, var(--accent) 28%, var(--bg-field));
-    background: color-mix(in srgb, var(--accent) 14%, var(--bg-field));
+  #tabCover > .coverFold > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+    border-color: color-mix(in srgb, var(--accent) 20%, var(--bg-panel));
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel));
   }
   #tabCover .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     transform: translateX(12px);
-    background: color-mix(in srgb, var(--accent) 68%, white);
+  }
+  #tabCover > .coverFold > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+    background: color-mix(in srgb, var(--accent) 76%, white);
   }
   #tabCover .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
     outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
@@ -3471,6 +3678,21 @@
   }
   #tabCover .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--ink-faint) 58%, var(--bg-field));
+  }
+  /* 프로필 하위 스위치는 트랙 대비를 낮추고 ON 손잡이만 밝게 구분한다. */
+  #profileGroup .profileSubActions .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack {
+    border-color: color-mix(in srgb, var(--line-strong) 55%, var(--bg-field));
+    background: color-mix(in srgb, var(--bg-muted) 55%, var(--bg-field));
+  }
+  #profileGroup .profileSubActions .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack::after {
+    background: color-mix(in srgb, var(--ink-faint) 52%, var(--bg-field));
+  }
+  #profileGroup .profileSubActions .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+    border-color: color-mix(in srgb, var(--accent) 11%, var(--bg-field));
+    background: color-mix(in srgb, var(--accent) 4%, var(--bg-field));
+  }
+  #profileGroup .profileSubActions .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+    background: color-mix(in srgb, var(--accent) 68%, white);
   }
   #profileGroup .profileResetIconBtn {
     width: 28px;
@@ -3489,8 +3711,8 @@
     color: #a65f59;
   }
   #profileGroup .profileSubBody.isEntityDisabled { opacity: .46; }
-  /* 상위 프로필 비활성 opacity와 행 비활성 opacity가 중복되지 않도록 한다. */
-  #profileGroup .profileSubBody.isEntityDisabled .profileImageRow.isControlDisabled { opacity: 1; }
+  /* 상위 프로필과 하위 항목의 흐림이 중복되지 않도록 한다. */
+  #profileGroup.isCoverInactive .profileSubBody.isEntityDisabled { opacity: 1; }
   #profileGroup .profileTagsRow { align-items: center; }
   #profileGroup .profileImageRow { align-items: center; }
   #profileGroup .profileImageField {
@@ -3736,8 +3958,6 @@
     font-size: 12px;
   }
   #creditGroup .creditAddBtn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--ink-soft); }
-  #creditGroup .creditControlsDisabled { opacity: .42; }
-  #creditGroup .creditControlsDisabled button:hover { background: transparent; color: var(--ink-faint); }
   #creditGroup .creditPresetSection {
     display: block;
     margin-top: 14px;
@@ -3771,11 +3991,6 @@
   }
   #creditGroup .creditPresetSection[open] > .creditPresetSummary::after { content: "−"; }
   #creditGroup .creditPresetSummary:hover { color: var(--ink-faint); }
-  #creditGroup .creditControlsDisabled .creditPresetSummary {
-    color: var(--help-ink);
-    cursor: default;
-    pointer-events: none;
-  }
   #creditGroup .creditPresetControls {
     width: min(360px, 100%);
     min-width: 0;
@@ -4175,11 +4390,6 @@
       width: auto;
       margin-left: 0;
     }
-    #tabDesign .halfControls .row > label ~ input[type="range"] {
-      flex: 1;
-      width: auto;
-      margin-left: 0;
-    }
     .editorToolbar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; }
     #bodyInputGroup > .foldBody > .editorToolbar { justify-content: safe center; }
     #bodyInputGroup > .foldBody > #bodyEditorToolbar {
@@ -4250,7 +4460,7 @@
     #fsFindInput, #fsReplInput { width: 150px; }
     #fsTextarea { padding: 14px; font-size: 14px; }
     #fsHl { padding: 14px; font-size: 14px; }
-    #fsCheat { display: none; }
+    #fsCheat .fsCheatList { max-height: 120px; }
     .cardEditorHead .miniCtl, .pvIconBtn { min-width: 36px; min-height: 36px; }
     #tabDesign .designFold .foldBody {
       max-width: 100%;
@@ -4272,10 +4482,6 @@
       column-gap: var(--settings-row-gap);
       padding-right: var(--settings-row-gap);
     }
-    #tabDesign #speakerGroup #speakerNames .row {
-      grid-template-columns: 92px minmax(0, 1fr) 44px;
-      column-gap: 10px;
-    }
   }
 
   @media (max-width: 420px) {
@@ -4283,10 +4489,6 @@
     .subtitleLine .subtitleDot { display: none; }
     .subtitleLine #logSubtitle { grid-column: 1 / -1; }
     #tabDesign .designFold .row {
-      grid-template-columns: 82px minmax(0, 1fr) 42px;
-      column-gap: 8px;
-    }
-    #tabDesign #speakerGroup #speakerNames .row {
       grid-template-columns: 82px minmax(0, 1fr) 42px;
       column-gap: 8px;
     }
@@ -4437,8 +4639,10 @@
     align-items: center;
     justify-content: center;
     flex: none;
+    position: relative;
     width: 28px;
     height: 28px;
+    margin-left: 8px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -4448,7 +4652,7 @@
     line-height: 1;
   }
   .cardFoldGroup .duplicateCardBtn:hover {
-    border-color: var(--line);
+    border-color: transparent;
     background: var(--bg-field);
     color: var(--ink-soft);
   }
@@ -4492,11 +4696,20 @@
     min-height: 34px;
     margin-bottom: 8px;
   }
-  #tabDesign #layoutDesignGroup .foldBody > .designSectionLabel {
-    margin: 0 0 8px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 700;
+  #tabDesign .typographyGroup .row {
+    grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width);
+    column-gap: 10px;
+  }
+  #tabDesign .designFold .selectCycleRow {
+    grid-template-columns: 80px minmax(0, 1fr) 56px;
+    column-gap: 10px;
+  }
+  #tabDesign #speakerGroup #speakerNames .row {
+    grid-template-columns: 80px minmax(0, 1fr) 56px;
+    column-gap: 10px;
+  }
+  #tabDesign .designFold .selectCycleRow > select {
+    grid-column: 2;
   }
   #tabDesign .rangeEditor,
   #tabCover .rangeEditor {
@@ -4608,8 +4821,14 @@
   #tabDesign .typographyGroup .typographySubsectionSummary:hover { color: var(--ink); }
   #tabDesign .typographyGroup .typographySubsectionBody { padding: 4px 0 1px; }
   #tabDesign .typographyGroup .titleStyleRow {
-    grid-template-columns: var(--design-label-width) minmax(0, 1fr) var(--design-value-width) auto;
+    grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width) auto;
     column-gap: 10px;
+  }
+  /* 오른쪽 보조 컨트롤만 살짝 당겨 대사 드롭다운 화살표와 시각적 중심을 맞춘다. */
+  #tabDesign .typographyGroup .titleStyleRow > .rangeEditor,
+  #tabDesign .typographyGroup .titleStyleRow > .titleRowBold,
+  #tabDesign #speakerGroup #speakerNames .row > .speakerNameToggle {
+    transform: translateX(-6px);
   }
   #tabDesign .typographyGroup .titleRowBold {
     grid-column: 4;
@@ -4626,36 +4845,100 @@
   #tabDesign .typographyGroup .titleRowBold input {
     margin: 0;
   }
-  #tabDesign .designCheckList {
+  /* 각 옵션은 독립 체크박스로 유지하고, 프로필의 텍스트 선택과 같은 시각 언어로 표시한다. */
+  #tabDesign .layoutToggleRow {
     display: grid;
-    gap: 0;
+    grid-template-columns: 80px minmax(0, 1fr);
+    column-gap: 10px;
+    align-items: start;
+    min-height: 30px;
+    margin-bottom: 12px;
   }
-  #tabDesign .compactCheckList { margin-top: 5px; }
-  #tabDesign .designCheckRow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 32px;
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
+  #tabDesign .layoutToggleLabel {
+    padding-top: 5px;
     color: var(--ink-soft);
     font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  #tabDesign .layoutToggleChoices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px 12px;
+    min-width: 0;
+  }
+  #tabDesign .layoutToggleChoice {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    white-space: nowrap;
     cursor: pointer;
-    transition: background-color .12s ease, color .12s ease;
   }
-  #tabDesign .designCheckRow:hover {
-    background: transparent;
-    color: var(--ink);
+  #tabDesign .layoutToggleChoice input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    clip-path: inset(50%);
   }
-  #tabDesign .designCheckRow input { flex: none; margin: 0; }
+  #tabDesign .layoutToggleChoice span {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    padding: 0 3px;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1;
+    transition: color .16s ease;
+  }
+  #tabDesign .layoutToggleChoice span::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    left: 3px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0;
+    transform: scaleX(.45);
+    transition: opacity .16s ease, transform .16s ease;
+  }
+  #tabDesign .layoutToggleChoice:hover span { color: var(--ink); }
+  #tabDesign .layoutToggleChoice input:checked + span { color: var(--accent); }
+  #tabDesign .layoutToggleChoice input:checked + span::after {
+    opacity: .72;
+    transform: scaleX(1);
+  }
+  #tabDesign .layoutToggleChoice input:focus-visible + span {
+    outline: 2px solid color-mix(in srgb, var(--accent) 52%, transparent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  #tabDesign #layoutDesignGroup .foldBody > .layoutToggleRow:not(.foldCardOptionSection) {
+    margin-top: 22px;
+    margin-bottom: 0;
+  }
   #tabDesign .foldCardOptionSection {
-    margin-top: 20px;
+    margin-top: 6px;
+    margin-bottom: 0;
     padding: 0;
     border: 0;
   }
+  #tabDesign .foldCardOptionSection .layoutToggleChoices {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
   #tabDesign #speakerGroup #speakerNames {
-    margin: 7px 0 2px;
+    margin: 22px 0 2px;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -4668,7 +4951,26 @@
     }
     #tabDesign .designFold .row,
     #tabDesign #speakerGroup #speakerNames .row { column-gap: 9px; }
-    #tabDesign .typographyGroup .titleStyleRow { column-gap: 7px; }
+    #tabDesign .typographyGroup .row {
+      grid-template-columns: 72px minmax(0, 1fr) var(--design-value-width);
+      column-gap: 8px;
+    }
+    #tabDesign .typographyGroup .titleStyleRow {
+      grid-template-columns: 72px minmax(0, 1fr) var(--design-value-width) auto;
+      column-gap: 7px;
+    }
+    #tabDesign .layoutToggleRow {
+      grid-template-columns: 72px minmax(0, 1fr);
+      column-gap: 8px;
+    }
+    #tabDesign .designFold .selectCycleRow {
+      grid-template-columns: 72px minmax(0, 1fr) 52px;
+      column-gap: 8px;
+    }
+    #tabDesign #speakerGroup #speakerNames .row {
+      grid-template-columns: 72px minmax(0, 1fr) 52px;
+      column-gap: 8px;
+    }
   }
   /* 테마 탭도 표지·디자인 탭과 같은 아코디언 카드 체계를 사용한다. */
   #tabTheme > .themeFold {
@@ -4827,6 +5129,20 @@
 .expressionTransparentChoice::before { content:''; position:absolute; left:0; top:50%; width:1px; height:16px; background:var(--line-strong); transform:translateY(-50%); }
 .expressionTransparentChoice input { flex:none; width:14px; height:14px; margin:0; }
 .expressionTransparentChoice input:checked + span { color:var(--accent); }
-#tabTheme > .expressionThemeGroup { margin-top:18px; padding:16px 14px; border-radius:10px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 7%,var(--line)); }
+#tabTheme > .expressionThemeGroup { margin-top:18px; padding:16px 14px; border-radius:10px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 55%,transparent); }
 #tabTheme > .expressionThemeGroup + .themeFold { padding-top:16px; border-top:0; }
 .paletteUnavailable #comboList { opacity:.4; }
+
+/* 각진 카드 테마에서는 편집 UI도 직각으로 맞춘다.
+   실제 출력 미리보기의 내용은 출력 테마 고유의 스타일을 유지한다. */
+body.angularUi :where(*:not(#preview):not(#preview *)) { border-radius: 0 !important; }
+body.angularUi #previewArea { border-radius: 0 !important; }
+body.angularUi input[type="range"]::-webkit-slider-thumb { border-radius: 0 !important; }
+body.angularUi input[type="range"]::-moz-range-thumb { border-radius: 0 !important; }
+body.angularUi input[type="color"]::-webkit-color-swatch { border-radius: 0 !important; }
+body.angularUi input[type="color"]::-moz-color-swatch { border-radius: 0 !important; }
+/* 스위치와 카드 모양 견본은 상태·형태를 알아볼 수 있도록 원래 윤곽을 유지한다. */
+body.angularUi #tabCover .coverVisibilitySwitchTrack { border-radius: 999px !important; }
+body.angularUi #tabCover .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
+body.angularUi .expressionThemeOptions .expressionShapeIcon { border-radius: 5px !important; }
+body.angularUi .expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius: 1px !important; }
