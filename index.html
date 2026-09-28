@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.7.1 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.7.2 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -11,14 +11,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=9c793b97bf63">
+<link rel="stylesheet" href="./styles.css?v=31cc041dafa8">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.7.1 GitHub 저장소 열기">v1.7.1</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.7.2 GitHub 저장소 열기">v1.7.2</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -381,7 +381,7 @@
       <button class="uiButton" type="button" id="addCardBtn">+ 카드</button>
       <button class="uiButton" type="button" id="addCommentBtn">+ 코멘트</button>
     </div>
-    <div class="counterRow"><span id="bodyCounter"></span><button type="button" class="btnDanger uiButton" id="clearBodyBtn">전체 비우기</button></div>
+    <div class="counterRow"><span id="bodyCounter"></span><button type="button" id="clearBodyBtn" aria-label="본문 전체 비우기" title="본문 전체 비우기">↺</button></div>
     <details class="helpFold">
       <summary>카드·드래그 도움말</summary>
       <p class="hint">카드 1개 = 아카라이브 둥근 박스 1개 · 대표 이미지: 첫 카드 위 · 꼬리말: 마지막 카드 아래</p>
@@ -484,23 +484,30 @@
   <details class="group foldGroup bodyFold" id="nameReplaceGroup">
     <summary class="group-title foldHead"><span class="bodyFoldTitle">이름 바꾸기</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <p class="group-desc">모든 카드의 이름·후속 조사 일괄 변경</p>
+      <p class="group-desc">규칙을 저장하면 기존·새 입력의 이름과 조사를 계속 변경</p>
       <div class="nameReplaceRow">
         <div class="nameFieldGroup">
-          <input type="text" id="nameFrom" aria-label="현재 이름" placeholder="현재 이름">
+          <input type="text" id="nameFrom" maxlength="80" aria-label="현재 이름" placeholder="현재 이름">
           <span class="arrowSep">→</span>
-          <input type="text" id="nameTo" aria-label="새 이름" placeholder="새 이름">
+          <input type="text" id="nameTo" maxlength="80" aria-label="새 이름" placeholder="새 이름">
+          <div class="nameQuickFill" role="group" aria-label="새 이름 빠른 입력">
+            <button type="button" data-name-fill="char" aria-label="새 이름에 char 입력">char</button>
+            <button type="button" data-name-fill="user" aria-label="새 이름에 user 입력">user</button>
+            <button type="button" data-name-fill="○○" aria-label="새 이름에 동그라미 두 개 입력">○○</button>
+          </div>
         </div>
         <div class="nameActionGroup">
-          <button class="uiButton" type="button" id="nameFindBtn">찾기</button>
-          <button class="uiButton" type="button" id="nameReplaceBtn">바꾸기</button>
+          <button class="uiButton" type="button" id="nameReplaceBtn">적용</button>
         </div>
       </div>
+      <input type="hidden" id="nameRules" value="[]">
       <div id="nameStatus" class="hint" aria-live="polite"></div>
+      <div id="nameRuleList" class="keywordRuleList" aria-label="활성 이름 바꾸기 규칙 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
-        <p class="hint">모든 카드 적용 · <b>은/는·이/가·을/를·과/와</b> 자동 변환</p>
-        <p class="hint">정확히 일치하는 캐릭터·유저·커스텀 인물 함께 변경 · 인물 색상 유지</p>
+        <p class="hint">적용 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
+        <p class="hint">각 규칙의 되돌리기는 현재 본문과 일치하는 이름 필드를 되돌리고 규칙을 제거</p>
+        <p class="hint">은/는·이/가·을/를·과/와 자동 변환 · 인물 색상 유지</p>
       </details>
     </div>
   </details>
@@ -516,7 +523,7 @@
           <input type="text" id="keywordTo" maxlength="80" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
         </div>
         <div class="nameActionGroup">
-          <button class="uiButton" type="button" id="keywordAddBtn">치환</button>
+          <button class="uiButton" type="button" id="keywordAddBtn">적용</button>
         </div>
       </div>
       <input type="hidden" id="keywordRules" value="[]">
@@ -524,7 +531,7 @@
       <div id="keywordRuleList" class="keywordRuleList" aria-label="활성 키워드 치환 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
-        <p class="hint">치환 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
+        <p class="hint">적용 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
         <p class="hint">각 규칙의 되돌리기는 현재 본문에서 바뀐 문구를 원래 문구로 되돌리고 규칙을 제거</p>
         <p class="hint">모든 카드 적용 · 대소문자를 구분해 입력한 문구와 정확히 일치하는 부분만 변경</p>
         <p class="hint">이름·조사 자동 변환과 테마의 인물 이름 변경은 적용하지 않음</p>
@@ -1112,7 +1119,7 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./app.js?v=869e1589f8b7" defer></script>
+<script src="./app.js?v=dc2ef2ea2ebb" defer></script>
 
 </body>
 </html>

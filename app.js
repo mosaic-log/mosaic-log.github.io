@@ -1233,7 +1233,7 @@ function deleteSelectedCreditPreset(){
   const id = document.getElementById('creditPresetSelect').value;
   const presets = loadCreditPresets();
   const preset = presets.find(item => item.id === id);
-  if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제할까요?`)) return;
+  if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
   if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
   renderCreditPresetOptions('');
   showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
@@ -2020,6 +2020,8 @@ function buildCreditText(contentHTML, color){
   return `<span style="color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:inherit !important; font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important; letter-spacing:inherit !important;">${contentHTML}</span>`;
 }
 
+const CREDIT_SURFACE = '#f4f4f4';
+
 function buildCredit(settings){
   if(!settings.creditOn) return '';
   const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
@@ -2037,18 +2039,18 @@ function buildCredit(settings){
   const neutralCardBg = neutralHex(pal.cardBg);
   const darkBackground = textColorFor(neutralCardBg) === '#ffffff';
   const creditNeutral = darkBackground ? '#ffffff' : '#000000';
-  const creditAccent = safeHexColor(settings.emphasisColor, neutralCardBg);
-  // 중성 회색 축에서 본문 카드와 분리한 뒤 보조색을 극소량만 얹는다.
-  // 회색의 낮은 위계는 유지하면서 테마 색조가 미묘하게 느껴지는 정도로 제한한다.
-  const creditNeutralBg = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.03 : 0.01);
-  const creditBaseBg = mixHex(creditNeutralBg, creditAccent, darkBackground ? 0.025 : 0.02);
-  // 밝은 테마는 흰색 쪽으로, 어두운 테마는 기존 중성 배경 쪽으로 30% 혼합한다.
-  const creditBg = mixHex(creditBaseBg, darkBackground ? neutralCardBg : '#ffffff', 0.30);
-  // 외곽선은 색조를 넣지 않아 배경과 함께 탁해지거나 과하게 강조되지 않도록 한다.
+  // 일반 테마는 배경색과 혼합하지 않은 고정 회색 면으로 구분하고, 투명 테마만 외곽선을 남긴다.
+  const transparentCredit = outputThemeTransparent(settings.outputTheme);
+  const creditBg = transparentCredit ? 'transparent' : CREDIT_SURFACE;
   const creditBorder = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.11 : 0.07);
-  const creditDivider = mixHex(creditBaseBg, creditNeutral, darkBackground ? 0.07 : 0.045);
-  const labelColor = mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
-  const valueColor = mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
+  const creditDivider = mixHex(pal.boxBg, creditNeutral, darkBackground ? 0.07 : 0.045);
+  // 어두운 카드에서도 고정된 밝은 면 위의 글자가 밝아져 묻히지 않도록 한다.
+  const labelColor = !transparentCredit && darkBackground
+    ? '#777777'
+    : mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
+  const valueColor = !transparentCredit && darkBackground
+    ? '#555555'
+    : mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
   const font = fontStack(settings.narrFont);
   const creditPadding = '9px 14px 3px';
   const rows = items.map((item, renderedIndex) => {
@@ -2078,7 +2080,7 @@ function buildCredit(settings){
   const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
     ? '0 auto 18px'
     : '18px auto 0';
-  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:1px solid ${creditBorder}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
+  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${transparentCredit ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
 }
 
 // 코멘트는 본문 문법을 해석하지 않되, Shift+Enter가 남긴 줄 끝 [BR]만
@@ -2494,12 +2496,14 @@ function specialThemeOutput(html, mode, settings){
     const title = template.content.querySelector('[data-mosaic-title]');
     const firstCard = template.content.querySelector('[data-mosaic-card-index]');
     template.content.querySelectorAll('[data-mosaic-card-index], [data-mosaic-profile], [data-mosaic-credit]').forEach(el => {
-      // 카드와 크레딧의 원래 외곽선을 보존한다. 독립 프로필 블록의 선만 제거한다.
+      // 독립 프로필 블록의 선만 제거하고, 크레딧에는 고정된 회색 면을 유지한다.
       if(el.hasAttribute('data-mosaic-profile') && !el.hasAttribute('data-mosaic-unified-item')){
         el.style.setProperty('border', '0', 'important');
       }
       if(!el.style.backgroundImage.includes('url(')) el.style.setProperty('background-image', 'none', 'important');
-      el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
+      el.style.setProperty('background-color', el.hasAttribute('data-mosaic-credit')
+        ? CREDIT_SURFACE
+        : safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
     if(title && firstCard && !firstCard.hasAttribute('data-mosaic-unified-item') && !settingFlagOn(settings.titleMinimal)){
       firstCard.style.setProperty('border-top', `1px solid ${palette.divider}`, 'important');
@@ -3162,7 +3166,10 @@ function editHeadingLevelText(text, raw, action){
   const token = lines[raw].match(/^(\s*(?:\[C\]\s*)?(?:>(?!>)\s*(?:\[C\]\s*)?)?(?:\[접기\s+)?)(#{1,4})(\s+)(.+?)(\s*)$/i);
   if(!token) return null;
   const currentLevel = token[2].length;
-  if(currentLevel === nextLevel) return null;
+  if(currentLevel === nextLevel){
+    lines[raw] = token[1] + token[4] + token[5];
+    return { text:lines.join('\n'), message:'소제목 표시 해제.' };
+  }
   lines[raw] = token[1] + '#'.repeat(nextLevel) + token[3] + token[4] + token[5];
   return {
     text:lines.join('\n'),
@@ -3192,7 +3199,7 @@ function editBodyImageText(text, raw, action){
     if(input === null) return null;
     const width = Number(String(input).replace('%', '').trim());
     if(!Number.isInteger(width) || width < 10 || width > 100){
-      alert('비율은 10부터 100 사이의 정수로 입력해 주세요.');
+      showNoticeToast('비율은 10~100 사이의 정수로 입력하세요.');
       return null;
     }
     lines[raw] = buildBodyImageLine(parsed, width, parsed.caption);
@@ -6264,7 +6271,6 @@ const PROFILE_ENTITY_CONFIGS = [
     label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
     controlIds:['profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'],
     resetValues:{ profileRelationship:'', profileSituation:'' },
-    resetPrompt:'관계·키워드와 상황·요약을 초기화할까요?',
     emptyMessage:'관계와 상황은 이미 초기 상태입니다.',
     completeMessage:'관계와 상황을 초기화했습니다.'
   }
@@ -6290,8 +6296,6 @@ function resetProfileEntity(config){
     showNoticeToast(config.emptyMessage || `${config.label} 프로필은 이미 초기 상태입니다.`);
     return;
   }
-  const prompt = config.resetPrompt || `${config.label} 프로필의 사진·이름·정보·태그를 초기화할까요?`;
-  if(!confirm(`${prompt}\n(되돌리기로 복구할 수 있습니다.)`)) return;
   applyProfileReset(entries, config.completeMessage || `${config.label} 프로필을 초기화했습니다.`);
 }
 
@@ -6369,13 +6373,13 @@ syncSubtitleCoupleSeparatorControl();
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','nameRules','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
   logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'',
   profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
-  keywordRules:'[]'
+  nameRules:'[]', keywordRules:'[]'
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
   logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false,
@@ -6592,7 +6596,7 @@ document.getElementById('narrIndentNone').addEventListener('click', () => {
   setParagraphOptions({ narrIndent:false });
 });
 document.getElementById('narrIndentFirst').addEventListener('click', () => {
-  setParagraphOptions({ narrIndent:true });
+  setParagraphOptions({ narrIndent:!document.getElementById('narrIndent').checked });
 });
 document.getElementById('commentWidthDefault').addEventListener('click', () => {
   setParagraphOptions({ commentWidth:'default' });
@@ -6939,8 +6943,8 @@ function renumberCards(){
     const isComment = ed.dataset.blockType === 'comment';
     const index = isComment ? ++commentNumber : ++cardNumber;
     const folded = ed.querySelector('.cardFoldChk') && ed.querySelector('.cardFoldChk').checked;
-    const visible = ed.dataset.outputVisible !== 'false';
-    ed.querySelector('.cardNum').textContent = (isComment ? '코멘트 ' : '카드 ') + index + (folded ? ' · 접힘' : '') + (visible ? '' : ' · 숨김');
+    const status = ed.dataset.outputVisible === 'false' ? ' · 숨김' : (folded ? ' · 접힘' : '');
+    ed.querySelector('.cardNum').textContent = (isComment ? '코멘트 ' : '카드 ') + index + status;
     const ta = ed.querySelector('textarea');
     if(ta) ta.setAttribute('aria-label', `${isComment ? '코멘트' : '카드'} ${index} 본문`);
     // 카드가 1장뿐이면 삭제 버튼 숨김
@@ -7324,6 +7328,7 @@ function createCardEditor(value){
     showUndoToast('카드 복제됨.');
   });
   ta.addEventListener('input', () => {
+    applyActiveNameRulesToTextarea(ta);
     applyActiveKeywordRulesToTextarea(ta);
     normalizeStandaloneHrInput(ta);
     syncParagraphSettingsUI();
@@ -7486,6 +7491,8 @@ function createCardEditor(value){
   fmt.appendChild(fmtGroup);
   fmt.appendChild(peek);
   fmt.appendChild(foldGroup);
+  foldTitleInput.addEventListener('focus', () => fmt.classList.add('isTitleEditing'));
+  foldTitleInput.addEventListener('blur', () => fmt.classList.remove('isTitleEditing'));
 
   ed.appendChild(head);
   ed.appendChild(fmt);
@@ -7651,6 +7658,7 @@ function applyWorkState(data){
   });
   renderCreditItemsEditor();
   syncProfileTagEditorsFromMasters();
+  renderNameRuleList();
   renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
     document.getElementById(id).checked = fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback;
@@ -7796,14 +7804,14 @@ function insertBodyImage(){
   if(urlInput === null) return;
   const url = urlInput.trim();
   if(!url || /[\s\]]/.test(url)){
-    alert('공백이나 ]가 없는 이미지 주소를 입력해 주세요.');
+    showNoticeToast('공백과 ]가 없는 이미지 주소를 입력하세요.');
     return;
   }
   const widthInput = prompt('이미지 가로 크기 (10~100%)\n세로 크기는 원본 비율에 맞춰 자동 조절됩니다.', '100');
   if(widthInput === null) return;
   const parsedWidth = parseInt(String(widthInput).replace('%', '').trim(), 10);
   if(!Number.isFinite(parsedWidth) || parsedWidth < 10 || parsedWidth > 100){
-    alert('크기는 10부터 100 사이의 숫자로 입력해 주세요.');
+    showNoticeToast('크기는 10~100 사이의 숫자로 입력하세요.');
     return;
   }
   const captionInput = prompt('캡션 (선택 사항)', '');
@@ -7903,7 +7911,7 @@ function syncMirror(ta){
     const e = Math.min(ta.selectionEnd, real.value.length);
     real.setSelectionRange(s, e);
     real.dispatchEvent(new Event('input', { bubbles: true }));
-    // 실제 카드의 input 처리에서 자동 키워드 치환·구분선 정돈이 일어나면
+    // 실제 카드의 input 처리에서 자동 이름·키워드 치환과 구분선 정돈이 일어나면
     // 전체 화면 거울에도 즉시 되비쳐 두 입력창의 값과 커서가 갈라지지 않게 한다.
     if(ta.value !== real.value){
       ta.value = real.value;
@@ -8688,8 +8696,9 @@ function scrollCardIntoSidebar(ed){
 }
 
 // ---------- 이름 바꾸기 (조사 자동 변환) ----------
-// 마지막 글자의 받침 유무. 한글 음절이 아니면 null (조사 변환 판단 불가 → 조사 유지)
+// 마지막 글자의 받침 유무. char/user는 받침 없는 이름으로 읽고, 다른 비한글은 조사를 유지한다.
 function hasBatchim(word){
+  if(/^(?:char|user)$/i.test((word || '').trim())) return false;
   const ch = (word || '').trim().slice(-1);
   const code = ch.charCodeAt(0);
   if(!(code >= 0xAC00 && code <= 0xD7A3)) return null;
@@ -8698,6 +8707,16 @@ function hasBatchim(word){
 
 const JOSA_INDEX = { '은': 0, '는': 0, '이': 1, '가': 1, '을': 2, '를': 2, '과': 3, '와': 3 };
 const JOSA_FORMS = [['은','는'], ['이','가'], ['을','를'], ['과','와']];   // [받침 있음, 없음]
+
+document.querySelectorAll('#nameReplaceGroup [data-name-fill]').forEach(button => {
+  button.addEventListener('click', () => {
+    const input = document.getElementById('nameTo');
+    input.value = button.dataset.nameFill;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    input.focus();
+    document.getElementById('nameStatus').textContent = '';
+  });
+});
 
 // text 안의 from 을 to 로 바꾸면서, 바로 뒤에 붙은 조사(은/는·이/가·을/를·과/와)를
 // 새 이름의 받침 유무에 맞춰 조사를 자연스럽게 변환한다.
@@ -8718,53 +8737,152 @@ function renameWithJosa(text, from, to){
   return { out, count };
 }
 
-document.getElementById('nameFindBtn').addEventListener('click', () => {
-  const from = document.getElementById('nameFrom').value.trim();
-  const st = document.getElementById('nameStatus');
-  if(!from){ st.textContent = '현재 이름을 입력.'; return; }
-  st.textContent = '';
-  document.getElementById('pvFindInput').value = from;
-  openPreviewSearch();
-});
+// 키워드 치환과 같은 저장·자동 적용 흐름을 쓰되, 이름은 후속 조사를 함께 바꾼다.
+const NAME_RULE_LIMIT = 20;
+const NAME_RULE_LIMIT_MESSAGE = `이름 규칙은 최대 ${NAME_RULE_LIMIT}개까지 추가할 수 있습니다.`;
 
-document.getElementById('nameReplaceBtn').addEventListener('click', () => {
-  const from = document.getElementById('nameFrom').value.trim();
-  const to = document.getElementById('nameTo').value.trim();
-  const st = document.getElementById('nameStatus');
-  if(!from || !to){ st.textContent = '현재 이름과 새 이름을 입력.'; return; }
-  if(from === to){ st.textContent = '두 이름이 같음.'; return; }
-  snapshotCards();
-  let n = 0;
-  bodyCardTextareas().forEach(ta => {
-    const res = renameWithJosa(ta.value, from, to);
-    if(res.count){ n += res.count; ta.value = res.out; }
-  });
-  // 표지·테마의 이름 필드도 정확히 일치하면 함께 변경
-  let fields = 0;
+function nameRules(){
+  try {
+    const parsed = JSON.parse(document.getElementById('nameRules').value || '[]');
+    if(!Array.isArray(parsed)) return [];
+    const seenIds = new Set();
+    return parsed
+      .filter(rule => rule && typeof rule.from === 'string' && typeof rule.to === 'string'
+        && rule.from && rule.to && rule.from.length <= 80 && rule.to.length <= 80)
+      .slice(0, NAME_RULE_LIMIT)
+      .map((rule, index) => {
+        let id = typeof rule.id === 'string' && rule.id ? rule.id : `nr_legacy_${index}`;
+        while(seenIds.has(id)) id += `_${index}`;
+        seenIds.add(id);
+        return { id, from:rule.from, to:rule.to };
+      });
+  } catch(e){ return []; }
+}
+function saveNameRules(rules){
+  document.getElementById('nameRules').value = JSON.stringify(rules);
+  renderNameRuleList();
+  scheduleDraftSave();
+}
+function replaceNameInTextarea(ta, from, to){
+  if(!from || !ta.value.includes(from)) return 0;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const beforeStart = renameWithJosa(ta.value.slice(0, start), from, to).out.length;
+  const beforeEnd = renameWithJosa(ta.value.slice(0, end), from, to).out.length;
+  const result = renameWithJosa(ta.value, from, to);
+  if(!result.count) return 0;
+  ta.value = result.out;
+  try { ta.setSelectionRange(beforeStart, beforeEnd); } catch(e){}
+  return result.count;
+}
+function applyActiveNameRulesToTextarea(ta){
+  if(!ta || ta.closest('.commentEditor')) return 0;
+  let count = 0;
+  nameRules().forEach(rule => { count += replaceNameInTextarea(ta, rule.from, rule.to); });
+  return count;
+}
+function changeExactNameFields(from, to){
+  let count = 0;
   ['charName','userName','subChar','subUser'].forEach(id => {
     const el = document.getElementById(id);
-    if(el.value.trim() === from){ el.value = to; fields++; }
+    if(el.value.trim() === from){ el.value = to; count++; }
   });
-  // 커스텀 인물은 항목 이름을 바꿔 지정한 색을 유지 ([이름] 마커는 본문 대치로 이미 변경됨)
+  // 커스텀 인물의 색상 설정은 이름만 바꿔 그대로 보존한다.
   try {
-    const ec = document.getElementById('extraChars');
-    const list = JSON.parse(ec.value);
+    const input = document.getElementById('extraChars');
+    const list = JSON.parse(input.value);
     if(Array.isArray(list)){
-      let touched = false;
-      list.forEach(c => { if(c && c.name === from){ c.name = to; touched = true; } });
-      if(touched){ ec.value = JSON.stringify(list); fields++; }
+      let changed = false;
+      list.forEach(char => { if(char && char.name === from){ char.name = to; count++; changed = true; } });
+      if(changed) input.value = JSON.stringify(list);
     }
   } catch(e){}
-  if(!n && !fields){ undoSnapshot = null; st.textContent = '일치 없음.'; return; }
+  if(count) syncCharList();
+  return count;
+}
+function renderNameRuleList(){
+  const list = document.getElementById('nameRuleList');
+  if(!list) return;
+  list.replaceChildren();
+  const rules = nameRules();
+  const atLimit = rules.length >= NAME_RULE_LIMIT;
+  document.getElementById('nameReplaceBtn').disabled = atLimit;
+  const status = document.getElementById('nameStatus');
+  if(atLimit) status.textContent = NAME_RULE_LIMIT_MESSAGE;
+  else if(status.textContent === NAME_RULE_LIMIT_MESSAGE) status.textContent = '';
+  rules.forEach(rule => {
+    const row = document.createElement('div');
+    row.className = 'keywordRuleItem';
+    const text = document.createElement('div');
+    text.className = 'keywordRuleText';
+    const from = document.createElement('b'); from.textContent = rule.from;
+    const to = document.createElement('b'); to.textContent = rule.to;
+    text.append(from, document.createTextNode(' → '), to);
+    const undo = document.createElement('button');
+    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '↺';
+    undo.setAttribute('aria-label', `${rule.from} → ${rule.to} 이름 규칙 되돌리기`);
+    undo.addEventListener('click', () => undoNameRule(rule.id));
+    row.append(text, undo);
+    list.appendChild(row);
+  });
+}
+function addNameRule(){
+  const fromEl = document.getElementById('nameFrom');
+  const toEl = document.getElementById('nameTo');
+  const from = fromEl.value.trim();
+  const to = toEl.value.trim();
+  const status = document.getElementById('nameStatus');
+  if(!from || !to){ status.textContent = '현재 이름과 새 이름을 모두 입력해 주세요.'; return; }
+  if(from === to){ status.textContent = '두 이름이 같아 적용하지 않았습니다.'; return; }
+  const rules = nameRules();
+  if(rules.length >= NAME_RULE_LIMIT){ status.textContent = NAME_RULE_LIMIT_MESSAGE; return; }
+  if(rules.some(rule => rule.from === from && rule.to === to)){
+    status.textContent = '이미 활성화된 이름 규칙입니다.';
+    return;
+  }
+  const overlaps = (a, b) => a.includes(b) || b.includes(a);
+  if(overlaps(from, to)){
+    status.textContent = '새 이름이 현재 이름과 겹칩니다. 자동 변경이 반복되지 않도록 다른 이름을 사용해 주세요.';
+    return;
+  }
+  if(rules.some(rule => [rule.from, rule.to].some(value => overlaps(value, from) || overlaps(value, to)))){
+    status.textContent = '기존 규칙과 이름이 겹칩니다. 각각 되돌릴 수 있도록 다른 이름을 사용해 주세요.';
+    return;
+  }
+  snapshotCards();
+  let count = 0;
+  bodyCardTextareas().forEach(ta => { count += replaceNameInTextarea(ta, from, to); });
+  const fields = changeExactNameFields(from, to);
+  rules.push({ id:'nr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from, to });
+  saveNameRules(rules);
+  fromEl.value = ''; toEl.value = ''; fromEl.focus();
   render(); updateCounter(); saveDraft();
-  showUndoToast('이름 ' + n + '곳 변경.');
-  st.textContent = fields ? '이름 필드 ' + fields + '곳도 변경됨.' : '';
-  // 미리보기 검색이 옛 이름을 보고 있으면 새 이름으로 갱신
+  showUndoToast(`이름 규칙 추가 · 기존 ${count}곳 변경.`);
+  status.textContent = `본문 ${count}곳 · 이름 필드 ${fields}곳 자동 변환`;
   if(pvSearchOn && document.getElementById('pvFindInput').value === from){
     document.getElementById('pvFindInput').value = to;
     pvApplySearch(false);
   }
-});
+}
+function undoNameRule(id){
+  const rules = nameRules();
+  const rule = rules.find(item => item.id === id);
+  if(!rule) return;
+  snapshotCards();
+  bodyCardTextareas().forEach(ta => { replaceNameInTextarea(ta, rule.to, rule.from); });
+  changeExactNameFields(rule.to, rule.from);
+  saveNameRules(rules.filter(item => item.id !== id));
+  render(); updateCounter(); saveDraft();
+  recordCompletedAction(`'${rule.from} → ${rule.to}' 이름 규칙 되돌림.`);
+  dismissToast();
+  document.getElementById('nameStatus').textContent = '';
+}
+document.getElementById('nameReplaceBtn').addEventListener('click', addNameRule);
+['nameFrom','nameTo'].forEach(id => document.getElementById(id).addEventListener('keydown', event => {
+  if(event.isComposing || event.keyCode === 229) return;
+  if(event.key === 'Enter'){ event.preventDefault(); addNameRule(); }
+}));
+renderNameRuleList();
 
 // ---------- 키워드 치환 ----------
 // 여러 규칙을 저장하고 입력 순서대로 적용한다. 서로 이어지는 규칙은 되돌리기 결과가
@@ -8824,13 +8942,6 @@ function renderKeywordRuleList(){
     if(atLimit) status.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
     else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) status.textContent = '';
   }
-  if(!rules.length){
-    const empty = document.createElement('div');
-    empty.className = 'keywordRuleEmpty';
-    empty.textContent = '활성 치환 규칙이 없습니다.';
-    list.appendChild(empty);
-    return;
-  }
   rules.forEach(rule => {
     const row = document.createElement('div');
     row.className = 'keywordRuleItem';
@@ -8840,7 +8951,8 @@ function renderKeywordRuleList(){
     const to = document.createElement('b'); to.textContent = rule.to;
     text.append(from, document.createTextNode(' → '), to);
     const undo = document.createElement('button');
-    undo.type = 'button'; undo.className = 'keywordUndoBtn uiButton'; undo.textContent = '되돌리기';
+    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '↺';
+    undo.setAttribute('aria-label', `${rule.from} → ${rule.to} 키워드 규칙 되돌리기`);
     undo.addEventListener('click', () => undoKeywordRule(rule.id));
     row.append(text, undo);
     list.appendChild(row);
@@ -8874,21 +8986,19 @@ function addKeywordRule(){
   fromEl.value = ''; toEl.value = ''; fromEl.focus();
   render(); updateCounter(); saveDraft();
   showUndoToast(`키워드 규칙 추가 · 기존 ${count}곳 변경.`);
-  st.textContent = count ? `기존 본문 ${count}곳을 바꾸고 자동 치환을 시작했습니다.` : '자동 치환 규칙을 추가했습니다.';
+  st.textContent = `본문 ${count}곳 자동 치환`;
 }
 function undoKeywordRule(id){
   const rules = keywordRules();
   const rule = rules.find(r => r.id === id);
   if(!rule) return;
   snapshotCards();
-  let count = 0;
-  bodyCardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, rule.to, rule.from); });
+  bodyCardTextareas().forEach(ta => { replaceLiteralInTextarea(ta, rule.to, rule.from); });
   saveKeywordRules(rules.filter(r => r.id !== id));
   render(); updateCounter(); saveDraft();
-  showUndoToast(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
-  document.getElementById('keywordStatus').textContent = count
-    ? `현재 본문 ${count}곳을 원래 문구로 되돌리고 규칙을 제거했습니다.`
-    : '일치하는 현재 문구가 없어 규칙만 제거했습니다.';
+  recordCompletedAction(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
+  dismissToast();
+  document.getElementById('keywordStatus').textContent = '';
 }
 document.getElementById('keywordAddBtn').addEventListener('click', addKeywordRule);
 ['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
@@ -8933,7 +9043,6 @@ document.getElementById('restoreHtmlFile').addEventListener('change', (e) => {
       status.textContent = 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.';
       return;
     }
-    if(!confirm('현재 작업을 선택한 출력 HTML의 내용으로 바꿀까요?\n(적용 후 되돌리기로 복구할 수 있습니다.)')) return;
     snapshotCards();
     applyWork(work);
     showUndoToast('출력 HTML에서 작업 복원.');
@@ -9139,6 +9248,21 @@ function sanitizeImportedWork(data){
     }
     catch(e){ return null; }
   }
+  if(fields.nameRules !== undefined){
+    try {
+      const rules = JSON.parse(fields.nameRules);
+      if(!Array.isArray(rules) || rules.length > 20) return null;
+      const cleaned = rules.map((rule, index) => {
+        if(!rule || typeof rule !== 'object' || Array.isArray(rule)
+          || typeof rule.from !== 'string' || typeof rule.to !== 'string'
+          || !rule.from || !rule.to || rule.from.length > 80 || rule.to.length > 80) throw new Error('invalid name rule');
+        const id = typeof rule.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(rule.id)
+          ? rule.id : `nr_import_${index}`;
+        return { id, from:rule.from, to:rule.to };
+      });
+      fields.nameRules = JSON.stringify(cleaned);
+    } catch(e){ return null; }
+  }
   const legacyFoldDividerMinimal = cards.some(card => card.type !== 'comment' && settingFlagOn(card.foldMinimal));
   const out = { cards: cards.length ? cards : [{ type:'card', body:'', folded:false, foldTitle:'', foldMinimal:false, visible:true }], fields };
   if(data.style !== undefined){
@@ -9291,7 +9415,6 @@ function renderSlotList(){
     });
     over.addEventListener('click', (e) => {
       e.stopPropagation();
-      if(!confirm(`현재 작업으로 '${slot.name}' 보관함을 덮어쓸까요?`)) return;
       const list = loadSlots();
       if(list === null){ showSlotReadError(); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
@@ -9329,7 +9452,7 @@ function renderSlotList(){
     });
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      if(!confirm(`'${slot.name}' 슬롯 삭제?`)) return;
+      if(!confirm(`'${slot.name}' 보관함을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
       const list = loadSlots();
       if(list === null){ showSlotReadError(); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
@@ -9419,7 +9542,6 @@ function deleteSelectedSlots(){
   if(list === null){ showSlotReadError(); return; }
   const removed = list.filter(slot => selectedSlotIds.has(slot.id));
   if(!removed.length) return;
-  if(!confirm(`선택한 보관함 ${removed.length}개를 삭제할까요?\n검색 결과에 보이지 않는 선택 항목도 포함됩니다.`)) return;
   const status = document.getElementById('slotImportStatus');
   if(!saveSlots(list.filter(slot => !selectedSlotIds.has(slot.id)))){
     status.textContent = '보관함을 삭제하지 못했습니다. 저장 공간을 확인해 주세요.';
@@ -9552,13 +9674,6 @@ document.getElementById('newLogBtn').addEventListener('click', startNewLog);
 document.getElementById('sidebarNewLogBtn').addEventListener('click', startNewLog);
 
 document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
-  const ok = confirm(
-    '현재 작업을 모두 비울까요?\n\n' +
-    '초기화: 본문, 표제, 이미지, 이름, 디자인과 현재 테마\n' +
-    '유지: 보관함, 내 프리셋, 내보낸 파일\n\n' +
-    '초기화 후 상단 되돌리기로 복구할 수 있습니다.'
-  );
-  if(!ok) return;
   clearTimeout(styleCommitTimer);
   snapshotCards();
 
@@ -9567,6 +9682,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
     document.getElementById(id).value = value;
   });
   syncProfileTagEditorsFromMasters();
+  renderNameRuleList();
   renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, value]) => {
     document.getElementById(id).checked = value;
@@ -9956,8 +10072,6 @@ function updateCounter(){
 }
 
 document.getElementById('clearBodyBtn').addEventListener('click', () => {
-  const hasText = getCardBodies().some(v => v.trim() !== '');
-  if(hasText && !confirm('모든 카드의 본문을 비울까?\n(되돌리기로 복구 가능)')) return;
   snapshotCards();
   clearCardEditors();
   activeTa = null;
@@ -10068,7 +10182,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 document.getElementById('draftConflictBtn').addEventListener('click', () => {
-  if(!confirm('다른 탭의 최신 초안을 현재 작업으로 덮어쓸까요?')) return;
+  if(!confirm('다른 탭의 최신 초안을 덮어쓰려면 확인을 누르세요.\n덮어쓴 초안은 되돌릴 수 없습니다.')) return;
   draftBaseUpdatedAt = storedDraftUpdatedAt();
   saveDraft(true);
 });
@@ -11465,7 +11579,11 @@ function renderPresetList(){
         if(save && name && name !== p.name){
           const storedList = loadPresets();
           if(storedList === null){ showPresetReadError(); input.focus(); return; }
-          if(storedList.some(x => x.name.toLowerCase() === name.toLowerCase())){ alert('같은 이름의 프리셋이 이미 있음.'); input.focus(); return; }
+          if(storedList.some(x => x.name.toLowerCase() === name.toLowerCase())){
+            document.getElementById('presetStatus').textContent = '다른 프리셋 이름을 입력하세요.';
+            input.focus();
+            return;
+          }
           const target = storedList.find(x => x.name === p.name);
           if(target) target.name = name;
           if(!savePresets(storedList)){
@@ -11524,8 +11642,8 @@ function renderPresetList(){
       e.stopPropagation();
       const storedList = loadPresets();
       if(storedList === null){ showPresetReadError(); return; }
-      if(storedList.length <= 1){ alert('프리셋은 최소 1개 유지.'); return; }
-      if(!confirm(`'${p.name}' 프리셋 삭제?\n복구 불가.`)) return;
+      if(storedList.length <= 1){ document.getElementById('presetStatus').textContent = '프리셋을 1개 이상 유지하세요.'; return; }
+      if(!confirm(`'${p.name}' 프리셋을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
       if(!savePresets(storedList.filter(x => x.name !== p.name))){
         document.getElementById('presetStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
         return;
@@ -11651,7 +11769,6 @@ document.getElementById('overwritePresetBtn').addEventListener('click', () => {
   if(list === null){ showPresetReadError(); return; }
   const target = list.find(p => p.name === currentPresetName);
   if(!target) return;
-  if(!confirm(`'${currentPresetName}' 프리셋을 현재 색상과 대사 표현 방식으로 덮어쓸까?`)) return;
   const overwrittenPresetName = currentPresetName;
   const previousStoredPresets = localStorage.getItem(PRESET_KEY);
   target.values = currentSavedPresetValues();
@@ -11715,7 +11832,6 @@ document.getElementById('savePresetBtn').addEventListener('click', () => {
 });
 
 document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
-  if(!confirm('디자인 설정을 기본값으로 되돌릴까?\n(↶ 되돌리기로 취소 가능)')) return;
   applyStyleValues(DEFAULT_STYLE);
   currentPresetName = null;
   currentComboName = '모노 클래식';
@@ -12378,6 +12494,7 @@ if(IS_MAC){
 restoreDraft();
 renderCreditItemsEditor();
 renderCreditPresetOptions();
+renderNameRuleList();
 renderKeywordRuleList();
 syncProfileTagEditorsFromMasters();
 syncCoverControlState();
