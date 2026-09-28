@@ -1,24 +1,24 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.7.2 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.7.3 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>조각로그</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-size='56'%3E%F0%9F%A7%A9%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='52.5%25' y='53%25' dominant-baseline='central' text-anchor='middle' font-size='56'%3E%F0%9F%A7%A9%3C/text%3E%3C/svg%3E">
 <!-- 미설치 환경에서도 디자인 탭에서 서체를 비교할 수 있도록 웹폰트를 불러옵니다. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=31cc041dafa8">
+<link rel="stylesheet" href="./styles.css?v=7ab029d5020c">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.7.2 GitHub 저장소 열기">v1.7.2</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.7.3 GitHub 저장소 열기">v1.7.3</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -835,10 +835,9 @@
     </div>
     </div>
     <div id="charList"></div>
-    <div id="charEmpty" class="hint">본문 새 인물 자동 추가</div>
     <input type="hidden" id="extraChars" value="[]">
 
-    <div class="themeSaveLabel">프리셋으로 저장</div>
+    <hr class="themeSaveDivider">
     <div class="presetRow">
       <input type="text" id="presetName" maxlength="80" aria-label="새 프리셋 이름" placeholder="새 이름으로 저장">
     </div>
@@ -909,7 +908,14 @@
     </div>
     <details class="helpFold">
       <summary>보관함 사용법</summary>
-      <p class="hint"><b>저장</b> 슬롯에 보관 · <b>제목 클릭</b> 작업 전환(선택 모드에서는 선택 전환)(되돌리기 가능) · <b>새 로그</b> 본문·표제·이미지만 초기화 · <b>전체 초기화</b> 현재 작업 내용은 비우고 디자인·테마는 기본값으로 복원(보관함·내 프리셋 유지) · <b>선택 → 선택 내보내기</b> 체크한 항목만 백업(검색·정렬 후에도 선택 유지) · <b>전체 내보내기</b> 보관함 전체 백업</p>
+      <ul class="archiveHelpList">
+        <li><strong>저장</strong><span>현재 작업을 보관함에 저장</span></li>
+        <li><strong>제목 클릭</strong><span>저장된 작업으로 전환 · 되돌리기 가능<br>선택 모드에서는 항목 선택</span></li>
+        <li><strong>새 로그</strong><span>본문·표제·이미지만 초기화</span></li>
+        <li><strong>현재 작업 전체 초기화</strong><span>작업 내용 초기화, 디자인·테마 기본값 복원<br>보관함·내 프리셋은 유지</span></li>
+        <li><strong>선택 → 선택 내보내기</strong><span>체크한 항목만 백업 · 검색·정렬 후에도 선택 유지</span></li>
+        <li><strong>전체 내보내기</strong><span>보관함 전체 백업</span></li>
+      </ul>
     </details>
   </div>
 </div><!-- /archiveDrawer -->
@@ -1119,7 +1125,7 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./app.js?v=dc2ef2ea2ebb" defer></script>
+<script src="./app.js?v=d2ff44845c80" defer></script>
 
 </body>
 </html>

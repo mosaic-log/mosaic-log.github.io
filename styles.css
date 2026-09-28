@@ -164,7 +164,7 @@
     font-weight:650;
     white-space:nowrap;
   }
-  #archiveOpenBtn:hover, #archiveOpenBtn[aria-expanded="true"] { border-color:var(--line); background:var(--bg-field); color:var(--ink); }
+  #archiveOpenBtn:hover, #archiveOpenBtn[aria-expanded="true"] { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
   #archiveDrawer {
     position:fixed;
     inset:0 auto 0 0;
@@ -187,8 +187,10 @@
   }
   .archiveDrawerHead { display:flex; align-items:center; justify-content:space-between; min-height:38px; margin-bottom:10px; }
   .archiveDrawerTitle { font-size:18px; font-weight:800; }
-  #archiveCloseBtn { width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); font-size:18px; }
-  #archiveCloseBtn:hover { border-color:var(--line); background:var(--bg-field); color:var(--ink); }
+  #archiveCloseBtn { position:relative; flex:none; width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); font-size:0; }
+  #archiveCloseBtn::before, #archiveCloseBtn::after { content:''; position:absolute; top:50%; left:50%; width:14px; height:1.6px; background:currentColor; transform:translate(-50%, -50%) rotate(45deg); }
+  #archiveCloseBtn::after { transform:translate(-50%, -50%) rotate(-45deg); }
+  #archiveCloseBtn:hover { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
   #draftConflictBtn {
     flex: none;
     min-height: 24px;
@@ -1078,9 +1080,10 @@
     border-color: var(--line);
     color: var(--ink);
   }
+  #fsToolbar button:hover { border-color:transparent; background:#fff; }
   #bodyInputGroup > .foldBody > #bodyEditorToolbar {
     position: sticky;
-    top: var(--body-toolbar-sticky-top, 112px);
+    top: calc(var(--body-toolbar-sticky-top, 112px) - 2px);
     z-index: 9;
     flex-wrap: nowrap;
     align-items: center;
@@ -1092,8 +1095,7 @@
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line-strong);
     border-radius: 0;
-    background: color-mix(in srgb, var(--bg-panel) 97%, var(--accent) 3%);
-    box-shadow: 0 3px 10px rgba(35,32,28,.045);
+    background: var(--bg-panel);
     scrollbar-width: none;
   }
   #bodyEditorToolbar::-webkit-scrollbar { display: none; }
@@ -1297,7 +1299,7 @@
     line-height: 1;
     white-space: nowrap;
   }
-  #newLogBtn:hover { border-color: var(--line); background: var(--bg-field); color: var(--ink-soft); }
+  #newLogBtn:hover { border-color: transparent; background: var(--bg-muted); color: var(--ink-soft); }
   .archiveSaveRow {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 104px;
@@ -1379,10 +1381,22 @@
     font-weight: 500;
   }
   #resetCurrentWorkBtn:hover {
-    border-color: #dfc4c0;
+    border-color: transparent;
     background: #fbf3f1;
     color: #8a4b43;
   }
+  #archiveDrawer .archiveHelpList {
+    display:grid;
+    gap:10px;
+    margin:8px 0 0;
+    padding:0;
+    list-style:none;
+    color:var(--help-ink);
+    font-size:11.5px;
+    line-height:1.55;
+  }
+  #archiveDrawer .archiveHelpList li { display:grid; gap:2px; }
+  #archiveDrawer .archiveHelpList strong { color:var(--help-ink-strong); font-weight:650; }
   #slotList {
     display: flex;
     flex-direction: column;
@@ -2758,11 +2772,10 @@
     font-size: 12px;
     text-align: left;
   }
-  #tabTheme .themeSaveLabel {
-    margin: 16px 0 7px 1px;
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    font-weight: 650;
+  #tabTheme .themeSaveDivider {
+    margin: 18px 0 14px;
+    border: 0;
+    border-top: 1px solid var(--line);
   }
   #tabTheme .themeSaveActions {
     display: flex;
@@ -3013,6 +3026,15 @@
     overflow: visible;
     filter: drop-shadow(0 3px 12px rgba(0,0,0,0.055));
   }
+  /* 폭 설정으로 미리보기 HTML을 다시 그려도 카드가 새 max-width로 먼저
+     뛰어가지 않고, 전환 중인 previewWrap의 폭을 따라가게 한다. */
+  body:not(.previewFullscreen) #preview > :is(
+    [data-mosaic-cover-image],
+    [data-mosaic-title],
+    [data-mosaic-profile],
+    [data-mosaic-card-index],
+    [data-mosaic-comment-width="card"]
+  ) { max-width: 100% !important; }
   /* 복사 시 출력물 앞뒤에 추가되는 한 줄(<br>)을 미리보기에서도 확인한다.
      실제 출력 DOM은 바꾸지 않아 카드 결합 판정과 카드별 복사 범위는 그대로 유지한다. */
   #preview.previewOuterBreaks {

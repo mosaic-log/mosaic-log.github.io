@@ -2124,12 +2124,12 @@ function buildCommentBlock(comment, settings){
 // 미리보기의 카드별 위치 연동·직접 편집·복사 기능이 최상위 형제 구조를 사용하므로,
 // DOM 계층을 유지하면서도 출력에서는 하나의 배경과 외곽 카드처럼 보이게 한다.
 // 이어보기의 바깥 여백과 카드 경계 여백을 한 곳에서 결정한다.
-function unifiedCardSpacing({folded, previousKind, nextKind, introDivider}){
+function unifiedCardSpacing({folded, previousKind, nextKind, introDivider, afterImageWithoutTitle}){
   const previousCard = previousKind === 'plain' || previousKind === 'fold';
   const nextCard = nextKind === 'plain' || nextKind === 'fold';
   const top = previousCard
     ? (folded && previousKind === 'fold' ? 8 : 40)
-    : folded ? (previousKind === 'none' || introDivider ? 24 : 8) : 0;
+    : folded ? (previousKind === 'none' || introDivider || afterImageWithoutTitle ? 24 : 8) : 0;
   const bottom = nextCard
     ? (folded && nextKind === 'fold' ? 8 : 40)
     : nextKind === 'none' ? 24 : 8;
@@ -2246,7 +2246,8 @@ function applyUnifiedCardLayout(html, settings){
     const spacing = unifiedCardSpacing({
       folded:card.tagName === 'DETAILS',
       previousKind:sectionKind(previous), nextKind:sectionKind(sections[index + 1]),
-      introDivider:showIntroBoundary && previous === introBoundary
+      introDivider:showIntroBoundary && previous === introBoundary,
+      afterImageWithoutTitle:!hasUnifiedTitle && !!(previous && previous.hasAttribute('data-mosaic-cover-image'))
     });
     if(spacing.trimTop) trimBoundary(card, 'top');
     if(spacing.trimBottom) trimBoundary(card, 'bottom');
@@ -10980,8 +10981,6 @@ function syncCharList(){
   document.getElementById('extraChars').value = JSON.stringify(merged);
 
   const list = document.getElementById('charList');
-  const empty = document.getElementById('charEmpty');
-  empty.style.display = chars.length ? 'none' : '';
 
   // 이름 목록이 그대로면 행을 다시 만들지 않음.
   // (색을 고르는 중에 DOM이 교체되면 열려 있던 색상 팔레트가 닫혀버리기 때문)
