@@ -2132,7 +2132,7 @@ function unifiedCardSpacing({folded, previousKind, nextKind, introDivider, after
     : folded ? (previousKind === 'none' || introDivider || afterImageWithoutTitle ? 24 : 8) : 0;
   const bottom = nextCard
     ? (folded && nextKind === 'fold' ? 8 : 40)
-    : nextKind === 'none' ? 24 : 8;
+    : nextKind === 'none' ? (folded ? 24 : 0) : 8;
   return {top, bottom, trimTop:previousCard && !(folded && previousKind === 'fold'),
     trimBottom:nextCard && !(folded && nextKind === 'fold')};
 }
