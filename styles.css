@@ -18,6 +18,93 @@
     --control-h: 34px;
     --control-sm: 30px;
   }
+  :root.uiNight {
+    color-scheme: dark;
+    --ink: #e8ebe7;
+    --ink-soft: #bcc5be;
+    --ink-faint: #a9b5ac;
+    --help-ink: #93a198;
+    --help-ink-strong: #b2bdb5;
+    --line: #39433e;
+    --line-strong: #526159;
+    --bg-app: #171d1a;
+    --bg-panel: #202723;
+    --bg-field: #28312b;
+    --bg-subtle: #252d28;
+    --bg-muted: #303a33;
+    --accent: #9ac7a7;
+    --accent-hover: #add6b7;
+    --ok: #9ac7a7;
+    --bg-preview-night: #343c38;
+  }
+  :root:not(.uiNight)[data-ui-palette="gray"] {
+    --ink:#2b2b2b; --ink-soft:#686868; --ink-faint:#777777;
+    --help-ink:#969696; --help-ink-strong:#777777;
+    --line:#e1e1e1; --line-strong:#cecece;
+    --bg-app:#f1f1f1; --bg-panel:#fcfcfc; --bg-field:#f7f7f7;
+    --bg-subtle:#f5f5f5; --bg-muted:#ececec;
+    --accent:#626262; --accent-hover:#4f4f4f; --ok:#626262;
+  }
+  :root.uiNight[data-ui-palette="gray"] {
+    --ink:#eaeaea; --ink-soft:#c4c4c4; --ink-faint:#b0b0b0;
+    --help-ink:#9f9f9f; --help-ink-strong:#bdbdbd;
+    --line:#444444; --line-strong:#626262;
+    --bg-app:#1d1d1d; --bg-panel:#292929; --bg-field:#343434;
+    --bg-subtle:#2e2e2e; --bg-muted:#3c3c3c;
+    --accent:#c4c4c4; --accent-hover:#d6d6d6; --ok:#c4c4c4;
+    --bg-preview-night:#424242;
+  }
+  :root:not(.uiNight)[data-ui-palette="blue"] {
+    --ink:#252f36; --ink-soft:#64717c; --ink-faint:#6d7d88;
+    --help-ink:#8e9ca6; --help-ink-strong:#6c7d89;
+    --line:#dce4e9; --line-strong:#c5d2db;
+    --bg-app:#eff3f6; --bg-panel:#fbfcfe; --bg-field:#f4f8fa;
+    --bg-subtle:#f2f6f8; --bg-muted:#e7eef3;
+    --accent:#486f8c; --accent-hover:#375a74; --ok:#486f8c;
+  }
+  :root.uiNight[data-ui-palette="blue"] {
+    --ink:#e5edf2; --ink-soft:#b9c9d4; --ink-faint:#a9b9c6;
+    --help-ink:#90a4b2; --help-ink-strong:#b3c3ce;
+    --line:#364651; --line-strong:#506677;
+    --bg-app:#171d24; --bg-panel:#202a33; --bg-field:#2a3642;
+    --bg-subtle:#25313b; --bg-muted:#30404c;
+    --accent:#a7c9df; --accent-hover:#bdd8e9; --ok:#a7c9df;
+    --bg-preview-night:#344553;
+  }
+  :root:not(.uiNight)[data-ui-palette="pink"] {
+    --ink:#352b31; --ink-soft:#786a72; --ink-faint:#877680;
+    --help-ink:#a3949c; --help-ink-strong:#836f79;
+    --line:#eadfe4; --line-strong:#d9c9d1;
+    --bg-app:#f7f1f3; --bg-panel:#fffbfc; --bg-field:#fbf6f8;
+    --bg-subtle:#f9f3f5; --bg-muted:#f1e9ed;
+    --accent:#936176; --accent-hover:#7b4c60; --ok:#936176;
+  }
+  :root.uiNight[data-ui-palette="pink"] {
+    --ink:#f0e6ea; --ink-soft:#d1bcc6; --ink-faint:#beaab5;
+    --help-ink:#ad96a1; --help-ink-strong:#ccb5c0;
+    --line:#4b3942; --line-strong:#69515e;
+    --bg-app:#211a1e; --bg-panel:#2b2228; --bg-field:#382b33;
+    --bg-subtle:#31262c; --bg-muted:#41313a;
+    --accent:#dcadbf; --accent-hover:#ebc3d2; --ok:#dcadbf;
+    --bg-preview-night:#4a3941;
+  }
+  :root:not(.uiNight)[data-ui-palette="yellow"] {
+    --ink:#343127; --ink-soft:#756f5e; --ink-faint:#837b67;
+    --help-ink:#a09680; --help-ink-strong:#81765d;
+    --line:#e9e3d3; --line-strong:#d8cfb8;
+    --bg-app:#f7f4ea; --bg-panel:#fffdf7; --bg-field:#fbf8ef;
+    --bg-subtle:#f9f6ec; --bg-muted:#f0ecdd;
+    --accent:#80683d; --accent-hover:#6d5630; --ok:#80683d;
+  }
+  :root.uiNight[data-ui-palette="yellow"] {
+    --ink:#efe9da; --ink-soft:#d0c7b1; --ink-faint:#bdb39b;
+    --help-ink:#aa9e83; --help-ink-strong:#cabd9f;
+    --line:#4b4637; --line-strong:#69604a;
+    --bg-app:#211f19; --bg-panel:#2b291f; --bg-field:#38352a;
+    --bg-subtle:#302e24; --bg-muted:#403c2e;
+    --accent:#d7c18c; --accent-hover:#e5d2a3; --ok:#d7c18c;
+    --bg-preview-night:#494438;
+  }
   * { box-sizing: border-box; }
   input[type="checkbox"] { accent-color: var(--accent); }
   body {
@@ -653,8 +740,14 @@
     top: 6px;
     right: 8px;
     z-index: 2;
-    font-size: 11px;
-    padding: 4px 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 17px;
+    line-height: 1;
     border: 1px solid var(--line-strong);
     background: var(--bg-panel);
     color: var(--ink-faint);
@@ -695,12 +788,14 @@
   #codeHead button {
     font-size: 12px;
     padding: 6px 12px;
-    border: 1px solid var(--line-strong);
-    background: var(--bg-field);
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--ink-soft);
     border-radius: 7px;
   }
-  #codeHead button:hover { border-color: var(--ink-faint); color: var(--ink); }
+  #codeHead button:hover { border-color: var(--line-strong); background: var(--bg-muted); color: var(--ink); }
+  #codeHead button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #codeFsCloseBtn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; font-size:17px !important; line-height:1; }
   #codeFsArea {
     flex: 1;
     min-height: 0;
@@ -1203,6 +1298,28 @@
     align-items: center;
     gap: 10px;
   }
+  .previewStyleControls,
+  .previewViewControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .previewShapeToggle {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex:none;
+    height:30px;
+    padding:0 6px;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:var(--ink-faint);
+    font-size:11.5px;
+    font-weight:500;
+    white-space:nowrap;
+  }
+  .previewShapeToggle:hover { color:var(--ink-soft); background:var(--bg-muted); }
   .previewStyleToggles {
     display: inline-flex;
     align-items: center;
@@ -2855,7 +2972,6 @@
     background: var(--bg-app);
     color: #212529;
     color-scheme: light;
-    transition: background-color .16s ease, color .16s ease;
   }
   body.layoutMirrored #previewArea { padding: 36px 32px 72px 52px; }
   #previewWrap {
@@ -2872,16 +2988,34 @@
     min-height: 30px;
     margin-bottom: 10px;
   }
+  #previewToolbar.previewToolbarStacked {
+    flex-wrap: wrap;
+    column-gap: 8px;
+    row-gap: 6px;
+  }
+  #previewToolbar.previewToolbarStacked .previewHeaderLeft { order: 0; }
+  #previewToolbar.previewToolbarStacked .previewTools { display: contents; }
+  #previewToolbar.previewToolbarStacked .previewViewControls {
+    order: 1;
+    margin-left: auto;
+  }
+  #previewToolbar.previewToolbarStacked .previewStyleControls {
+    order: 2;
+    flex: 0 0 100%;
+    justify-content: flex-end;
+  }
+  #previewToolbar.previewToolbarStacked .previewStyleDivider { display: none; }
   .previewHeaderLeft {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    min-width: 0;
+    flex: 0 0 auto;
   }
   #previewLabel {
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    white-space: nowrap;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0;
@@ -2892,6 +3026,8 @@
     font-size: 11.5px;
     height: 30px;
     padding: 0 11px;
+    flex: 0 0 auto;
+    white-space: nowrap;
     border: 1px solid var(--line);
     background: transparent;
     color: var(--ink-faint);
@@ -2910,6 +3046,15 @@
   .previewThemeToggle { display:none; }
   .previewThemeToggle button { min-width: 48px; }
   body.previewFullscreen .previewThemeToggle { display:inline-flex; }
+  :root.uiNight .previewThemeToggle #previewThemeDarkBtn {
+    order: -1;
+    margin-left: 0;
+    border-radius: 7px 0 0 7px;
+  }
+  :root.uiNight .previewThemeToggle #previewThemeLightBtn {
+    margin-left: -1px;
+    border-radius: 0 7px 7px 0;
+  }
   body.previewFullscreen #previewArea.previewArcaDark {
     /* 아카라이브 다크 테마의 게시글 캔버스에 가까운 중성 회색조.
        출력물이 명시한 인라인 배경·색은 건드리지 않고 게시판 기본값만 바꾼다. */
@@ -2929,6 +3074,8 @@
     color: #f1f1f1;
   }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle { color:#8f949b; }
+  body.previewFullscreen #previewArea.previewArcaDark .previewShapeToggle { color:#8f949b; }
+  body.previewFullscreen #previewArea.previewArcaDark .previewShapeToggle:hover { color:#c5c8cc; background:#292b2f; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle:hover { color:#c5c8cc; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"] { color:#b8d2c2; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"]::after { background:#93b6a1; }
@@ -5222,3 +5369,129 @@ body.angularUi #tabCover .coverVisibilitySwitchTrack { border-radius: 999px !imp
 body.angularUi #tabCover .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
 body.angularUi .expressionThemeOptions .expressionShapeIcon { border-radius: 5px !important; }
 body.angularUi .expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius: 1px !important; }
+
+/* 작업 화면 색상은 출력 HTML의 색과 별도로 기억한다. */
+.uiAppearancePanel { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
+.uiAppearanceLabel { color:var(--help-ink-strong); font-size:11px; font-weight:600; }
+.uiAppearanceControls { position:relative; display:flex; align-items:center; gap:4px; }
+.uiAppearanceDivider { width:1px; height:20px; margin:0 4px; background:var(--line); }
+.uiAppearanceButton { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--ink-faint); cursor:pointer; }
+.uiAppearanceButton:hover { background:var(--bg-muted); color:var(--ink); }
+.uiAppearanceButton[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 17%,var(--bg-panel)); color:var(--accent); }
+.uiAppearanceButton:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.uiPaletteButton { position:relative; }
+.uiPaletteButton[aria-expanded="true"] { background:var(--bg-muted); color:var(--ink); }
+.uiPaletteCurrent { position:absolute; right:4px; bottom:3px; width:7px; height:7px; border-radius:50%; background:var(--palette-swatch,#789a82); box-shadow:0 0 0 1px var(--bg-panel); }
+:root[data-ui-palette="gray"] { --palette-swatch:#909090; }
+:root[data-ui-palette="blue"] { --palette-swatch:#668da9; }
+:root[data-ui-palette="pink"] { --palette-swatch:#b8879b; }
+:root[data-ui-palette="yellow"] { --palette-swatch:#b59b63; }
+.uiPaletteMenu { order:-1; display:flex; align-items:center; gap:3px; margin-right:3px; }
+.uiPaletteMenu[hidden] { display:none; }
+.uiPaletteMenu button { display:inline-flex; align-items:center; justify-content:center; flex:none; width:26px; height:30px; padding:0; border:0; border-radius:6px; background:transparent; cursor:pointer; }
+.uiPaletteMenu button:hover { background:var(--bg-muted); }
+.uiPaletteMenu button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.uiPaletteSwatch { display:block; width:20px; height:20px; border-radius:50% !important; background:var(--swatch); box-shadow:0 0 0 1px var(--line-strong); }
+.uiPaletteMenu button[aria-pressed="true"] .uiPaletteSwatch { box-shadow:0 0 0 2px var(--bg-panel), 0 0 0 4px var(--ink-soft); }
+
+/* 화면 모드를 바꾸는 프레임에는 개별 컨트롤의 전환 효과도 잠시 멈춘다. */
+:root.uiModeSwitching body,
+:root.uiModeSwitching body *,
+:root.uiModeSwitching body *::before,
+:root.uiModeSwitching body *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* 나이트 모드는 작업 영역의 바탕도 어둡게 하되 출력 카드의 지정 색상은 유지한다. */
+:root.uiNight body:not(.previewFullscreen) #previewArea {
+  color-scheme: dark;
+  background: var(--bg-preview-night);
+  color: var(--ink);
+}
+:root.uiNight body.previewFullscreen #previewArea.previewArcaDark {
+  color-scheme: dark;
+  background: var(--bg-app);
+  color: var(--ink);
+}
+:root.uiNight body:not(.previewFullscreen) #previewArea #preview > [data-mosaic-comment-index],
+:root.uiNight body.previewFullscreen #previewArea.previewArcaDark #preview > [data-mosaic-comment-index] { color:#e0e5df; }
+:root.uiNight body.previewFullscreen #previewArea:not(.previewArcaDark) {
+  color-scheme: light;
+  background: #fff;
+  color: #212529;
+  --ink: #242320;
+  --ink-soft: #68655f;
+  --ink-faint: #716d66;
+  --help-ink: #918d86;
+  --help-ink-strong: #77736d;
+  --line: #e4e0d9;
+  --line-strong: #d3cec6;
+  --bg-app: #f3f1ed;
+  --bg-panel: #fcfbf8;
+  --bg-field: #f8f7f4;
+  --bg-subtle: #f6f4f0;
+  --bg-muted: #efede8;
+  --accent: #3e6851;
+  --accent-hover: #345943;
+}
+:root.uiNight body.previewFullscreen #previewArea.previewArcaDark #previewToolbar { background:var(--bg-app); }
+:root.uiNight #previewArea :is(.previewBlockCopyBtn, .previewProfilePlacementBtn, .previewOptionToggleBtn),
+:root.uiNight #previewArea :is(.previewBlockCopyBtn, .previewProfilePlacementBtn, .previewOptionToggleBtn):hover,
+:root.uiNight #previewArea :is(.previewBlockCopyBtn, .previewProfilePlacementBtn, .previewOptionToggleBtn):focus-visible {
+  background:var(--bg-panel);
+  border-color:var(--line);
+}
+:root.uiNight :is(#sidebar, #archiveDrawer, #fsPanel, #codePanel) input[type="text"],
+:root.uiNight :is(#sidebar, #archiveDrawer, #fsPanel, #codePanel) input[type="url"],
+:root.uiNight :is(#sidebar, #archiveDrawer, #fsPanel, #codePanel) input[type="number"],
+:root.uiNight :is(#sidebar, #archiveDrawer, #fsPanel, #codePanel) select,
+:root.uiNight :is(#sidebar, #archiveDrawer, #fsPanel, #codePanel) textarea { box-shadow:none; }
+:root.uiNight .cardFoldRow,
+:root.uiNight .cardEditor.isCollapsed { background:var(--bg-subtle); }
+:root.uiNight .cardEditor textarea,
+:root.uiNight .cardEditor textarea:focus,
+:root.uiNight .cardFoldGroup .foldTitleInput:focus,
+:root.uiNight .presetCard .pNameInput,
+:root.uiNight #fsTextarea,
+:root.uiNight #fsTextarea:focus,
+:root.uiNight #fsHl,
+:root.uiNight #tabCover input[type="text"]:not(.rangeval):not(:placeholder-shown),
+:root.uiNight #tabCover textarea:not(:placeholder-shown),
+:root.uiNight #tabCover input[type="url"]:focus { background:var(--bg-field); }
+:root.uiNight #tabTheme .comboCard,
+:root.uiNight #tabTheme .themeColorGrid,
+:root.uiNight #tabTheme .themeColorGrid .row,
+:root.uiNight #tabTheme #charList .row,
+:root.uiNight #tabTheme .presetCard { background:var(--bg-panel); }
+:root.uiNight #bodyInputGroup > .foldBody > .editorToolbar button:hover,
+:root.uiNight #fsToolbar button:hover { background:var(--bg-muted); }
+:root.uiNight .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn[aria-pressed="true"] { background:var(--bg-muted); }
+:root.uiNight .cardFoldGroup .delCardBtn:hover,
+:root.uiNight .btnDanger:hover,
+:root.uiNight #draftConflictBtn:hover { background:#442d2d; }
+:root.uiNight #copyBtn,
+:root.uiNight #archiveDrawer #saveSlotBtn,
+:root.uiNight #savePresetBtn,
+:root.uiNight #selToolbar button.active,
+:root.uiNight #blockToolbar button.active { color:#19241c; }
+:root.uiNight #savePresetBtn:hover { border-color:var(--ink-soft); background:var(--ink-soft); }
+:root.uiNight #undoToast { background:#29362e; color:#f4f7f3; border-color:var(--line-strong); }
+
+/* 회색 팔레트에서는 작업 UI의 별도 고정색도 중성 회색으로 통일한다. */
+:root[data-ui-palette="gray"] body:not(.previewFullscreen) #previewArea #preview > [data-mosaic-comment-index] { color:#2b2b2b; }
+:root.uiNight[data-ui-palette="gray"] body:not(.previewFullscreen) #previewArea #preview > [data-mosaic-comment-index],
+:root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark #preview > [data-mosaic-comment-index] { color:#e5e5e5; }
+:root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"] { color:#d0d0d0; }
+:root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"]::after { background:#b0b0b0; }
+:root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark :is(.previewFullscreenBtn, .layoutMirrorBtn):hover { background:#353535; color:#e2e2e2; }
+:root.uiNight[data-ui-palette="gray"] body.previewFullscreen #previewArea:not(.previewArcaDark) {
+  --ink:#2b2b2b; --ink-soft:#686868; --ink-faint:#777777;
+  --help-ink:#969696; --help-ink-strong:#777777;
+  --line:#e1e1e1; --line-strong:#cecece;
+  --bg-app:#f1f1f1; --bg-panel:#fcfcfc; --bg-field:#f7f7f7;
+  --bg-subtle:#f5f5f5; --bg-muted:#ececec;
+  --accent:#626262; --accent-hover:#4f4f4f;
+}
+:root.uiNight[data-ui-palette="gray"] :is(#copyBtn, #archiveDrawer #saveSlotBtn, #savePresetBtn, #selToolbar button.active, #blockToolbar button.active) { color:#1d1d1d; }
+:root.uiNight[data-ui-palette="gray"] #undoToast { background:#363636; color:#f5f5f5; }

@@ -5749,12 +5749,13 @@ positionSyncInput.addEventListener('change', () => {
 });
 syncPositionSyncFloatingUi();
 
-// 미리보기 전체화면: 설정 패널을 숨기고 실제 출력물을 흰 캔버스에서 확인한다.
+// 미리보기 전체화면: 설정 패널을 숨기고 작업 화면 색상에 맞는 캔버스에서 확인한다.
 const previewFullscreenBtn = document.getElementById('previewFullscreenBtn');
 let previewFullscreenScrollTop = 0;
 function setPreviewFullscreen(on){
   const previewArea = document.getElementById('previewArea');
   if(on){
+    setPreviewArcaTheme(document.documentElement.classList.contains('uiNight') ? 'dark' : 'light');
     previewFullscreenScrollTop = previewArea.scrollTop;
     previewArea.scrollTop = 0;
   }
@@ -5768,6 +5769,7 @@ function setPreviewFullscreen(on){
     try { previewArea.getAnimations({ subtree:true }).forEach(animation => animation.cancel()); }
     catch(e){ /* 구형 브라우저에서는 위 CSS 차단만 적용한다. */ }
   }
+  requestAnimationFrame(syncPreviewToolbarLabel);
   requestAnimationFrame(layoutPreviewFloatingButtons);
   if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewFullscreenScrollTop; });
 }
@@ -5952,6 +5954,10 @@ function syncOutputThemeControls(){
     button.classList.toggle('active', selected);
     button.setAttribute('aria-pressed', String(selected));
   });
+  const previewShapeButton = document.getElementById('previewCardShapeBtn');
+  document.getElementById('previewCardShapeText').textContent = angular ? '각진 카드' : '둥근 카드';
+  previewShapeButton.title = angular ? '둥근 카드로 변경' : '각진 카드로 변경';
+  previewShapeButton.setAttribute('aria-label', angular ? '현재 각진 카드, 둥근 카드로 변경' : '현재 둥근 카드, 각진 카드로 변경');
   document.getElementById('outputTransparentOn').checked = transparent;
   const colors = document.getElementById('comboGroup');
   colors.classList.toggle('paletteUnavailable', transparent);
@@ -5993,6 +5999,11 @@ document.querySelectorAll('[data-output-shape]').forEach(button => {
     const mode = document.getElementById('outputTheme').value;
     chooseOutputTheme(button.dataset.outputShape, outputThemeTransparent(mode));
   });
+});
+document.getElementById('previewCardShapeBtn').addEventListener('click', () => {
+  const mode = document.getElementById('outputTheme').value;
+  const nextShape = outputThemeShape(mode) === 'document' ? 'solid' : 'document';
+  chooseOutputTheme(nextShape, outputThemeTransparent(mode));
 });
 
 document.getElementById('outputTransparentOn').addEventListener('change', event => {
@@ -6168,6 +6179,56 @@ function syncDesktopPreviewWidth(){
   document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
 }
 
+function syncPreviewToolbarLabel(){
+  const toolbar = document.getElementById('previewToolbar');
+  const header = toolbar.querySelector('.previewHeaderLeft');
+  const tools = toolbar.querySelector('.previewTools');
+  const desktopButton = document.getElementById('widthDesktopBtn');
+  const mobileButton = document.getElementById('widthMobileBtn');
+  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  const desktopLabel = `데스크톱 ${cardWidth}`;
+  const mobileLabel = '모바일 380';
+  desktopButton.textContent = desktopLabel;
+  mobileButton.textContent = mobileLabel;
+  desktopButton.setAttribute('aria-label', desktopLabel);
+  mobileButton.setAttribute('aria-label', mobileLabel);
+
+  // 접힌 배치에서도 한 줄에 필요한 실제 도구 폭을 비교한다.
+  toolbar.classList.remove('previewToolbarStacked');
+  const measureToolsWidth = () => {
+    const previousPosition = tools.style.position;
+    const previousWidth = tools.style.width;
+    const previousWrap = tools.style.flexWrap;
+    const previousFlex = tools.style.flex;
+    tools.style.position = 'absolute';
+    tools.style.width = 'max-content';
+    tools.style.flexWrap = 'nowrap';
+    tools.style.flex = 'none';
+    const width = tools.getBoundingClientRect().width;
+    tools.style.position = previousPosition;
+    tools.style.width = previousWidth;
+    tools.style.flexWrap = previousWrap;
+    tools.style.flex = previousFlex;
+    return width;
+  };
+  const gap = parseFloat(getComputedStyle(toolbar).columnGap) || 0;
+  const availableWidth = toolbar.clientWidth - header.scrollWidth - gap;
+  const fullToolsWidth = measureToolsWidth();
+  if(fullToolsWidth > availableWidth + 1){
+    desktopButton.textContent = String(cardWidth);
+    mobileButton.textContent = '380';
+  }
+  const currentToolsWidth = fullToolsWidth > availableWidth + 1 ? measureToolsWidth() : fullToolsWidth;
+  toolbar.classList.toggle('previewToolbarStacked', currentToolsWidth > availableWidth + 1);
+}
+if(typeof ResizeObserver === 'function'){
+  const previewToolbarResizeObserver = new ResizeObserver(() => requestAnimationFrame(syncPreviewToolbarLabel));
+  previewToolbarResizeObserver.observe(document.getElementById('previewWrap'));
+  previewToolbarResizeObserver.observe(document.querySelector('#previewToolbar .previewTools'));
+}else{
+  window.addEventListener('resize', syncPreviewToolbarLabel);
+}
+
 function syncDesignSummaries(){
   syncCardLayoutCheckbox();
   syncMinimalChoiceControls();
@@ -6176,8 +6237,8 @@ function syncDesignSummaries(){
   const cardWidthSelect = document.getElementById('cardWidth');
   const cardWidth = parseInt(cardWidthSelect.value, 10) || 750;
   const width = cardWidthSelect.selectedOptions[0]?.textContent.trim() || `${cardWidth}px`;
-  document.getElementById('widthDesktopBtn').textContent = `데스크톱 ${cardWidth}`;
   syncDesktopPreviewWidth();
+  syncPreviewToolbarLabel();
   document.getElementById('typographyDesignSummary').textContent =
     `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
   const parallelLayout = selectedControlText('parallelTranslationLayout');
@@ -9801,6 +9862,84 @@ document.querySelectorAll('details.typographySubsection').forEach(el => {
   el.addEventListener('toggle', () => {
     try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
   });
+});
+
+// ---------- 작업 화면 색상 ----------
+const UI_MODE_KEY = 'mosaicUiMode_v1';
+const UI_PALETTE_KEY = 'mosaicUiPalette_v1';
+const uiNightModeBtn = document.getElementById('uiNightModeBtn');
+const uiPaletteBtn = document.getElementById('uiPaletteBtn');
+const uiPaletteMenu = document.getElementById('uiPaletteMenu');
+const uiAppearanceControls = document.querySelector('.uiAppearanceControls');
+const UI_PALETTE_NAMES = { default:'기본', gray:'회색', blue:'파랑', pink:'분홍', yellow:'노랑' };
+let uiModeSwitchFrame = null;
+let uiModeSwitchCleanupFrame = null;
+function beginUiModeSwitch(){
+  cancelAnimationFrame(uiModeSwitchFrame);
+  cancelAnimationFrame(uiModeSwitchCleanupFrame);
+  document.documentElement.classList.add('uiModeSwitching');
+}
+function finishUiModeSwitch(){
+  uiModeSwitchFrame = requestAnimationFrame(() => {
+    uiModeSwitchCleanupFrame = requestAnimationFrame(() => document.documentElement.classList.remove('uiModeSwitching'));
+  });
+}
+function setUiNightMode(on, save){
+  const root = document.documentElement;
+  if(save) beginUiModeSwitch();
+  root.classList.toggle('uiNight', !!on);
+  uiNightModeBtn.setAttribute('aria-pressed', String(!!on));
+  const action = on ? '나이트 모드 끄기' : '나이트 모드 켜기';
+  uiNightModeBtn.setAttribute('aria-label', action);
+  uiNightModeBtn.title = action;
+  if(save){
+    try { localStorage.setItem(UI_MODE_KEY, on ? 'night' : 'default'); }
+    catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 모드는 유지한다. */ }
+    finishUiModeSwitch();
+  }
+}
+function setUiPalette(palette, save){
+  const selected = Object.hasOwn(UI_PALETTE_NAMES, palette) ? palette : 'default';
+  const root = document.documentElement;
+  if(save) beginUiModeSwitch();
+  if(selected === 'default') delete root.dataset.uiPalette;
+  else root.dataset.uiPalette = selected;
+  uiPaletteMenu.querySelectorAll('[data-ui-palette]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.uiPalette === selected));
+  });
+  const label = `색상 팔레트: ${UI_PALETTE_NAMES[selected]}`;
+  uiPaletteBtn.setAttribute('aria-label', label);
+  uiPaletteBtn.title = label;
+  if(save){
+    try { localStorage.setItem(UI_PALETTE_KEY, selected); }
+    catch(e){ /* 저장소를 쓸 수 없어도 현재 팔레트는 유지한다. */ }
+    finishUiModeSwitch();
+  }
+}
+function setUiPaletteMenuOpen(open){
+  uiPaletteMenu.hidden = !open;
+  uiPaletteBtn.setAttribute('aria-expanded', String(open));
+}
+setUiNightMode(document.documentElement.classList.contains('uiNight'), false);
+setUiPalette(document.documentElement.dataset.uiPalette || 'default', false);
+uiPaletteBtn.addEventListener('click', () => setUiPaletteMenuOpen(uiPaletteMenu.hidden));
+uiPaletteMenu.addEventListener('click', event => {
+  const button = event.target.closest('[data-ui-palette]');
+  if(!button) return;
+  setUiPalette(button.dataset.uiPalette, true);
+});
+document.addEventListener('click', event => {
+  if(!uiAppearanceControls.contains(event.target)) setUiPaletteMenuOpen(false);
+});
+document.addEventListener('keydown', event => {
+  if(event.key === 'Escape' && !uiPaletteMenu.hidden){
+    setUiPaletteMenuOpen(false);
+    uiPaletteBtn.focus();
+  }
+});
+uiNightModeBtn.addEventListener('click', () => {
+  setUiPaletteMenuOpen(false);
+  setUiNightMode(!document.documentElement.classList.contains('uiNight'), true);
 });
 
 // ---------- 사이드바 폭 조절 ----------
