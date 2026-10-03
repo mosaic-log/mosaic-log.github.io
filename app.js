@@ -2700,7 +2700,12 @@ function applyUnifiedCardLayout(html, settings){
     ? introCandidates[introCandidates.length - 1]
     : null;
   const hasUnifiedTitle = introCandidates.some(section => section.hasAttribute('data-mosaic-title'));
-  const showIntroBoundary = hasUnifiedTitle && !settingFlagOn(settings.titleMinimal);
+  const imageTitleTouchesBody = firstBodyIndex > 0
+    && sections[firstBodyIndex - 1] === introBoundary
+    && introBoundary.hasAttribute('data-mosaic-image-background')
+    && coverCardGapPx(settings) === 0;
+  const showIntroBoundary = hasUnifiedTitle && !settingFlagOn(settings.titleMinimal)
+    && !imageTitleTouchesBody;
   sections.forEach((section, index) => {
     const first = index === 0;
     const last = index === sections.length - 1;
@@ -3138,7 +3143,11 @@ function specialThemeOutput(html, mode, settings){
       const firstBodyIndex = sections.findIndex(section =>
         section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
       );
-      if(firstBodyIndex > titleIndex){
+      const imageTitleTouchesBody = firstBodyIndex === titleIndex + 1
+        && title.hasAttribute('data-mosaic-image-background')
+        && sections[firstBodyIndex].hasAttribute('data-mosaic-card-index')
+        && coverCardGapPx(settings) === 0;
+      if(firstBodyIndex > titleIndex && !imageTitleTouchesBody){
         const firstBody = sections[firstBodyIndex];
         const attachedProfile = sections.slice(titleIndex + 1, firstBodyIndex)
           .filter(section => section.hasAttribute('data-mosaic-profile')).pop();
@@ -3310,6 +3319,8 @@ function buildCard(settings, sourceCards){
   const plainBodyTopPadding = cardBodyTopPaddingCss(20, 4, 26, settings);
   const cardGap = cardGapPx(settings);
   const coverCardGap = coverCardGapPx(settings);
+  const imageTitleTouchesBody = hasTitle && !hasAttachedProfile
+    && titleImageBackgroundEnabled(settings) && coverCardGap === 0;
   const cardOrnamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   let blankFoldNumber = 0;
   const cards = cardList.map((card, idx) => {
@@ -3338,8 +3349,9 @@ function buildCard(settings, sourceCards){
     const bottomRadius = joinedBelow ? 0 : cardRadius;
     const radius = `${topRadius}px ${topRadius}px ${bottomRadius}px ${bottomRadius}px`;
     const W = parseInt(settings.cardWidth) || 750;
-    // 대표 이미지 바로 아래에는 선을 두지 않는다. 표제 미니멀도 표제와 첫 카드 사이를 여백으로만 구분한다.
-    const noTopLine = connected && ((hasTitle && settings.titleMinimal) || (hasImg && !hasTitle));
+    // 대표 이미지나 사진 배경 표제가 본문에 바로 붙으면 접합선 없이 한 면으로 잇는다.
+    const noTopLine = connected && ((hasTitle && settings.titleMinimal)
+      || (hasImg && !hasTitle) || imageTitleTouchesBody);
     const showOuterBorder = settings.cardBorderOn !== false;
     // 표제 밴드와 본문 카드가 하나의 카드처럼 보이도록 외곽선은
     // 모두 표제·이미지에 쓰는 옅은 보조색 외곽선으로 통일한다.
