@@ -20,22 +20,22 @@
   }
   :root.uiNight {
     color-scheme: dark;
-    --ink: #e8ebe7;
-    --ink-soft: #bcc5be;
-    --ink-faint: #a9b5ac;
-    --help-ink: #93a198;
-    --help-ink-strong: #b2bdb5;
-    --line: #39433e;
-    --line-strong: #526159;
-    --bg-app: #171d1a;
-    --bg-panel: #202723;
-    --bg-field: #28312b;
-    --bg-subtle: #252d28;
-    --bg-muted: #303a33;
-    --accent: #9ac7a7;
-    --accent-hover: #add6b7;
-    --ok: #9ac7a7;
-    --bg-preview-night: #343c38;
+    --ink: #e8eae8;
+    --ink-soft: #bec3bf;
+    --ink-faint: #acb2ad;
+    --help-ink: #969e99;
+    --help-ink-strong: #b4bbb6;
+    --line: #3b413e;
+    --line-strong: #555e59;
+    --bg-app: #181c1a;
+    --bg-panel: #222523;
+    --bg-field: #2a2f2c;
+    --bg-subtle: #272b28;
+    --bg-muted: #323834;
+    --accent: #a4bdab;
+    --accent-hover: #b6cdbc;
+    --ok: #a4bdab;
+    --bg-preview-night: #363a38;
   }
   :root:not(.uiNight)[data-ui-palette="gray"] {
     --ink:#2b2b2b; --ink-soft:#686868; --ink-faint:#777777;
@@ -58,52 +58,52 @@
     --ink:#252f36; --ink-soft:#64717c; --ink-faint:#6d7d88;
     --help-ink:#8e9ca6; --help-ink-strong:#6c7d89;
     --line:#dce4e9; --line-strong:#c5d2db;
-    --bg-app:#eff3f6; --bg-panel:#fbfcfe; --bg-field:#f4f8fa;
-    --bg-subtle:#f2f6f8; --bg-muted:#e7eef3;
+    --bg-app:#f2f2f0; --bg-panel:#fcfbf9; --bg-field:#f8f8f6;
+    --bg-subtle:#f5f5f3; --bg-muted:#eeefed;
     --accent:#486f8c; --accent-hover:#375a74; --ok:#486f8c;
   }
   :root.uiNight[data-ui-palette="blue"] {
-    --ink:#e5edf2; --ink-soft:#b9c9d4; --ink-faint:#a9b9c6;
-    --help-ink:#90a4b2; --help-ink-strong:#b3c3ce;
-    --line:#364651; --line-strong:#506677;
-    --bg-app:#171d24; --bg-panel:#202a33; --bg-field:#2a3642;
-    --bg-subtle:#25313b; --bg-muted:#30404c;
-    --accent:#a7c9df; --accent-hover:#bdd8e9; --ok:#a7c9df;
-    --bg-preview-night:#344553;
+    --ink:#e8ecef; --ink-soft:#bfc8ce; --ink-faint:#b0b8bf;
+    --help-ink:#98a3aa; --help-ink-strong:#b9c2c8;
+    --line:#3c454b; --line-strong:#59656e;
+    --bg-app:#1b1c1c; --bg-panel:#232625; --bg-field:#2c2f2e;
+    --bg-subtle:#282c2b; --bg-muted:#343836;
+    --accent:#b4c6d2; --accent-hover:#c7d6df; --ok:#b4c6d2;
+    --bg-preview-night:#393d3f;
   }
   :root:not(.uiNight)[data-ui-palette="pink"] {
     --ink:#352b31; --ink-soft:#786a72; --ink-faint:#877680;
     --help-ink:#a3949c; --help-ink-strong:#836f79;
     --line:#eadfe4; --line-strong:#d9c9d1;
-    --bg-app:#f7f1f3; --bg-panel:#fffbfc; --bg-field:#fbf6f8;
-    --bg-subtle:#f9f3f5; --bg-muted:#f1e9ed;
+    --bg-app:#f3f1f0; --bg-panel:#fcfbf9; --bg-field:#f8f7f5;
+    --bg-subtle:#f6f4f2; --bg-muted:#efece9;
     --accent:#936176; --accent-hover:#7b4c60; --ok:#936176;
   }
   :root.uiNight[data-ui-palette="pink"] {
-    --ink:#f0e6ea; --ink-soft:#d1bcc6; --ink-faint:#beaab5;
-    --help-ink:#ad96a1; --help-ink-strong:#ccb5c0;
-    --line:#4b3942; --line-strong:#69515e;
-    --bg-app:#211a1e; --bg-panel:#2b2228; --bg-field:#382b33;
-    --bg-subtle:#31262c; --bg-muted:#41313a;
-    --accent:#dcadbf; --accent-hover:#ebc3d2; --ok:#dcadbf;
-    --bg-preview-night:#4a3941;
+    --ink:#eee8ea; --ink-soft:#ccc1c6; --ink-faint:#baaeb5;
+    --help-ink:#a89ba1; --help-ink-strong:#c7bac0;
+    --line:#473d42; --line-strong:#64565e;
+    --bg-app:#1d1b1c; --bg-panel:#262525; --bg-field:#302e2e;
+    --bg-subtle:#2b2929; --bg-muted:#393536;
+    --accent:#d1b8c1; --accent-hover:#e2ccd4; --ok:#d1b8c1;
+    --bg-preview-night:#3d3a3c;
   }
   :root:not(.uiNight)[data-ui-palette="yellow"] {
     --ink:#343127; --ink-soft:#756f5e; --ink-faint:#837b67;
     --help-ink:#a09680; --help-ink-strong:#81765d;
     --line:#e9e3d3; --line-strong:#d8cfb8;
-    --bg-app:#f7f4ea; --bg-panel:#fffdf7; --bg-field:#fbf8ef;
-    --bg-subtle:#f9f6ec; --bg-muted:#f0ecdd;
+    --bg-app:#f3f1ec; --bg-panel:#fcfbf8; --bg-field:#f8f7f3;
+    --bg-subtle:#f6f4ee; --bg-muted:#efede6;
     --accent:#80683d; --accent-hover:#6d5630; --ok:#80683d;
   }
   :root.uiNight[data-ui-palette="yellow"] {
-    --ink:#efe9da; --ink-soft:#d0c7b1; --ink-faint:#bdb39b;
-    --help-ink:#aa9e83; --help-ink-strong:#cabd9f;
-    --line:#4b4637; --line-strong:#69604a;
-    --bg-app:#211f19; --bg-panel:#2b291f; --bg-field:#38352a;
-    --bg-subtle:#302e24; --bg-muted:#403c2e;
-    --accent:#d7c18c; --accent-hover:#e5d2a3; --ok:#d7c18c;
-    --bg-preview-night:#494438;
+    --ink:#eae7df; --ink-soft:#c9c4b8; --ink-faint:#b5b0a3;
+    --help-ink:#a19b8c; --help-ink-strong:#c0b9a9;
+    --line:#46443c; --line-strong:#625d51;
+    --bg-app:#1c1c1a; --bg-panel:#252521; --bg-field:#2f2e2b;
+    --bg-subtle:#2b2a27; --bg-muted:#383631;
+    --accent:#c6ba9d; --accent-hover:#d6ccb2; --ok:#c6ba9d;
+    --bg-preview-night:#3e3c38;
   }
   * { box-sizing: border-box; }
   input[type="checkbox"] { accent-color: var(--accent); }
@@ -499,22 +499,62 @@
     padding: 0;
     margin: 0;
   }
-  /* 본문 조절 슬라이더는 기능 묶음별 색으로 빠르게 구분한다. */
-  #narrSize,
-  #narrLine {
-    accent-color: #315f48;
+  /* 글자·표지의 이미지 슬라이더는 팔레트색 채움과 중성 트랙을 함께 그린다. */
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"] {
+    --type-range-ink: var(--accent);
+    height: 30px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
   }
-  #dlgSize,
-  #dlgLine {
-    accent-color: #66865c;
+  #tabDesign .typographyGroup .row > :is(#dlgSize, #dlgLine),
+  #tabCover .profileImageAdjustments .row > input[type="range"] {
+    --type-range-ink: color-mix(in srgb, var(--accent) 68%, var(--bg-panel));
   }
-  #paragraphGap,
-  #softBreakSpacing {
-    accent-color: #717674;
+  :root.uiNight #tabDesign .typographyGroup .row > :is(#dlgSize, #dlgLine),
+  :root.uiNight #tabCover .profileImageAdjustments .row > input[type="range"] {
+    --type-range-ink: color-mix(in srgb, var(--accent) 82%, var(--bg-panel));
   }
-  #titleSize,
-  #foldTitleSize {
-    accent-color: #717674;
+  #tabDesign .typographyGroup .row > :is(#narrDialogueGap, #paragraphGap, #softBreakSpacing, #titleSize, #foldTitleSize) {
+    --type-range-ink: color-mix(in srgb, var(--accent) 42%, var(--ink-soft));
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(to right,
+      var(--type-range-ink) 0 var(--type-range-progress, 50%),
+      var(--line-strong) var(--type-range-progress, 50%) 100%);
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -3px;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--type-range-ink);
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]::-moz-range-track {
+    height: 6px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--line-strong);
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--type-range-ink);
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    background: var(--type-range-ink);
+  }
+  :is(#tabDesign .typographyGroup, #tabCover .settingsForm) .row > input[type="range"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .row select {
     width: 100%;
@@ -863,7 +903,6 @@
   }
   #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
   #tabBody .keywordRuleList:empty { display:none; }
-  #tabBody .keywordRuleEmpty { padding:4px 2px 2px; color:var(--ink-faint); font-size:11px; text-align:left; }
   #tabBody .keywordRuleItem { display:flex; align-items:center; gap:8px; min-height:36px; padding:6px 8px 6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg-panel); }
   #tabBody .keywordRuleText { flex:1; min-width:0; overflow:hidden; color:var(--ink-soft); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
   #tabBody .keywordRuleText b { color:var(--ink); font-weight:650; }
@@ -1304,35 +1343,18 @@
     align-items: center;
     gap: 10px;
   }
-  .previewShapeToggle {
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    flex:none;
-    height:30px;
-    padding:0 6px;
-    border:0;
-    border-radius:6px;
-    background:transparent;
-    color:var(--ink-faint);
-    font-size:11.5px;
-    font-weight:500;
-    white-space:nowrap;
-  }
-  .previewShapeToggle:hover { color:var(--ink-soft); background:var(--bg-muted); }
-  .previewStyleToggles {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-  }
+  .previewStyleControls { gap: 14px; }
+  .previewLayoutControls { display: inline-flex; align-items: center; gap: 6px; }
+  body.previewFullscreen .previewLayoutControls { gap: 10px; }
+  .previewActionControls { display: inline-flex; align-items: center; gap: 6px; }
   .previewStyleToggle {
     position: relative;
     height: 30px;
     padding: 0 1px;
     border: 0;
     background: transparent;
-    color: var(--ink-faint);
-    font-size: 11.5px;
+    color: color-mix(in srgb, var(--ink-faint) 88%, transparent);
+    font-size: 11px;
     font-weight: 500;
     line-height: 30px;
     white-space: nowrap;
@@ -1343,15 +1365,11 @@
     left: 0;
     right: 0;
     bottom: 2px;
-    height: 2px;
-    border-radius: 2px;
+    height: 1px;
     background: transparent;
+    opacity: .85;
   }
   .previewStyleToggle:hover { color: var(--ink-soft); }
-  .previewStyleToggle[aria-pressed="true"] {
-    color: var(--accent);
-    font-weight: 650;
-  }
   .previewStyleToggle[aria-pressed="true"]::after { background: var(--accent); }
   .previewStyleDivider {
     width: 1px;
@@ -1561,16 +1579,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .slotRow .slotChar {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--ink-faint);
-    font-size: 10.5px;
-    font-weight: 400;
   }
   .slotRow .slotDate { font-size: 10.5px; color: var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .slotRow button {
@@ -2978,15 +2986,19 @@
     position: relative;
     width: 100%;
     max-width: 800px;
-    transition: max-width .18s ease;
+    min-width: 0;
   }
   #previewToolbar {
+    position: relative;
+    left: 50%;
     display: flex;
+    width: var(--preview-toolbar-width, 100%);
     align-items: center;
     justify-content: space-between;
     gap: 14px;
     min-height: 30px;
     margin-bottom: 10px;
+    transform: translateX(-50%);
   }
   #previewToolbar.previewToolbarStacked {
     flex-wrap: wrap;
@@ -3003,6 +3015,7 @@
     order: 2;
     flex: 0 0 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
   #previewToolbar.previewToolbarStacked .previewStyleDivider { display: none; }
   .previewHeaderLeft {
@@ -3043,9 +3056,31 @@
     position: relative;
     z-index: 1;
   }
+  .previewShapeControl button:first-child,
+  .previewShapeControl button:last-child,
+  .previewWidthCycle button:first-child,
+  .previewWidthCycle button:last-child {
+    height: 28px;
+    padding: 0 9px;
+    border-radius: 7px;
+    margin-left: 0;
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .previewFullscreenWidthToggle { display: none; }
+  body.previewFullscreen .previewWidthCycle { display: none; }
+  body.previewFullscreen .previewFullscreenWidthToggle { display: inline-flex; }
   .previewThemeToggle { display:none; }
   .previewThemeToggle button { min-width: 48px; }
   body.previewFullscreen .previewThemeToggle { display:inline-flex; }
+  body.previewFullscreen .previewThemeToggle button,
+  body.previewFullscreen .previewFullscreenWidthToggle button {
+    min-width: 44px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
   :root.uiNight .previewThemeToggle #previewThemeDarkBtn {
     order: -1;
     margin-left: 0;
@@ -3073,11 +3108,8 @@
     border-color: #5a5e64;
     color: #f1f1f1;
   }
-  body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle { color:#8f949b; }
-  body.previewFullscreen #previewArea.previewArcaDark .previewShapeToggle { color:#8f949b; }
-  body.previewFullscreen #previewArea.previewArcaDark .previewShapeToggle:hover { color:#c5c8cc; background:#292b2f; }
+  body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle { color:#858a91; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle:hover { color:#c5c8cc; }
-  body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"] { color:#b8d2c2; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"]::after { background:#93b6a1; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleDivider { background:#484b50; }
   body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn,
@@ -3143,7 +3175,13 @@
     background:#fff;
   }
   body.previewFullscreen #previewArea.previewArcaDark { background:#1f2023; }
-  body.previewFullscreen #previewWrap { max-width:980px; }
+  body.previewFullscreen #previewWrap {
+    max-width:980px;
+    padding-top:64px;
+  }
+  body.previewFullscreen #previewWrap:has(> #previewToolbar.previewToolbarStacked) {
+    padding-top:110px;
+  }
   body.previewFullscreen #previewWrap > .previewFloatingControl,
   body.previewFullscreen #previewSyncFloat,
   body.previewFullscreen .previewSyncFloat,
@@ -3158,11 +3196,16 @@
     scroll-behavior:auto !important;
   }
   body.previewFullscreen #previewToolbar {
-    position:sticky;
+    position:fixed;
     top:0;
-    z-index:4;
+    left:50%;
+    z-index:71;
+    width:min(980px, calc(100vw - 104px));
+    box-sizing:border-box;
+    margin-bottom:0;
     padding:14px 0 10px;
     background:#fff;
+    transform:translateX(-50%);
   }
   body.previewFullscreen #previewArea.previewArcaDark #previewToolbar { background:#1f2023; }
   body.previewFullscreen .previewFullscreenBtn {
@@ -3188,24 +3231,38 @@
     padding-top:24px;
     padding-bottom:24px;
   }
-  /*
-    출력 HTML의 inline-block 줄바꿈 규칙은 그대로 둔다. 다만 미리보기에서는
-    폭이 한 행의 최소 너비보다 작아진 뒤에도 항목의 50% 폭이 남아 보이는
-    문제를 컨테이너 폭 기준으로만 보정한다. 복사 원본(previewSourceHTML)은
-    이 CSS의 영향을 받지 않는다.
-  */
+  /* 미리보기에서도 출력 HTML과 같은 3열→2열→1열 경계를 사용한다. */
   #preview [data-mosaic-profile-items] { container-type: inline-size; }
-  @container (max-width: 599px) {
-    #preview [data-mosaic-profile-items][data-mosaic-profile-breakpoint="600"] > [data-mosaic-profile-item] {
-      width: 100% !important;
-      min-width: 0 !important;
-    }
+  @container (min-width: 500px) and (max-width: 689px) {
+    #preview [data-mosaic-profile-grid] > [data-mosaic-profile-columns="3"]:not([data-mosaic-profile-row-fill]) { width: 50% !important; }
+    #preview [data-mosaic-profile-grid] > [data-mosaic-profile-row-fill="true"] { width: 100% !important; }
+    #preview [data-mosaic-profile-corners-medium] { --mosaic-tl:0px; --mosaic-tr:0px; --mosaic-br:0px; --mosaic-bl:0px; }
+    #preview [data-mosaic-profile-corners-medium~="tl"] { --mosaic-tl:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-medium~="tr"] { --mosaic-tr:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-medium~="br"] { --mosaic-br:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-medium~="bl"] { --mosaic-bl:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-medium],
+    #preview [data-mosaic-profile-corners-medium] > div { border-radius:var(--mosaic-tl) var(--mosaic-tr) var(--mosaic-br) var(--mosaic-bl) !important; }
   }
-  @container (max-width: 559px) {
-    #preview [data-mosaic-profile-items][data-mosaic-profile-breakpoint="560"] > [data-mosaic-profile-item] {
-      width: 100% !important;
-      min-width: 0 !important;
-    }
+  @container (max-width: 499px) {
+    #preview [data-mosaic-profile-grid] > [data-mosaic-profile-columns="2"],
+    #preview [data-mosaic-profile-grid] > [data-mosaic-profile-columns="3"] { width: 100% !important; }
+    #preview [data-mosaic-profile-corners-narrow] { --mosaic-tl:0px; --mosaic-tr:0px; --mosaic-br:0px; --mosaic-bl:0px; }
+    #preview [data-mosaic-profile-corners-narrow~="tl"] { --mosaic-tl:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-narrow~="tr"] { --mosaic-tr:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-narrow~="br"] { --mosaic-br:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-narrow~="bl"] { --mosaic-bl:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-narrow],
+    #preview [data-mosaic-profile-corners-narrow] > div { border-radius:var(--mosaic-tl) var(--mosaic-tr) var(--mosaic-br) var(--mosaic-bl) !important; }
+  }
+  @container (min-width: 690px) {
+    #preview [data-mosaic-profile-corners-wide] { --mosaic-tl:0px; --mosaic-tr:0px; --mosaic-br:0px; --mosaic-bl:0px; }
+    #preview [data-mosaic-profile-corners-wide~="tl"] { --mosaic-tl:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-wide~="tr"] { --mosaic-tr:var(--mosaic-profile-top-radius, 0px); }
+    #preview [data-mosaic-profile-corners-wide~="br"] { --mosaic-br:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-wide~="bl"] { --mosaic-bl:var(--mosaic-profile-bottom-radius, 0px); }
+    #preview [data-mosaic-profile-corners-wide],
+    #preview [data-mosaic-profile-corners-wide] > div { border-radius:var(--mosaic-tl) var(--mosaic-tr) var(--mosaic-br) var(--mosaic-bl) !important; }
   }
   .previewBlockCopyBtn,
   .previewProfilePlacementBtn,
@@ -3522,6 +3579,28 @@
     border-radius: 0;
     background: transparent;
   }
+  /* 프로필 선택지는 공통 세 열을 쓴다. 두 선택지의 첫 칸을 비워
+     기본·최상단은 클래식, 미니멀·사진 배경·표지 아래는 포트레이트와 맞춘다. */
+  #tabCover #profileGroup .profileBaseSettings .segmentedChoice:is(
+    [data-minimal-control="profileMinimal"],
+    [data-background-control="profileImageBackgroundOn"],
+    [data-control="profilePlacement"],
+    [data-control="profileStyle"],
+    [data-control="profileTextPosition"]
+  ) {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 3fr));
+    justify-items: center;
+    column-gap: 0;
+    width: 160px;
+    max-width: 100%;
+  }
+  #tabCover #profileGroup .profileBaseSettings .segmentedChoice:is(
+    [data-minimal-control="profileMinimal"],
+    [data-background-control="profileImageBackgroundOn"],
+    [data-control="profilePlacement"]
+  ) > button:first-child { grid-column: 2; }
+  #tabCover #profileTextPositionRow[hidden] { display: none; }
   #tabCover .settingsForm .segmentedChoice button {
     position: relative;
     width: auto;
@@ -3620,6 +3699,110 @@
   #tabDesign .designFold .foldBody {
     padding: 0 10px 4px;
   }
+  #tabDesign .advancedDesignGroup > summary.foldHead {
+    --advanced-off-ink: color-mix(in srgb, var(--ink-faint) 38%, var(--bg-field));
+    background: color-mix(in srgb, var(--bg-subtle) 52%, var(--bg-panel));
+    color: var(--help-ink-strong);
+  }
+  #tabDesign .advancedDesignGroup.isAdvancedInactive > summary.foldHead .designSummaryTitle {
+    color: var(--advanced-off-ink);
+  }
+  #tabDesign .advancedDesignGroup > summary.foldHead:hover,
+  #tabDesign .advancedDesignGroup[open] > summary.foldHead {
+    background: var(--bg-subtle);
+    color: var(--ink-soft);
+  }
+  #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead {
+    background: color-mix(in srgb, var(--accent) 7%, var(--bg-panel));
+    color: var(--ink);
+  }
+  #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead:hover {
+    background: color-mix(in srgb, var(--accent) 11%, var(--bg-panel));
+  }
+  #tabDesign .advancedDesignGroup .typeSectionLabel {
+    margin: 0 0 8px;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  #tabDesign .advancedDesignGroup .advancedOptionPanel {
+    margin-top: 12px;
+    padding: 12px 10px 10px;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 55%, transparent);
+  }
+  #tabDesign .advancedDesignGroup .advancedOptionPanel:first-child { margin-top: 4px; }
+  #tabDesign .advancedDesignGroup .typographySubsectionBody > .advancedOptionPanel:last-child { margin-bottom: 14px; }
+  #tabDesign .advancedDesignGroup :is(#detailCardInteriorSection, #detailCardExteriorSection) .typographySubsectionBody > .advancedOptionPanel:last-child { margin-bottom: 8px; }
+  #tabDesign .advancedDesignGroup .advancedOptionPanel > .row:last-child { margin-bottom: 0; }
+  #tabDesign .advancedDesignGroup .advancedOptionHeading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 22px;
+    margin-bottom: 8px;
+  }
+  #tabDesign .advancedDesignGroup .advancedOptionHeading .typeSectionLabel { margin: 0; }
+  #tabDesign .advancedDesignGroup .advancedOptionResetBtn {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    color: color-mix(in srgb, var(--ink-faint) 45%, transparent);
+    font-size: 12px;
+  }
+  #tabDesign .advancedDesignGroup .advancedOptionResetBtn:hover:not(:disabled) {
+    background: var(--bg-subtle);
+    color: var(--ink-soft);
+  }
+  #tabDesign .advancedDesignGroup .advancedOptionResetBtn:disabled { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup .advancedOptionResetBtn:disabled:hover {
+    background: transparent;
+    color: color-mix(in srgb, var(--ink-faint) 45%, transparent);
+  }
+  #tabDesign .advancedDesignGroup .coverFoldActions {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+  #tabDesign .advancedDesignGroup .coverFoldActions + .foldArrow { margin-left: 0; }
+  #tabDesign .advancedDesignGroup.isAdvancedInactive > .foldBody { opacity: .48; filter: grayscale(1); }
+  #tabDesign .advancedDesignGroup [data-hr-control].isUnavailable { opacity: .42; filter: grayscale(1); }
+  #tabDesign .advancedDesignGroup .row[data-hr-control].isUnavailable { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup .row[data-hr-control].isUnavailable .rangeEditor { pointer-events: none; }
+  #tabDesign .advancedDesignGroup .shapeChoice button:disabled { cursor: not-allowed; }
+  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedLayoutOnlyRow, .advancedProfileTopOnlyRow, #foldAutoNumberStyleRow, #cardTitleOrnamentOpacityRow).isUnavailable { opacity: .42; filter: grayscale(1); }
+  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedLayoutOnlyRow, .advancedProfileTopOnlyRow).isUnavailable input { cursor: not-allowed; }
+  #tabDesign #foldAutoNumberStyleRow.isUnavailable button { cursor: not-allowed; }
+  #tabDesign #cardTitleOrnamentOpacityRow.isUnavailable input { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup #creditAppearancePanel.isUnavailable {
+    opacity: .42;
+    filter: grayscale(1);
+  }
+  #tabDesign .advancedDesignGroup #topProfileDetailPanel.isUnavailable {
+    opacity: .42;
+    filter: grayscale(1);
+  }
+  #tabDesign .advancedDesignGroup #profileItemGapRow.isUnavailable { opacity: .42; filter: grayscale(1); }
+  #tabDesign .advancedDesignGroup #profileItemGapRow.isUnavailable input { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup #topProfileDetailPanel.isUnavailable button { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup #creditAppearancePanel.isUnavailable :is(.layoutToggleChoice, #creditWidthRow input, #creditCardGapRow input) { cursor: not-allowed; }
+  #tabDesign .advancedDesignGroup #creditAppearancePanel.isUnavailable .layoutToggleChoice input:disabled + span { opacity: 1; }
+  #tabDesign .advancedDesignGroup .creditAppearanceOptionsRow .layoutToggleLabel {
+    font-weight: 400;
+  }
+  #tabDesign .advancedDesignGroup .creditAppearanceOptionsRow .layoutToggleChoices {
+    grid-column: 2 / 4;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  #tabDesign .advancedDesignGroup .creditAppearanceOptionsRow .layoutToggleChoice input:disabled + span {
+    opacity: .42;
+    cursor: not-allowed;
+  }
 
   /* 표지 탭의 네 영역도 디자인 탭과 같은 아코디언 카드로 묶는다. */
   #tabCover > .coverFold {
@@ -3689,6 +3872,9 @@
   #tabCover .coverFold .foldBody {
     padding: 0 10px 4px;
     transition: opacity .15s ease, filter .15s ease;
+  }
+  #tabCover :is(.titleBackgroundChoiceRow,.profileBackgroundChoiceRow) > label:first-child {
+    grid-column: 1;
   }
   #tabCover .coverFold.isCoverInactive > .foldBody {
     opacity: .48;
@@ -3809,6 +3995,13 @@
     font-size: 12.5px;
     font-weight: 750;
   }
+  #profileExtraEditors .profileSubTitle {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubArrow {
     margin-left: auto;
   }
@@ -3841,7 +4034,7 @@
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubActions + .profileSubArrow {
     margin-left: 0;
   }
-  #tabCover .coverVisibilitySwitch {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -3850,7 +4043,7 @@
     min-height: 32px;
     justify-content: center;
   }
-  #tabCover .coverVisibilitySwitch input {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -3859,7 +4052,7 @@
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
   }
-  #tabCover .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack {
     position: relative;
     width: 28px;
     height: 16px;
@@ -3868,7 +4061,7 @@
     background: var(--bg-field);
     transition: border-color .14s ease, background .14s ease;
   }
-  #tabCover .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack::after {
     content: '';
     position: absolute;
     top: 2px;
@@ -3879,29 +4072,37 @@
     background: var(--ink-faint);
     transition: transform .14s ease, background .14s ease;
   }
-  #tabCover > .coverFold > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+  #tabDesign .advancedDesignGroup #advancedOn:not(:checked) + .coverVisibilitySwitchTrack::after {
+    background: var(--advanced-off-ink);
+  }
+  :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--accent) 20%, var(--bg-panel));
     background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel));
   }
-  #tabCover .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     transform: translateX(12px);
   }
-  #tabCover > .coverFold > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+  :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 76%, white);
   }
-  #tabCover .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
     outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
     outline-offset: 2px;
   }
-  #tabCover .coverVisibilitySwitch:has(input:disabled) { cursor: default; }
-  #tabCover .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch:has(input:disabled) { cursor: default; }
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--line-strong) 70%, var(--bg-field));
     background: var(--bg-muted);
     opacity: .52;
   }
-  #tabCover .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--ink-faint) 58%, var(--bg-field));
   }
+  #tabCover .imageBackgroundToggleRow.isUnavailable {
+    opacity: .42;
+    filter: grayscale(1);
+  }
+  #tabCover .imageBackgroundToggleRow.isUnavailable label { cursor: not-allowed; }
   /* 프로필 하위 스위치는 트랙 대비를 낮추고 ON 손잡이만 밝게 구분한다. */
   #profileGroup .profileSubActions .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--line-strong) 55%, var(--bg-field));
@@ -3917,7 +4118,7 @@
   #profileGroup .profileSubActions .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 68%, white);
   }
-  #profileGroup .profileResetIconBtn {
+  :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn {
     width: 28px;
     height: 30px;
     padding: 0;
@@ -3929,9 +4130,46 @@
     line-height: 1;
     transition: color .14s ease, background .14s ease;
   }
-  #profileGroup .profileResetIconBtn:hover {
+  :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn:hover:not(:disabled) {
     background: var(--bg-muted);
     color: #a65f59;
+  }
+  :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn:disabled { cursor: default; }
+  #profileGroup .profileSubActions .profileResetIconBtn:disabled { opacity: .4; }
+  #profileGroup .profileSubFold[hidden] { display: none !important; }
+  #profileGroup .profileSubActions :is(.profileMoveBtn, .profileRemoveBtn) {
+    width: 24px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #profileGroup .profileSubActions :is(.profileMoveBtn, .profileRemoveBtn):hover:not(:disabled) {
+    background: var(--bg-muted);
+    color: var(--accent);
+  }
+  #profileGroup .profileSubActions .profileMoveBtn:disabled { opacity: .3; cursor: default; }
+  #profileGroup .profileAddBtn {
+    display: block;
+    width: 100%;
+    margin: 8px 0 14px;
+    padding: 9px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  #profileGroup .profileAddBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  #profileGroup .profileAddBtn:disabled { opacity: .4; cursor: default; }
+  #tabDesign .advancedDesignGroup.isAdvancedInactive > summary.foldHead #advancedResetBtn {
+    color: var(--advanced-off-ink);
   }
   #profileGroup .profileSubBody.isEntityDisabled { opacity: .46; }
   /* 상위 프로필과 하위 항목의 흐림이 중복되지 않도록 한다. */
@@ -3950,6 +4188,7 @@
     width: 100%;
     min-width: 0;
   }
+  #profileGroup .profileImageField > .profileImageAdjustBtn { grid-column: 3; }
   #profileGroup .profileImageDot {
     display: inline-grid;
     place-items: center;
@@ -3976,61 +4215,29 @@
   #profileGroup .profileImageAdjustBtn[aria-expanded="true"] { color: var(--ink); background: var(--bg-muted); }
   #profileGroup .profileImageAdjustBtn:disabled { opacity: .35; cursor: default; }
   #profileGroup .profileImageAdjustPanel[hidden] { display: none; }
-  /* 사진 위치·배율은 사진 행 아래에서 필요할 때만 펼친다. */
+  /* 세로선은 URL 입력칸 시작선에, 조정 라벨은 그 안쪽에 둔다. */
   #profileGroup .profileImageAdjustments {
-    margin: 4px 0 8px 10px;
-    padding-top: 8px;
-    padding-left: 10px;
-    border-left: 1px solid var(--line);
+    position: relative;
+    margin: 4px 0 8px calc(var(--settings-label-w) + var(--settings-row-gap));
+    padding: 8px 0 8px 12px;
   }
-  #profileGroup .profileImageAdjustments input[type="range"] {
-    height: 18px;
-    padding: 0;
-    appearance: none;
-    -webkit-appearance: none;
-    background: transparent;
-    accent-color: #b8b4ad;
+  #profileGroup .profileImageAdjustments::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 1px;
+    background: var(--line);
+    pointer-events: none;
   }
-  #profileGroup .profileImageAdjustments input[type="range"]::-webkit-slider-runnable-track {
-    height: 4px;
-    border: 0;
-    border-radius: 999px;
-    background: #dedbd5;
+  #profileGroup .profileImageAdjustments .row {
+    grid-template-columns: 42px minmax(0, 1fr) var(--design-value-width);
+    column-gap: 8px;
+    padding-right: var(--settings-row-gap);
+    margin-bottom: 2px;
   }
-  #profileGroup .profileImageAdjustments input[type="range"]::-webkit-slider-thumb {
-    width: 14px;
-    height: 14px;
-    margin-top: -5px;
-    border: 0;
-    border-radius: 50%;
-    appearance: none;
-    -webkit-appearance: none;
-    background: #aaa69f;
-  }
-  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-track {
-    height: 4px;
-    border: 0;
-    border-radius: 999px;
-    background: #dedbd5;
-  }
-  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-progress {
-    height: 4px;
-    border-radius: 999px;
-    background: #c7c3bc;
-  }
-  #profileGroup .profileImageAdjustments input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: 0;
-    border-radius: 50%;
-    background: #aaa69f;
-  }
-  #profileGroup .profileImageAdjustments input[type="range"]:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(113, 109, 102, .16);
-  }
-  #profileGroup .profileImageAdjustments input[type="range"]:focus-visible::-moz-range-thumb {
-    box-shadow: 0 0 0 3px rgba(113, 109, 102, .16);
-  }
+  #profileGroup .profileImageAdjustments .row:last-child { margin-bottom: 0; }
   #profileGroup .profileImageAdjustments .row > label {
     color: var(--ink-faint);
     font-size: 11.5px;
@@ -4132,32 +4339,29 @@
     background: transparent;
   }
   #creditGroup .creditRowActions button {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 26px;
     min-width: 0;
     width: 26px;
     height: 26px;
     padding: 0;
     border: 0;
-    border-radius: 0;
+    border-radius: 4px;
     background: transparent;
     color: var(--ink-faint);
-    font-size: 12px;
+    font-size: 13px;
+    line-height: 1;
   }
   #creditGroup .creditMoveGroup button + button { border-left: 0; }
   #creditGroup .creditRowActions button:hover:not(:disabled) { background: var(--bg-muted); color: var(--ink-soft); }
   #creditGroup .creditRowActions button:disabled { opacity: .32; }
-  #creditGroup .creditDividerBtn {
-    border-radius: 6px !important;
-    font-size: 14px !important;
-  }
+  #creditGroup .creditDividerBtn,
+  #creditGroup .creditDeleteBtn { font-size: 13px !important; }
   #creditGroup .creditDividerBtn[aria-pressed="true"] {
-    background: var(--accent-soft) !important;
+    background: var(--bg-muted) !important;
     color: var(--accent) !important;
   }
-  #creditGroup .creditDeleteBtn {
-    border-radius: 6px !important;
-    font-size: 15px !important;
-  }
-  #creditGroup .creditDeleteBtn:hover:not(:disabled) { background:#fff8f8 !important; color:#9a5148 !important; }
   #creditGroup .creditEditorRow.isCreditDragging {
     opacity: .44;
     box-shadow: none;
@@ -4181,13 +4385,13 @@
     font-size: 12px;
   }
   #creditGroup .creditAddBtn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--ink-soft); }
-  #creditGroup .creditPresetSection {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSection {
     display: block;
     margin-top: 14px;
     padding-top: 7px;
     border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   }
-  #creditGroup .creditPresetSummary {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSummary {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -4202,8 +4406,8 @@
     cursor: pointer;
     user-select: none;
   }
-  #creditGroup .creditPresetSummary::-webkit-details-marker { display: none; }
-  #creditGroup .creditPresetSummary::after {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSummary::-webkit-details-marker { display: none; }
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSummary::after {
     content: "+";
     flex: none;
     margin-left: 12px;
@@ -4212,32 +4416,32 @@
     font-weight: 500;
     line-height: 1;
   }
-  #creditGroup .creditPresetSection[open] > .creditPresetSummary::after { content: "−"; }
-  #creditGroup .creditPresetSummary:hover { color: var(--ink-faint); }
-  #creditGroup .creditPresetControls {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSection[open] > .creditPresetSummary::after { content: "−"; }
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSummary:hover { color: var(--ink-faint); }
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetControls {
     width: min(360px, 100%);
     min-width: 0;
     margin: 4px 0 0 auto;
   }
-  #creditGroup .creditPresetLoadRow,
-  #creditGroup .creditPresetSaveRow {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 4px;
     margin-top: 0;
   }
-  #creditGroup .creditPresetSaveRow {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow {
     grid-template-columns: minmax(0, 1fr) auto;
     margin-top: 4px;
   }
-  #creditGroup .creditPresetLoadRow select,
-  #creditGroup .creditPresetSaveRow input,
-  #creditGroup .creditPresetLoadRow button,
-  #creditGroup .creditPresetSaveRow button {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow select,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow input,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow button,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow button {
     min-width: 0;
   }
-  #creditGroup .creditPresetLoadRow select,
-  #creditGroup .creditPresetSaveRow input {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow select,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow input {
     box-sizing: border-box;
     height: 32px;
     padding-left: 12px;
@@ -4247,27 +4451,27 @@
     font-size: 11.5px;
     box-shadow: none;
   }
-  #creditGroup .creditPresetSaveRow input[type="text"]:not(:placeholder-shown):not(:focus) {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow input[type="text"]:not(:placeholder-shown):not(:focus) {
     border-color: color-mix(in srgb, var(--line) 82%, transparent);
     background-color: color-mix(in srgb, var(--bg-field) 72%, var(--bg-panel));
     color: var(--ink-faint);
   }
-  #creditGroup .creditPresetLoadRow select:focus,
-  #creditGroup .creditPresetSaveRow input[type="text"]:focus {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow select:focus,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow input[type="text"]:focus {
     border-color: var(--line-strong);
     background-color: var(--bg-field);
     color: var(--ink-soft);
     box-shadow: none;
   }
-  #creditGroup .creditPresetSaveRow input::placeholder { color: var(--help-ink); }
-  #creditGroup .creditPresetLoadRow select {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow input::placeholder { color: var(--help-ink); }
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow select {
     padding-right: 30px;
     background-image:
       linear-gradient(45deg, transparent 50%, var(--help-ink) 50%),
       linear-gradient(135deg, var(--help-ink) 50%, transparent 50%);
   }
-  #creditGroup .creditPresetLoadRow button,
-  #creditGroup .creditPresetSaveRow button {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow button,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow button {
     min-width: 50px;
     height: 26px;
     padding: 0 10px;
@@ -4279,37 +4483,37 @@
     font-weight: 500;
     white-space: nowrap;
   }
-  #creditGroup .creditPresetLoadRow button:hover:not(:disabled),
-  #creditGroup .creditPresetSaveRow button:hover:not(:disabled) {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow button:hover:not(:disabled),
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow button:hover:not(:disabled) {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
     color: var(--ink-soft);
   }
-  #creditGroup #creditPresetDeleteBtn {
+  :is(#creditGroup, #advancedDesignGroup) :is(#creditPresetDeleteBtn, #detailPresetDeleteBtn) {
     border-color: transparent;
     background: transparent;
     color: #b47770;
   }
-  #creditGroup #creditPresetDeleteBtn:hover:not(:disabled) {
+  :is(#creditGroup, #advancedDesignGroup) :is(#creditPresetDeleteBtn, #detailPresetDeleteBtn):hover:not(:disabled) {
     border-color: transparent;
     background: #fff3f1;
     color: #a45d56;
   }
-  #creditGroup .creditPresetLoadRow button:active:not(:disabled),
-  #creditGroup .creditPresetSaveRow button:active:not(:disabled) {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow button:active:not(:disabled),
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow button:active:not(:disabled) {
     background: color-mix(in srgb, var(--ink) 10%, transparent);
   }
-  #creditGroup #creditPresetDeleteBtn:active:not(:disabled) {
+  :is(#creditGroup, #advancedDesignGroup) :is(#creditPresetDeleteBtn, #detailPresetDeleteBtn):active:not(:disabled) {
     background: #f8e7e4;
   }
-  #creditGroup .creditPresetLoadRow button:disabled,
-  #creditGroup .creditPresetSaveRow button:disabled {
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetLoadRow button:disabled,
+  :is(#creditGroup, #advancedDesignGroup) .creditPresetSaveRow button:disabled {
     border: 0;
     background: transparent;
     color: var(--ink-faint);
     opacity: .45;
     cursor: default;
   }
-  #creditGroup #creditPresetDeleteBtn:disabled {
+  :is(#creditGroup, #advancedDesignGroup) :is(#creditPresetDeleteBtn, #detailPresetDeleteBtn):disabled {
     border-color: transparent;
     background: transparent;
     color: var(--ink-faint);
@@ -4328,10 +4532,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     #profileGroup .profileTagFields input:last-child { grid-column: 1 / -1; }
-    #profileGroup .profileImageAdjustments {
-      margin-left: 8px;
-      padding-left: 8px;
-    }
     #creditGroup .creditRowFields { grid-template-columns: minmax(0, 1fr); }
     #creditGroup .creditLabelInput,
     #creditGroup .creditValueInput,
@@ -4626,7 +4826,6 @@
     .editorToolbar .tbGroup { flex: none; }
     #previewArea,
     body.layoutMirrored #previewArea { padding: 22px 48px 52px 12px; }
-    #previewWrap { max-width: 100% !important; }
     #previewToolbar { margin-bottom: 8px; }
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
@@ -4663,11 +4862,12 @@
     .cardFoldGroup .foldTitleInput { flex: 1 1 110px; }
     #previewToolbar { align-items: flex-start; gap: 6px; }
     .previewTools { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-    .previewStyleToggles { gap: 10px; }
+    .previewStyleControls { gap: 10px; }
     .previewStyleDivider { display:none; }
     .previewThemeToggle button { min-width: 42px; padding-left: 7px; padding-right: 7px; }
     .previewSyncFloat { right:12px; bottom:12px; }
     body.previewFullscreen #previewArea { padding:16px 16px 40px; }
+    body.previewFullscreen #previewToolbar { width:calc(100vw - 32px); }
     .widthToggle button { padding: 0 9px; font-size: 11px; }
     #pvSearchBox { margin-left:0; margin-right:0; flex-wrap:wrap; }
     .pvSearchMain, #pvReplaceRow { flex:1 1 100%; }
@@ -4794,6 +4994,9 @@
     margin-top: -2px;
   }
   .imageCheckRow:has(.imageLoadStatus[hidden]) { display: none; }
+  /* 대표 이미지의 세 슬라이더는 본문 나레이션 크기·줄간격과 같은 행 간격으로 묶는다. */
+  #tabCover #imageGroup .row:has(> #imgHeight),
+  #tabCover #imageGroup .row:has(> #xpos) { margin-bottom: 2px; }
   .imageLoadStatus {
     color: var(--ink-faint);
     font-size: 10.5px;
@@ -4923,10 +5126,150 @@
     grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width);
     column-gap: 10px;
   }
+  #tabDesign .typographyGroup .typographyBodyRow { margin-bottom: 2px; }
+  #tabDesign .typographyGroup .typographyBodyGroupEnd { margin-bottom: 14px; }
   #tabDesign .designFold .selectCycleRow {
     grid-template-columns: 80px minmax(0, 1fr) 56px;
     column-gap: 10px;
   }
+  #tabDesign .advancedDesignGroup .row {
+    grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width);
+    column-gap: 10px;
+  }
+  #tabDesign .advancedDesignGroup .row:has(> input[type="range"]) {
+    min-height: 26px;
+    margin-bottom: 0;
+  }
+  #tabDesign .advancedDesignGroup #creditAppearancePanel > .creditAppearanceOptionsRow {
+    min-height: 30px;
+    margin-bottom: 0;
+  }
+  #tabDesign .advancedDesignGroup {
+    --advanced-range-fill: color-mix(in srgb, var(--accent) 66%, var(--bg-panel));
+    --advanced-range-thumb: color-mix(in srgb, var(--accent) 60%, var(--bg-panel));
+    --advanced-range-rest: var(--line-strong);
+  }
+  #tabDesign :is(#detailCoverSection, #detailCardInteriorSection, #detailCardExteriorSection, #detailCreditSection) {
+    --advanced-range-fill: #858585;
+    --advanced-range-thumb: #858585;
+    --advanced-range-rest: #c6c6c6;
+  }
+  :root.uiNight #tabDesign :is(#detailCoverSection, #detailCardInteriorSection, #detailCardExteriorSection, #detailCreditSection) {
+    --advanced-range-fill: #a0a0a0;
+    --advanced-range-thumb: #a0a0a0;
+    --advanced-range-rest: #626262;
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"] {
+    height: 26px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(to right,
+      var(--advanced-range-fill) 0 var(--advanced-range-progress, 50%),
+      var(--advanced-range-rest) var(--advanced-range-progress, 50%) 100%);
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"]::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -3px;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--advanced-range-thumb);
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"]::-moz-range-track {
+    height: 6px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--advanced-range-rest);
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"]::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--advanced-range-fill);
+  }
+  #tabDesign .advancedDesignGroup .row > input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    background: var(--advanced-range-thumb);
+  }
+  #tabDesign .advancedDesignGroup .selectCycleRow {
+    grid-template-columns: 80px minmax(0, 1fr) 56px;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoiceRow {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+  #tabDesign .advancedDesignGroup .shapeChoiceRow,
+  #tabDesign .advancedDesignGroup .shapeChoiceRow + .row,
+  #tabDesign .advancedDesignGroup .shapeChoiceRow + .row + .row {
+    margin-bottom: 0;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoiceRow {
+    margin-bottom: 10px;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoiceRow + .row,
+  #tabDesign .advancedDesignGroup .shapeChoiceRow + .row + .row {
+    min-height: 26px;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoiceLabel {
+    color: var(--ink-soft);
+    font-size: 11.5px;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoice {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    gap: 3px;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoice button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 30px;
+    padding: 0 3px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  #tabDesign .advancedDesignGroup .shapeChoice button:hover { background: var(--bg-subtle); color: var(--ink); }
+  #tabDesign .advancedDesignGroup .shapeChoice button[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    color: var(--accent);
+  }
+  #tabDesign .advancedDesignGroup .shapeChoice button[aria-pressed="true"]:hover {
+    background: color-mix(in srgb, var(--accent) 17%, var(--bg-panel));
+  }
+  #tabDesign .advancedDesignGroup .shapeChoice button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #tabDesign .advancedDesignGroup .shapePreview { display: block; color: currentColor; pointer-events: none; }
+  #tabDesign .advancedDesignGroup .shapePreviewLine { width: min(30px, 86%); height: 0; }
+  #tabDesign .advancedDesignGroup .shapePreviewSolid { border-top: 2px solid currentColor; }
+  #tabDesign .advancedDesignGroup .shapePreviewDashed { border-top: 2px dashed currentColor; }
+  #tabDesign .advancedDesignGroup .shapePreviewStarLine { display: flex; align-items: center; gap: 3px; width: min(30px, 86%); font-size: 9px; line-height: 1; }
+  #tabDesign .advancedDesignGroup .shapePreviewStarLine::before,
+  #tabDesign .advancedDesignGroup .shapePreviewStarLine::after { content: ''; flex: 1; border-top: 1px solid currentColor; }
+  #tabDesign .advancedDesignGroup .shapePreviewShortLine { width: 17px; height: 0; border-top: 2px solid currentColor; }
+  #tabDesign .advancedDesignGroup .shapePreviewGlyph { font-size: 14px; line-height: 1; }
+  #tabDesign .advancedDesignGroup .shapePreviewDiamond {
+    width: 12px;
+    height: 12px;
+    background: currentColor;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  }
+  #tabDesign .advancedDesignGroup .shapePreviewTripleStars { padding-left: 1px; font-size: 10px; letter-spacing: 1px; line-height: 1; white-space: nowrap; }
+  #tabDesign .advancedDesignGroup .shapePreviewBreath { font-size: 17px; line-height: 1; white-space: nowrap; }
   #tabDesign #speakerGroup #speakerNames .row {
     grid-template-columns: 80px minmax(0, 1fr) 56px;
     column-gap: 10px;
@@ -5009,13 +5352,24 @@
     justify-content: flex-end;
     white-space: nowrap;
   }
-  #tabDesign .typographyGroup .typographySubsection {
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsection {
     display: block;
     margin: 8px 0 0;
     padding: 5px 0 0;
     border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   }
-  #tabDesign .typographyGroup .typographySubsectionSummary {
+  #tabDesign .advancedDesignGroup .typographySubsection { padding-top: 7px; }
+  #tabDesign .advancedDesignGroup #detailDividerSection {
+    margin-top: 1px;
+    padding-top: 1px;
+    border-top: 0;
+  }
+  #tabDesign .advancedDesignGroup > .foldBody > .typographySubsection:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionSummary {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -5030,8 +5384,21 @@
     cursor: pointer;
     user-select: none;
   }
-  #tabDesign .typographyGroup .typographySubsectionSummary::-webkit-details-marker { display: none; }
-  #tabDesign .typographyGroup .typographySubsectionSummary::after {
+  #tabDesign .advancedDesignGroup .typographySubsectionSummary { min-height: 36px; font-size: 12.5px; }
+  #tabDesign #detailDividerSection .advancedSubsectionLabel {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 400;
+  }
+  #tabDesign #detailDividerSection .advancedSubsectionBranch {
+    flex: 0 0 12.5px;
+    width: 12.5px;
+    color: var(--help-ink);
+    font-size: 11px;
+    font-weight: 400;
+  }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionSummary::-webkit-details-marker { display: none; }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionSummary::after {
     content: "+";
     flex: none;
     margin-left: 12px;
@@ -5040,9 +5407,19 @@
     font-weight: 500;
     line-height: 1;
   }
-  #tabDesign .typographyGroup .typographySubsection[open] > .typographySubsectionSummary::after { content: "−"; }
-  #tabDesign .typographyGroup .typographySubsectionSummary:hover { color: var(--ink); }
-  #tabDesign .typographyGroup .typographySubsectionBody { padding: 4px 0 1px; }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsection[open] > .typographySubsectionSummary::after { content: "−"; }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionSummary:hover { color: var(--ink); }
+  #tabDesign #detailDividerSection > .typographySubsectionSummary::after { display: none; }
+  #tabDesign .advancedDesignGroup .typographySubsection[open] > .typographySubsectionSummary {
+    color: var(--accent);
+  }
+  #tabDesign .advancedDesignGroup .typographySubsection[open] > .typographySubsectionSummary::after,
+  #tabDesign .advancedDesignGroup .typographySubsection[open] > .typographySubsectionSummary .advancedSubsectionBranch {
+    color: inherit;
+  }
+  #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionBody { padding: 4px 0 1px; }
+  #tabDesign .typographyGroup .typographySubsectionBody > .row { margin-bottom: 2px; }
+  #tabDesign .typographyGroup .typographySubsectionBody > .row:last-child { margin-bottom: 0; }
   #tabDesign .typographyGroup .titleStyleRow {
     grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width) auto;
     column-gap: 10px;
@@ -5189,6 +5566,16 @@
     #tabDesign .designFold .selectCycleRow {
       grid-template-columns: 72px minmax(0, 1fr) 52px;
       column-gap: 8px;
+    }
+    #tabDesign .advancedDesignGroup .row {
+      grid-template-columns: 72px minmax(0, 1fr) var(--design-value-width);
+      column-gap: 8px;
+    }
+    #tabDesign .advancedDesignGroup .selectCycleRow {
+      grid-template-columns: 72px minmax(0, 1fr) 52px;
+    }
+    #tabDesign .advancedDesignGroup .shapeChoiceRow {
+      grid-template-columns: 72px minmax(0, 1fr);
     }
     #tabDesign #speakerGroup #speakerNames .row {
       grid-template-columns: 72px minmax(0, 1fr) 52px;
@@ -5356,23 +5743,50 @@
 #tabTheme > .expressionThemeGroup + .themeFold { padding-top:16px; border-top:0; }
 .paletteUnavailable #comboList { opacity:.4; }
 
-/* 각진 카드 테마에서는 편집 UI도 직각으로 맞춘다.
-   실제 출력 미리보기의 내용은 출력 테마 고유의 스타일을 유지한다. */
-body.angularUi :where(*:not(#preview):not(#preview *)) { border-radius: 0 !important; }
-body.angularUi #previewArea { border-radius: 0 !important; }
-body.angularUi input[type="range"]::-webkit-slider-thumb { border-radius: 0 !important; }
-body.angularUi input[type="range"]::-moz-range-thumb { border-radius: 0 !important; }
-body.angularUi input[type="color"]::-webkit-color-swatch { border-radius: 0 !important; }
-body.angularUi input[type="color"]::-moz-color-swatch { border-radius: 0 !important; }
-/* 스위치와 카드 모양 견본은 상태·형태를 알아볼 수 있도록 원래 윤곽을 유지한다. */
-body.angularUi #tabCover .coverVisibilitySwitchTrack { border-radius: 999px !important; }
-body.angularUi #tabCover .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
-body.angularUi .expressionThemeOptions .expressionShapeIcon { border-radius: 5px !important; }
-body.angularUi .expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius: 1px !important; }
+/* 편집 UI는 카드 출력 모양과 관계없이 직각으로 통일한다.
+   실제 출력 미리보기의 내용은 선택한 카드 테마 고유의 모양을 유지한다. */
+body :where(*:not(#preview):not(#preview *)) { border-radius: 0 !important; }
+/* 둥근 카드일 때 미리보기 도구의 모양·테마·폭 버튼만 직각 UI 규칙에서 제외한다. */
+body .previewShapeControl #previewCardShapeBtn.isRoundedCard { border-radius: 7px !important; }
+body #previewToolbar:has(#previewCardShapeBtn.isRoundedCard) .previewWidthCycle button {
+  border-radius: 7px !important;
+}
+body #previewToolbar:has(#previewCardShapeBtn.isRoundedCard) :is(.previewThemeToggle, .previewFullscreenWidthToggle) button:first-child {
+  border-radius: 7px 0 0 7px !important;
+}
+body #previewToolbar:has(#previewCardShapeBtn.isRoundedCard) :is(.previewThemeToggle, .previewFullscreenWidthToggle) button:last-child {
+  border-radius: 0 7px 7px 0 !important;
+}
+/* 다크 작업 화면에서는 모양·폭 선택 버튼의 윤곽을 배경과 구별한다. */
+:root.uiNight body:not(.previewFullscreen) #previewToolbar :is(.previewShapeControl, .previewWidthCycle) button {
+  border-color: color-mix(in srgb, var(--line-strong) 80%, var(--ink-soft));
+}
+/* 다크 전체화면에서는 다크 버튼이 시각적으로 왼쪽이다. DOM 순서와 별개로 모서리를 지정한다. */
+:root.uiNight body.previewFullscreen #previewToolbar:has(#previewCardShapeBtn.isRoundedCard) .previewThemeToggle #previewThemeDarkBtn {
+  border-radius: 7px 0 0 7px !important;
+}
+:root.uiNight body.previewFullscreen #previewToolbar:has(#previewCardShapeBtn.isRoundedCard) .previewThemeToggle #previewThemeLightBtn {
+  border-radius: 0 7px 7px 0 !important;
+}
+body input[type="range"]::-webkit-slider-thumb { border-radius: 0 !important; }
+body input[type="range"]::-moz-range-thumb { border-radius: 0 !important; }
+body #tabDesign .typographyGroup .row > input[type="range"]::-webkit-slider-thumb { border-radius: 50% !important; }
+body #tabDesign .typographyGroup .row > input[type="range"]::-moz-range-thumb { border-radius: 50% !important; }
+body #tabCover .settingsForm .row > input[type="range"]::-webkit-slider-thumb { border-radius: 50% !important; }
+body #tabCover .settingsForm .row > input[type="range"]::-moz-range-thumb { border-radius: 50% !important; }
+body #tabDesign .advancedDesignGroup .row > input[type="range"]::-webkit-slider-thumb { border-radius: 50% !important; }
+body #tabDesign .advancedDesignGroup .row > input[type="range"]::-moz-range-thumb { border-radius: 50% !important; }
+body input[type="color"]::-webkit-color-swatch { border-radius: 0 !important; }
+body input[type="color"]::-moz-color-swatch { border-radius: 0 !important; }
+/* 상태 스위치·색상 표식·카드 모양 견본은 원래 윤곽을 유지한다. */
+body :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack { border-radius: 999px !important; }
+body :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
+body .expressionThemeOptions .expressionShapeIcon { border-radius: 5px !important; }
+body .expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius: 1px !important; }
+body .uiPaletteCurrent { border-radius: 50% !important; }
 
 /* 작업 화면 색상은 출력 HTML의 색과 별도로 기억한다. */
-.uiAppearancePanel { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
-.uiAppearanceLabel { color:var(--help-ink-strong); font-size:11px; font-weight:600; }
+.uiAppearancePanel { display:flex; align-items:center; justify-content:flex-end; margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
 .uiAppearanceControls { position:relative; display:flex; align-items:center; gap:4px; }
 .uiAppearanceDivider { width:1px; height:20px; margin:0 4px; background:var(--line); }
 .uiAppearanceButton { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--ink-faint); cursor:pointer; }
@@ -5476,13 +5890,12 @@ body.angularUi .expressionThemeOptions button[data-output-shape="document"] .exp
 :root.uiNight #selToolbar button.active,
 :root.uiNight #blockToolbar button.active { color:#19241c; }
 :root.uiNight #savePresetBtn:hover { border-color:var(--ink-soft); background:var(--ink-soft); }
-:root.uiNight #undoToast { background:#29362e; color:#f4f7f3; border-color:var(--line-strong); }
+:root.uiNight #undoToast { background:#2d322f; color:#f4f7f3; border-color:var(--line-strong); }
 
 /* 회색 팔레트에서는 작업 UI의 별도 고정색도 중성 회색으로 통일한다. */
 :root[data-ui-palette="gray"] body:not(.previewFullscreen) #previewArea #preview > [data-mosaic-comment-index] { color:#2b2b2b; }
 :root.uiNight[data-ui-palette="gray"] body:not(.previewFullscreen) #previewArea #preview > [data-mosaic-comment-index],
 :root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark #preview > [data-mosaic-comment-index] { color:#e5e5e5; }
-:root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"] { color:#d0d0d0; }
 :root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"]::after { background:#b0b0b0; }
 :root[data-ui-palette="gray"] body.previewFullscreen #previewArea.previewArcaDark :is(.previewFullscreenBtn, .layoutMirrorBtn):hover { background:#353535; color:#e2e2e2; }
 :root.uiNight[data-ui-palette="gray"] body.previewFullscreen #previewArea:not(.previewArcaDark) {

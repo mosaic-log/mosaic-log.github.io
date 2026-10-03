@@ -180,7 +180,7 @@ function normalizeStandaloneHr(text){
 // 한 줄로 합쳐지지 않게 한다. 마커 뒤의 공백·본문은 그대로 보존한다.
 function normalizeBodyHrMarkers(text){
   return normalizeStandaloneHr(text).split('\n').map(line =>
-    line.replace(/^([\t ]*\[(?:HR(?:2|3)?|GAP)\])(?=[\t ]*\S)/i, '$1\n')
+    line.replace(/^([\t ]*\[(?:HR(?:[2-4])?|GAP)\])(?=[\t ]*\S)/i, '$1\n')
   ).join('\n');
 }
 
@@ -196,7 +196,7 @@ function normalizedBodyHrOffset(text, offset){
   let lineEnd = source.indexOf('\n', safeOffset);
   if(lineEnd < 0) lineEnd = source.length;
   const line = source.slice(lineStart, lineEnd);
-  const marker = line.match(/^([\t ]*\[(?:HR(?:2|3)?|GAP)\])(?=[\t ]*\S)/i);
+  const marker = line.match(/^([\t ]*\[(?:HR(?:[2-4])?|GAP)\])(?=[\t ]*\S)/i);
   const prefixAlreadySplit = normalizedPrefix.length > normalizeStandaloneHr(prefix).length;
   if(marker && safeOffset >= lineStart + marker[1].length && !prefixAlreadySplit) mapped++;
   return mapped;
@@ -392,7 +392,7 @@ function tonePalette(settings){
     breathOrnament,
     footerText,
     shellBorder,
-    ornament: mixHex(bg, to, isLight ? 0.28 : 0.42),
+    ornament: mixHex(bg, to, advancedTransparentOpacity(settings.cardTitleOrnamentOpacity, isLight ? 0.28 : 0.42)),
     caption,
     heading: {
       1: mixHex(bg, to, 0.93),
@@ -416,6 +416,10 @@ function paragraphGapPx(settings){
   const gap = Number(settings.paragraphGap);
   return Number.isFinite(gap) ? Math.min(40, Math.max(8, gap)) : 20;
 }
+function narrDialogueGapPx(settings){
+  const gap = Number(settings.narrDialogueGap);
+  return Number.isFinite(gap) ? Math.min(40, Math.max(10, gap)) : Math.max(10, paragraphGapPx(settings));
+}
 
 function normalizeCardLayout(value){
   return value === 'unified' ? 'unified' : 'separate';
@@ -432,6 +436,141 @@ function syncCardLayoutCheckbox(){
 
 // 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
 const CARD_INLINE_PADDING = 'clamp(16px,4vw,22px)';
+function advancedPercent(value, fallback = 50){
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : fallback;
+}
+function advancedOpaqueOpacity(value){
+  return Math.min(1, advancedPercent(value) / 50);
+}
+function advancedDecorationColor(baseColor, palette, value){
+  return mixHex(baseColor, palette.heading[3], Math.max(0, (advancedPercent(value) - 50) / 50));
+}
+function hrLengthPercent(settings){
+  const number = Number(settings.hrLength);
+  return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
+}
+function hrVerticalSpacePx(value, fallback){
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(80, number)) : fallback;
+}
+function gapHeightPx(settings){
+  const number = Number(settings.gapHeight);
+  return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 48;
+}
+function normalizeHrShape(value){
+  if(value === 'dotted') return 'star';
+  return ['solid','dashed','star'].includes(value) ? value : 'solid';
+}
+function normalizeHr2Shape(value){
+  if(value === 'circle') return 'triple-star';
+  return ['star','diamond','triple-star'].includes(value) ? value : 'star';
+}
+function normalizeHr3Shape(value){
+  return ['dots','one','line'].includes(value) ? value : 'dots';
+}
+function advancedTransparentOpacity(value, baseline){
+  const percent = advancedPercent(value);
+  return percent <= 50 ? baseline * percent / 50 : baseline + (1 - baseline) * (percent - 50) / 50;
+}
+function cardInlinePaddingCss(settings){
+  const number = Number(settings.cardInlinePadding);
+  const padding = Number.isFinite(number) ? Math.max(0, Math.min(66, number)) : 22;
+  return padding === 22 ? CARD_INLINE_PADDING : `${padding}px`;
+}
+function cardBodyTopSpacePx(settings){
+  const number = Number(settings.cardBodyTopSpace);
+  return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 0;
+}
+function cardBodyTopPaddingCss(minPx, fluidVw, maxPx, settings){
+  const extra = cardBodyTopSpacePx(settings);
+  return extra
+    ? `clamp(${minPx + extra}px,calc(${fluidVw}vw + ${extra}px),${maxPx + extra}px)`
+    : `clamp(${minPx}px,${fluidVw}vw,${maxPx}px)`;
+}
+function cardBodyBottomSpacePx(settings){
+  const number = Number(settings.cardBodyBottomSpace);
+  return Number.isFinite(number) ? Math.max(-28, Math.min(40, number)) : 0;
+}
+function headingSpacePx(value){
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(-20, Math.min(40, number)) : 0;
+}
+function profileItemGapDeltaPx(settings){
+  const number = Number(settings.profileItemGap);
+  return Number.isFinite(number) ? Math.max(-10, Math.min(40, number)) : 0;
+}
+function profileItemGapBasePx(){
+  if(document.getElementById('profileStyle').value !== 'showcase') return 10;
+  const photoBackgroundOn = document.getElementById('profileImageBackgroundOn').checked;
+  const prefixes = ['profileChar','profileUser',
+    ...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)];
+  const visible = prefixes.filter(prefix => document.getElementById(`${prefix}On`).checked
+    && (document.getElementById(`${prefix}Image`).value.trim()
+      || ['Name','Desc','Tags'].some(field => document.getElementById(`${prefix}${field}`).value.trim())));
+  const everyPhoto = visible.length > 0 && photoBackgroundOn && visible.every(prefix =>
+    document.getElementById(`${prefix}Image`).value.trim()
+      && document.getElementById(`${prefix}ImageStatus`)?.dataset.state !== 'error');
+  return everyPhoto ? 0 : 2;
+}
+function cardBodyBottomPaddingCss(settings, hasFooter){
+  const extra = hasFooter ? 0 : cardBodyBottomSpacePx(settings);
+  const minPadding = Math.max(0, 24 + extra);
+  const maxPadding = Math.max(0, 30 + extra);
+  return extra
+    ? `clamp(${minPadding}px,calc(5vw ${extra < 0 ? '-' : '+'} ${Math.abs(extra)}px),${maxPadding}px)`
+    : 'clamp(24px,5vw,30px)';
+}
+function cardGapPx(settings){
+  const number = Number(settings.cardGap);
+  return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 20;
+}
+function coverCardGapPx(settings){
+  const number = Number(settings.coverCardGap);
+  return Number.isFinite(number) ? Math.max(0, Math.min(80, number)) : 0;
+}
+function profileTitleGapPx(settings){
+  const number = Number(settings.profileTitleGap);
+  return Number.isFinite(number) ? Math.max(-20, Math.min(80, number)) : 0;
+}
+function unifiedBottomSpacePx(settings){
+  const number = Number(settings.unifiedBottomSpace);
+  return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
+}
+function coverVerticalSpacePx(settings){
+  const number = Number(settings.coverVerticalSpace);
+  return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
+}
+function cardTitlePaddingPx(settings){
+  const number = Number(settings.cardTitlePadding);
+  return Number.isFinite(number) ? Math.max(12, Math.min(40, number)) : 26;
+}
+function cardDividerLengthPercent(settings){
+  const number = Number(settings.cardDividerLength);
+  return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
+}
+function coverDividerLengthPercent(settings){
+  const number = Number(settings.coverDividerLength);
+  return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
+}
+function coverDividerTopCss(settings, color){
+  const length = coverDividerLengthPercent(settings);
+  return length === 100
+    ? `border-top:1px solid ${color};`
+    : `background-image:linear-gradient(to right, ${color}, ${color}); background-repeat:no-repeat; background-position:center top; background-size:${length}% 1px;`;
+}
+function appendCoverDividerLine(boundary, edge, settings, color){
+  const length = coverDividerLengthPercent(settings);
+  boundary.style.setProperty('position', 'relative');
+  const line = document.createElement('div');
+  line.setAttribute('aria-hidden', 'true');
+  line.style.cssText = `position:absolute; z-index:1; left:${(100 - length) / 2}%; ${edge}:0; width:${length}%; height:1px; margin:0; padding:0; border:0; background-color:${color}; pointer-events:none;`;
+  boundary.appendChild(line);
+}
+function cardCornerRadiusPx(settings){
+  const number = Number(settings.cardCornerRadius);
+  return Number.isFinite(number) ? Math.max(0, Math.min(16, number)) : 16;
+}
 
 function normalizeSoftBreakSpacing(value){
   const raw = String(value === undefined || value === null ? '' : value);
@@ -460,7 +599,7 @@ function statusLineContent(line){
   if(!match) return null;
   const content = match[1].trim();
   // 캡션에 |를 쓰는 본문 이미지 등 기존 구조 문법이 상태창으로 오인되지 않게 한다.
-  if(/^(?:IMG\b|접기\b|\/접기\b|HR(?:2|3)?\b|GAP\b)/i.test(content)) return null;
+  if(/^(?:IMG\b|접기\b|\/접기\b|HR(?:[2-4])?\b|GAP\b)/i.test(content)) return null;
   return content;
 }
 
@@ -530,7 +669,12 @@ function renderQuoteContent(text, settings){
     flush();
     const spec = headingSpec(heading.level);
     const gap = paragraphGapPx(settings);
-    parts.push(`<div data-mosaic-quote-heading="${heading.level}" data-mosaic-quote-line="${index}" style="margin:${index ? gap : 0}px 0 ${index < lines.length - 1 ? gap : 0}px; font-size:${spec.size}px !important; font-weight:${spec.weight} !important; line-height:1.4 !important; color:inherit !important; -webkit-text-fill-color:inherit !important;">${renderInline(heading.title)}</div>`);
+    const prevIsHeading = index > 0 && !!parseBodyHeading(lines[index - 1].trim());
+    const nextIsHeading = index < lines.length - 1 && !!parseBodyHeading(lines[index + 1].trim());
+    const top = prevIsHeading ? 0 : Math.max(0, (index ? gap : 0) + headingSpacePx(settings.headingTopSpace));
+    const bottom = Math.max(0, (index < lines.length - 1 ? gap : 0)
+      + headingSpacePx(nextIsHeading ? settings.headingBetweenSpace : settings.headingBottomSpace));
+    parts.push(`<div data-mosaic-quote-heading="${heading.level}" data-mosaic-quote-line="${index}" style="margin:${top}px 0 ${bottom}px; font-size:${spec.size}px !important; font-weight:${spec.weight} !important; line-height:1.4 !important; color:inherit !important; -webkit-text-fill-color:inherit !important;">${renderInline(heading.title)}</div>`);
   });
   flush();
   return parts.join('');
@@ -585,29 +729,49 @@ function buildParagraph(rawLine, settings, opts){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
   const baseParagraphGap = Math.round(paragraphGapPx(settings) * sm);
+  const narrationDialogueGap = Math.round(narrDialogueGapPx(settings) * sm);
   const upper = line.toUpperCase();
 
   if(upper === '[HR]'){
     // 아카라이브가 <hr>의 인라인 스타일은 지워버리지만 div 스타일은 유지하는 게 확인됐으므로
-    // 구분선을 div로 생성 (1px 높이 + 배경색 = 얇은 선)
-    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr" style="height:1px; background-color:${pal.contentDivider}; margin:${Math.round(26*sm)}px 0;"></div>\n`;
+    // 구분선을 div로 생성하고 모양별 장식도 인라인 스타일로 출력한다.
+    const shape = normalizeHrShape(settings.hrShape);
+    const color = advancedDecorationColor(pal.contentDivider, pal, settings.hrOpacity);
+    const lineStyle = {
+      solid: `height:1px; background-color:${color};`,
+      dashed: `height:0; border-top:1px dashed ${color};`,
+      star: 'display:flex; align-items:center; gap:10px;'
+    }[shape];
+    const star = shape === 'star'
+      ? `<span aria-hidden="true" style="display:block; flex:1 1 auto; height:0; border-top:1px solid ${color};"></span><span aria-hidden="true" style="display:block; flex:0 0 auto; color:${color}; font-size:12px !important; line-height:1; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">✦</span><span aria-hidden="true" style="display:block; flex:1 1 auto; height:0; border-top:1px solid ${color};"></span>`
+      : '';
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr" data-mosaic-hr-shape="${shape}" style="box-sizing:border-box; width:${hrLengthPercent(settings)}%; ${lineStyle} opacity:${advancedOpaqueOpacity(settings.hrOpacity)}; margin:${Math.round(hrVerticalSpacePx(settings.hrVerticalSpace, 26)*sm)}px auto;">${star}</div>\n`;
   }
 
   if(upper === '[HR2]'){
-    // 장면 전환용 별 장식은 한 개만 중앙에 놓고, 테마·보조색에 맞춘 전용 색상을 쓴다.
+    // 장면 전환 장식은 선택한 기호를 중앙에 놓고, 테마·보조색에 맞춘 전용 색상을 쓴다.
     // 아카라이브 모바일 앱에서 장식만 자동 축소되지 않도록 크기를 요소에 직접 고정한다.
-    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr2" style="box-sizing:border-box; text-align:center; color:${pal.sceneOrnament}; font-size:12px !important; line-height:1; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important; margin:${Math.round(48*sm)}px 0;">✦</div>\n`;
+    const shape = normalizeHr2Shape(settings.hr2Shape);
+    const ornament = { star:'✦', diamond:'◆', 'triple-star':'✦ ✦ ✦' }[shape];
+    const ornamentSize = shape === 'triple-star' ? 10 : 12;
+    const ornamentSpacing = shape === 'triple-star' ? 'padding-left:1px; letter-spacing:1px;' : '';
+    const color = advancedDecorationColor(pal.sceneOrnament, pal, settings.hr2Opacity);
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr2" style="box-sizing:border-box; text-align:center; color:${color}; opacity:${advancedOpaqueOpacity(settings.hr2Opacity)}; font-size:${ornamentSize}px !important; ${ornamentSpacing} line-height:1; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important; margin:${Math.round(hrVerticalSpacePx(settings.hr2VerticalSpace, 48)*sm)}px 0;">${ornament}</div>\n`;
   }
 
   if(upper === '[HR3]'){
     // 별 장식보다 조용한 호흡 구분. 모바일 게시판의 텍스트 색상·자동 확대가
     // 점 장식을 덮지 못하도록 실제 색과 채움색, 크기를 요소 자체에 고정한다.
-    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr3" style="box-sizing:border-box; padding-left:8px; text-align:center; color:${pal.breathOrnament} !important; -webkit-text-fill-color:${pal.breathOrnament} !important; font-size:17px !important; font-weight:600; line-height:1; letter-spacing:8px; margin:${Math.round(36*sm)}px 0; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">· · ·</div>\n`;
+    const shape = normalizeHr3Shape(settings.hr3Shape);
+    const ornament = { dots:'· · ·', one:'·', line:'━' }[shape];
+    const spacing = shape === 'dots' ? 'padding-left:8px; letter-spacing:8px;' : 'padding-left:0; letter-spacing:0;';
+    const color = advancedDecorationColor(pal.breathOrnament, pal, settings.hr3Opacity);
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr3" style="box-sizing:border-box; ${spacing} text-align:center; color:${color} !important; -webkit-text-fill-color:${color} !important; opacity:${advancedOpaqueOpacity(settings.hr3Opacity)}; font-size:17px !important; font-weight:600; line-height:1; margin:${Math.round(hrVerticalSpacePx(settings.hr3VerticalSpace, 36)*sm)}px 0; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${ornament}</div>\n`;
   }
 
-  if(upper === '[GAP]'){
-    // 기호 없이 일반 문단 간격보다 넓은 쉼만 만든다. 주변 문단의 기본 여백과 합쳐진다.
-    return `    <div data-mosaic-generated="true" data-mosaic-separator="gap" aria-hidden="true" style="height:${Math.round(48*sm)}px;"></div>\n`;
+  if(upper === '[HR4]' || upper === '[GAP]'){
+    // 기호 없는 쉼의 높이는 고급 설정의 px 값을 그대로 사용한다.
+    return `    <div data-mosaic-generated="true" data-mosaic-separator="hr4" aria-hidden="true" style="height:${gapHeightPx(settings)}px;"></div>\n`;
   }
 
   // 가운데 정렬 접두어를 다른 본문 문법보다 먼저 해석해 [C] # 제목처럼 함께 쓸 수 있게 함.
@@ -667,12 +831,15 @@ function buildParagraph(rawLine, settings, opts){
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight };
     const headingSpacing = paragraphGapPx(settings) / 20;
-    // 소제목 아래는 단락 간격에 추가 여백을 더해 다음 내용과 분리한다.
-    const marginBottom = opts.extraBottom ? Math.round(36 * sm) : baseParagraphGap + Math.round(8 * sm);
+    // 연속 소제목 사이는 앞 소제목의 아래 여백 한 곳에서만 계산한다.
+    const marginBottom = Math.max(0, (opts.extraBottom ? Math.round(36 * sm) : baseParagraphGap + Math.round(8 * sm))
+      + headingSpacePx(opts.nextIsHeading ? settings.headingBetweenSpace : settings.headingBottomSpace));
     // 카드 첫 출력 제목은 #만 2px, ##~####는 0px로 붙이고,
     // 본문 중간 제목은 단계와 관계없이 20px로 통일한다.
     const firstHeadingTop = level === 1 ? 2 : 0;
-    const marginTop = Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm * headingSpacing);
+    const marginTop = opts.prevIsHeading ? 0 : Math.max(0,
+      Math.round((opts.extraTop ? 36 : (opts.isFirst ? firstHeadingTop : 20)) * sm * headingSpacing)
+      + headingSpacePx(settings.headingTopSpace));
     const align = (forceCenter || settings.headingCenter) ? 'text-align:center; ' : '';
     return `    <p style="margin:${marginTop}px 0 ${marginBottom}px 0; ${align}color:${pal.heading[level]}; font-size:${HEADING.size}px; font-weight:${HEADING.weight}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${text}</p>\n`;
   }
@@ -752,6 +919,8 @@ function buildParagraph(rawLine, settings, opts){
       mb = HR_GAP;
     } else if(opts.tightBottom){
       mb = Math.max(6, Math.round(baseParagraphGap * 0.55));
+    } else if(opts.narrDialogueBoundary){
+      mb = narrationDialogueGap;
     } else {
       mb = baseParagraphGap;
     }
@@ -824,7 +993,7 @@ function buildParagraph(rawLine, settings, opts){
     // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
     return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:13px 18px; border-left:2px solid ${color}; background-color:${pal.boxBg}; color:${color} !important; -webkit-text-fill-color:${color} !important; font-size:${settings.dlgSize}px !important; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
-    const mb = opts.extraBottom ? HR_GAP : baseParagraphGap;
+    const mb = opts.extraBottom ? HR_GAP : (opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap);
     const baseColor = overrideColor
       || (speaker && typeof speaker === 'object' ? safeHexColor(speaker.color, settings.charColor)
           : (speaker === 'user' ? settings.userColor : settings.charColor));
@@ -1239,101 +1408,137 @@ function deleteSelectedCreditPreset(){
   showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
 }
 
-function getSettings(){
-  const textFont = document.getElementById('textFont').value;
-  return {
-    imgOn: document.getElementById('imgOn').checked,
-    imgUrl: document.getElementById('imgUrl').value.trim(),
-    imgHeight: document.getElementById('imgHeight').value,
-    xpos: document.getElementById('xpos').value,
-    ypos: document.getElementById('ypos').value,
-    narrFont: textFont,
-    narrSize: document.getElementById('narrSize').value,
-    narrLine: document.getElementById('narrLine').value,
-    narrColor: document.getElementById('narrColor').value,
-    dlgStyle: document.getElementById('dlgStyle').value,
-    dlgFont: textFont,
-    dlgSize: document.getElementById('dlgSize').value,
-    dlgLine: document.getElementById('dlgLine').value,
-    titleSize: document.getElementById('titleSize').value,
-    titleBold: document.getElementById('titleBold').checked,
-    foldTitleSize: document.getElementById('foldTitleSize').value,
-    foldTitleBold: document.getElementById('foldTitleBold').checked,
-    foldTitleMinimal: !document.getElementById('foldTitleDecorationOn').checked,
-    foldDividerMinimal: !document.getElementById('foldDividerOn').checked,
-    foldTitleAutoNumber: document.getElementById('foldTitleAutoNumber').checked,
-    charColor: document.getElementById('charColor').value,
-    userColor: document.getElementById('userColor').value,
-    emphasisColor: document.getElementById('emphasisColor').value,
-    parallelTranslationSoft: document.getElementById('parallelTranslationLayout').value !== 'off',
-    parallelTranslationLayout: document.getElementById('parallelTranslationLayout').value,
-    charSpeakerOn: document.getElementById('charSpeakerOn').checked,
-    userSpeakerOn: document.getElementById('userSpeakerOn').checked,
-    extraChars: parseExtraChars(),
-    charName: document.getElementById('charName').value,
-    userName: document.getElementById('userName').value,
-    footerOn: document.getElementById('footerOn').checked,
-    footerAuthor: document.getElementById('footerAuthor').value,
-    creditOn: document.getElementById('creditOn').checked,
-    creditPlacement: normalizeCreditPlacement(document.getElementById('creditPlacement').value),
-    creditItems: storedCreditItems(),
-    logTitleOn: document.getElementById('logTitleOn').checked,
-    titleMinimal: document.getElementById('titleMinimal').checked,
-    logNumber: document.getElementById('logNumber').value,
-    logTitle: document.getElementById('logTitle').value,
-    subChar: document.getElementById('subChar').value,
-    subUser: document.getElementById('subUser').value,
-    subtitleCoupleSeparator: normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value),
-    logSubtitle: document.getElementById('logSubtitle').value,
-    profileOn: document.getElementById('profileOn').checked,
-    profileMinimal: document.getElementById('profileMinimal').checked,
-    profileCharOn: document.getElementById('profileCharOn').checked,
-    profileUserOn: document.getElementById('profileUserOn').checked,
-    profileCommonOn: document.getElementById('profileCommonOn').checked,
-    profilePlacement: document.getElementById('profilePlacement').value,
-    profileStyle: document.getElementById('profileStyle').value,
-    profileOrder: document.getElementById('profileOrder').value,
-    profileCharImage: normalizeProtocolRelativeUrl(document.getElementById('profileCharImage').value),
-    profileCharScale: document.getElementById('profileCharScale').value,
-    profileCharX: document.getElementById('profileCharX').value,
-    profileCharY: document.getElementById('profileCharY').value,
-    profileCharName: document.getElementById('profileCharName').value,
-    profileCharDesc: document.getElementById('profileCharDesc').value,
-    profileCharTags: document.getElementById('profileCharTags').value,
-    profileUserImage: normalizeProtocolRelativeUrl(document.getElementById('profileUserImage').value),
-    profileUserScale: document.getElementById('profileUserScale').value,
-    profileUserX: document.getElementById('profileUserX').value,
-    profileUserY: document.getElementById('profileUserY').value,
-    profileUserName: document.getElementById('profileUserName').value,
-    profileUserDesc: document.getElementById('profileUserDesc').value,
-    profileUserTags: document.getElementById('profileUserTags').value,
-    profileRelationship: document.getElementById('profileRelationship').value,
-    profileSituation: document.getElementById('profileSituation').value,
-    paragraphGap: document.getElementById('paragraphGap').value,
-    softBreakSpacing: normalizeSoftBreakSpacing(document.getElementById('softBreakSpacing').value),
-    outputTheme: document.getElementById('outputTheme').value,
-    cardLayout: normalizeCardLayout(document.getElementById('cardLayout').value),
-    spacingMode: document.getElementById('spacingMode').value,
-    cardWidth: document.getElementById('cardWidth').value,
-    cardBorderOn: document.getElementById('cardBorderOn').checked,
-    bgColor: document.getElementById('bgColor').value,
-    narrIndent: document.getElementById('narrIndent').checked,
-    narrCenter: document.getElementById('narrCenter').checked,
-    headingCenter: document.getElementById('headingCenter').checked,
-    dialogueCenter: document.getElementById('dialogueCenter').checked,
-    quoteCenter: document.getElementById('quoteCenter').checked,
-    bodyFoldTitleCenter: document.getElementById('bodyFoldTitleCenter').checked,
-    commentWidth: normalizeCommentWidth(document.getElementById('commentWidth').value),
-    commentAlign: normalizeCommentAlign(document.getElementById('commentAlign').value),
-  };
+const DETAIL_PRESET_KEY = 'mosaicDetailPresets_v1';
+const MAX_DETAIL_PRESETS = 50;
+const DETAIL_PRESET_FIELDS = [
+  'advancedOn', 'hrShape', 'hrOpacity', 'hrLength', 'hrVerticalSpace', 'hr2Shape', 'hr2Opacity', 'hr2VerticalSpace',
+  'hr3Shape', 'hr3Opacity', 'hr3VerticalSpace', 'gapHeight', 'coverVerticalSpace',
+  'profileOuterBackground', 'profileItemGap', 'cardTitlePadding',
+  'coverDividerLength', 'cardDividerLength', 'cardCornerRadius', 'cardTitleOrnamentOpacity', 'foldAutoNumberStyle',
+  'profileTitleGap', 'coverCardGap', 'cardGap', 'unifiedBottomSpace', 'creditCardGap',
+  'cardInlinePadding', 'cardBodyTopSpace', 'cardBodyBottomSpace', 'headingTopSpace', 'headingBetweenSpace', 'headingBottomSpace',
+  'creditBorderOn', 'creditTransparentOn'
+];
+
+function sanitizeDetailPresetList(value){
+  if(!Array.isArray(value)) return [];
+  return value.slice(0, MAX_DETAIL_PRESETS).map((preset, index) => {
+    if(!preset || typeof preset !== 'object' || Array.isArray(preset)) return null;
+    const name = typeof preset.name === 'string' ? preset.name.trim().slice(0, 80) : '';
+    if(!name || !preset.values || typeof preset.values !== 'object' || Array.isArray(preset.values)
+      || !DETAIL_PRESET_FIELDS.some(id => Object.prototype.hasOwnProperty.call(preset.values, id))) return null;
+    const safe = sanitizeImportedPreset({ name, values:preset.values });
+    if(!safe) return null;
+    const values = {};
+    DETAIL_PRESET_FIELDS.forEach(id => { values[id] = safe.values[id]; });
+    const id = typeof preset.id === 'string' && preset.id
+      ? preset.id.slice(0, 120)
+      : `detail-preset-${index}-${name.toLowerCase()}`;
+    return { id, name, values, updatedAt:Number(preset.updatedAt) || 0 };
+  }).filter(Boolean);
 }
 
+function loadDetailPresets(){
+  try { return sanitizeDetailPresetList(JSON.parse(localStorage.getItem(DETAIL_PRESET_KEY) || '[]')); }
+  catch(e){ return []; }
+}
+
+function saveDetailPresets(presets){
+  try {
+    localStorage.setItem(DETAIL_PRESET_KEY, JSON.stringify(sanitizeDetailPresetList(presets)));
+    return true;
+  }catch(e){
+    showNoticeToast('세부 조정 프리셋을 저장하지 못했습니다.');
+    return false;
+  }
+}
+
+function syncDetailPresetControls(){
+  const selected = document.getElementById('detailPresetSelect').value !== '';
+  const hasName = document.getElementById('detailPresetName').value.trim() !== '';
+  document.getElementById('detailPresetLoadBtn').disabled = !selected;
+  document.getElementById('detailPresetDeleteBtn').disabled = !selected;
+  document.getElementById('detailPresetSaveBtn').disabled = !hasName;
+}
+
+function renderDetailPresetOptions(selectedId){
+  const select = document.getElementById('detailPresetSelect');
+  const presets = loadDetailPresets();
+  const preferred = selectedId !== undefined ? selectedId : select.value;
+  select.replaceChildren(new Option('저장된 프리셋 선택', ''));
+  presets.forEach(preset => select.appendChild(new Option(preset.name, preset.id)));
+  select.value = presets.some(preset => preset.id === preferred) ? preferred : '';
+  syncDetailPresetControls();
+}
+
+function currentDetailPresetValues(){
+  const values = {};
+  DETAIL_PRESET_FIELDS.forEach(id => {
+    const input = document.getElementById(id);
+    values[id] = input.type === 'checkbox' ? input.checked : input.value;
+  });
+  return values;
+}
+
+function saveCurrentDetailPreset(){
+  const nameInput = document.getElementById('detailPresetName');
+  const name = nameInput.value.trim();
+  if(!name) return;
+  const values = currentDetailPresetValues();
+  const presets = loadDetailPresets();
+  const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
+  if(!existing && presets.length >= MAX_DETAIL_PRESETS){
+    showNoticeToast(`세부 조정 프리셋은 최대 ${MAX_DETAIL_PRESETS}개까지 저장할 수 있습니다.`);
+    return;
+  }
+  const id = existing ? existing.id : `detail-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const next = existing
+    ? presets.map(preset => preset.id === id ? { id, name, values, updatedAt:Date.now() } : preset)
+    : [...presets, { id, name, values, updatedAt:Date.now() }];
+  if(!saveDetailPresets(next)) return;
+  renderDetailPresetOptions(id);
+  showNoticeToast(existing ? `'${name}' 세부 조정 프리셋을 덮어썼습니다.` : `'${name}' 세부 조정 프리셋을 저장했습니다.`);
+}
+
+function loadSelectedDetailPreset(){
+  const id = document.getElementById('detailPresetSelect').value;
+  const preset = loadDetailPresets().find(item => item.id === id);
+  if(!preset) return;
+  applyStyleValues({ ...currentStyleValues(), ...preset.values });
+  render();
+  saveDraft();
+  commitStyleHistory(true);
+  document.getElementById('detailPresetName').value = preset.name;
+  syncDetailPresetControls();
+  openToast(`'${preset.name}' 세부 조정을 불러왔습니다.`, null, true);
+}
+
+function deleteSelectedDetailPreset(){
+  const id = document.getElementById('detailPresetSelect').value;
+  const presets = loadDetailPresets();
+  const preset = presets.find(item => item.id === id);
+  if(!preset || !confirm(`'${preset.name}' 세부 조정 프리셋을 삭제하십시오.\n삭제 후 되돌릴 수 없습니다.`)) return;
+  if(!saveDetailPresets(presets.filter(item => item.id !== id))) return;
+  renderDetailPresetOptions('');
+  showNoticeToast(`'${preset.name}' 세부 조정 프리셋을 삭제했습니다.`);
+}
+
+// Output settings reader lives in settings.js. Keep output builders independent of input controls.
 
 
-function buildImageBlock(settings){
-  const imageStatus = document.getElementById('imageLoadStatus');
-  const imageFailed = imageStatus && imageStatus.dataset.state === 'error';
-  if(!settings.imgOn || !settings.imgUrl || imageFailed) return '';
+
+
+function titleImageBackgroundEnabled(settings){
+  return settings.titleImageBackgroundOn && settings.imgOn && settings.imgUrl && !settings.imageLoadFailed
+    && settings.logTitleOn && Boolean(
+      (settings.logNumber || '').trim() || (settings.logTitle || '').trim()
+      || (settings.subChar || '').trim() || (settings.subUser || '').trim()
+      || (settings.logSubtitle || '').trim()
+    );
+}
+
+function buildImageBlock(settings, connectedAbove = false){
+  if(!settings.imgOn || !settings.imgUrl || settings.imageLoadFailed || titleImageBackgroundEnabled(settings)) return '';
   // 대표 이미지: 카드들 맨 위에 항상 표시되며(접기 카드여도 보임), 첫 카드와 한 몸처럼 연결됨.
   // 위 모서리만 둥글고 아래 테두리는 없음 -> 바로 아래 첫 카드의 위 테두리와 만나 얇은 경계선 하나만 남음.
   // border를 개별 속성(left/right/top)으로 지정해 아카라이브가 축약형을 재해석해도 이중선이 생기지 않게 함.
@@ -1346,8 +1551,9 @@ function buildImageBlock(settings){
   const W = parseInt(settings.cardWidth) || 750;
   const outerBorder = settings.cardBorderOn === false
     ? ''
-    : `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-top:1px solid ${pal.shellBorder};`;
-  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:16px 16px 0 0;"></div>
+    : `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; ${connectedAbove ? '' : `border-top:1px solid ${pal.shellBorder};`}`;
+  const radius = cardCornerRadiusPx(settings);
+  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:${connectedAbove ? 0 : radius}px ${connectedAbove ? 0 : radius}px 0 0;"></div>
 `;
 }
 
@@ -1358,7 +1564,18 @@ function settingFlagOn(value){
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
 }
 
-function foldDividerStyle(minimal, palette){
+function foldAutoNumberText(number, style){
+  if(style !== 'roman' || number < 1 || number > 3999) return String(number);
+  const numerals = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  let remaining = number;
+  let result = '';
+  numerals.forEach(([value, numeral]) => {
+    while(remaining >= value){ result += numeral; remaining -= value; }
+  });
+  return result;
+}
+
+function foldDividerStyle(minimal, palette, settings){
   // 아카라이브와 일부 브라우저는 details를 다시 열 때 summary 뒤 콘텐츠에
   // 자체 여백·최소 높이를 되살릴 수 있다. 구분선이 제목에서 멀어지지 않도록
   // 제목 다음 본문 래퍼의 레이아웃을 인라인으로 완전히 고정한다.
@@ -1366,7 +1583,9 @@ function foldDividerStyle(minimal, palette){
   // 우선해 아카라이브에서 접힌 본문이 다시 보일 수 있다.
   const stableLayout = 'box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; clear:both;';
   if(settingFlagOn(minimal)) return `${stableLayout} border-top:none;`;
-  return `${stableLayout} border-top:1px solid ${palette.divider};`;
+  const length = cardDividerLengthPercent(settings);
+  if(length === 100) return `${stableLayout} border-top:1px solid ${palette.divider};`;
+  return `${stableLayout} border-top:none; background-image:linear-gradient(to right, ${palette.divider}, ${palette.divider}); background-repeat:no-repeat; background-position:center top; background-size:${length}% 1px;`;
 }
 
 // 접기 블록 (<details>/<summary>) — 스크립트 없이 동작하는 순수 HTML 토글.
@@ -1376,16 +1595,18 @@ function buildFold(title, innerHTML, settings, forceCenter){
   if(heading) return buildHeadingFold(heading.level, heading.title.trim(), innerHTML, settings, forceCenter);
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  const inlinePadding = CARD_INLINE_PADDING;
+  const inlinePadding = cardInlinePaddingCss(settings);
+  const radius = Math.max(0, cardCornerRadiusPx(settings) - 4);
   const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
   const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const ornamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   const ornament = (!titleMinimal || !title.trim())
-    ? `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:11px; margin-right:9px;">✦</span>`
+    ? `<span data-mosaic-generated="true" style="color:${pal.ornament}; opacity:${ornamentOpacity}; font-size:11px; margin-right:9px;">✦</span>`
     : '';
-  const bodyDivider = foldDividerStyle(bodyMinimal, pal);
+  const bodyDivider = foldDividerStyle(bodyMinimal, pal, settings);
   const bodyTopPadding = bodyMinimal ? 20 : 16;
   const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -1393,17 +1614,19 @@ function buildFold(title, innerHTML, settings, forceCenter){
 function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  const inlinePadding = CARD_INLINE_PADDING;
+  const inlinePadding = cardInlinePaddingCss(settings);
+  const radius = Math.max(0, cardCornerRadiusPx(settings) - 4);
   const spec = headingSpec(level);
   const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
   const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
   const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const ornamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   const ornament = titleMinimal
     ? ''
-    : `<span data-mosaic-generated="true" style="color:${pal.ornament}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
-  const bodyDivider = foldDividerStyle(bodyMinimal, pal);
+    : `<span data-mosaic-generated="true" style="color:${pal.ornament}; opacity:${ornamentOpacity}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
+  const bodyDivider = foldDividerStyle(bodyMinimal, pal, settings);
   const bodyTopPadding = bodyMinimal ? 22 : 18;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:12px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
 
 
@@ -1434,6 +1657,7 @@ function isStructuralBodyLine(line){
   return upper === '[HR]'
     || upper === '[HR2]'
     || upper === '[HR3]'
+    || upper === '[HR4]'
     || upper === '[GAP]'
     || /^\[IMG\s+/i.test(trimmed)
     || /^\[접기(?:\s+.+?)?\]$/.test(trimmed)
@@ -1586,8 +1810,12 @@ function assembleBody(lines, settings){
     return !!text && !isSep(text) && !isStatusBodyLine(text)
       && !parseBodyHeading(text) && !parseOutputBodyImage(text)
       && !/^>(?!>)/.test(text) && !/^\[\/?접기(?:\s|\])/.test(text)
-      && text.toUpperCase() !== '[GAP]' && !isPureDialogueLine(text, settings);
+      && text.toUpperCase() !== '[HR4]' && text.toUpperCase() !== '[GAP]' && !isPureDialogueLine(text, settings);
   };
+  const isDialogueLine = raw => raw !== undefined
+    && isPureDialogueLine(String(raw).trim().replace(/^\[C\]\s*/i, ''), settings);
+  const isHeadingLine = raw => raw !== undefined
+    && !!parseBodyHeading(String(raw).trim().replace(/^\[C\]\s*/i, ''));
   renderLines.forEach((line, i) => {
     const centeredSyntax = /^\[C\]\s*/i.test(line);
     const structuralLine = centeredSyntax ? line.replace(/^\[C\]\s*/i, '') : line;
@@ -1613,12 +1841,16 @@ function assembleBody(lines, settings){
     // 연속 대사: 이 줄과 다음 줄이 모두 대사 단독 줄이면 간격을 좁혀 대화 리듬을 살림
     const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
       && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
+    const nextLine = renderLines[i + 1];
+    const narrDialogueBoundary = (isNarrationLine(line) && isDialogueLine(nextLine))
+      || (isDialogueLine(line) && isNarrationLine(nextLine));
     // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
     // 무시되는 닫기 마커가 있어도 첫 소제목의 위 여백이 다시 커지지 않게 한다.
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
     const isFirst = bodyHTML === '' && manualBuf === null;
     const isLast = i === renderLines.length - 1;
-    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, isFirst, isLast, prevIsStatus, nextIsStatus,
+    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
+      prevIsHeading:isHeadingLine(renderLines[i - 1]), nextIsHeading:isHeadingLine(renderLines[i + 1]),
       prevIsNarration:isNarrationLine(renderLines[i - 1]),
       }));
   });
@@ -1630,7 +1862,7 @@ function assembleBody(lines, settings){
 
 // 로그 표제 밴드: 번호/제목/부제 — 대표 이미지 바로 아래, 첫 카드 위에 붙는 표지 영역.
 // 카드 밖에 있어서 첫 카드를 접어도 이미지와 함께 항상 보임.
-function buildTitleBlock(settings, hasImg){
+function buildTitleBlock(settings, hasImg, connectedAbove = false){
   if(!settings.logTitleOn) return '';
   const num = (settings.logNumber || '').trim();
   const title = (settings.logTitle || '').trim();
@@ -1643,38 +1875,58 @@ function buildTitleBlock(settings, hasImg){
   if(!num && !title && !hasSubtitle) return '';
   const pal = tonePalette(settings);
   const sm = spacingMult(settings);
-  const processedNum = processInline(num, settings.emphasisColor);
-  const processedTitle = processInline(title, settings.emphasisColor);
-  const processedSc = processInline(sc, settings.emphasisColor);
-  const processedSu = processInline(su, settings.emphasisColor);
+  const imageBackground = titleImageBackgroundEnabled(settings);
+  const textColor = imageBackground ? '#f8f8f8' : pal.heading[1];
+  const mutedColor = imageBackground ? '#e1e1e1' : pal.caption;
+  const emphasisColor = imageBackground ? '#ffffff' : settings.emphasisColor;
+  const processedNum = processInline(num, emphasisColor);
+  const processedTitle = processInline(title, emphasisColor);
+  const processedSc = processInline(sc, emphasisColor);
+  const processedSu = processInline(su, emphasisColor);
   const orderedNameHTML = settings.profileOrder === 'user-bot'
     ? [su ? processedSu : '', sc ? processedSc : '']
     : [sc ? processedSc : '', su ? processedSu : ''];
   const coupleSeparator = escapeTextHTML(normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
   const coupleHTML = orderedNameHTML.filter(Boolean).join(` ${coupleSeparator} `);
-  const freeHTML = processInline(free, settings.emphasisColor);
+  const freeHTML = processInline(free, emphasisColor);
   const subHTML = coupleHTML && freeHTML
     ? `${coupleHTML} · ${freeHTML}`
     : (coupleHTML || freeHTML);
   let inner = '';
-  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${processedNum}</p>`;
-  if(title) inner += `<p style="margin:0; font-size:${settings.titleSize}px; font-weight:${settings.titleBold ? 800 : 500}; letter-spacing:-0.3px; line-height:1.35; color:${pal.heading[1]}; font-family:${fontStack(settings.narrFont)};">${processedTitle}</p>`;
-  if(hasSubtitle) inner += `<p style="box-sizing:border-box; width:100%; margin:${title ? 8 : 0}px 0 0 0; padding-left:0.5px; text-align:center; font-size:12px; letter-spacing:0.5px; color:${pal.caption}; font-family:${fontStack(settings.narrFont)};">${subHTML}</p>`;
+  if(num)   inner += `<p style="margin:0 0 6px 0; font-size:11px; font-weight:700; letter-spacing:3px; color:${mutedColor}; font-family:${fontStack(settings.narrFont)};">${processedNum}</p>`;
+  if(title) inner += `<p style="margin:0; font-size:${settings.titleSize}px; font-weight:${settings.titleBold ? 800 : 500}; letter-spacing:-0.3px; line-height:1.35; color:${textColor}; font-family:${fontStack(settings.narrFont)};">${processedTitle}</p>`;
+  if(hasSubtitle) inner += `<p style="box-sizing:border-box; width:100%; margin:${title ? 8 : 0}px 0 0 0; padding-left:0.5px; text-align:center; font-size:12px; letter-spacing:0.5px; color:${mutedColor}; font-family:${fontStack(settings.narrFont)};">${subHTML}</p>`;
   // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
   const showOuterBorder = settings.cardBorderOn !== false;
+  const outerBorderColor = imageBackground && outputThemeTransparent(settings.outputTheme)
+    ? 'rgba(128,128,128,.22)' : pal.shellBorder;
   const sideBorders = showOuterBorder
-    ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder};`
+    ? `border-left:1px solid ${outerBorderColor}; border-right:1px solid ${outerBorderColor};`
     : '';
   const topEdge = hasImg
     ? ``
-    : `${showOuterBorder ? `border-top:1px solid ${pal.shellBorder};` : ''} border-radius:16px 16px 0 0;`;
+    : `${showOuterBorder && !connectedAbove ? `border-top:1px solid ${outerBorderColor};` : ''} border-radius:${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px ${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px 0 0;`;
   // 미니멀 표제는 바로 아래 프로필과 하나의 카드처럼 이어지므로 하단 여백을 줄인다.
   // 일반 표제의 기존 간격은 그대로 유지한다.
-  const padBottom = settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm);
-  const inlinePadding = CARD_INLINE_PADDING;
+  const extraVerticalSpace = coverVerticalSpacePx(settings);
+  const padTop = Math.round(22*sm) + extraVerticalSpace;
+  const padBottom = (settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm)) + extraVerticalSpace;
+  const inlinePadding = cardInlinePaddingCss(settings);
   const W = parseInt(settings.cardWidth) || 750;
-  return `<div data-mosaic-title="true" style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; background-color:${pal.cardBg}; ${sideBorders} ${topEdge} padding:${Math.round(22*sm)}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${inner}</div>
+  const xValue = Number(settings.xpos);
+  const yValue = Number(settings.ypos);
+  const xpos = Number.isFinite(xValue) ? Math.min(100, Math.max(0, xValue)) : 50;
+  const ypos = Number.isFinite(yValue) ? Math.min(100, Math.max(0, yValue)) : 0;
+  const imageStyle = imageBackground
+    ? `background-color:#303030; background-image:linear-gradient(rgba(0,0,0,.56),rgba(0,0,0,.56)),url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:center center,${xpos}% ${ypos}%; background-size:cover,cover; background-clip:padding-box;`
+    : `background-color:${pal.cardBg};`;
+  const imageHeightValue = Number(settings.imgHeight);
+  const imageHeight = Number.isFinite(imageHeightValue) ? Math.min(600, Math.max(100, imageHeightValue)) : 300;
+  const titleContent = imageBackground
+    ? `<div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;">${inner}</div></div>`
+    : inner;
+  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} padding:${padTop}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
 `;
 }
 
@@ -1692,16 +1944,18 @@ function profileImageBackgroundSize(url, zoom){
 // 상단 프로필: 역할·표시 이름·정보를 분리한다.
 // 아카라이브가 flex 정렬 속성을 선택적으로 제거하는 환경을 고려해 프로필 출력에는
 // flex/grid를 쓰지 않고 block·inline-block·table-cell만 사용한다.
-function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTopSpacing){
+function buildProfileBlock(settings, connectedAbove, removeTopDivider, connectedBelow = false){
   if(!settings.profileOn) return '';
   const commonEnabled = settings.profileCommonOn !== false;
   const relationship = commonEnabled ? (settings.profileRelationship || '').trim() : '';
   const situation = commonEnabled ? (settings.profileSituation || '').trim().replace(/(^|[\s,，])#+(?=\S)/g, '$1') : '';
   let profiles = [
     {
-      role:'BOT',
+      role:settings.profileCharRole ?? 'BOT', key:'bot', prefix:'profileChar',
       enabled:settings.profileCharOn !== false,
-      image:(settings.profileCharImage || '').trim(),
+      image:settings.profileImageBackgroundOn && settings.profileCharImageFailed
+        ? '' : (settings.profileCharImage || '').trim(),
+      backgroundOn:settings.profileImageBackgroundOn && !settings.profileCharImageFailed,
       scale:settings.profileCharScale,
       x:settings.profileCharX,
       y:settings.profileCharY,
@@ -1711,9 +1965,11 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       color:settings.charColor
     },
     {
-      role:'USER',
+      role:settings.profileUserRole ?? 'USER', key:'user', prefix:'profileUser',
       enabled:settings.profileUserOn !== false,
-      image:(settings.profileUserImage || '').trim(),
+      image:settings.profileImageBackgroundOn && settings.profileUserImageFailed
+        ? '' : (settings.profileUserImage || '').trim(),
+      backgroundOn:settings.profileImageBackgroundOn && !settings.profileUserImageFailed,
       scale:settings.profileUserScale,
       x:settings.profileUserX,
       y:settings.profileUserY,
@@ -1722,8 +1978,16 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       tags:(settings.profileUserTags || '').trim(),
       color:settings.userColor
     }
-  ].filter(profile => profile.enabled && (profile.image || profile.name || profile.desc || profile.tags));
+  ];
   if(settings.profileOrder === 'user-bot') profiles.reverse();
+  profiles.push(...(settings.profileExtras || []).slice(0, 3).map(extra => ({
+    ...extra,
+    image:settings.profileImageBackgroundOn && extra.imageFailed
+      ? '' : (extra.image || '').trim(),
+    backgroundOn:settings.profileImageBackgroundOn && !extra.imageFailed,
+    color:settings.charColor
+  })));
+  profiles = profiles.filter(profile => profile.enabled && (profile.image || profile.name || profile.desc || profile.tags));
   if(!profiles.length && !relationship && !situation) return '';
 
   const pal = tonePalette(settings);
@@ -1732,15 +1996,40 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     ? 'transparent'
     : pal.boxBg;
   const W = parseInt(settings.cardWidth) || 750;
-  const showOuterBorder = settings.cardBorderOn !== false;
-  const border = showOuterBorder
-    ? (connectedAbove
-        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-bottom:1px solid ${pal.shellBorder}; ${removeTopDivider ? '' : `border-top:1px solid ${pal.divider};`}`
-        : `border:1px solid ${pal.shellBorder};`)
-    : (connectedAbove && !removeTopDivider ? `border-top:1px solid ${pal.divider};` : '');
-  const radius = connectedAbove ? '0 0 16px 16px' : '16px';
+  const cardRadius = cardCornerRadiusPx(settings);
   const showcase = settings.profileStyle === 'showcase';
   const large = settings.profileStyle === 'portrait' || showcase;
+  const portraitPhotoBackgroundOnly = showcase && profiles.length > 0
+    && profiles.every(profile => profile.image && profile.backgroundOn);
+  const responsivePortraitBackground = portraitPhotoBackgroundOnly && profiles.length > 1;
+  const defaultProfileGap = showcase ? (portraitPhotoBackgroundOnly ? 0 : 2) : 10;
+  const profileGap = settings.profilePlacement === 'top' && profiles.length > 1
+    ? Math.max(0, defaultProfileGap + profileItemGapDeltaPx(settings))
+    : defaultProfileGap;
+  const borderlessTopProfile = settings.profilePlacement === 'top';
+  const showOuterBorder = settings.cardBorderOn !== false && !borderlessTopProfile;
+  const border = showOuterBorder
+    ? (connectedAbove
+        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; ${connectedBelow ? '' : `border-bottom:1px solid ${pal.shellBorder};`} ${removeTopDivider ? '' : coverDividerTopCss(settings, pal.divider)}`
+        : (connectedBelow
+            ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-top:1px solid ${pal.shellBorder};`
+            : `border:1px solid ${pal.shellBorder};`))
+    : (connectedAbove && !removeTopDivider ? coverDividerTopCss(settings, pal.divider) : '');
+  const radius = connectedAbove && connectedBelow ? '0' : (connectedAbove
+    ? `0 0 ${cardRadius}px ${cardRadius}px`
+    : (connectedBelow ? `${cardRadius}px ${cardRadius}px 0 0` : `${cardRadius}px`));
+  const joinedPortraitPhotos = portraitPhotoBackgroundOnly && profileGap === 0;
+  const joinedCompactProfiles = !showcase && profiles.length > 1 && profileGap === 0;
+  const joinedProfileItems = joinedPortraitPhotos || joinedCompactProfiles;
+  const transparentProfileOuter = settings.profilePlacement === 'top'
+    && settings.profileOuterBackground === 'transparent';
+  // 사진 배경끼리 맞닿을 때만 접합선을 그린다. 간격을 벌리면 그 자리는
+  // 바깥 배경(또는 투명한 바깥 영역)이 보이는 실제 여백이 된다.
+  const photoGapColor = showcase && !portraitPhotoBackgroundOnly && profiles.length > 1
+    && profiles.some(profile => profile.image && profile.backgroundOn) && profileGap === 2
+    && !transparentProfileOuter
+    ? (outputThemeTransparent(settings.outputTheme) ? 'rgba(128,128,128,.22)' : pal.shellBorder)
+    : '';
   const multiline = text => processInline(text, settings.emphasisColor).replace(/\r?\n/g, '<br>');
   const safeScale = value => {
     const scale = Number(value);
@@ -1754,11 +2043,13 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     .map(tag => tag.trim().replace(/^#+\s*/, ''))
     .filter(Boolean)))
     .slice(0, 3);
-  const profileGap = showcase ? 2 : 10;
+  // 750px 카드의 3열 칸은 안쪽 여백을 빼면 약 230~250px이다.
+  // 2열의 각 칸이 그보다 좁아지지 않도록 안쪽 폭 500px까지 유지한다.
+  const twoColumnContentBreakpoint = 500;
   const baseProfileCardHeight = large ? 116 : 80;
-  // flex/grid 없이도 같은 줄의 두 카드 높이를 맞출 수 있도록, 출력 전에 각 프로필의
+  // flex/grid 없이도 같은 줄의 카드 높이를 맞출 수 있도록, 출력 전에 각 프로필의
   // 이름·태그·정보가 차지할 줄 수를 보수적으로 계산한다. 아카라이브가 반응형 CSS를
-  // 일부 정리해도 두 카드에는 같은 최소 높이 숫자가 직접 들어가므로 결과가 유지된다.
+  // 일부 정리해도 모든 카드에는 같은 최소 높이 숫자가 직접 들어가므로 결과가 유지된다.
   const visualTextWidth = (value, fontSize) => Array.from(stripMarkers(String(value || '')))
     .reduce((width, char) => {
       if(/\s/.test(char)) return width + fontSize * 0.35;
@@ -1785,13 +2076,15 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   };
   const estimatedUsableWidth = Math.max(280, Math.min(W, 750) - 40);
   const estimatedItemWidth = profiles.length > 1
-    ? Math.max(280, (estimatedUsableWidth - profileGap) / 2)
+    ? Math.max(190, (estimatedUsableWidth - profileGap * 2) / (profiles.length >= 3 ? 3 : 2))
     : estimatedUsableWidth;
   const estimateProfileCardHeight = profile => {
     const size = showcase ? 150 : (large ? 88 : 56);
     const imageTextSpacing = large ? 12 : 10;
     const cardInnerWidth = Math.max(120, estimatedItemWidth - 28);
-    const textWidth = showcase
+    const textWidth = profile.image && profile.backgroundOn
+      ? cardInnerWidth
+      : showcase
       ? cardInnerWidth
       : (profile.image
         ? Math.max(80, cardInnerWidth - size - imageTextSpacing)
@@ -1810,10 +2103,14 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       if(profile.name || tagsList.length) textHeight += 6;
       textHeight += estimatedWrappedLines(profile.desc, textWidth, descSize) * descSize * 1.55;
     }
-    const verticalPadding = showcase && profile.image
+    const verticalPadding = profile.image && profile.backgroundOn
+      ? 16
+      : showcase && profile.image
       ? 16
       : (profile.image ? (large ? 14 : 12) : (large ? 15 : 12));
-    const contentHeight = showcase && profile.image
+    const contentHeight = profile.image && profile.backgroundOn
+      ? textHeight
+      : showcase && profile.image
       ? size + 10 + textHeight
       : Math.max(profile.image ? size : 0, textHeight);
     return Math.ceil(Math.max(baseProfileCardHeight, contentHeight + verticalPadding * 2 + 2));
@@ -1822,62 +2119,230 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     && profiles.length > 1
     && profiles.some(profile => Boolean(profile.image))
     && profiles.some(profile => !profile.image);
-  const sharedProfileCardHeight = profiles.length > 1 && (!showcase || showcaseHasMixedImages)
+  const sharedProfileCardHeight = profiles.length > 1 && (!showcase || showcaseHasMixedImages || responsivePortraitBackground)
     ? Math.max(baseProfileCardHeight, ...profiles.map(estimateProfileCardHeight))
     : baseProfileCardHeight;
+  // 넓은 화면은 3 / 2+2 / 2+3을 따른다. DOM 행을 강제로 분리하지 않아
+  // 중간 폭에서는 전체 인물이 2명씩 다시 흐르고, 안쪽 폭 500px 미만에서 한 명씩 놓인다.
+  const rowLengths = !profiles.length ? [] : profiles.length <= 3 ? [profiles.length]
+    : profiles.length === 4 ? [2, 2]
+    : [2, 3];
+  const rowForIndex = index => {
+    let start = 0;
+    for(const length of rowLengths){
+      if(index < start + length) return { start, length, position:index - start };
+      start += length;
+    }
+    return { start:0, length:1, position:0 };
+  };
+  const joinedProfileRadius = joinedProfileItems
+    ? Math.max(0, cardRadius - (showOuterBorder ? 1 : 0)) : 0;
+  const joinedProfileTopRadius = !connectedAbove ? joinedProfileRadius : 0;
+  const joinedProfileBottomRadius = !connectedBelow && !relationship && !situation
+    ? joinedProfileRadius : 0;
+  const profileCornerWidth = W - (showOuterBorder ? 2 : 0);
+  // 브라우저가 게시용 inline style을 직렬화하면 cqw 선언과 고정 폴백이 한
+  // border-radius 값으로 합쳐질 수 있다. 구형 모바일 WebView에서는 그 값 전체가
+  // 무효가 되므로, 보이는 사진·배경 요소에 vw 기반 모서리를 직접 둔다.
+  const profileCornersAt = (index, columns) => {
+    const rows = [];
+    let start = 0;
+    rowLengths.forEach(length => {
+      for(let offset = 0; offset < length; offset += columns){
+        rows.push(Array.from({length:Math.min(columns, length - offset)}, (_, position) => start + offset + position));
+      }
+      start += length;
+    });
+    const first = rows[0] || [];
+    const last = rows[rows.length - 1] || [];
+    return {
+      topLeft:index === first[0], topRight:index === first[first.length - 1],
+      bottomLeft:index === last[0], bottomRight:index === last[last.length - 1]
+    };
+  };
+  const profileCornerCss = index => {
+    if(!joinedProfileRadius) return '';
+    const layouts = [profileCornersAt(index, 1), profileCornersAt(index, 2), profileCornersAt(index, 3)];
+    const cornerValue = (key, radius) => {
+      if(!radius) return '0px';
+      const values = layouts.slice(0, profileCornerWidth < 500 ? 1 : profileCornerWidth < 690 ? 2 : 3)
+        .map(layout => Number(layout[key]));
+      if(values.every(value => value === values[0])) return values[0] ? `${radius}px` : '0px';
+      const rising = breakpoint => `clamp(0px,calc(10000vw - ${breakpoint * 100 - 16}px),${radius}px)`;
+      const falling = breakpoint => `clamp(0px,calc(${breakpoint * 100}px - 10000vw),${radius}px)`;
+      if(values.length === 2) return values[0] ? falling(500) : rising(500);
+      if(values[0] === values[1]) return values[1] ? falling(690) : rising(690);
+      if(values[1] === values[2]) return values[0] ? falling(500) : rising(500);
+      return values[1]
+        ? `min(${rising(500)},${falling(690)})`
+        : `max(${falling(500)},${rising(690)})`;
+    };
+    return `border-radius:${cornerValue('topLeft', joinedProfileTopRadius)} ${cornerValue('topRight', joinedProfileTopRadius)} ${cornerValue('bottomRight', joinedProfileBottomRadius)} ${cornerValue('bottomLeft', joinedProfileBottomRadius)};`;
+  };
+  const previewCornerTokens = (index, columns) => {
+    if(!joinedProfileRadius) return '';
+    const corners = profileCornersAt(index, columns);
+    return [
+      joinedProfileTopRadius && corners.topLeft ? 'tl' : '',
+      joinedProfileTopRadius && corners.topRight ? 'tr' : '',
+      joinedProfileBottomRadius && corners.bottomRight ? 'br' : '',
+      joinedProfileBottomRadius && corners.bottomLeft ? 'bl' : ''
+    ].filter(Boolean).join(' ');
+  };
+  // 미니·클래식이 맞붙을 때 사진이 닿는 변에만 반투명선을 그린다.
+  // 사진 없는 회색 카드끼리는 하나의 면으로 이어진다.
+  const joinedCompactSeam = index => {
+    if(!joinedCompactProfiles) return '';
+    const hasPhotoBackground = profileIndex => Boolean(profiles[profileIndex].image && profiles[profileIndex].backgroundOn);
+    const flagsAt = columns => {
+      const rows = [];
+      let start = 0;
+      rowLengths.forEach(length => {
+        for(let offset = 0; offset < length; offset += columns){
+          rows.push(Array.from({length:Math.min(columns, length - offset)}, (_, position) => start + offset + position));
+        }
+        start += length;
+      });
+      const rowIndex = rows.findIndex(row => row.includes(index));
+      const row = rows[rowIndex];
+      const position = row.indexOf(index);
+      const rightNeighbor = row[position + 1];
+      const right = rightNeighbor !== undefined
+        && (hasPhotoBackground(index) || hasPhotoBackground(rightNeighbor));
+      const nextRow = rows[rowIndex + 1];
+      const bottom = Boolean(nextRow && (hasPhotoBackground(index)
+        || nextRow.some((candidate, candidatePosition) =>
+          hasPhotoBackground(candidate)
+          && position / row.length < (candidatePosition + 1) / nextRow.length
+          && (position + 1) / row.length > candidatePosition / nextRow.length)));
+      return { right, bottom };
+    };
+    const narrow = flagsAt(1);
+    const medium = flagsAt(2);
+    const wide = flagsAt(3);
+    const fallback = W - (showOuterBorder ? 2 : 0) >= 690 ? wide
+      : W - (showOuterBorder ? 2 : 0) >= twoColumnContentBreakpoint ? medium : narrow;
+    const responsiveWidth = key => {
+      const first = Number(narrow[key]);
+      const middle = Number(medium[key]);
+      const last = Number(wide[key]);
+      if(first === middle && middle === last) return `${first}px`;
+      const steps = [`${first}px`];
+      const mediumDifference = middle - first;
+      const wideDifference = last - middle;
+      if(mediumDifference) steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 499px), 1px)`);
+      if(wideDifference) steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 689px), 1px)`);
+      return `clamp(0px, calc(${steps.join(' ')}), 1px)`;
+    };
+    const seamColor = 'rgba(128,128,128,.22)';
+    return `border-right:${Number(fallback.right)}px solid ${seamColor}; border-right-width:${responsiveWidth('right')}; border-bottom:${Number(fallback.bottom)}px solid ${seamColor}; border-bottom-width:${responsiveWidth('bottom')};`;
+  };
   const profileItems = profiles.map((profile, profileIndex) => {
-    const profileFieldPrefix = profile.role === 'BOT' ? 'profileChar' : 'profileUser';
-    const textAlign = showcase ? 'center' : (profile.image ? 'left' : 'center');
-    const role = settings.profileMinimal
+    const profileFieldPrefix = profile.prefix;
+    const row = rowForIndex(profileIndex);
+    const cornerCss = profileCornerCss(profileIndex);
+    const imageBackground = Boolean(profile.image && profile.backgroundOn);
+    const textAlign = showcase || imageBackground ? 'center' : (profile.image ? 'left' : 'center');
+    const emphasisColor = imageBackground ? '#ffffff' : settings.emphasisColor;
+    const nameColor = imageBackground ? '#ffffff' : profile.color;
+    const secondaryColor = imageBackground ? '#eeeeee' : softBodyTextColor(settings, profile.color);
+    const role = settings.profileMinimal || !profile.role.trim()
       ? ''
-      : `<p style="margin:0 0 3px; color:${softBodyTextColor(settings, profile.color)}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${profile.role}</p>`;
-    const profileNameHTML = multiline(profile.name);
+      : `<p data-mosaic-profile-field="${profileFieldPrefix}Role" style="margin:0 0 3px; color:${secondaryColor}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${escapeHTML(profile.role)}</p>`;
+    const profileNameHTML = processInline(profile.name, emphasisColor).replace(/\r?\n/g, '<br>');
     const name = profile.name
-      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${profile.color}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${profileNameHTML}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${nameColor}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${profileNameHTML}</p>`
       : '';
     const tagsList = formatTags(profile.tags);
-    const chipBg = accentTint(settings.bgColor, profile.color);
+    const chipBg = imageBackground ? 'rgba(0,0,0,.38)' : accentTint(settings.bgColor, profile.color);
     // 아카라이브 편집기는 문장 서식을 바꿀 때 인접한 동일 스타일 span과 보이지 않는
     // 구분 요소까지 정리해 하나의 span으로 합칠 수 있다. 칩과 칩 목록을 각각 독립 div로
     // 만들면 인라인 서식 병합이 블록 경계를 넘을 수 없어 세 칩의 배경과 간격이 보존된다.
     const tags = tagsList.length
-      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${profile.color}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(tag, settings.emphasisColor)}</div>`).join('')}</div>`
+      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${nameColor}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(tag, emphasisColor)}</div>`).join('')}</div>`
       : '';
     const desc = profile.desc
-      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${softBodyTextColor(settings, profile.color)}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${multiline(profile.desc)}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${secondaryColor}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${processInline(profile.desc, emphasisColor).replace(/\r?\n/g, '<br>')}</p>`
       : '';
     const text = `${role}${name}${tags}${desc}`;
-    const responsiveMinWidth = showcase ? 280 : 300;
-    // 두 칸을 놓을 수 있을 때는 50%, 최소 폭 두 개가 들어가지 않을 때는 100%로
-    // 즉시 전환한다. flex-wrap이나 미디어쿼리를 제거해 아카라이브 HTML에서도 동작한다.
-    // 첫 width는 구형 WebView용 안전 폴백이다. 고급 계산식이 제거되면 2열을 억지로
-    // 유지하지 않고 전체 폭 1열로 남게 해, 고정 300px 상자나 가로 넘침을 방지한다.
-    // min()/max()가 지원되는 환경에서만 데스크톱 2열과 모바일 1열을 자동 전환한다.
-    const responsiveItemWidth = profiles.length > 1
-      ? `max(50%, min(100%, calc(${responsiveMinWidth * 2000}px - 100000%)))`
+    // 3칸 행은 안쪽 폭 690px 이상에서 3열, 500~689px에서 2열, 그 아래에서 1열이다.
+    // 2칸 행은 안쪽 폭 500px에서 2열→1열로 바뀐다. 출력 HTML에서도 동작한다.
+    // 첫 width:100%는 min()/max()가 제거되는 구형 WebView의 안전 폴백이다.
+    const twoColumnBreakpoint = twoColumnContentBreakpoint + profileGap;
+    const threeColumnBreakpoint = 690 + profileGap;
+    // 홀수 인원의 마지막 카드는 2열에서 혼자 남으므로 한 명짜리 카드처럼 전폭을 쓴다.
+    const fillsTwoColumnRow = row.length === 3
+      && profileIndex === profiles.length - 1 && profiles.length % 2 === 1;
+    const responsiveItemWidth = fillsTwoColumnRow
+      ? `max(33.333333%, min(100%, calc(${threeColumnBreakpoint * 1000}px - 100000%)))`
+      : row.length === 3
+      ? `max(33.333333%, min(50%, calc(${threeColumnBreakpoint * 1000}px - 100000%)), min(100%, calc(${twoColumnBreakpoint * 1000}px - 100000%)))`
+      : row.length === 2
+      ? `max(50%, min(100%, calc(${twoColumnBreakpoint * 1000}px - 100000%)))`
       : '100%';
-    // 한 줄 모드에서는 좌우 패딩을 0으로 만들어 공통 상자와 양끝을 맞춘다.
-    // 두 칸이 들어가는 폭에서만 서로 맞닿는 안쪽 방향에 절반 간격을 적용한다.
-    const responsiveHalfGap = profiles.length > 1
-      ? `clamp(0px, calc(100000% - ${(responsiveMinWidth * 2 - 1) * 1000}px), ${profileGap / 2}px)`
-      : '0px';
-    const itemPaddingLeft = profiles.length > 1 && profileIndex > 0 ? responsiveHalfGap : '0px';
-    const itemPaddingRight = profiles.length > 1 && profileIndex < profiles.length - 1 ? responsiveHalfGap : '0px';
-    const itemOuterStyle = `box-sizing:border-box; width:100%; width:${responsiveItemWidth}; min-width:0; max-width:100%; display:inline-block; vertical-align:top; padding-left:${itemPaddingLeft}; padding-right:${itemPaddingRight}; padding-bottom:${profiles.length > 1 ? profileGap : 0}px;`;
-    const wrapProfileItem = content => `<div data-mosaic-profile-item="true" data-mosaic-profile-role="${profile.role.toLowerCase()}" style="${itemOuterStyle}">${content}</div>`;
+    // 모든 항목에 같은 절반 패딩을 주고 안쪽 격자를 그만큼 확장하면, 실제 카드의
+    // 양끝은 원래 위치를 유지하면서 3열·2열·1열 어느 배치에서도 틈이 고르게 난다.
+    const itemHalfGap = `clamp(0px, calc(100000% - ${(twoColumnBreakpoint - 1) * 1000}px), ${profileGap / 2}px)`;
+    const itemOuterStyle = `box-sizing:border-box; width:100%; width:${responsiveItemWidth}; min-width:0; max-width:100%; display:inline-block; vertical-align:top; ${joinedProfileItems ? 'padding:0;' : `padding:0 ${itemHalfGap} ${profileGap}px;`} ${cornerCss ? `${cornerCss} overflow:hidden; --mosaic-profile-top-radius:${joinedProfileTopRadius}px; --mosaic-profile-bottom-radius:${joinedProfileBottomRadius}px;` : ''} ${photoGapColor ? `background-color:${photoGapColor};` : ''}`;
+    const previewCorners = joinedProfileRadius
+      ? `data-mosaic-profile-corners-narrow="${previewCornerTokens(profileIndex, 1)}" data-mosaic-profile-corners-medium="${previewCornerTokens(profileIndex, 2)}" data-mosaic-profile-corners-wide="${previewCornerTokens(profileIndex, 3)}" ` : '';
+    const wrapProfileItem = content => `<div data-mosaic-profile-item="true" ${previewCorners}${photoGapColor ? 'data-mosaic-photo-gap="true" ' : ''}data-mosaic-profile-columns="${row.length}" ${fillsTwoColumnRow ? 'data-mosaic-profile-row-fill="true" ' : ''}data-mosaic-profile-role="${profile.key}" style="${itemOuterStyle}">${content}</div>`;
+    const compactSeam = joinedCompactSeam(profileIndex);
+    const compactRadius = joinedCompactProfiles ? 0 : 10;
     if(!profile.image){
       // iOS WebView는 width:100%인 CSS table 자체에 좌우 패딩이 있으면 그 패딩을
       // 표 폭 바깥에 다시 더해 내용을 오른쪽으로 민다. 패딩은 일반 block에 두고,
       // 패딩 없는 안쪽 table-cell만 세로 중앙 정렬에 사용한다.
       const emptyProfilePadding = large ? 15 : 12;
       const emptyProfileInnerHeight = Math.max(large ? 86 : 56, sharedProfileCardHeight - emptyProfilePadding * 2);
-      return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; display:block; padding:${emptyProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="box-sizing:border-box; width:100%; min-height:${emptyProfileInnerHeight}px; height:${emptyProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div>`);
+      return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; display:block; padding:${emptyProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:${compactRadius}px; ${cornerCss}${compactSeam} text-align:center; word-break:break-word;"><div style="box-sizing:border-box; width:100%; min-height:${emptyProfileInnerHeight}px; height:${emptyProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div>`);
     }
     const size = showcase ? 150 : (large ? 88 : 56);
     const zoom = safeScale(profile.scale);
     const imageX = safePosition(profile.x);
     const imageY = safePosition(profile.y);
     const imagePosition = `${imageX}% ${imageY}%`;
+    if(imageBackground){
+      const backgroundPadding = large ? 16 : 14;
+      const stackedHeight = Math.max(184, sharedProfileCardHeight);
+      const wideHeight = showcase ? Math.max(216, sharedProfileCardHeight) : sharedProfileCardHeight;
+      const stackedInnerHeight = Math.max(large ? 86 : 56, stackedHeight - backgroundPadding * 2);
+      const wideInnerHeight = Math.max(large ? 86 : 56, wideHeight - backgroundPadding * 2);
+      // 행마다 같은 열 전환 경계에서 여러 칸은 216px, 한 칸으로 쌓이면 184px이 된다.
+      // cqw가 제거되는 환경에서는 세로 배치 높이를 안전한 기본값으로 남긴다.
+      const heightBreakpoint = twoColumnContentBreakpoint;
+      const responsiveHeight = (narrow, wide) => `clamp(${narrow}px, calc(10000cqw - ${heightBreakpoint * 100 - 100 - narrow}px), ${wide}px)`;
+      const outerHeightCss = responsivePortraitBackground
+        ? `min-height:${stackedHeight}px; min-height:${responsiveHeight(stackedHeight, wideHeight)};`
+        : `min-height:${wideHeight}px;`;
+      const innerHeightCss = responsivePortraitBackground
+        ? `min-height:${stackedInnerHeight}px; min-height:${responsiveHeight(stackedInnerHeight, wideInnerHeight)}; height:${stackedInnerHeight}px; height:${responsiveHeight(stackedInnerHeight, wideInnerHeight)};`
+        : `min-height:${wideInnerHeight}px; height:${wideInnerHeight}px;`;
+      // 한 줄에 3→2→1명 또는 2→1명으로 바뀌어도 실제로 닿는 변에만 선을 둔다.
+      // cqw가 없는 환경에서는 현재 카드 폭을 기준으로 계산한 선을 폴백으로 쓴다.
+      const seamFallbackWidth = W - (showOuterBorder ? 2 : 0);
+      const rightSeamBreakpoint = row.position === 0 && row.length >= 2
+        ? twoColumnContentBreakpoint
+        : (row.position === 1 && row.length === 3 ? 690 : 0);
+      const hasFollowingRow = row.start + row.length < profiles.length;
+      const bottomSeamBreakpoint = hasFollowingRow ? 0
+        : (row.length === 3 && row.position < 2 ? 690
+          : (row.length === 2 && row.position === 0 ? twoColumnContentBreakpoint : 0));
+      // 사진은 선 아래까지 칠하고, 접합선만 반투명하게 얹는다.
+      const photoJointColor = 'rgba(128,128,128,.22)';
+      const photoJointBorder = joinedPortraitPhotos && profiles.length > 1
+        ? `${rightSeamBreakpoint
+            ? `border-right:${seamFallbackWidth >= rightSeamBreakpoint ? 1 : 0}px solid ${photoJointColor}; border-right-width:clamp(0px, calc(100cqw - ${rightSeamBreakpoint - 1}px), 1px);`
+            : ''}${hasFollowingRow
+            ? `border-bottom:1px solid ${photoJointColor};`
+            : bottomSeamBreakpoint
+              ? `border-bottom:${seamFallbackWidth < bottomSeamBreakpoint ? 1 : 0}px solid ${photoJointColor}; border-bottom-width:clamp(0px, calc(${bottomSeamBreakpoint}px - 100cqw), 1px);`
+              : ''}`
+        : '';
+      const textVerticalAlign = settings.profileTextPosition === 'top' ? 'top'
+        : settings.profileTextPosition === 'bottom' ? 'bottom' : 'middle';
+      return wrapProfileItem(`<div data-mosaic-image-background="true" data-mosaic-profile-image-field="${profileFieldPrefix}Image" style="box-sizing:border-box; width:100%; ${outerHeightCss} display:block; padding:${backgroundPadding}px 14px; background-color:#303030; background-image:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.58)),url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:center center,${imagePosition}; background-size:cover,${profileImageBackgroundSize(profile.image, zoom)}; background-origin:border-box; border-radius:${joinedProfileItems ? 0 : portraitPhotoBackgroundOnly ? cardRadius : 10}px; ${cornerCss}${photoJointBorder}${compactSeam} text-align:center; overflow-wrap:anywhere; word-break:break-word;"><div style="box-sizing:border-box; width:100%; ${innerHeightCss} display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div>`);
+    }
     const imageRadius = showcase ? '12px' : (large ? '10px' : '50%');
     const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
     if(showcase){
@@ -1896,21 +2361,20 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
     // 아카라이브의 게시판 표 테두리 스타일도 적용되지 않는다.
     const imageProfilePadding = large ? 14 : 12;
     const imageProfileInnerHeight = Math.max(size, sharedProfileCardHeight - imageProfilePadding * 2);
-    return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:${imageProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:10px; overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${imageProfileInnerHeight}px; height:${imageProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:auto; max-width:100%; display:inline-table; table-layout:auto; margin:0; vertical-align:middle; text-align:left;"><div style="box-sizing:border-box; display:table-cell; width:${imageColumnWidth}px; padding-right:${imageTextSpacing}px; vertical-align:middle;">${image}</div><div style="box-sizing:border-box; display:table-cell; width:auto; vertical-align:middle; font-family:${fontStack(settings.narrFont)}; overflow-wrap:anywhere; word-break:break-word;">${text}</div></div></div></div></div>`);
-  }).join('');
+    return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:${imageProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:${compactRadius}px; ${cornerCss}${compactSeam} overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${imageProfileInnerHeight}px; height:${imageProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:auto; max-width:100%; display:inline-table; table-layout:auto; margin:0; vertical-align:middle; text-align:left;"><div style="box-sizing:border-box; display:table-cell; width:${imageColumnWidth}px; padding-right:${imageTextSpacing}px; vertical-align:middle;">${image}</div><div style="box-sizing:border-box; display:table-cell; width:auto; vertical-align:middle; font-family:${fontStack(settings.narrFont)}; overflow-wrap:anywhere; word-break:break-word;">${text}</div></div></div></div></div>`);
+  });
 
-  // flex-wrap 없이 inline-block의 자연 줄바꿈을 사용한다. 두 칸이 최소 폭을 확보하지
-  // 못하는 순간 두 번째 프로필이 다음 줄로 이동한다.
-  const profileBreakpoint = (showcase ? 280 : 300) * Math.min(2, profiles.length);
-  // 프로필 두 칸의 padding-bottom은 좁은 화면에서 다음 줄과의 간격을 만든다.
-  // 표지와 연결되지 않고 관계·상황도 없는 단독 프로필에서는 마지막 줄 아래에도
-  // 그 간격이 남으므로, 묶음의 음수 여백으로 한 번 상쇄해 바깥 위아래 여백을 맞춘다.
-  const standaloneProfileOnly = !connectedAbove && !relationship && !situation;
-  const standaloneProfileBottomCompensation = standaloneProfileOnly && profiles.length > 1
-      ? `margin-bottom:-${profileGap}px;`
-      : '';
-  const profileItemsRow = profileItems
-    ? `<div data-mosaic-profile-items="true" data-mosaic-profile-breakpoint="${profileBreakpoint}" style="box-sizing:border-box; width:100%; ${showcase ? 'max-width:560px; display:inline-block; vertical-align:top;' : 'display:block;'} ${standaloneProfileBottomCompensation} text-align:center; font-size:0; white-space:normal;">${profileItems}</div>`
+  // 항목을 하나의 흐름에 놓아 최대 5명까지 2+3→2+2+1로 접힌다.
+  const profileBreakpoint = rowLengths.some(length => length === 3) ? 690 : twoColumnContentBreakpoint;
+  const outerHalfGap = `clamp(0px, calc(100000% - ${(twoColumnContentBreakpoint - 1) * 1000}px), ${profileGap / 2}px)`;
+  // 사진·일반 프로필 혼합 시에는 남겨 둔 2px 간격의 구조색을 칠한다.
+  const photoGapBackground = photoGapColor ? `background-color:${photoGapColor};` : '';
+  const profileGrid = profileItems.length
+    ? `<div data-mosaic-profile-grid="true" ${photoGapBackground ? 'data-mosaic-photo-gap="true" ' : ''}style="box-sizing:border-box; ${joinedProfileItems ? 'width:100%; margin-left:0; margin-bottom:0;' : `width:calc(100% + ${outerHalfGap} + ${outerHalfGap}); margin-left:calc(0px - ${outerHalfGap}); margin-bottom:-${profileGap}px;`} display:block; ${photoGapBackground} text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`
+    : '';
+  const profileItemsRow = profileGrid
+    // 행의 잘림은 보조 안전망이다. 실제 윗·아랫모서리는 사진/배경 면에 직접 둔다.
+    ? `<div data-mosaic-profile-items="true" data-mosaic-profile-breakpoint="${profileBreakpoint}" style="box-sizing:border-box; width:100%; ${showcase ? 'max-width:100%; display:inline-block; vertical-align:top;' : 'display:block;'} ${responsivePortraitBackground || joinedCompactProfiles ? 'container-type:inline-size;' : ''} ${joinedProfileTopRadius ? `border-radius:${joinedProfileTopRadius}px ${joinedProfileTopRadius}px 0 0;` : ''} overflow:hidden; text-align:center; font-size:0; white-space:normal;">${profileGrid}</div>`
     : '';
   // 아카라이브는 display:flex는 남기면서 justify-content를 무력화하는 경우가 있어
   // 포트레이트 묶음 전체가 왼쪽으로 치우친다. flex를 완전히 제거하고 게시판에서도
@@ -1945,7 +2409,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
   const minimalLineColor = mixHex(pal.cardBg, pal.divider, 0.82);
   const minimalRelationshipMaxWidth = minimalRelationshipIsLong ? 'max-width:60%;' : '';
   const minimalRelationshipRow = relationship
-    ? `<div style="box-sizing:border-box; width:100%; margin:0; padding:0; border:0; text-align:center; background-color:transparent; background-image:linear-gradient(to right, ${minimalLineColor}, ${minimalLineColor}); background-position:center center; background-repeat:no-repeat; background-size:100% 0.5px;"><span style="box-sizing:border-box; display:inline-block; ${minimalRelationshipMaxWidth} margin:0; padding:0 8px; border:0; background-color:${pal.cardBg} !important; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center; ${minimalRelationshipWrap}">${relationshipDots}</span></div>`
+    ? `<div style="box-sizing:border-box; width:100%; margin:0; padding:0; border:0; text-align:center; background-color:transparent; ${transparentProfileOuter ? '' : `background-image:linear-gradient(to right, ${minimalLineColor}, ${minimalLineColor}); background-position:center center; background-repeat:no-repeat; background-size:100% 0.5px;`}"><span style="box-sizing:border-box; display:inline-block; ${minimalRelationshipMaxWidth} margin:0; padding:0 8px; border:0; background-color:${transparentProfileOuter ? 'transparent' : pal.cardBg} !important; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center; ${minimalRelationshipWrap}">${relationshipDots}</span></div>`
     : '';
   const minimalSituationRow = situation
     ? `<p data-mosaic-profile-field="profileSituation" style="margin:${relationship ? 8 : 0}px 0 0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p>`
@@ -1965,16 +2429,26 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, compactTo
       ].join('');
 
   const commonSection = commonItems
-    ? `<div style="box-sizing:border-box; width:100%; margin-top:${profileRow ? Math.max(0, 10 - (profiles.length > 1 ? profileGap : 0)) : 0}px;">${commonItems}</div>`
+    ? `<div style="box-sizing:border-box; width:100%; margin-top:${profileRow ? 10 : 0}px; ${joinedProfileItems ? 'padding:0 clamp(14px,3.5vw,20px) clamp(14px,3vw,18px);' : ''}">${commonItems}</div>`
     : '';
-  // 표제 미니멀과 연결된 경우에만 프로필 상단 패딩도 조금 줄여 두 영역 사이의
-  // 빈 공간을 압축한다. 나머지 프로필 카드의 패딩은 기존 값을 유지한다.
-  const outerPadding = connectedAbove && compactTopSpacing
-    ? 'padding:10px 18px 16px; padding:clamp(9px,2vw,11px) clamp(14px,3.5vw,20px) clamp(14px,3vw,18px);'
-    : (standaloneProfileOnly
-        ? 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);'
-        : 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);');
-  return `<div data-mosaic-profile="true" style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto 20px; ${border} border-radius:${radius}; background-color:${pal.cardBg}; ${outerPadding}"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
+  // 표제 아래에서도 최상단 프로필과 같은 위아래 여백을 쓴다. 사진 유무나
+  // 스타일에 따라 한쪽만 압축하면 이어보기에서 마지막 줄 여백이 다시 달라진다.
+  const outerPadding = joinedProfileItems
+    ? 'padding:0;'
+    : relationship || situation
+    ? 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);'
+    : 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);';
+  const bottomMargin = settings.profilePlacement === 'top' && normalizeCardLayout(settings.cardLayout) !== 'unified'
+    ? 20 + profileTitleGapPx(settings)
+    : 20;
+  // 간격 없는 카드가 바깥 면을 전부 덮을 때는 뒤의 카드색이 둥근 모서리 바깥에
+  // 네모난 쐐기처럼 남지 않게 한다. 선택한 카드색은 각 인물의 실제 면에 유지된다.
+  const outerBackground = transparentProfileOuter || (borderlessTopProfile && joinedProfileItems && !commonItems)
+    ? 'transparent' : pal.cardBg;
+  const photoReachesProfileEdge = joinedProfileItems && profiles.length > 0 && !commonItems
+    && profiles.every(profile => profile.image && profile.backgroundOn);
+  // 바깥 잘림은 보조 안전망이며, 게시판 모바일의 모서리는 실제 면이 직접 그린다.
+  return `<div data-mosaic-profile="true" ${borderlessTopProfile ? 'data-mosaic-borderless-top="true" ' : ''}${photoReachesProfileEdge ? 'data-mosaic-photo-profile="true" ' : ''}style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto ${bottomMargin}px; ${border} border-radius:${radius}; background-color:${outerBackground}; ${outerPadding} overflow:hidden;"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
 }
 
 
@@ -2000,7 +2474,7 @@ function buildFooter(settings){
     ? toolText
     : `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
   const authorText = author ? ` <span style="color:${footerColor} !important; -webkit-text-fill-color:${footerColor} !important; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
-  return `    <div data-mosaic-footer="true" style="margin-top:${Math.round(28*sm)}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px !important; line-height:1.5 !important; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${toolLink}${authorText}</div>\n`;
+  return `    <div data-mosaic-footer="true" style="margin-top:${Math.max(0, Math.round(28*sm) + cardBodyBottomSpacePx(settings))}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px !important; line-height:1.5 !important; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCreditLink(contentHTML, rawUrl, color){
@@ -2022,6 +2496,10 @@ function buildCreditText(contentHTML, color){
 
 const CREDIT_SURFACE = '#f4f4f4';
 
+function creditBackground(settings){
+  return settingFlagOn(settings.creditTransparentOn) ? 'transparent' : CREDIT_SURFACE;
+}
+
 function buildCredit(settings){
   if(!settings.creditOn) return '';
   const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
@@ -2035,21 +2513,19 @@ function buildCredit(settings){
 
   const pal = tonePalette(settings);
   const cardWidth = parseInt(settings.cardWidth) || 750;
-  const creditWidth = Math.min(380, cardWidth);
+  const requestedCreditWidth = Number(settings.creditWidth);
+  const creditWidth = Math.min(cardWidth, Number.isFinite(requestedCreditWidth) && requestedCreditWidth >= 200
+    ? Math.min(900, requestedCreditWidth) : 380);
   const neutralCardBg = neutralHex(pal.cardBg);
   const darkBackground = textColorFor(neutralCardBg) === '#ffffff';
   const creditNeutral = darkBackground ? '#ffffff' : '#000000';
-  // 일반 테마는 배경색과 혼합하지 않은 고정 회색 면으로 구분하고, 투명 테마만 외곽선을 남긴다.
-  const transparentCredit = outputThemeTransparent(settings.outputTheme);
-  const creditBg = transparentCredit ? 'transparent' : CREDIT_SURFACE;
-  const creditBorder = mixHex(neutralCardBg, creditNeutral, darkBackground ? 0.11 : 0.07);
+  const transparentCredit = settingFlagOn(settings.creditTransparentOn) || outputThemeTransparent(settings.outputTheme);
+  const creditBg = outputThemeTransparent(settings.outputTheme) ? 'transparent' : creditBackground(settings);
+  const creditBorder = 'rgba(128,128,128,.22)';
   const creditDivider = mixHex(pal.boxBg, creditNeutral, darkBackground ? 0.07 : 0.045);
-  // 어두운 카드에서도 고정된 밝은 면 위의 글자가 밝아져 묻히지 않도록 한다.
-  const labelColor = !transparentCredit && darkBackground
-    ? '#777777'
+  const labelColor = !transparentCredit && darkBackground ? '#777777'
     : mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
-  const valueColor = !transparentCredit && darkBackground
-    ? '#555555'
+  const valueColor = !transparentCredit && darkBackground ? '#555555'
     : mixHex(pal.heading[3], pal.cardBg, darkBackground ? 0.08 : 0.14);
   const font = fontStack(settings.narrFont);
   const creditPadding = '9px 14px 3px';
@@ -2077,10 +2553,11 @@ function buildCredit(settings){
     return `${divider}<div data-mosaic-credit-row="${item.sourceIndex}" style="display:table; table-layout:fixed; box-sizing:border-box; width:100%; margin:0 0 6px;"><div style="display:table-row;"><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="label" style="display:table-cell; width:34%; padding:0 12px 0 0; vertical-align:top; color:${labelColor} !important; -webkit-text-fill-color:${labelColor} !important; font-size:9.5px !important; font-weight:600; line-height:1.55 !important; letter-spacing:0.35px; overflow-wrap:anywhere; word-break:break-word;">${buildCreditText(labelText, labelColor)}</div><div data-mosaic-credit-index="${item.sourceIndex}" data-mosaic-credit-field="value" style="display:table-cell; width:66%; padding:0; vertical-align:top; text-align:right; color:${valueColor} !important; -webkit-text-fill-color:${valueColor} !important; font-size:10.5px !important; font-weight:400; line-height:1.55 !important; letter-spacing:-0.05px; overflow-wrap:anywhere; word-break:break-word;">${linkedValue}</div></div></div>`;
   }).join('');
 
+  const gap = Math.max(18, Math.min(80, Number(settings.creditCardGap) || 40));
   const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
-    ? '0 auto 18px'
-    : '18px auto 0';
-  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${transparentCredit ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
+    ? `0 auto ${gap}px`
+    : `${gap}px auto 0`;
+  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${settingFlagOn(settings.creditBorderOn) ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor} !important; font-family:${font}; -webkit-text-size-adjust:100% !important; text-size-adjust:100% !important;">${rows}</div>\n`;
 }
 
 // 코멘트는 본문 문법을 해석하지 않되, Shift+Enter가 남긴 줄 끝 [BR]만
@@ -2120,20 +2597,74 @@ function buildCommentBlock(comment, settings){
   return `<div data-mosaic-comment-index="${comment.sourceIndex}" data-mosaic-comment-width="${settings.commentWidth}" data-mosaic-comment-align="${settings.commentAlign}" style="${widthStyle}${alignStyle}">${paragraphs.join('\n')}</div>`;
 }
 
+function placeCoverDividerBeforeLeadingComment(html, settings){
+  if(settingFlagOn(settings.titleMinimal)) return html;
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const sections = Array.from(template.content.children);
+  const firstBodyIndex = sections.findIndex(section =>
+    section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
+  );
+  if(firstBodyIndex < 0 || !sections[firstBodyIndex].hasAttribute('data-mosaic-comment-index')) return html;
+  const titleIndex = sections.findIndex(section => section.hasAttribute('data-mosaic-title'));
+  if(titleIndex < 0 || titleIndex >= firstBodyIndex) return html;
+  const boundary = sections.slice(titleIndex, firstBodyIndex).filter(section =>
+    section.hasAttribute('data-mosaic-title') || section.hasAttribute('data-mosaic-profile')
+  ).pop();
+  if(!boundary) return html;
+  boundary.style.setProperty('border-bottom', '0');
+  appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
+  return template.innerHTML;
+}
+
+function addCoverCardGapAfterIntro(html, settings){
+  const extra = coverCardGapPx(settings);
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const boundary = template.content.lastElementChild;
+  if(!boundary) return html;
+  const profileBoundary = boundary.hasAttribute('data-mosaic-profile');
+  const bottomMargin = Number.parseFloat(boundary.style.marginBottom) || 0;
+  const adjustedMargin = profileBoundary ? extra : Math.max(0, bottomMargin + extra);
+  if(adjustedMargin === bottomMargin && !(profileBoundary && adjustedMargin === 0)) return html;
+  boundary.style.setProperty('margin-bottom', `${adjustedMargin}px`);
+  if(profileBoundary && adjustedMargin === 0){
+    boundary.style.setProperty('border-bottom', '0');
+    boundary.style.setProperty('border-bottom-left-radius', '0');
+    boundary.style.setProperty('border-bottom-right-radius', '0');
+  }
+  // 프로필은 이미 독립 카드의 하단선과 모서리를 가진다. 표제·이미지가 마지막이면
+  // 벌어진 간격 위에서 카드가 열린 채 끝나지 않도록 하단 경계를 마무리한다.
+  if(adjustedMargin > 0 && !profileBoundary){
+    const radius = cardCornerRadiusPx(settings);
+    boundary.style.setProperty('border-bottom-left-radius', `${radius}px`);
+    boundary.style.setProperty('border-bottom-right-radius', `${radius}px`);
+    const titleDivider = boundary.hasAttribute('data-mosaic-title') && !settingFlagOn(settings.titleMinimal);
+    if(titleDivider && outputThemeShape(settings.outputTheme) !== 'document'){
+      appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
+    }else if(settings.cardBorderOn !== false){
+      boundary.style.setProperty('border-bottom', `1px solid ${tonePalette(settings).shellBorder}`);
+    }
+  }
+  return template.innerHTML;
+}
+
 // 통합 카드는 새 부모 요소를 씌우지 않고 최상위 블록의 외곽선을 이어 붙인다.
 // 미리보기의 카드별 위치 연동·직접 편집·복사 기능이 최상위 형제 구조를 사용하므로,
 // DOM 계층을 유지하면서도 출력에서는 하나의 배경과 외곽 카드처럼 보이게 한다.
 // 이어보기의 바깥 여백과 카드 경계 여백을 한 곳에서 결정한다.
-function unifiedCardSpacing({folded, previousKind, nextKind, introDivider, afterImageWithoutTitle}){
+function unifiedCardSpacing({folded, previousKind, nextKind, introDivider, afterImageWithoutTitle, afterImageBackedTitle, introGap = 0, cardGap, unifiedBottomSpace = 0}){
   const previousCard = previousKind === 'plain' || previousKind === 'fold';
   const nextCard = nextKind === 'plain' || nextKind === 'fold';
-  const top = previousCard
-    ? (folded && previousKind === 'fold' ? 8 : 40)
-    : folded ? (previousKind === 'none' || introDivider || afterImageWithoutTitle ? 24 : 8) : 0;
+  const addedHalfGap = (cardGap - 20) / 2;
+  const baseTop = previousCard
+    ? (folded && previousKind === 'fold' ? 8 : 40) + addedHalfGap
+    : folded ? (previousKind === 'none' || introDivider || afterImageWithoutTitle || afterImageBackedTitle ? 24 : 8) : 0;
+  const top = baseTop + (previousKind === 'intro' ? introGap : 0);
   const bottom = nextCard
-    ? (folded && nextKind === 'fold' ? 8 : 40)
+    ? (folded && nextKind === 'fold' ? 8 : 40) + addedHalfGap
     : nextKind === 'none' ? (folded ? 24 : 0) : 8;
-  return {top, bottom, trimTop:previousCard && !(folded && previousKind === 'fold'),
+  return {top:Math.max(0, top), bottom:Math.max(0, bottom) + (nextKind === 'none' ? unifiedBottomSpace : 0), trimTop:previousCard && !(folded && previousKind === 'fold'),
     trimBottom:nextCard && !(folded && nextKind === 'fold')};
 }
 
@@ -2150,6 +2681,7 @@ function applyUnifiedCardLayout(html, settings){
 
   const pal = tonePalette(settings);
   const width = parseInt(settings.cardWidth) || 750;
+  const cardRadius = cardCornerRadiusPx(settings);
   const showOuterBorder = settings.cardBorderOn !== false;
   // 접기 카드는 제목만 강조하지 않고 제목과 본문을 같은 낮은 위계의 색면으로 묶는다.
   // 최상위 details 구조는 유지하고 내부만 들여 위치 연동·직접 편집 대상이 바뀌지 않게 한다.
@@ -2174,6 +2706,7 @@ function applyUnifiedCardLayout(html, settings){
     const last = index === sections.length - 1;
     const bodyCard = section.hasAttribute('data-mosaic-card-index');
     const previousSection = index > 0 ? sections[index - 1] : null;
+    const nextSection = index < sections.length - 1 ? sections[index + 1] : null;
     const previousBodyCard = !!(previousSection && previousSection.hasAttribute('data-mosaic-card-index'));
     const foldedCard = bodyCard && section.tagName === 'DETAILS';
     const previousFoldedCard = previousBodyCard && previousSection.tagName === 'DETAILS';
@@ -2182,19 +2715,25 @@ function applyUnifiedCardLayout(html, settings){
     section.style.setProperty('width', '100%');
     section.style.setProperty('max-width', `${width}px`);
     section.style.setProperty('margin', '0 auto');
-    section.style.setProperty('background-color', pal.cardBg);
+    const transparentTopProfile = section.hasAttribute('data-mosaic-profile')
+      && settings.profilePlacement === 'top' && settings.profileOuterBackground === 'transparent';
+    section.style.setProperty('background-color', transparentTopProfile ? 'transparent' : pal.cardBg);
     section.style.setProperty('border', '0');
+    // 개별 카드에서 그린 표지선은 이어보기의 공통 경계선으로 다시 그린다.
+    if(bodyCard || section.hasAttribute('data-mosaic-profile')) section.style.removeProperty('background-image');
     if(foldedCard){
       const summary = section.querySelector(':scope > summary');
       const foldBody = section.querySelector(':scope > [data-mosaic-fold-body="true"]');
       section.style.setProperty('padding', '0 16px');
+      const innerRadius = Math.max(0, cardRadius - 6);
+      const innerJointRadius = Math.min(2, innerRadius);
       if(summary){
         summary.style.setProperty('background-color', foldPanelBg);
-        summary.style.setProperty('border-radius', '10px 10px 2px 2px');
+        summary.style.setProperty('border-radius', `${innerRadius}px ${innerRadius}px ${innerJointRadius}px ${innerJointRadius}px`);
       }
       if(foldBody){
         foldBody.style.setProperty('background-color', foldPanelBg);
-        foldBody.style.setProperty('border-radius', '2px 2px 10px 10px');
+        foldBody.style.setProperty('border-radius', `${innerJointRadius}px ${innerJointRadius}px ${innerRadius}px ${innerRadius}px`);
       }
     }
     // 색면만으로 충분히 구분되는 접기 카드끼리는 선을 생략한다. 그 밖의 카드 경계에는
@@ -2205,30 +2744,46 @@ function applyUnifiedCardLayout(html, settings){
       section.style.setProperty('background-position', 'center top');
       section.style.setProperty('background-size', '100% 1px');
     }
-    if(showOuterBorder){
-      section.style.setProperty('border-left', `1px solid ${pal.shellBorder}`);
-      section.style.setProperty('border-right', `1px solid ${pal.shellBorder}`);
-      if(first) section.style.setProperty('border-top', `1px solid ${pal.shellBorder}`);
-      if(last) section.style.setProperty('border-bottom', `1px solid ${pal.shellBorder}`);
+    if(showOuterBorder && !section.hasAttribute('data-mosaic-borderless-top')){
+      const borderColor = section.hasAttribute('data-mosaic-image-background')
+        && outputThemeTransparent(settings.outputTheme)
+        ? 'rgba(128,128,128,.22)' : pal.shellBorder;
+      section.style.setProperty('border-left', `1px solid ${borderColor}`);
+      section.style.setProperty('border-right', `1px solid ${borderColor}`);
+      if(first) section.style.setProperty('border-top', `1px solid ${borderColor}`);
+      if(last) section.style.setProperty('border-bottom', `1px solid ${borderColor}`);
     }
     // 일반 표제는 표지 묶음의 마지막 요소 아래 선으로 본문과 구분한다.
     // 표제 미니멀을 켜면 그 선도 함께 없애 표지와 본문을 여백만으로 잇는다.
     if(showIntroBoundary && section === introBoundary){
       // 일반 보기의 표지·첫 카드 연결선과 같은 내부 구분선 색을 사용한다.
-      section.style.setProperty('border-bottom', `1px solid ${pal.divider}`);
+      const length = coverDividerLengthPercent(settings);
+      if(length === 100) section.style.setProperty('border-bottom', `1px solid ${pal.divider}`);
+      else {
+        // 표제에 대표 이미지 배경이 있으면 background-image를 선으로 덮어쓰지 않는다.
+        // 별도 선 요소는 사진·단색 표제·프로필 아래에서 같은 길이로 표시된다.
+        appendCoverDividerLine(section, 'bottom', settings, pal.divider);
+      }
     }
     section.style.setProperty('border-radius', sections.length === 1
-      ? '16px'
-      : (first ? '16px 16px 0 0' : (last ? '0 0 16px 16px' : '0')));
+      ? `${cardRadius}px`
+      : (first ? `${cardRadius}px ${cardRadius}px 0 0` : (last ? `0 0 ${cardRadius}px ${cardRadius}px` : '0')));
     section.style.setProperty('overflow', 'hidden');
   });
+  // 표제 ↔ 본문 여백은 첫 카드 앞에 둔다. 사진 배경 표제의 패딩을 늘리면
+  // 이미지 높이만 커지고 실제로 보이는 두 카드 사이 간격은 그대로 남는다.
   // 카드 경계의 여백은 여기서 한 번만 결정한다. 본문 래퍼의 padding과
   // 끝 문단의 margin을 중복 합산하지 않아 구분선 양쪽을 같은 40px로 맞춘다.
   const trimBoundary = (card, edge) => {
     if(card.tagName === 'DETAILS') return; // 접기 카드의 색면 바깥을 기준으로 한다.
     const wrapper = edge === 'top' ? card.firstElementChild : card.lastElementChild;
     if(!wrapper) return;
-    wrapper.style.setProperty(`padding-${edge}`, '0');
+    const hasFooter = edge === 'bottom' && !!wrapper.querySelector(':scope > [data-mosaic-footer="true"]');
+    // 제목 높이를 직접 조절한 카드에서는 이어보기의 여백 정리가 제목 패딩을 지우지 않는다.
+    if(edge === 'top' && wrapper.hasAttribute('data-mosaic-card-title') && cardTitlePaddingPx(settings) !== 26) return;
+    wrapper.style.setProperty(`padding-${edge}`, edge === 'top' && !wrapper.hasAttribute('data-mosaic-card-title')
+      ? `${cardBodyTopSpacePx(settings)}px`
+      : edge === 'bottom' ? `${hasFooter ? 0 : Math.max(0, cardBodyBottomSpacePx(settings))}px` : '0');
     let content = edge === 'top' ? wrapper.firstElementChild : wrapper.lastElementChild;
     if(wrapper.hasAttribute('data-mosaic-card-title')) return;
     while(content){
@@ -2246,8 +2801,12 @@ function applyUnifiedCardLayout(html, settings){
     const spacing = unifiedCardSpacing({
       folded:card.tagName === 'DETAILS',
       previousKind:sectionKind(previous), nextKind:sectionKind(sections[index + 1]),
+      cardGap:cardGapPx(settings),
+      unifiedBottomSpace:unifiedBottomSpacePx(settings),
       introDivider:showIntroBoundary && previous === introBoundary,
-      afterImageWithoutTitle:!hasUnifiedTitle && !!(previous && previous.hasAttribute('data-mosaic-cover-image'))
+      afterImageWithoutTitle:!hasUnifiedTitle && !!(previous && previous.hasAttribute('data-mosaic-cover-image')),
+      afterImageBackedTitle:!!(previous && previous.hasAttribute('data-mosaic-title') && previous.hasAttribute('data-mosaic-image-background')),
+      introGap:index === firstBodyIndex && introBoundary ? coverCardGapPx(settings) : 0
     });
     if(spacing.trimTop) trimBoundary(card, 'top');
     if(spacing.trimBottom) trimBoundary(card, 'bottom');
@@ -2403,15 +2962,46 @@ function stripEditorOutputMetadata(html){
     Array.from(element.attributes).forEach(attribute => {
       if(attribute.name.startsWith('data-mosaic-')) element.removeAttribute(attribute.name);
     });
+    if(element.style){
+      element.style.removeProperty('--mosaic-profile-top-radius');
+      element.style.removeProperty('--mosaic-profile-bottom-radius');
+    }
   });
   return template.innerHTML;
 }
 
 // 색상만 호스트 문서에 맡긴다. 타이포그래피 잠금과 이미지/레이아웃은 유지한다.
-function transparentOutput(html){
+function transparentOutput(html, settings){
   const template = document.createElement('template');
   template.innerHTML = html;
   template.content.querySelectorAll('*').forEach(el => {
+    // 투명 테마의 일반 배경은 비우되, 포트레이트 사진 사이 틈만 외곽선과
+    // 같은 반투명 구조색으로 남긴다. 이 처리가 없으면 틈이 다시 흰색으로 보인다.
+    if(el.hasAttribute('data-mosaic-photo-gap')){
+      el.style.setProperty('background-color', 'rgba(128,128,128,.22)', 'important');
+      return;
+    }
+    // 사진 위의 흰 글자와 균일한 검은 오버레이는 투명 테마에서도 유지한다.
+    if(el.closest('[data-mosaic-image-background="true"]')){
+      // 사진 배경 자체의 외곽선은 다른 카드처럼 투명 테마의 중성선으로 맞춘다.
+      if(el.hasAttribute('data-mosaic-image-background')){
+        const imageStyle = el.style;
+        // 사진이 반투명 테두리 아래까지 칠해지면 같은 선색이어도 프로필보다
+        // 어둡게 보인다. 테두리 밑에는 카드 밖의 배경이 비치도록 제한한다.
+        if(el.hasAttribute('data-mosaic-title')) imageStyle.setProperty('background-clip', 'padding-box', 'important');
+        // 표제의 바깥선은 생성·이어보기 배치에서 각각 축약형으로 다시 쓰인다.
+        // 색상 단독 선언에 의존하지 않고 실제 선 자체를 마지막에 확정한다.
+        if(el.hasAttribute('data-mosaic-title') && settings.cardBorderOn !== false){
+          ['left', 'right'].forEach(edge => {
+            imageStyle.setProperty(`border-${edge}`, '1px solid rgba(128,128,128,.22)', 'important');
+          });
+        }
+        ['top','right','bottom','left'].forEach(edge => {
+          imageStyle.setProperty(`border-${edge}-color`, 'rgba(128,128,128,.22)', 'important');
+        });
+      }
+      return;
+    }
     const style = el.style;
     const image = style.backgroundImage;
     // em 단위 줄바꿈 여백은 구분선이 아니다. 실제 px 높이만 판정한다.
@@ -2443,8 +3033,21 @@ function transparentOutput(html){
     paragraph.style.removeProperty('color');
     paragraph.style.removeProperty('-webkit-text-fill-color');
     const type = separator.dataset.mosaicSeparator;
-    paragraph.style.setProperty('opacity', type === 'hr3' ? '.32' : '.22');
-    if(type === 'hr') paragraph.style.setProperty('background-color', 'currentColor', 'important');
+    const chosenOpacity = settings[type === 'hr' ? 'hrOpacity' : type === 'hr2' ? 'hr2Opacity' : 'hr3Opacity'];
+    paragraph.style.setProperty('opacity', String(advancedTransparentOpacity(chosenOpacity, type === 'hr3' ? .32 : .22)));
+    if(type === 'hr'){
+      if(paragraph.dataset.mosaicHrShape === 'star'){
+        paragraph.style.setProperty('background-color', 'transparent', 'important');
+        [paragraph.firstElementChild, paragraph.lastElementChild].forEach(rule => {
+          if(rule) rule.style.setProperty('border-top-color', 'currentColor', 'important');
+        });
+      }else if(paragraph.style.borderTopStyle && paragraph.style.borderTopStyle !== 'none'){
+        paragraph.style.setProperty('border-top-color', 'currentColor', 'important');
+        paragraph.style.setProperty('background-color', 'transparent', 'important');
+      }else{
+        paragraph.style.setProperty('background-color', 'currentColor', 'important');
+      }
+    }
     separator.replaceWith(paragraph);
   });
   // 투명 테마에서도 옵션 6의 말풍선 형태는 약한 무채색 면으로 구분한다.
@@ -2495,32 +3098,126 @@ function specialThemeOutput(html, mode, settings){
     const palette = tonePalette(settings);
     // 카드 외곽선과 별개로, 일반 표제의 본문 연결선은 보존한다.
     const title = template.content.querySelector('[data-mosaic-title]');
-    const firstCard = template.content.querySelector('[data-mosaic-card-index]');
     template.content.querySelectorAll('[data-mosaic-card-index], [data-mosaic-profile], [data-mosaic-credit]').forEach(el => {
-      // 독립 프로필 블록의 선만 제거하고, 크레딧에는 고정된 회색 면을 유지한다.
-      if(el.hasAttribute('data-mosaic-profile') && !el.hasAttribute('data-mosaic-unified-item')){
-        el.style.setProperty('border', '0', 'important');
-      }
+      // 각진 테마도 외곽선 토글이 켜져 있으면 프로필의 바깥선을 보존한다.
       if(!el.style.backgroundImage.includes('url(')) el.style.setProperty('background-image', 'none', 'important');
-      el.style.setProperty('background-color', el.hasAttribute('data-mosaic-credit')
-        ? CREDIT_SURFACE
+      const transparentTopProfile = el.hasAttribute('data-mosaic-profile')
+        && settings.profilePlacement === 'top' && settings.profileOuterBackground === 'transparent';
+      el.style.setProperty('background-color', transparentTopProfile ? 'transparent'
+        : el.hasAttribute('data-mosaic-credit') ? creditBackground(settings)
         : safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
-    if(title && firstCard && !firstCard.hasAttribute('data-mosaic-unified-item') && !settingFlagOn(settings.titleMinimal)){
-      firstCard.style.setProperty('border-top', `1px solid ${palette.divider}`, 'important');
-    }
     template.content.querySelectorAll('summary, [data-mosaic-fold-body]').forEach(el => {
       el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
     template.content.querySelectorAll('summary').forEach(el => {
       el.style.setProperty('text-align', 'left');
-      el.style.setProperty('border-bottom', settingFlagOn(settings.foldDividerMinimal) ? 'none' : `1px solid ${palette.divider}`, 'important');
+      const showDivider = !settingFlagOn(settings.foldDividerMinimal);
+      const dividerLength = cardDividerLengthPercent(settings);
+      el.style.setProperty('border-bottom', showDivider && dividerLength === 100 ? `1px solid ${palette.divider}` : 'none', 'important');
+      if(showDivider && dividerLength < 100){
+        el.style.setProperty('background-image', `linear-gradient(to right, ${palette.divider}, ${palette.divider})`, 'important');
+        el.style.setProperty('background-repeat', 'no-repeat', 'important');
+        el.style.setProperty('background-position', 'center bottom', 'important');
+        el.style.setProperty('background-size', `${dividerLength}% 1px`, 'important');
+      }
       const body = el.nextElementSibling;
-      if(body && body.hasAttribute('data-mosaic-fold-body')) body.style.setProperty('border-top', 'none', 'important');
+      if(body && body.hasAttribute('data-mosaic-fold-body')){
+        body.style.setProperty('border-top', 'none', 'important');
+        body.style.setProperty('background-image', 'none', 'important');
+      }
     });
     template.content.querySelectorAll('[data-mosaic-quote]').forEach(el => {
       el.style.setProperty('background-color', palette.boxBg, 'important');
     });
+    // 각진 카드의 표지선은 개별/이어보기 모두 실제 선 요소로 그린다.
+    // 배경 이미지와 border는 각진 테마의 장식 정리에서 제거되므로 여기서 최종 경계를 정한다.
+    if(title && !settingFlagOn(settings.titleMinimal)){
+      const sections = Array.from(template.content.children);
+      const titleIndex = sections.indexOf(title);
+      const firstBodyIndex = sections.findIndex(section =>
+        section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
+      );
+      if(firstBodyIndex > titleIndex){
+        const firstBody = sections[firstBodyIndex];
+        const attachedProfile = sections.slice(titleIndex + 1, firstBodyIndex)
+          .filter(section => section.hasAttribute('data-mosaic-profile')).pop();
+        const unified = firstBody.hasAttribute('data-mosaic-unified-item');
+        const commentFirst = firstBody.hasAttribute('data-mosaic-comment-index');
+        const boundary = unified || commentFirst
+          ? (attachedProfile || title)
+          : (attachedProfile || firstBody);
+        const edge = unified || commentFirst ? 'bottom' : 'top';
+        boundary.style.setProperty(`border-${edge}`, '0', 'important');
+        if(boundary.style.backgroundImage.includes('linear-gradient') && !boundary.style.backgroundImage.includes('url(')){
+          boundary.style.setProperty('background-image', 'none', 'important');
+        }
+        // 닫힌 details는 summary 이외의 자식을 숨긴다. 표지선을 details에
+        // 덧붙이면 미니멀 해제 후에도 선이 보이지 않으므로 항상 보이는 제목에 둔다.
+        const lineHost = edge === 'top' && boundary === firstBody && firstBody.tagName === 'DETAILS'
+          ? (firstBody.querySelector(':scope > summary') || firstBody)
+          : boundary;
+        appendCoverDividerLine(lineHost, edge, settings, palette.divider);
+      }
+    }
+  }
+  return template.innerHTML;
+}
+
+// 사진 면에 닿는 기존 외곽선의 색만 접합선과 같은 반투명색으로 맞춘다.
+// 프로필과 실제 사진 면이 빈틈 없이 붙는 경우에는 사진 위에 가로선도 얹는다.
+// 테두리로 높이를 늘리지 않아 이어보기·개별 카드 양쪽에서 같은 위치에 놓인다.
+function addProfilePhotoJoinLines(html, settings){
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  const sections = Array.from(template.content.children).filter(section =>
+    !section.hidden && section.getAttribute('aria-hidden') !== 'true'
+  );
+  const isProfile = section => section.hasAttribute('data-mosaic-profile');
+  const isPhotoCover = section => section.hasAttribute('data-mosaic-cover-image')
+    || (section.hasAttribute('data-mosaic-title') && section.hasAttribute('data-mosaic-image-background'));
+  const photoEdgeColor = 'rgba(128,128,128,.22)';
+  const colorProbe = document.createElement('span');
+  colorProbe.style.color = tonePalette(settings).shellBorder;
+  const shellColor = colorProbe.style.color;
+  colorProbe.style.color = photoEdgeColor;
+  const normalizedPhotoColor = colorProbe.style.color;
+  sections.forEach(section => {
+    if(!isPhotoCover(section) && !section.hasAttribute('data-mosaic-photo-profile')) return;
+    // 실제로 그려지는 외곽선만 바꾼다. 표지선이나 꺼진 외곽선을 새로 만들지 않는다.
+    ['top','right','bottom','left'].forEach(edge => {
+      const style = section.style;
+      const borderWidth = style.getPropertyValue(`border-${edge}-width`);
+      const borderStyle = style.getPropertyValue(`border-${edge}-style`);
+      if(!borderWidth || borderWidth === '0px' || borderStyle === 'none') return;
+      colorProbe.style.color = style.getPropertyValue(`border-${edge}-color`);
+      if(colorProbe.style.color === shellColor || colorProbe.style.color === normalizedPhotoColor){
+        style.setProperty(`border-${edge}-color`, photoEdgeColor, 'important');
+      }
+    });
+  });
+  const unified = normalizeCardLayout(settings.cardLayout) === 'unified';
+  for(let index = 0; index < sections.length - 1; index++){
+    const first = sections[index];
+    const second = sections[index + 1];
+    const profileFirst = isProfile(first) && isPhotoCover(second);
+    const photoFirst = isPhotoCover(first) && isProfile(second);
+    if(!profileFirst && !photoFirst) continue;
+    // 최상단 프로필과 뒤따르는 표지는 -20px일 때만 붙는다.
+    if(profileFirst && !unified && profileTitleGapPx(settings) !== -20) continue;
+    const photo = profileFirst ? second : first;
+    if(photoFirst){
+      // 일반 표제의 기존 위쪽 구분선과 중복되지 않게 새 사진 선으로 교체한다.
+      second.style.setProperty('border-top', '0');
+      if(second.style.backgroundImage.includes('linear-gradient')
+        && !second.style.backgroundImage.includes('url(')) second.style.removeProperty('background-image');
+    }
+    photo.style.setProperty('position', 'relative');
+    const line = document.createElement('div');
+    line.setAttribute('data-mosaic-generated', 'true');
+    line.setAttribute('aria-hidden', 'true');
+    line.style.cssText = `position:absolute; z-index:1; left:0; right:0; ${profileFirst ? 'top' : 'bottom'}:0; height:1px; margin:0; padding:0; border:0; background-color:rgba(128,128,128,.22); pointer-events:none;`;
+    photo.appendChild(line);
   }
   return template.innerHTML;
 }
@@ -2533,12 +3230,11 @@ function syncHiddenEditorCollapse(ed, collapseBtn, hiding){
   if(!hiding) delete ed.dataset.collapsedBeforeHide;
 }
 
-function buildCard(settings){
+function buildCard(settings, sourceCards){
   const pal = tonePalette(settings);
   const unifiedLayout = normalizeCardLayout(settings.cardLayout) === 'unified';
 
-  // 카드별 입력창에서 직접 읽음: 이미지는 첫 카드에만, 꼬리말은 마지막 카드에만
-  const sourceCards = getCards();
+  // 입력 카드 목록은 호출자가 넘긴다. 출력 생성 중 편집창을 다시 읽지 않는다.
   const firstVisibleSourceIndex = sourceCards.findIndex(card => card.type !== 'comment' && card.visible !== false);
   let cardList = sourceCards
     .map((c, sourceIndex) => ({
@@ -2559,9 +3255,7 @@ function buildCard(settings){
   // 배경 이미지는 아카라이브가 썸네일로 인식하지 못하므로, 대표 이미지가 있으면
   // 맨 앞에 크기 0짜리 숨김 <img>를 항상 넣어 글 목록 썸네일로 잡히게 함 (레이아웃 영향 없음)
   let recognitionImg = '';
-  const imageStatus = document.getElementById('imageLoadStatus');
-  const imageFailed = imageStatus && imageStatus.dataset.state === 'error';
-  if(settings.imgOn && settings.imgUrl && !imageFailed){
+  if(settings.imgOn && settings.imgUrl && !settings.imageLoadFailed){
     // 아카라이브의 확대 뷰어는 0px 이미지도 갤러리 대상으로 수집한다. 그 결과
     // 대표 이미지가 먼저여도, 독립 프로필이 먼저여도 다음 시각 블록 위에 확대 아이콘이
     // 떠버린다. 서버의 대표 썸네일 탐색용 <img>는 남기되 모든 배치에서 완전히 숨기고,
@@ -2570,21 +3264,33 @@ function buildCard(settings){
   }
 
   // 대표 이미지와 표제 밴드는 모든 카드 '위'에 항상 표시 — 카드를 접어도 보이고, 첫 카드와 한 몸처럼 연결됨
-  const imgBlock = buildImageBlock(settings);
+  let imgBlock = buildImageBlock(settings);
   const hasImg = imgBlock !== '';
-  const titleBand = buildTitleBlock(settings, hasImg);
+  let titleBand = buildTitleBlock(settings, hasImg);
   const hasTitle = titleBand !== '';
   // 표제 미니멀의 하단 경계선뿐 아니라, 표제가 꺼져 대표 이미지와 프로필이 직접
   // 맞닿는 경우의 프로필 상단선도 제거해 두 영역이 하나의 카드처럼 이어지게 한다.
   const profileAtTop = settings.profilePlacement === 'top';
+  // 이어보기는 나중에 최상위 프로필의 아래 모서리를 펴지만, 안쪽 인물 카드는
+  // 그 단계에서 바뀌지 않는다. 아래에 실제 섹션이 있으면 생성할 때 함께 펴 둔다.
+  const unifiedTopProfileContinues = unifiedLayout && (hasImg || hasTitle || cardList.length > 0);
+  const originalTopProfileBlock = profileAtTop
+    ? buildProfileBlock(settings, false, false, unifiedTopProfileContinues)
+    : '';
+  const joinTopProfile = !!originalTopProfileBlock && !unifiedLayout
+    && profileTitleGapPx(settings) === -20 && (hasImg || hasTitle);
+  if(joinTopProfile){
+    if(hasImg) imgBlock = buildImageBlock(settings, true);
+    else titleBand = buildTitleBlock(settings, false, true);
+  }
   const compactProfileTopSpacing = !profileAtTop && hasTitle && settings.titleMinimal;
   const removeProfileTopDivider = !profileAtTop && (compactProfileTopSpacing || (hasImg && !hasTitle));
-  const topProfileBlock = profileAtTop
-    ? buildProfileBlock(settings, false, false, false)
-    : '';
+  const topProfileBlock = joinTopProfile
+    ? buildProfileBlock(settings, false, false, true)
+    : originalTopProfileBlock;
   const attachedProfileBlock = profileAtTop
     ? ''
-    : buildProfileBlock(settings, hasImg || hasTitle, removeProfileTopDivider, compactProfileTopSpacing);
+    : buildProfileBlock(settings, hasImg || hasTitle, removeProfileTopDivider, unifiedLayout && cardList.length > 0);
   const hasAttachedProfile = attachedProfileBlock !== '';
   const visibleComments = sourceCards
     .map((comment, sourceIndex) => ({ ...comment, sourceIndex }))
@@ -2597,13 +3303,26 @@ function buildCard(settings){
       );
 
   const foldDividerMinimal = settingFlagOn(settings.foldDividerMinimal);
-  const cardInlinePadding = CARD_INLINE_PADDING;
+  const cardInlinePadding = cardInlinePaddingCss(settings);
+  const titledBodyTopPadding = foldDividerMinimal
+    ? cardBodyTopPaddingCss(12, 2.5, 16, settings)
+    : cardBodyTopPaddingCss(20, 4, 24, settings);
+  const plainBodyTopPadding = cardBodyTopPaddingCss(20, 4, 26, settings);
+  const cardGap = cardGapPx(settings);
+  const coverCardGap = coverCardGapPx(settings);
+  const cardOrnamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   let blankFoldNumber = 0;
   const cards = cardList.map((card, idx) => {
     const isFirst = idx === 0;
     const isLast = idx === cardList.length - 1;
+    const previousCard = cardList[idx - 1];
+    const nextCard = cardList[idx + 1];
+    const joinedAbove = !unifiedLayout && cardGap === 0 && !!previousCard
+      && !visibleComments.some(comment => comment.sourceIndex > previousCard.sourceIndex && comment.sourceIndex < card.sourceIndex);
+    const joinedBelow = !unifiedLayout && cardGap === 0 && !!nextCard
+      && !visibleComments.some(comment => comment.sourceIndex > card.sourceIndex && comment.sourceIndex < nextCard.sourceIndex);
     const connected = isFirst && card.sourceIndex === firstBodySourceIndex
-      && !hasAttachedProfile && (hasImg || hasTitle); // 표지 다음 블록이 카드일 때만 한 덩어리로 연결
+      && (hasImg || hasTitle || hasAttachedProfile) && (coverCardGap === 0 || unifiedLayout); // 간격 0일 때 도입부와 외곽선을 잇는다.
     // 전역 옵션 하나로 모든 접기 카드와 본문 내부 접기의 제목 아래 구분선을 함께 제어한다.
     const bodySettings = Object.assign({}, settings, {
       foldBodyMinimal: foldDividerMinimal,
@@ -2611,9 +3330,13 @@ function buildCard(settings){
     });
     const bodyHTML = assembleBody(card.lines, bodySettings);
     const footer = isLast ? buildFooter(settings) : '';
-    const marginCss = isFirst ? '0 auto' : '20px auto 0 auto';
+    const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings, Boolean(footer));
+    const marginCss = isFirst ? '0 auto' : `${cardGap}px auto 0 auto`;
     // 연결된 첫 카드는 위 모서리를 각지게 해서 이미지와 하나의 틀처럼 이어지게 함
-    const radius = connected ? '0 0 16px 16px' : '16px';
+    const cardRadius = cardCornerRadiusPx(settings);
+    const topRadius = connected || joinedAbove ? 0 : cardRadius;
+    const bottomRadius = joinedBelow ? 0 : cardRadius;
+    const radius = `${topRadius}px ${topRadius}px ${bottomRadius}px ${bottomRadius}px`;
     const W = parseInt(settings.cardWidth) || 750;
     // 대표 이미지 바로 아래에는 선을 두지 않는다. 표제 미니멀도 표제와 첫 카드 사이를 여백으로만 구분한다.
     const noTopLine = connected && ((hasTitle && settings.titleMinimal) || (hasImg && !hasTitle));
@@ -2623,16 +3346,17 @@ function buildCard(settings){
     const shellOuterColor = pal.shellBorder;
     let borderCss = '';
     if(showOuterBorder){
-      if(noTopLine){
+      if(joinedAbove || noTopLine){
         borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor};`;
       }else if(connected){
-        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; border-top:1px solid ${pal.divider};`;
+        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; ${coverDividerTopCss(settings, pal.divider)}`;
       }else{
         borderCss = `border:1px solid ${shellOuterColor};`;
       }
+      if(joinedBelow) borderCss += ' border-bottom:0;';
     } else if(connected && !noTopLine){
       // 이미지·표제와 카드 사이의 선은 외곽선이 아니라 내부 경계이므로 유지한다.
-      borderCss = `border-top:1px solid ${pal.divider};`;
+      borderCss = coverDividerTopCss(settings, pal.divider);
     }
     const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
 
@@ -2642,7 +3366,7 @@ function buildCard(settings){
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
       const foldTitle = card.foldTitle || '';
       const autoFoldTitle = settingFlagOn(settings.foldTitleAutoNumber) && !foldTitle.trim()
-        ? String(++blankFoldNumber)
+        ? foldAutoNumberText(++blankFoldNumber, settings.foldAutoNumberStyle)
         : '';
       const visibleFoldTitle = foldTitle.trim() || autoFoldTitle;
       const minimalFoldTitle = settingFlagOn(settings.foldTitleMinimal);
@@ -2652,18 +3376,16 @@ function buildCard(settings){
         : mixHex(pal.ornament, pal.cardBg, 0.12);
       const foldTitleHTML = visibleFoldTitle
         ? `<span style="min-width:0; line-height:1.35;">${processInline(visibleFoldTitle, settings.emphasisColor)}</span>`
-        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const foldLeftOrnament = minimalFoldTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const foldRightOrnament = minimalFoldTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; font-size:12px; line-height:1;">✦</span>`;
-      const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
-      const foldBodyPadding = foldDividerMinimal
-        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
-        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
-      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
+      const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
+      const foldBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
+      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </details>`;
@@ -2674,22 +3396,20 @@ ${bodyHTML}${footer}  </div>
       const cardTitleHTML = `<span style="min-width:0; line-height:1.35;">${processInline(cardTitle, settings.emphasisColor)}</span>`;
       const cardLeftOrnament = minimalCardTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; font-size:12px; line-height:1;">✦</span>`;
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const cardRightOrnament = minimalCardTitle
         ? ''
-        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; font-size:12px; line-height:1;">✦</span>`;
-      const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal);
-      const cardBodyPadding = foldDividerMinimal
-        ? `clamp(12px,2.5vw,16px) ${cardInlinePadding} clamp(24px,5vw,30px)`
-        : `clamp(20px,4vw,24px) ${cardInlinePadding} clamp(24px,5vw,30px)`;
+        : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
+      const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
+      const cardBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
       return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
-  <div data-mosaic-card-title="true" style="display:flex; align-items:center; justify-content:center; column-gap:14px; padding:26px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
+  <div data-mosaic-card-title="true" style="display:flex; align-items:center; justify-content:center; column-gap:14px; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
   <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;
     }
     return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
-  <div style="box-sizing:border-box; padding:clamp(20px,4vw,26px) ${cardInlinePadding} clamp(24px,5vw,30px);">
+  <div style="box-sizing:border-box; padding:${plainBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;
   });
@@ -2709,8 +3429,16 @@ ${bodyHTML}${footer}  </div>
   const topCredit = creditAtTop ? credit : '';
   const bottomCredit = creditAtTop ? '' : credit;
   const introFlow = topProfileBlock + imgBlock + titleBand + attachedProfileBlock;
-  const mainFlow = introFlow + (unifiedLayout ? renderedCardFlow : orderedBody).join('\n');
-  const arrangedMainFlow = unifiedLayout ? applyUnifiedCardLayout(mainFlow, settings) : mainFlow;
+  const directFirstCard = cardList.length && cardList[0].sourceIndex === firstBodySourceIndex;
+  const spacedIntroFlow = !unifiedLayout && directFirstCard
+    ? addCoverCardGapAfterIntro(introFlow, settings)
+    : introFlow;
+  const mainFlow = spacedIntroFlow + (unifiedLayout ? renderedCardFlow : orderedBody).join('\n');
+  const arrangedMainFlow = unifiedLayout
+    ? applyUnifiedCardLayout(mainFlow, settings)
+    : (outputThemeShape(settings.outputTheme) === 'document'
+      ? mainFlow
+      : placeCoverDividerBeforeLeadingComment(mainFlow, settings));
   const collectedComments = unifiedLayout && renderedCommentFlow.length
     ? `\n${renderedCommentFlow.join('\n')}` : '';
   const output = recognitionImg + topCredit + arrangedMainFlow + collectedComments + bottomCredit;
@@ -2718,9 +3446,10 @@ ${bodyHTML}${footer}  </div>
   const shapedOutput = outputThemeShape(settings.outputTheme) === 'document'
     ? specialThemeOutput(lockedOutput, 'document', settings)
     : lockedOutput;
-  return outputThemeTransparent(settings.outputTheme)
-    ? transparentOutput(shapedOutput)
+  const themedOutput = outputThemeTransparent(settings.outputTheme)
+    ? transparentOutput(shapedOutput, settings)
     : shapedOutput;
+  return addProfilePhotoJoinLines(themedOutput, settings);
 }
 
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
@@ -2756,7 +3485,7 @@ function decodeRestoreState(html){
 
 function generateHTML(includeRestoreState = false, prebuiltOutput){
   const rawOutput = prebuiltOutput === undefined
-    ? buildCard(getSettings())
+    ? buildCard(getSettings(), getCards())
     : prebuiltOutput;
   const output = stripEditorOutputMetadata(rawOutput);
   if(!includeRestoreState) return output;
@@ -2831,7 +3560,7 @@ function sourceProjectionMeta(line){
   let rest = normalized.slice(offset);
 
   // 출력 텍스트가 없는 구조 문법.
-  if(/^\[(?:HR(?:2|3)?|GAP)\]\s*$/i.test(rest) || /^\[\/접기\]\s*$/.test(rest)){
+  if(/^\[(?:HR(?:[2-4])?|GAP)\]\s*$/i.test(rest) || /^\[\/접기\]\s*$/.test(rest)){
     hide(offset, normalized.length);
     return { normalized, hidden, start: normalized.length, maskInlineSpeakers:false };
   }
@@ -3130,13 +3859,13 @@ function showBlockToolbar(ctx){
 function editSeparatorText(text, raw, type, action){
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
-  const token = lines[raw].match(/^(\s*)\[(?:HR(?:2|3)?|GAP)\](\s*)$/i);
+  const token = lines[raw].match(/^(\s*)\[(?:HR(?:[2-4])?|GAP)\](\s*)$/i);
   if(!token) return null;
   const variants = [
     { type:'hr', token:'[HR]', label:'구분선' },
     { type:'hr2', token:'[HR2]', label:'장면 전환' },
     { type:'hr3', token:'[HR3]', label:'호흡 구분' },
-    { type:'gap', token:'[GAP]', label:'넓은 여백' }
+    { type:'hr4', token:'[HR4]', label:'여백' }
   ];
   const current = variants.findIndex(item => item.type === type);
   if(current < 0) return null;
@@ -3144,9 +3873,12 @@ function editSeparatorText(text, raw, type, action){
   if(String(action).startsWith('separator-')){
     const targetType = String(action).slice('separator-'.length);
     const next = variants.find(item => item.type === targetType);
-    if(!next || next.type === variants[current].type) return null;
+    const legacyGap = /^\s*\[GAP\]\s*$/i.test(lines[raw]);
+    if(!next || (next.type === variants[current].type && !(legacyGap && targetType === 'hr4'))) return null;
     lines[raw] = token[1] + next.token + token[2];
-    message = `${variants[current].label}을 ${next.label}으로 변경.`;
+    message = legacyGap && targetType === 'hr4'
+      ? '여백 문법을 [HR4]로 변경.'
+      : `${variants[current].label}을 ${next.label}으로 변경.`;
   }else if(action === 'delete'){
     lines.splice(raw, 1);
     message = `${variants[current].label} 삭제.`;
@@ -3583,7 +4315,8 @@ function revealProfileControl(id){
   if(coverTab && !coverTab.classList.contains('active')) coverTab.click();
   const profileGroup = document.getElementById('profileGroup');
   if(profileGroup) profileGroup.open = true;
-  const subgroupId = id.startsWith('profileChar')
+  const extraSlot = String(id).match(/^profileExtra([3-6])/);
+  const subgroupId = extraSlot ? `profileExtra${extraSlot[1]}Group` : id.startsWith('profileChar')
     ? 'profileCharGroup'
     : (id.startsWith('profileUser') ? 'profileUserGroup' : 'profileCommonGroup');
   const subgroup = document.getElementById(subgroupId);
@@ -4267,8 +5000,10 @@ function bindHeadingLevelInteraction(block, ctx){
 }
 
 const PROFILE_DIRECT_EDIT_LABELS = Object.freeze({
+  profileCharRole:'BOT 라벨 수정',
   profileCharName:'BOT 이름 수정',
   profileCharDesc:'BOT 소개 수정',
+  profileUserRole:'USER 라벨 수정',
   profileUserName:'USER 이름 수정',
   profileUserDesc:'USER 소개 수정',
   profileRelationship1:'관계·키워드 1 수정',
@@ -4310,12 +5045,15 @@ function decoratePreviewProfileEditors(){
     image.setAttribute('aria-label', '왼쪽의 프로필 이미지 설정으로 이동');
     image.title = '클릭하면 왼쪽의 프로필 이미지 설정으로 이동';
     image.style.cursor = 'pointer';
-    const reveal = () => { if(positionSyncEnabled()) revealProfileControl(id); };
+    const reveal = event => {
+      if(event?.target.closest('[data-mosaic-profile-field]')) return;
+      if(positionSyncEnabled()) revealProfileControl(id);
+    };
     image.addEventListener('click', reveal);
     image.addEventListener('keydown', event => {
       if(event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
-      reveal();
+      reveal(event);
     });
   });
 
@@ -4323,7 +5061,9 @@ function decoratePreviewProfileEditors(){
   profile.querySelectorAll('[data-mosaic-profile-role]').forEach(item => {
     item.addEventListener('click', event => {
       if(event.target.closest('[data-mosaic-profile-field], [data-mosaic-profile-image-field]')) return;
-      const id = item.dataset.mosaicProfileRole === 'user' ? 'profileUserName' : 'profileCharName';
+      const role = item.dataset.mosaicProfileRole;
+      const id = /^extra[3-5]$/.test(role) ? `profileExtra${role.slice(-1)}Name`
+        : role === 'user' ? 'profileUserName' : 'profileCharName';
       if(positionSyncEnabled()) revealProfileControl(id);
     });
   });
@@ -4377,7 +5117,8 @@ function decoratePreviewDirectEditors(){
     const subIds = ['subChar','subUser','logSubtitle'].filter(id => (settings[id] || '').trim());
     if(subIds.length === 1) rows.push({ id:subIds[0], label:'표지 부제 수정' });
     else if(subIds.length > 1) rows.push({ type:'coverSubtitle', ids:subIds, label:'표지 부제 수정' });
-    const paragraphs = Array.from(title.children).filter(el => el.tagName === 'P');
+    // 사진을 표제 배경으로 쓰면 문단이 가운데 정렬용 div 두 겹 안에 들어간다.
+    const paragraphs = Array.from(title.querySelectorAll('p'));
     rows.forEach((row, index) => {
       const descriptor = row.type === 'coverSubtitle'
         ? {
@@ -4887,7 +5628,7 @@ function moveSeparatorIntoSplitLine(text, srcRaw, destInfo, settings){
   const targetRaw = destInfo.startRaw;
   const targetLine = lines[targetRaw];
   if(moved === undefined || targetLine === undefined || srcRaw === targetRaw) return null;
-  if(!/^\s*\[(?:HR(?:2|3)?|GAP)\]\s*$/i.test(moved)) return null;
+  if(!/^\s*\[(?:HR(?:[2-4])?|GAP)\]\s*$/i.test(moved)) return null;
 
   const parts = splitDialogueLineForOutput(targetLine, settings)
     .map(part => String(part).trim())
@@ -4986,6 +5727,7 @@ function previewControlGeometry(button, positioningRoot){
     desiredTop:button._mosaicFooterAtCardEnd
       ? anchorRect.top + anchorRect.height - PREVIEW_CONTROL_INSET - buttonHeight
       : targetRect.top + PREVIEW_CONTROL_INSET,
+    // 왼쪽/오른쪽 카드 조작 버튼은 대상 카드의 가장자리를 따라간다.
     left:mirrored
       ? anchorRect.left - PREVIEW_CONTROL_INSET - buttonWidth
       : anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
@@ -5030,16 +5772,16 @@ function refreshPreviewFloatingButtonLayout(){
   requestAnimationFrame(layoutPreviewFloatingButtons);
 }
 
-// 데스크톱 미리보기에서는 카드보다 넓은 게시글 영역을 계산해 기본 코멘트가
-// 왼쪽 설정 패널 쪽부터 시작하도록 한다. 모바일 380 미리보기는 그 폭 자체가
-// 게시글 viewport이므로 바깥 확장을 적용하지 않는다.
+// 일반 미리보기에서는 카드보다 넓은 게시글 영역을 계산해 기본 코멘트가
+// 왼쪽 설정 패널 쪽부터 시작하도록 한다. 전체화면의 모바일 380 미리보기는
+// 그 폭 자체가 게시글 viewport이므로 바깥 확장을 적용하지 않는다.
 function syncPreviewCommentOutset(){
   const previewArea = document.getElementById('previewArea');
   const previewWrap = document.getElementById('previewWrap');
   const preview = document.getElementById('preview');
   const mobileButton = document.getElementById('widthMobileBtn');
   if(!previewArea || !previewWrap || !preview) return;
-  if(mobileButton && mobileButton.classList.contains('active')){
+  if(document.body.classList.contains('previewFullscreen') && mobileButton && mobileButton.classList.contains('active')){
     preview.style.setProperty('--preview-comment-outset', '0px');
     return;
   }
@@ -5436,7 +6178,7 @@ function renderPreview(prebuiltHTML){
   const openStates = capturePreviewFoldState();
   previewSourceHTML = prebuiltHTML !== undefined
     ? prebuiltHTML
-    : buildCard(getSettings());
+    : buildCard(getSettings(), getCards());
   preview.innerHTML = previewSourceHTML;
   syncPreviewOuterBreaks();
   restorePreviewFoldState(openStates);
@@ -5486,7 +6228,7 @@ function bindSeparatorInteraction(target, dragCtx, menuCtx){
 
 function previewSeparatorType(block){
   if(!block || block.dataset.mosaicGenerated !== 'true' || block.tagName !== 'DIV') return null;
-  if(['hr', 'hr2', 'hr3', 'gap'].includes(block.dataset.mosaicSeparator)) return block.dataset.mosaicSeparator;
+  if(['hr', 'hr2', 'hr3', 'hr4'].includes(block.dataset.mosaicSeparator)) return block.dataset.mosaicSeparator;
   if(block.style.height === '1px') return 'hr';
   if(block.textContent.trim() === '✦' || (block.textContent.trim() === '✦ ✦ ✦' && block.style.letterSpacing)) return 'hr2';
   if(block.textContent.trim() === '· · ·' && block.style.letterSpacing) return 'hr3';
@@ -5580,7 +6322,7 @@ function enableBlockDrag(preview){
         if(token === '[HR]') sourceSeparators.push({ raw, type:'hr' });
         else if(token === '[HR2]') sourceSeparators.push({ raw, type:'hr2' });
         else if(token === '[HR3]') sourceSeparators.push({ raw, type:'hr3' });
-        else if(token === '[GAP]') sourceSeparators.push({ raw, type:'gap' });
+        else if(token === '[HR4]' || token === '[GAP]') sourceSeparators.push({ raw, type:'hr4' });
       });
       const previewSeparators = Array.from(bodyDiv.querySelectorAll('[data-mosaic-generated="true"]'))
         .map(block => ({ block, type:previewSeparatorType(block) }))
@@ -5615,17 +6357,17 @@ function enableBlockDrag(preview){
       const isHr = /^\[HR\]$/i.test(text);
       const isHr2 = /^\[HR2\]$/i.test(text);
       const isHr3 = /^\[HR3\]$/i.test(text);
-      const isGap = /^\[GAP\]$/i.test(text);
-      if(!isImg && !isHr && !isHr2 && !isHr3 && !isGap) return;
+      const isHr4 = /^\[(?:HR4|GAP)\]$/i.test(text);
+      if(!isImg && !isHr && !isHr2 && !isHr3 && !isHr4) return;
       if(isImg && !block.querySelector('img')) return;
 
       const label = isImg ? '이미지'
-        : (isHr ? '구분선' : (isHr2 ? '장면 전환' : (isHr3 ? '호흡 구분' : '넓은 여백')));
-      const type = isImg ? 'img' : (isHr ? 'hr' : (isHr2 ? 'hr2' : (isHr3 ? 'hr3' : 'gap')));
+        : (isHr ? '구분선' : (isHr2 ? '장면 전환' : (isHr3 ? '호흡 구분' : '여백')));
+      const type = isImg ? 'img' : (isHr ? 'hr' : (isHr2 ? 'hr2' : (isHr3 ? 'hr3' : 'hr4')));
       const dragCtx = { block, blocks, map, ta, srcIndex:i, label, type };
       const menuCtx = { block, ta, raw:info.startRaw, type };
 
-      if(isHr || isHr2 || isHr3 || isGap){
+      if(isHr || isHr2 || isHr3 || isHr4){
         bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx);
       } else {
         block.dataset.mosaicImageEditBound = 'true';
@@ -5760,6 +6502,11 @@ function setPreviewFullscreen(on){
     previewArea.scrollTop = 0;
   }
   document.body.classList.toggle('previewFullscreen', !!on);
+  if(on && document.getElementById('widthMobileBtn').classList.contains('active')){
+    document.getElementById('previewWrap').style.maxWidth = '380px';
+  } else {
+    syncDesktopPreviewWidth();
+  }
   previewFullscreenBtn.setAttribute('aria-pressed', String(!!on));
   previewFullscreenBtn.textContent = on ? '×' : '⛶';
   previewFullscreenBtn.title = on ? '전체화면 미리보기 닫기 (Esc)' : '전체화면 미리보기';
@@ -5769,8 +6516,11 @@ function setPreviewFullscreen(on){
     try { previewArea.getAnimations({ subtree:true }).forEach(animation => animation.cancel()); }
     catch(e){ /* 구형 브라우저에서는 위 CSS 차단만 적용한다. */ }
   }
-  requestAnimationFrame(syncPreviewToolbarLabel);
-  requestAnimationFrame(layoutPreviewFloatingButtons);
+  syncPreviewToolbarLabel();
+  requestAnimationFrame(() => {
+    syncPreviewCommentOutset();
+    layoutPreviewFloatingButtons();
+  });
   if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewFullscreenScrollTop; });
 }
 previewFullscreenBtn.addEventListener('click', () => {
@@ -5892,7 +6642,10 @@ function focusPreviewOnCaret(ta){
 function syncRenderInputs(){
   syncCardLayoutCheckbox();
   syncPreviewCardStyleToggles();
+  syncImageBackgroundToggleAvailability();
+  syncCoverRangeProgress();
   syncDesignSummaries();
+  syncHrControlAvailability();
   // 본문에 새 [이름] 마커가 생기면 인물 목록을 자동 갱신 (재진입 방지)
   if(!syncingChars){
     syncingChars = true;
@@ -5900,11 +6653,44 @@ function syncRenderInputs(){
   }
 }
 
+const HR_CONTROL_IDS = {
+  hr:['hrShape','hrOpacity','hrOpacityVal','hrLength','hrLengthVal','hrVerticalSpace','hrVerticalSpaceVal','hrResetBtn'],
+  hr2:['hr2Shape','hr2Opacity','hr2OpacityVal','hr2VerticalSpace','hr2VerticalSpaceVal','hr2ResetBtn'],
+  hr3:['hr3Shape','hr3Opacity','hr3OpacityVal','hr3VerticalSpace','hr3VerticalSpaceVal','hr3ResetBtn'],
+  hr4:['gapHeight','gapHeightVal','hr4ResetBtn']
+};
+
+function usedHrTypes(cards){
+  const used = new Set();
+  cards.filter(card => card.type === 'card').forEach(card => {
+    normalizeBodyHrMarkers(card.body).split('\n').forEach(line => {
+      const token = line.trim().toUpperCase();
+      const type = token === '[GAP]' ? 'hr4' : token.slice(1, -1).toLowerCase();
+      if(token.startsWith('[') && token.endsWith(']') && HR_CONTROL_IDS[type]) used.add(type);
+    });
+  });
+  return used;
+}
+
+function syncHrControlAvailability(){
+  const used = usedHrTypes(getCards());
+  const advancedOn = document.getElementById('advancedOn').checked;
+  document.querySelectorAll('#advancedDesignGroup [data-hr-control]').forEach(element => {
+    element.classList.toggle('isUnavailable', !used.has(element.dataset.hrControl));
+  });
+  Object.entries(HR_CONTROL_IDS).forEach(([type, ids]) => {
+    ids.forEach(id => {
+      document.getElementById(id).disabled = !used.has(type) || (id.endsWith('ResetBtn') && !advancedOn);
+    });
+    if(type !== 'hr4') syncSegmentedChoiceControl(`${type}Shape`);
+  });
+}
+
 // 한 번 만든 카드 HTML을 미리보기와 복사·다운로드 출력에 함께 사용한다.
-function renderOutputViews(){
+function renderOutputViews(settings, cards){
   // 미리보기에는 카드 연결 표식을 보존하고, 복사·다운로드용 HTML에서는 제거한다.
   // buildCard를 두 번 실행하지 않아 비동기 이미지 상태가 바뀌는 순간에도 두 결과가 같다.
-  const previewHTML = buildCard(getSettings());
+  const previewHTML = buildCard(settings, cards);
   const html = generateHTML(false, previewHTML);
   document.getElementById('codeBox').value = html;
   renderPreview(previewHTML);
@@ -5937,27 +6723,38 @@ function schedulePreviewFocusAfterRender(){
 function render(){
   previewRenderRevision += 1;
   syncRenderInputs();
-  renderOutputViews();
+  renderOutputViews(getSettings(), getCards());
   schedulePreviewFocusAfterRender();
+}
+
+function syncCreditDetailAvailability(){
+  const creditOn = document.getElementById('creditOn').checked;
+  const transparentTheme = outputThemeTransparent(document.getElementById('outputTheme').value);
+  document.getElementById('creditAppearancePanel').classList.toggle('isUnavailable', !creditOn);
+  document.getElementById('creditBorderOn').disabled = !creditOn;
+  document.getElementById('creditTransparentOn').disabled = !creditOn || transparentTheme;
+  document.getElementById('creditAppearanceResetBtn').disabled = !creditOn || !document.getElementById('advancedOn').checked;
+  document.getElementById('creditWidth').disabled = !creditOn;
+  document.getElementById('creditWidthVal').disabled = !creditOn;
+  document.getElementById('creditCardGap').disabled = !creditOn;
+  document.getElementById('creditCardGapVal').disabled = !creditOn;
 }
 
 function syncOutputThemeControls(){
   const mode = document.getElementById('outputTheme').value;
   const shape = outputThemeShape(mode);
   const transparent = outputThemeTransparent(mode);
-  const angular = shape === 'document';
-  document.body.classList.toggle('angularUi', angular);
-  document.getElementById('outputShapeLabel').textContent = angular ? '카드 모먐' : '카드 모양';
-  document.getElementById('outputTransparentText').textContent = angular ? '투몀' : '투명';
+  const isAngularCard = shape === 'document';
   document.querySelectorAll('[data-output-shape]').forEach(button => {
     const selected = button.dataset.outputShape === shape;
     button.classList.toggle('active', selected);
     button.setAttribute('aria-pressed', String(selected));
   });
   const previewShapeButton = document.getElementById('previewCardShapeBtn');
-  document.getElementById('previewCardShapeText').textContent = angular ? '각진 카드' : '둥근 카드';
-  previewShapeButton.title = angular ? '둥근 카드로 변경' : '각진 카드로 변경';
-  previewShapeButton.setAttribute('aria-label', angular ? '현재 각진 카드, 둥근 카드로 변경' : '현재 둥근 카드, 각진 카드로 변경');
+  previewShapeButton.classList.toggle('isRoundedCard', !isAngularCard);
+  document.getElementById('previewCardShapeText').textContent = isAngularCard ? '각진 카드' : '둥근 카드';
+  previewShapeButton.title = isAngularCard ? '둥근 카드로 변경' : '각진 카드로 변경';
+  previewShapeButton.setAttribute('aria-label', isAngularCard ? '현재 각진 카드, 둥근 카드로 변경' : '현재 둥근 카드, 각진 카드로 변경');
   document.getElementById('outputTransparentOn').checked = transparent;
   const colors = document.getElementById('comboGroup');
   colors.classList.toggle('paletteUnavailable', transparent);
@@ -5967,6 +6764,10 @@ function syncOutputThemeControls(){
     document.getElementById(id).disabled = transparent;
     document.getElementById(id + 'Hex').disabled = transparent;
   });
+  document.getElementById('cardCornerRadius').disabled = isAngularCard;
+  document.getElementById('cardCornerRadiusVal').disabled = isAngularCard;
+  document.getElementById('cardCornerRadiusRow').classList.toggle('isUnavailable', isAngularCard);
+  syncCreditDetailAvailability();
 }
 
 function setCardDefaultsForShapeChange(previousTheme, nextTheme){
@@ -6075,7 +6876,37 @@ document.getElementById('ypos').addEventListener('input', e => {
   if(editor !== document.activeElement) editor.value = e.target.value;
 });
 
-['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY'].forEach(id => {
+const EXTRA_PROFILE_SLOTS = [3, 4, 5];
+const extraProfilePrefix = slot => `profileExtra${slot}`;
+const extraProfileFields = slot => {
+  const prefix = extraProfilePrefix(slot);
+  return ['Role','Image','Scale','X','Y','Name','Desc','Tags'].map(field => prefix + field);
+};
+const extraProfileRangeIds = EXTRA_PROFILE_SLOTS.flatMap(slot => ['Scale','X','Y'].map(field => extraProfilePrefix(slot) + field));
+const extraProfileCount = () => Math.max(0, Math.min(3, Math.floor(Number(document.getElementById('profileExtraCount').value) || 0)));
+document.getElementById('profileExtraEditors').innerHTML = EXTRA_PROFILE_SLOTS.map(slot => {
+  const prefix = extraProfilePrefix(slot);
+  const range = (field, label, min, max, step, value, unit = '') => `<div class="row"><label for="${prefix}${field}">${label}</label><input type="range" id="${prefix}${field}" min="${min}" max="${max}" step="${step}" value="${value}"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="${prefix}${field}Val" data-range="${prefix}${field}" value="${value}" aria-label="인물 ${slot} 사진 ${label} 직접 입력">${unit ? `<span class="rangeUnit">${unit}</span>` : ''}</span></div>`;
+  return `<details class="profileSubFold" id="${prefix}Group" hidden><summary class="profileSubHead"><span class="profileSubTitle" id="${prefix}Title">인물 ${slot}</span><span class="profileSubActions"><button type="button" class="profileMoveBtn" data-profile-move="up" data-slot="${slot}" aria-label="인물 ${slot} 위로 이동" title="위로 이동">↑</button><button type="button" class="profileMoveBtn" data-profile-move="down" data-slot="${slot}" aria-label="인물 ${slot} 아래로 이동" title="아래로 이동">↓</button><button type="button" class="profileRemoveBtn" data-profile-remove="${slot}" aria-label="인물 ${slot} 삭제" title="인물 삭제">×</button><button type="button" class="profileResetIconBtn" id="${prefix}ResetBtn" aria-label="인물 ${slot} 초기화" title="인물 ${slot} 초기화">↺</button><label class="coverVisibilitySwitch" title="인물 ${slot} 표시 전환"><input type="checkbox" id="${prefix}On" checked aria-label="인물 ${slot} 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary><div class="profileSubBody"><div class="row profileImageRow"><label for="${prefix}Image">이미지 URL</label><div class="profileImageField"><input type="url" id="${prefix}Image" maxlength="8192" placeholder="프로필 이미지 URL"><span class="imageLoadStatus profileImageDot" id="${prefix}ImageStatus" data-state="idle" aria-live="polite" hidden></span><button type="button" class="profileImageAdjustBtn" id="${prefix}ImageAdjustBtn" aria-label="인물 ${slot} 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="${prefix}ImageAdjustPanel">⚙︎</button></div></div><div class="profileImageAdjustPanel" id="${prefix}ImageAdjustPanel" hidden><div class="profileImageAdjustments" role="group" aria-label="인물 ${slot} 사진 조절">${range('Scale','배율',100,300,5,100,'%')}${range('X','가로',0,100,1,50)}${range('Y','세로',0,100,1,50)}</div></div><div class="row"><label for="${prefix}Role">라벨</label><input type="text" id="${prefix}Role" maxlength="24" value="CHAR" placeholder="CHAR"></div><div class="row"><label for="${prefix}Name">이름</label><input type="text" id="${prefix}Name" maxlength="100" placeholder="표시 이름"></div><div class="row profileTagsRow"><label id="${prefix}TagsLabel">태그</label><div class="profileTagFields" role="group" aria-labelledby="${prefix}TagsLabel"><input type="text" id="${prefix}Tag1" maxlength="150" placeholder="태그 1"><input type="text" id="${prefix}Tag2" maxlength="150" placeholder="태그 2"><input type="text" id="${prefix}Tag3" maxlength="150" placeholder="태그 3"></div><input type="hidden" id="${prefix}Tags" value=""></div><div class="row"><label for="${prefix}Desc">소개</label><textarea id="${prefix}Desc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea></div></div></details>`;
+}).join('');
+
+function syncExtraProfileEditors(){
+  const count = extraProfileCount();
+  EXTRA_PROFILE_SLOTS.forEach(slot => {
+    const prefix = extraProfilePrefix(slot);
+    const group = document.getElementById(prefix + 'Group');
+    group.hidden = slot > count + 2;
+    const name = document.getElementById(prefix + 'Name').value.trim() || `인물 ${slot}`;
+    const title = document.getElementById(prefix + 'Title');
+    title.textContent = name;
+    title.title = name;
+    group.querySelector('[data-profile-move="up"]').disabled = slot === 3;
+    group.querySelector('[data-profile-move="down"]').disabled = slot === count + 2;
+  });
+  document.getElementById('profileAddBtn').disabled = count >= EXTRA_PROFILE_SLOTS.length;
+}
+
+['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY',...extraProfileRangeIds].forEach(id => {
   document.getElementById(id).addEventListener('input', e => {
     const editor = document.getElementById(id + 'Val');
     if(editor !== document.activeElement) editor.value = e.target.value;
@@ -6083,7 +6914,7 @@ document.getElementById('ypos').addEventListener('input', e => {
 });
 
 function syncProfileImageRangeLabels(){
-  ['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY'].forEach(id => {
+  ['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY',...extraProfileRangeIds].forEach(id => {
     const input = document.getElementById(id);
     const label = document.getElementById(id + 'Val');
     if(input && label && label !== document.activeElement) label.value = input.value;
@@ -6093,7 +6924,63 @@ function syncProfileImageRangeLabels(){
 const PROFILE_IMAGE_UI_CONFIGS = [
   { label:'BOT', inputId:'profileCharImage', buttonId:'profileCharImageAdjustBtn', panelId:'profileCharImageAdjustPanel', toggleId:'profileCharOn' },
   { label:'USER', inputId:'profileUserImage', buttonId:'profileUserImageAdjustBtn', panelId:'profileUserImageAdjustPanel', toggleId:'profileUserOn' },
+  ...EXTRA_PROFILE_SLOTS.map(slot => ({ label:`인물 ${slot}`, inputId:`profileExtra${slot}Image`, buttonId:`profileExtra${slot}ImageAdjustBtn`, panelId:`profileExtra${slot}ImageAdjustPanel`, toggleId:`profileExtra${slot}On` })),
 ];
+
+const IMAGE_BACKGROUND_TOGGLE_CONFIGS = [
+  { sourceId:'imgUrl', statusId:'imageLoadStatus', toggleId:'titleImageBackgroundOn', visibilityId:'imgOn' }
+];
+
+function syncImageBackgroundChoice(id){
+  const input = document.getElementById(id);
+  const group = document.querySelector(`[data-background-control="${id}"]`);
+  group.querySelectorAll('button[data-value]').forEach(button => {
+    button.setAttribute('aria-pressed', String(input.checked === (button.dataset.value === 'image')));
+    button.disabled = input.disabled;
+  });
+  if(id === 'profileImageBackgroundOn'){
+    document.getElementById('profileTextPositionRow').hidden = !input.checked;
+  }
+}
+
+document.querySelectorAll('[data-background-control] button[data-value]').forEach(button => {
+  button.addEventListener('click', () => {
+    const input = document.getElementById(button.closest('[data-background-control]').dataset.backgroundControl);
+    const next = button.dataset.value === 'image';
+    if(input.disabled || input.checked === next) return;
+    input.checked = next;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    input.dispatchEvent(new Event('change', { bubbles:true }));
+    syncImageBackgroundChoice(input.id);
+  });
+});
+['titleImageBackgroundOn','profileImageBackgroundOn'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => syncImageBackgroundChoice(id));
+});
+
+function syncImageBackgroundToggleAvailability(){
+  IMAGE_BACKGROUND_TOGGLE_CONFIGS.forEach(config => {
+    const source = document.getElementById(config.sourceId);
+    const status = document.getElementById(config.statusId);
+    const toggle = document.getElementById(config.toggleId);
+    const imageAvailable = source.value.trim() !== '' && status.dataset.state !== 'error';
+    const available = imageAvailable && (!config.visibilityId || document.getElementById(config.visibilityId).checked);
+    // 이미지가 사라지면 저장된 ON 상태도 지워, 다시 넣었을 때 무심코 배경이 켜지지 않게 한다.
+    if(!imageAvailable) toggle.checked = false;
+    toggle.disabled = !available;
+    toggle.closest('.imageBackgroundToggleRow').classList.toggle('isUnavailable', !available);
+  });
+  const profileToggle = document.getElementById('profileImageBackgroundOn');
+  const profileImageAvailable = ['profileChar','profileUser',...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)].some(role => {
+    const source = document.getElementById(`${role}Image`);
+    return source.value.trim() !== '';
+  });
+  if(!profileImageAvailable) profileToggle.checked = false;
+  profileToggle.disabled = !profileImageAvailable;
+  profileToggle.closest('.imageBackgroundToggleRow').classList.toggle('isUnavailable', !profileImageAvailable);
+  syncImageBackgroundChoice('titleImageBackgroundOn');
+  syncImageBackgroundChoice('profileImageBackgroundOn');
+}
 
 function setProfileImageAdjustOpen(config, open){
   const button = document.getElementById(config.buttonId);
@@ -6135,14 +7022,45 @@ function syncCoverImageRangeLabels(){
   });
 }
 
+function syncCoverRangeProgress(){
+  document.querySelectorAll('#tabCover .settingsForm .row > input[type="range"]').forEach(input => {
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const progress = max > min ? (Number(input.value) - min) / (max - min) * 100 : 0;
+    input.style.setProperty('--type-range-progress', `${Math.max(0, Math.min(100, progress))}%`);
+  });
+}
+
 function syncTypographyRangeLabels(){
-  ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','titleSize','foldTitleSize'].forEach(id => {
+  ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','narrDialogueGap','titleSize','foldTitleSize'].forEach(id => {
     const input = document.getElementById(id);
     const label = document.getElementById(id + 'Val');
     // 직접 입력 중에는 "1." 같은 소수점 입력 중간값을 덮어쓰지 않는다.
     if(input && label && label !== document.activeElement) label.value = input.value;
   });
+  ['hrOpacity','hrLength','hrVerticalSpace','hr2Opacity','hr2VerticalSpace','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','coverDividerLength','cardTitlePadding','cardDividerLength'].forEach(id => {
+    const input = document.getElementById(id);
+    const label = document.getElementById(id + 'Val');
+    if(id === 'profileItemGap'){
+      input.min = String(-profileItemGapBasePx());
+      if(Number(input.value) < Number(input.min)) input.value = input.min;
+    }
+    if(label !== document.activeElement) label.value = id === 'profileItemGap'
+      ? String(Math.max(0, profileItemGapBasePx() + Number(input.value)))
+      : id === 'cardInlinePadding' ? String(Number(input.value) - 22) : input.value;
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const progress = max > min ? (Number(input.value) - min) / (max - min) * 100 : 0;
+    input.style.setProperty('--advanced-range-progress', `${Math.max(0, Math.min(100, progress))}%`);
+  });
   syncSoftBreakSpacingControl();
+  ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','narrDialogueGap','softBreakSpacing','titleSize','foldTitleSize'].forEach(id => {
+    const input = document.getElementById(id);
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const progress = max > min ? (Number(input.value) - min) / (max - min) * 100 : 0;
+    input.style.setProperty('--type-range-progress', `${Math.max(0, Math.min(100, progress))}%`);
+  });
 }
 
 // 슬라이더와 숫자 입력을 양방향으로 연결해 빠른 조절과 정확한 입력을 모두 지원한다.
@@ -6150,18 +7068,22 @@ document.querySelectorAll('.rangeEditor input[data-range]').forEach(editor => {
   const range = document.getElementById(editor.dataset.range);
   if(!range) return;
   editor.addEventListener('input', () => {
-    const value = Number(editor.value);
+    const value = Number(editor.value) - (range.id === 'profileItemGap' ? profileItemGapBasePx()
+      : range.id === 'cardInlinePadding' ? -22 : 0);
     if(!Number.isFinite(value) || value < Number(range.min) || value > Number(range.max)) return;
     range.value = String(value);
     range.dispatchEvent(new Event('input', { bubbles:true }));
   });
   editor.addEventListener('change', () => {
-    const value = Number(editor.value);
+    const base = range.id === 'profileItemGap' ? profileItemGapBasePx()
+      : range.id === 'cardInlinePadding' ? -22 : 0;
+    const value = Number(editor.value) - base;
     const safeValue = Number.isFinite(value)
       ? Math.min(Number(range.max), Math.max(Number(range.min), value))
       : Number(range.value);
     range.value = String(safeValue);
-    editor.value = range.value;
+    editor.value = String(range.id === 'cardInlinePadding'
+      ? Number(range.value) + base : Math.max(0, Number(range.value) + base));
     range.dispatchEvent(new Event('input', { bubbles:true }));
   });
 });
@@ -6174,64 +7096,161 @@ function selectedControlText(id){
 
 function syncDesktopPreviewWidth(){
   const desktopButton = document.getElementById('widthDesktopBtn');
-  if(!desktopButton || !desktopButton.classList.contains('active')) return;
+  if(document.body.classList.contains('previewFullscreen') && (!desktopButton || !desktopButton.classList.contains('active'))) return;
   const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
   document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
 }
 
 function syncPreviewToolbarLabel(){
   const toolbar = document.getElementById('previewToolbar');
-  const header = toolbar.querySelector('.previewHeaderLeft');
-  const tools = toolbar.querySelector('.previewTools');
+  const previewArea = document.getElementById('previewArea');
+  const areaStyle = getComputedStyle(previewArea);
+  const availableWidth = previewArea.clientWidth
+    - (parseFloat(areaStyle.paddingLeft) || 0)
+    - (parseFloat(areaStyle.paddingRight) || 0);
+  // 위쪽 도구모음은 카드 폭 대신 미리보기 영역 폭을 따른다. 카드 폭을 순환해도
+  // 버튼의 가로 위치가 바뀌지 않고, 영역 자체가 좁아질 때에만 함께 줄어든다.
+  toolbar.style.setProperty('--preview-toolbar-width', `${Math.min(900, Math.max(0, availableWidth))}px`);
   const desktopButton = document.getElementById('widthDesktopBtn');
   const mobileButton = document.getElementById('widthMobileBtn');
-  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
+  const cycleButton = document.getElementById('previewWidthCycleBtn');
+  const cardWidthSelect = document.getElementById('cardWidth');
+  const cardWidth = parseInt(cardWidthSelect.value, 10) || 750;
   const desktopLabel = `데스크톱 ${cardWidth}`;
   const mobileLabel = '모바일 380';
-  desktopButton.textContent = desktopLabel;
-  mobileButton.textContent = mobileLabel;
+  const setLabel = (button, label) => {
+    if(button.textContent !== label) button.textContent = label;
+  };
   desktopButton.setAttribute('aria-label', desktopLabel);
   mobileButton.setAttribute('aria-label', mobileLabel);
-
-  // 접힌 배치에서도 한 줄에 필요한 실제 도구 폭을 비교한다.
-  toolbar.classList.remove('previewToolbarStacked');
-  const measureToolsWidth = () => {
-    const previousPosition = tools.style.position;
-    const previousWidth = tools.style.width;
-    const previousWrap = tools.style.flexWrap;
-    const previousFlex = tools.style.flex;
-    tools.style.position = 'absolute';
-    tools.style.width = 'max-content';
-    tools.style.flexWrap = 'nowrap';
-    tools.style.flex = 'none';
-    const width = tools.getBoundingClientRect().width;
-    tools.style.position = previousPosition;
-    tools.style.width = previousWidth;
-    tools.style.flexWrap = previousWrap;
-    tools.style.flex = previousFlex;
-    return width;
-  };
-  const gap = parseFloat(getComputedStyle(toolbar).columnGap) || 0;
-  const availableWidth = toolbar.clientWidth - header.scrollWidth - gap;
-  const fullToolsWidth = measureToolsWidth();
-  if(fullToolsWidth > availableWidth + 1){
-    desktopButton.textContent = String(cardWidth);
-    mobileButton.textContent = '380';
+  const fullscreen = document.body.classList.contains('previewFullscreen');
+  const toolbarWidth = toolbar.clientWidth;
+  if(!fullscreen){
+    const widths = Array.from(cardWidthSelect.options).filter(option => !option.disabled);
+    const currentIndex = widths.findIndex(option => option.value === cardWidthSelect.value);
+    const nextWidth = widths[(currentIndex + 1) % widths.length]?.value || '620';
+    setLabel(cycleButton, `${cardWidth}px`);
+    cycleButton.setAttribute('aria-label', `본문 폭 ${cardWidth}px, 누르면 ${nextWidth}px로 변경`);
+    cycleButton.title = `다음 본문 폭 ${nextWidth}px`;
+    toolbar.classList.toggle('previewToolbarStacked', toolbarWidth < 450);
+    return;
   }
-  const currentToolsWidth = fullToolsWidth > availableWidth + 1 ? measureToolsWidth() : fullToolsWidth;
-  toolbar.classList.toggle('previewToolbarStacked', currentToolsWidth > availableWidth + 1);
+
+  // 버튼 글씨와 줄 배치를 바꾸며 다시 폭을 재면 측정 대상 자체가 달라져
+  // 경계 근처에서 한 줄/두 줄이 번갈아 나타난다. 컨테이너 폭만 기준으로 삼는다.
+  const fullLabels = toolbarWidth >= 830;
+  setLabel(desktopButton, fullLabels ? desktopLabel : String(cardWidth));
+  setLabel(mobileButton, fullLabels ? mobileLabel : '380');
+  toolbar.classList.toggle('previewToolbarStacked', toolbarWidth < 580);
+}
+let previewToolbarSyncFrame = null;
+function schedulePreviewToolbarSync(){
+  if(previewToolbarSyncFrame !== null) return;
+  previewToolbarSyncFrame = requestAnimationFrame(() => {
+    previewToolbarSyncFrame = null;
+    syncPreviewToolbarLabel();
+  });
 }
 if(typeof ResizeObserver === 'function'){
-  const previewToolbarResizeObserver = new ResizeObserver(() => requestAnimationFrame(syncPreviewToolbarLabel));
+  const previewToolbarResizeObserver = new ResizeObserver(schedulePreviewToolbarSync);
+  previewToolbarResizeObserver.observe(document.getElementById('previewArea'));
   previewToolbarResizeObserver.observe(document.getElementById('previewWrap'));
   previewToolbarResizeObserver.observe(document.querySelector('#previewToolbar .previewTools'));
-}else{
-  window.addEventListener('resize', syncPreviewToolbarLabel);
+}
+// 전체화면에서 본문은 380px로 고정되어 있어도 도구모음은 창 폭을 따른다.
+// 관찰 중인 본문·도구 폭이 그대로인 채 창만 넓어지는 경우도 다시 계산한다.
+window.addEventListener('resize', schedulePreviewToolbarSync);
+
+function syncDividerLengthControlState(){
+  const controls = [
+    ['coverDividerLength', document.getElementById('titleMinimal').checked],
+    ['cardDividerLength', !document.getElementById('foldDividerOn').checked]
+  ];
+  controls.forEach(([id, unavailable]) => {
+    document.getElementById(`${id}Row`).classList.toggle('isUnavailable', unavailable);
+    document.getElementById(id).disabled = unavailable;
+    document.getElementById(`${id}Val`).disabled = unavailable;
+  });
+}
+
+function syncUnifiedBottomSpaceControlState(){
+  const unavailable = normalizeCardLayout(document.getElementById('cardLayout').value) !== 'unified';
+  document.getElementById('unifiedBottomSpaceRow').classList.toggle('isUnavailable', unavailable);
+  document.getElementById('unifiedBottomSpace').disabled = unavailable;
+  document.getElementById('unifiedBottomSpaceVal').disabled = unavailable;
+}
+function syncProfileTitleGapControlState(){
+  const unavailable = !document.getElementById('profileOn').checked
+    || document.getElementById('profilePlacement').value !== 'top'
+    || normalizeCardLayout(document.getElementById('cardLayout').value) === 'unified';
+  document.getElementById('profileTitleGapRow').classList.toggle('isUnavailable', unavailable);
+  document.getElementById('profileTitleGap').disabled = unavailable;
+  document.getElementById('profileTitleGapVal').disabled = unavailable;
+}
+function syncTopProfileDetailControlState(){
+  const available = document.getElementById('profileOn').checked
+    && document.getElementById('profilePlacement').value === 'top';
+  const activePrefixes = ['profileChar','profileUser',
+    ...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)];
+  const visibleProfiles = activePrefixes.filter(prefix => {
+    if(!document.getElementById(`${prefix}On`).checked) return false;
+    const image = document.getElementById(`${prefix}Image`).value.trim();
+    const failedPhoto = document.getElementById('profileImageBackgroundOn').checked
+      && document.getElementById(`${prefix}ImageStatus`)?.dataset.state === 'error';
+    return (!failedPhoto && image)
+      || ['Name','Desc','Tags'].some(field => document.getElementById(`${prefix}${field}`).value.trim());
+  }).length;
+  document.getElementById('topProfileDetailPanel').classList.toggle('isUnavailable', !available);
+  const background = document.getElementById('profileOuterBackground');
+  background.disabled = !available;
+  syncSegmentedChoiceControl('profileOuterBackground');
+  const gapUnavailable = !available || visibleProfiles < 2;
+  document.getElementById('profileItemGapRow').classList.toggle('isUnavailable', gapUnavailable);
+  document.getElementById('profileItemGap').disabled = gapUnavailable;
+  document.getElementById('profileItemGapVal').disabled = gapUnavailable;
+}
+
+function syncFoldAutoNumberStyleControlState(){
+  const unavailable = !document.getElementById('foldTitleAutoNumber').checked;
+  document.getElementById('foldAutoNumberStyleRow').classList.toggle('isUnavailable', unavailable);
+  document.getElementById('foldAutoNumberStyle').disabled = unavailable;
+  syncSegmentedChoiceControl('foldAutoNumberStyle');
+}
+
+function syncCardTitleOrnamentOpacityControlState(){
+  const unavailable = !document.getElementById('foldTitleDecorationOn').checked;
+  document.getElementById('cardTitleOrnamentOpacityRow').classList.toggle('isUnavailable', unavailable);
+  document.getElementById('cardTitleOrnamentOpacity').disabled = unavailable;
+  document.getElementById('cardTitleOrnamentOpacityVal').disabled = unavailable;
+}
+
+function syncAdvancedResetAvailability(){
+  const advancedOn = document.getElementById('advancedOn').checked;
+  const creditOn = document.getElementById('creditOn').checked;
+  document.getElementById('advancedResetBtn').disabled = !advancedOn;
+  document.querySelectorAll('#advancedDesignGroup .advancedOptionResetBtn').forEach(button => {
+    const group = button.dataset.resetGroup;
+    button.disabled = !advancedOn
+      || (group === 'topProfile' && (!document.getElementById('profileOn').checked
+        || document.getElementById('profilePlacement').value !== 'top'))
+      || (group === 'creditAppearance' && !creditOn)
+      || (Boolean(HR_CONTROL_IDS[group]) && button.classList.contains('isUnavailable'));
+  });
 }
 
 function syncDesignSummaries(){
   syncCardLayoutCheckbox();
   syncMinimalChoiceControls();
+  syncDividerLengthControlState();
+  syncUnifiedBottomSpaceControlState();
+  syncProfileTitleGapControlState();
+  syncTopProfileDetailControlState();
+  syncFoldAutoNumberStyleControlState();
+  syncCardTitleOrnamentOpacityControlState();
+  document.getElementById('advancedDesignGroup').classList.toggle(
+    'isAdvancedInactive', !document.getElementById('advancedOn').checked
+  );
+  syncAdvancedResetAvailability();
   const font = selectedControlText('textFont');
   const dialogue = selectedControlText('dlgStyle');
   const cardWidthSelect = document.getElementById('cardWidth');
@@ -6283,6 +7302,7 @@ function normalizeProtocolRelativeUrl(value){
 const PROFILE_TAG_GROUPS = [
   { masterId:'profileCharTags', editorIds:['profileCharTag1','profileCharTag2','profileCharTag3'] },
   { masterId:'profileUserTags', editorIds:['profileUserTag1','profileUserTag2','profileUserTag3'] },
+  ...EXTRA_PROFILE_SLOTS.map(slot => ({ masterId:`profileExtra${slot}Tags`, editorIds:[1,2,3].map(index => `profileExtra${slot}Tag${index}`) })),
   { masterId:'profileRelationship', editorIds:['profileRelationship1','profileRelationship2','profileRelationship3'] },
 ];
 
@@ -6321,14 +7341,20 @@ function syncProfileTagEditorsFromMasters(){
 const PROFILE_ENTITY_CONFIGS = [
   {
     label:'BOT', toggleId:'profileCharOn', groupId:'profileCharGroup', resetButtonId:'profileCharResetBtn',
-    controlIds:['profileCharName','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
-    resetValues:{ profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
+    controlIds:['profileCharRole','profileCharName','profileCharTag1','profileCharTag2','profileCharTag3','profileCharDesc','profileCharImage','profileCharScale','profileCharX','profileCharY'],
+    resetValues:{ profileCharRole:'BOT', profileCharName:'', profileCharTags:'', profileCharDesc:'', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50' }
   },
   {
     label:'USER', toggleId:'profileUserOn', groupId:'profileUserGroup', resetButtonId:'profileUserResetBtn',
-    controlIds:['profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
-    resetValues:{ profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
+    controlIds:['profileUserRole','profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
+    resetValues:{ profileUserRole:'USER', profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
   },
+  ...EXTRA_PROFILE_SLOTS.map(slot => {
+    const prefix = extraProfilePrefix(slot);
+    return { label:`인물 ${slot}`, toggleId:prefix + 'On', groupId:prefix + 'Group', resetButtonId:prefix + 'ResetBtn',
+      controlIds:[...extraProfileFields(slot), ...[1,2,3].map(index => `${prefix}Tag${index}`)],
+      resetValues:{ [`${prefix}Role`]:'CHAR', [`${prefix}Name`]:'', [`${prefix}Tags`]:'', [`${prefix}Desc`]:'', [`${prefix}Image`]:'', [`${prefix}Scale`]:'100', [`${prefix}X`]:'50', [`${prefix}Y`]:'50' } };
+  }),
   {
     label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
     controlIds:['profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'],
@@ -6340,7 +7366,11 @@ const PROFILE_ENTITY_CONFIGS = [
 
 function applyProfileReset(entries, message){
   snapshotCards();
-  entries.forEach(([id, value]) => { document.getElementById(id).value = value; });
+  entries.forEach(([id, value]) => {
+    const control = document.getElementById(id);
+    if(control.type === 'checkbox') control.checked = value;
+    else control.value = value;
+  });
   syncProfileTagEditorsFromMasters();
   syncProfileImageRangeLabels();
   syncCoverControlState();
@@ -6352,8 +7382,12 @@ function applyProfileReset(entries, message){
 }
 
 function resetProfileEntity(config){
+  if(!document.getElementById('profileOn').checked || !document.getElementById(config.toggleId).checked) return;
   const entries = Object.entries(config.resetValues);
-  const changed = entries.some(([id, value]) => document.getElementById(id).value !== value);
+  const changed = entries.some(([id, value]) => {
+    const control = document.getElementById(id);
+    return (control.type === 'checkbox' ? control.checked : control.value) !== value;
+  });
   if(!changed){
     showNoticeToast(config.emptyMessage || `${config.label} 프로필은 이미 초기 상태입니다.`);
     return;
@@ -6372,8 +7406,111 @@ PROFILE_ENTITY_CONFIGS.forEach(config => {
   }
 });
 
+function copyExtraProfile(fromSlot, toSlot){
+  const from = extraProfilePrefix(fromSlot);
+  const to = extraProfilePrefix(toSlot);
+  ['Role','Image','Scale','X','Y','Name','Desc','Tags'].forEach(field => {
+    document.getElementById(to + field).value = document.getElementById(from + field).value;
+  });
+  document.getElementById(to + 'On').checked = document.getElementById(from + 'On').checked;
+}
+
+function resetExtraProfileSlot(slot){
+  const prefix = extraProfilePrefix(slot);
+  Object.entries({ Role:'CHAR', Image:'', Scale:'100', X:'50', Y:'50', Name:'', Desc:'', Tags:'' })
+    .forEach(([field,value]) => { document.getElementById(prefix + field).value = value; });
+  document.getElementById(prefix + 'On').checked = true;
+}
+
+function commitExtraProfileChange(message){
+  EXTRA_PROFILE_SLOTS.forEach(slot => {
+    const status = document.getElementById(`profileExtra${slot}ImageStatus`);
+    status.dataset.state = 'idle';
+    status.hidden = true;
+    status.textContent = '';
+  });
+  syncProfileTagEditorsFromMasters();
+  syncProfileImageRangeLabels();
+  syncExtraProfileEditors();
+  syncCoverControlState();
+  syncDesignSummaries();
+  render();
+  updateCounter();
+  saveDraft();
+  showUndoToast(message);
+}
+
+function moveExtraProfileSlot(fromSlot, toSlot){
+  const count = extraProfileCount();
+  if(fromSlot === toSlot || fromSlot < 3 || toSlot < 3 || fromSlot > count + 2 || toSlot > count + 2) return false;
+  const slots = EXTRA_PROFILE_SLOTS.slice(0, count);
+  const order = slots.map(slot => {
+    const prefix = extraProfilePrefix(slot);
+    return {
+      values:Object.fromEntries(['Role','Image','Scale','X','Y','Name','Desc','Tags']
+        .map(field => [field, document.getElementById(prefix + field).value])),
+      enabled:document.getElementById(prefix + 'On').checked,
+      open:document.getElementById(prefix + 'Group').open,
+      adjustOpen:document.getElementById(prefix + 'ImageAdjustBtn').getAttribute('aria-expanded') === 'true'
+    };
+  });
+  const [moved] = order.splice(fromSlot - 3, 1);
+  order.splice(toSlot - 3, 0, moved);
+  snapshotCards();
+  order.forEach((profile, index) => {
+    const prefix = extraProfilePrefix(slots[index]);
+    Object.entries(profile.values).forEach(([field, value]) => {
+      document.getElementById(prefix + field).value = value;
+    });
+    document.getElementById(prefix + 'On').checked = profile.enabled;
+    document.getElementById(prefix + 'Group').open = profile.open;
+  });
+  commitExtraProfileChange('인물 순서를 변경했습니다.');
+  order.forEach((profile, index) => {
+    const config = PROFILE_IMAGE_UI_CONFIGS.find(item => item.inputId === extraProfilePrefix(slots[index]) + 'Image');
+    setProfileImageAdjustOpen(config, profile.adjustOpen);
+  });
+  return true;
+}
+
+document.getElementById('profileAddBtn').addEventListener('click', () => {
+  const count = extraProfileCount();
+  if(count >= EXTRA_PROFILE_SLOTS.length) return;
+  snapshotCards();
+  const slot = count + 3;
+  resetExtraProfileSlot(slot);
+  document.getElementById('profileExtraCount').value = String(count + 1);
+  document.getElementById(`profileExtra${slot}Group`).open = true;
+  commitExtraProfileChange(`인물 ${slot}을 추가했습니다.`);
+});
+
+document.getElementById('profileExtraEditors').addEventListener('click', event => {
+  const action = event.target.closest('[data-profile-remove], [data-profile-move]');
+  if(!action || action.disabled) return;
+  const slot = Number(action.dataset.profileRemove || action.dataset.slot);
+  const count = extraProfileCount();
+  if(slot < 3 || slot > count + 2) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if(action.dataset.profileRemove){
+    snapshotCards();
+    for(let current = slot; current < count + 2; current++) copyExtraProfile(current + 1, current);
+    resetExtraProfileSlot(count + 2);
+    document.getElementById('profileExtraCount').value = String(count - 1);
+    commitExtraProfileChange(`인물 ${slot}을 삭제했습니다.`);
+    return;
+  }
+  const other = slot + (action.dataset.profileMove === 'up' ? -1 : 1);
+  if(other < 3 || other > count + 2) return;
+  moveExtraProfileSlot(slot, other);
+}, true);
+
+EXTRA_PROFILE_SLOTS.forEach(slot => {
+  ['Role','Name'].forEach(field => document.getElementById(`profileExtra${slot}${field}`).addEventListener('input', syncExtraProfileEditors));
+});
+
 // 표지 섹션 헤더의 표시 스위치는 접기/펼치기와 독립적으로 작동한다.
-document.querySelectorAll('#tabCover .coverFoldActions').forEach(actions => {
+document.querySelectorAll('#tabCover .coverFoldActions, #tabDesign .advancedDesignGroup .coverFoldActions').forEach(actions => {
   actions.addEventListener('click', event => event.stopPropagation());
   actions.addEventListener('keydown', event => event.stopPropagation());
 });
@@ -6399,7 +7536,7 @@ PROFILE_TAG_GROUPS.forEach(group => {
 
 // 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여줌
 // (이 도구가 로컬 파일로 열려있을 때 미리보기에서 못 불러오는 경우 방지)
-['imgUrl','profileCharImage','profileUserImage'].forEach(id => {
+['imgUrl','profileCharImage','profileUserImage',...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}Image`)].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     const input = document.getElementById(id);
     const url = normalizeProtocolRelativeUrl(input.value);
@@ -6435,26 +7572,37 @@ syncSubtitleCoupleSeparatorControl();
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 어떤 입력이 미리보기의 어느 부분에 대응하는지
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileStyle','profileOrder','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags','profileRelationship','profileSituation','nameRules','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileTextPosition','profileStyle','profileOrder','profileExtraCount','profileCharRole','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserRole','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags',...EXTRA_PROFILE_SLOTS.flatMap(extraProfileFields),'profileRelationship','profileSituation','nameRules','keywordRules'];
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
   logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'',
-  profilePlacement:'below', profileStyle:'compact', profileOrder:'bot-user', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
+  profilePlacement:'below', profileTextPosition:'center', profileStyle:'compact', profileOrder:'bot-user', profileExtraCount:'0', profileCharRole:'BOT', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserRole:'USER', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
+  ...Object.fromEntries(EXTRA_PROFILE_SLOTS.flatMap(slot => {
+    const prefix = extraProfilePrefix(slot);
+    return [['Role','CHAR'],['Image',''],['Scale','100'],['X','50'],['Y','50'],['Name',''],['Desc',''],['Tags','']].map(([field,value]) => [prefix + field,value]);
+  })),
   nameRules:'[]', keywordRules:'[]'
 });
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
-  logTitleOn:false, titleMinimal:false, imgOn:false, profileOn:false, profileMinimal:false,
-  profileCharOn:true, profileUserOn:true, profileCommonOn:true, footerOn:true, creditOn:false
+  logTitleOn:false, titleMinimal:false, titleImageBackgroundOn:false, imgOn:false, profileOn:false, profileMinimal:false,
+  profileCharOn:true, profileUserOn:true, profileImageBackgroundOn:false,
+  ...Object.fromEntries(EXTRA_PROFILE_SLOTS.map(slot => [`profileExtra${slot}On`, true])),
+  profileCommonOn:true, footerOn:true, creditOn:false
 });
 // 배포본과 같은 저장 키·필드명을 유지한다. 이후 boolean 옵션을 추가할 때도
 // 수집·검증·초안 저장·복원에서 이 목록 하나를 공유해 누락을 막는다.
 const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
-const STYLE_FIELDS = ['outputTheme','textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
+function savedProfileImageBackgroundOn(fields){
+  if(fields.profileImageBackgroundOn !== undefined) return settingFlagOn(fields.profileImageBackgroundOn);
+  return settingFlagOn(fields.profileCharImageBackgroundOn)
+    || settingFlagOn(fields.profileUserImageBackgroundOn);
+}
+const STYLE_FIELDS = ['outputTheme','textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','narrDialogueGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','advancedOn','hrShape','hrOpacity','hrLength','hrVerticalSpace','hr2Shape','hr2Opacity','hr2VerticalSpace','hr3Shape','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileOuterBackground','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','foldAutoNumberStyle','coverDividerLength','cardTitlePadding','cardDividerLength','creditBorderOn','creditTransparentOn','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
 const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
-const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'titleImageBackgroundOn', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', ...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`), 'profileImageBackgroundOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
 function previewVisibleFooterElement(){
   const footer = document.querySelector('#preview [data-mosaic-footer="true"]');
   return footer && footer.getClientRects().length ? footer : null;
@@ -6466,7 +7614,11 @@ function previewProfileRoleTarget(role){
 
 function previewProfileFieldTarget(id){
   let targetId = id;
-  if(id === 'profileCharTags'){
+  if(/^profileExtra[3-5]Tags$/.test(id)){
+    const prefix = id.slice(0, -4);
+    targetId = new RegExp(`^${prefix}Tag[1-3]$`).test(document.activeElement && document.activeElement.id)
+      ? document.activeElement.id : `${prefix}Tag1`;
+  }else if(id === 'profileCharTags'){
     targetId = /^profileCharTag[1-3]$/.test(document.activeElement && document.activeElement.id)
       ? document.activeElement.id : 'profileCharTag1';
   }else if(id === 'profileUserTags'){
@@ -6518,6 +7670,8 @@ const PREVIEW_FOCUS_MAP = {
   profileUserOn:() => previewProfileRoleTarget('user'),
   profileCommonOn:() => previewParts().profile,
   profilePlacement:() => previewParts().profile,
+  profileTextPosition:() => previewParts().profile,
+  profileImageBackgroundOn:() => previewParts().profile,
   profileStyle:() => previewParts().profile,
   profileOrder:() => previewParts().profile || previewParts().title,
   profileCharImage:() => previewProfileFieldTarget('profileCharImage'),
@@ -6525,6 +7679,7 @@ const PREVIEW_FOCUS_MAP = {
   profileCharX:() => previewProfileFieldTarget('profileCharImage'),
   profileCharY:() => previewProfileFieldTarget('profileCharImage'),
   profileCharName: () => previewProfileFieldTarget('profileCharName'),
+  profileCharRole: () => previewProfileFieldTarget('profileCharRole'),
   profileCharDesc: () => previewProfileFieldTarget('profileCharDesc'),
   profileCharTags: () => previewProfileFieldTarget('profileCharTags'),
   profileUserImage:() => previewProfileFieldTarget('profileUserImage'),
@@ -6532,6 +7687,7 @@ const PREVIEW_FOCUS_MAP = {
   profileUserX:() => previewProfileFieldTarget('profileUserImage'),
   profileUserY:() => previewProfileFieldTarget('profileUserImage'),
   profileUserName: () => previewProfileFieldTarget('profileUserName'),
+  profileUserRole: () => previewProfileFieldTarget('profileUserRole'),
   profileUserDesc: () => previewProfileFieldTarget('profileUserDesc'),
   profileUserTags: () => previewProfileFieldTarget('profileUserTags'),
   profileRelationship:() => previewProfileFieldTarget('profileRelationship'),
@@ -6545,6 +7701,17 @@ const PREVIEW_FOCUS_MAP = {
   creditPlacement: () => previewParts().credit,
   creditItems: () => activeCreditPreviewTarget(),
 };
+EXTRA_PROFILE_SLOTS.forEach(slot => {
+  const prefix = extraProfilePrefix(slot);
+  PREVIEW_FOCUS_MAP[prefix + 'On'] = () => previewProfileRoleTarget(`extra${slot}`);
+  PREVIEW_FOCUS_MAP[prefix + 'Role'] = () => previewProfileFieldTarget(prefix + 'Role');
+  PREVIEW_FOCUS_MAP[prefix + 'Name'] = () => previewProfileFieldTarget(prefix + 'Name');
+  PREVIEW_FOCUS_MAP[prefix + 'Desc'] = () => previewProfileFieldTarget(prefix + 'Desc');
+  PREVIEW_FOCUS_MAP[prefix + 'Tags'] = () => previewProfileFieldTarget(prefix + 'Tags');
+  ['Image','Scale','X','Y'].forEach(field => {
+    PREVIEW_FOCUS_MAP[prefix + field] = () => previewProfileFieldTarget(prefix + 'Image');
+  });
+});
 
 function normalizeCommentWidth(value){
   return ['default','card'].includes(value) ? value : 'default';
@@ -6679,6 +7846,9 @@ document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').
   // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
   if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
   el.addEventListener('input', () => {
+    if(el.id !== 'advancedOn' && el.closest('#advancedDesignGroup')){
+      document.getElementById('advancedOn').checked = true;
+    }
     syncParagraphSettingsUI();
     syncTypographyRangeLabels();
     syncDesignSummaries();
@@ -6703,7 +7873,7 @@ document.getElementById('profileGroup').addEventListener('focusin', event => {
   const id = event.target && event.target.id;
   if(!id) return;
   let target = null;
-  if(/^(?:profileCharTag|profileUserTag|profileRelationship)[1-3]$/.test(id)){
+  if(/^(?:profileCharTag|profileUserTag|profileExtra[3-5]Tag|profileRelationship)[1-3]$/.test(id)){
     target = previewProfileFieldTarget(id);
   }else if(PREVIEW_FOCUS_MAP[id]){
     target = PREVIEW_FOCUS_MAP[id]();
@@ -6737,6 +7907,8 @@ document.getElementById('textFont').addEventListener('change', () => loadSelecte
 function syncProfileEntityControlState(){
   PROFILE_ENTITY_CONFIGS.forEach(config => {
     const toggle = document.getElementById(config.toggleId);
+    document.getElementById(config.resetButtonId).disabled =
+      !document.getElementById('profileOn').checked || !toggle.checked;
     // OFF 상태도 시각적으로만 흐리게 표시하고 실제 입력은 받을 수 있게 둔다.
     toggle.disabled = false;
     const switchLabel = toggle.closest('.coverVisibilitySwitch');
@@ -6763,6 +7935,7 @@ const COVER_VISIBILITY_GROUPS = [
 ];
 
 function syncCoverControlState(){
+  syncExtraProfileEditors();
   COVER_VISIBILITY_GROUPS.forEach(([groupId, toggleId]) => {
     document.getElementById(groupId).classList.toggle(
       'isCoverInactive', !document.getElementById(toggleId).checked
@@ -6772,14 +7945,18 @@ function syncCoverControlState(){
   syncSubtitleCoupleSeparatorControl();
   syncCoverImageRangeLabels();
   syncProfileImageRangeLabels();
+  syncCoverRangeProgress();
   // 상위 섹션의 OFF 상태는 출력만 숨긴다. 입력은 유지해 첫 조작으로 자동 ON한다.
   subtitleCoupleSeparatorBtn.disabled = false;
   syncProfileEntityControlState();
   syncProfileImageUiState();
+  syncImageBackgroundToggleAvailability();
   syncAllSegmentedChoiceControls();
   syncMinimalChoiceControls();
   updateAllImageLoadStatuses();
   syncCreditControlState();
+  syncCreditDetailAvailability();
+  syncPreviewVisibilityToggles();
 }
 function syncCreditControlState(){
   const area = document.getElementById('creditEditorArea');
@@ -6804,6 +7981,7 @@ COVER_VISIBILITY_GROUPS.forEach(([groupId, toggleId]) => {
     if(toggle.checked) return;
     const target = event.target;
     if(!(target instanceof Element) || !target.closest('.foldBody')) return;
+    if(target.closest('.imageBackgroundToggleRow.isUnavailable')) return;
     if(!target.closest('input, select, textarea, button, label, .creditRowHeader')) return;
     toggle.checked = true;
     toggle.dispatchEvent(new Event('input', { bubbles:true }));
@@ -6823,6 +8001,7 @@ PROFILE_ENTITY_CONFIGS.forEach(config => {
     if(toggle.checked) return;
     const target = event.target;
     if(!(target instanceof Element)) return;
+    if(target.closest('.imageBackgroundToggleRow.isUnavailable')) return;
     if(!target.closest('input, select, textarea, button, label')) return;
     toggle.checked = true;
     toggle.dispatchEvent(new Event('input', { bubbles:true }));
@@ -6833,7 +8012,7 @@ PROFILE_ENTITY_CONFIGS.forEach(config => {
   body.addEventListener('input', activate, true);
   body.addEventListener('change', activate, true);
 });
-['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn','profileCommonOn','footerOn','creditOn'].forEach(id => {
+['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn',...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`),'profileCommonOn','footerOn','creditOn'].forEach(id => {
   document.getElementById(id).addEventListener('change', syncCoverControlState);
 });
 document.getElementById('creditAddBtn').addEventListener('click', addCreditItem);
@@ -6842,6 +8021,11 @@ document.getElementById('creditPresetName').addEventListener('input', syncCredit
 document.getElementById('creditPresetLoadBtn').addEventListener('click', loadSelectedCreditPreset);
 document.getElementById('creditPresetSaveBtn').addEventListener('click', saveCurrentCreditPreset);
 document.getElementById('creditPresetDeleteBtn').addEventListener('click', deleteSelectedCreditPreset);
+document.getElementById('detailPresetSelect').addEventListener('change', syncDetailPresetControls);
+document.getElementById('detailPresetName').addEventListener('input', syncDetailPresetControls);
+document.getElementById('detailPresetLoadBtn').addEventListener('click', loadSelectedDetailPreset);
+document.getElementById('detailPresetSaveBtn').addEventListener('click', saveCurrentDetailPreset);
+document.getElementById('detailPresetDeleteBtn').addEventListener('click', deleteSelectedDetailPreset);
 
 // ---------- 카드별 본문 입력 ----------
 const EXAMPLE_BODY = `<<"이리야."
@@ -6862,10 +8046,6 @@ const EXAMPLE_BODY = `<<"이리야."
 *이렇게 생긴 거였어? 이렇게 넓은 거였어? 이렇게 많은 색이 있었어? 나 여태까지 이걸 모르고 살았어?*`;
 
 let activeTa = null; // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
-
-function cardTextareas(){
-  return Array.from(document.querySelectorAll('#cardEditors textarea'));
-}
 
 function bodyCardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
@@ -6973,10 +8153,6 @@ if(typeof ResizeObserver === 'function'){
 }
 window.addEventListener('resize', syncBodyToolbarStickyOffset);
 requestAnimationFrame(syncBodyToolbarStickyOffset);
-
-function getCardBodies(){
-  return cardTextareas().map(t => t.value);
-}
 
 function getCards(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).map(ed => {
@@ -7723,7 +8899,9 @@ function applyWorkState(data){
   renderNameRuleList();
   renderKeywordRuleList();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
-    document.getElementById(id).checked = fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback;
+    document.getElementById(id).checked = id === 'profileImageBackgroundOn'
+      ? savedProfileImageBackgroundOn(fields)
+      : (fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback);
   });
   if(data.style && typeof data.style === 'object') applyStyleValues(data.style);
   syncCoverControlState();
@@ -7810,8 +8988,9 @@ document.addEventListener('pointerdown', event => {
 // 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
 // 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
 // 덮어쓰기 직후에는 정확한 저장 상태로 되돌릴 수 있다.
-function restoreStoredValue(key, previousValue){
+function restoreStoredValue(key, previousValue, expectedCurrentValue){
   try {
+    if(expectedCurrentValue !== undefined && localStorage.getItem(key) !== expectedCurrentValue) return false;
     if(previousValue === null) localStorage.removeItem(key);
     else localStorage.setItem(key, previousValue);
     return true;
@@ -8112,7 +9291,7 @@ const FS_ACTIONS = {
   hr:     () => insertIntoBody('[HR]', '', '', '구분선 삽입.'),
   hr2:    () => insertIntoBody('[HR2]', '', '', '장면 전환 삽입.'),
   hr3:    () => insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.'),
-  gap:    () => insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.'),
+  hr4:    () => insertIntoBody('[HR4]', '', '', '여백 삽입.'),
   img:    () => insertBodyImage(),
   quote:  () => insertIntoBody('> ', '', '인용할 내용', '인용 삽입.'),
   tidy:   () => document.getElementById('tidyBtn').click(),
@@ -8670,7 +9849,7 @@ document.getElementById('separatorInsertSelect').addEventListener('change', (eve
   event.target.value = '';
   if(type === 'hr2') insertIntoBody('[HR2]', '', '', '장면 전환 삽입.');
   else if(type === 'hr3') insertIntoBody('[HR3]', '', '', '호흡 구분 삽입.');
-  else if(type === 'gap') insertIntoBody('[GAP]', '', '', '넓은 여백 삽입.');
+  else if(type === 'hr4') insertIntoBody('[HR4]', '', '', '여백 삽입.');
 });
 
 document.getElementById('insertImgBtn').addEventListener('click', () => {
@@ -9160,24 +10339,46 @@ function makeLegacySlotId(slot, index){
   return `legacy-${(hash >>> 0).toString(36)}-${index}`;
 }
 
-function loadSlots(){
+let slotReadIssue = '';
+let lastSlotReadRaw;
+let slotSaveFailure = '';
+function loadSlots(allowPartial = false){
+  slotReadIssue = '';
+  lastSlotReadRaw = undefined;
   try {
     const raw = localStorage.getItem(SLOT_KEY);
+    lastSlotReadRaw = raw;
     if(raw === null) return [];
     const parsed = JSON.parse(raw);
-    if(!Array.isArray(parsed)) return null;
+    if(!Array.isArray(parsed)){
+      slotReadIssue = '저장된 보관함 목록 형식이 올바르지 않습니다.';
+      return null;
+    }
     const cleaned = [];
     const seenIds = new Set();
+    const unreadable = [];
     for(let index = 0; index < parsed.length; index++){
       const slot = parsed[index];
       if(!slot || typeof slot.name !== 'string' || !slot.name.trim() || slot.name.trim().length > 100 || /[\u0000-\u001F\u007F]/.test(slot.name)){
-        return null;
+        unreadable.push(`${index + 1}번 항목의 이름`);
+        continue;
       }
-      const data = sanitizeImportedWork(slot.data);
-      if(!data) return null;
-      if(slot.id !== undefined && slot.id !== '' && !validSlotId(slot.id)) return null;
+      let data;
+      try { data = sanitizeImportedWork(slot.data); }
+      catch(e){ data = null; }
+      if(!data){
+        unreadable.push(`${index + 1}번 항목의 작업·설정`);
+        continue;
+      }
+      if(slot.id !== undefined && slot.id !== '' && !validSlotId(slot.id)){
+        unreadable.push(`${index + 1}번 항목의 ID`);
+        continue;
+      }
       const id = validSlotId(slot.id) ? slot.id : makeLegacySlotId(slot, index);
-      if(seenIds.has(id)) return null;
+      if(seenIds.has(id)){
+        unreadable.push(`${index + 1}번 항목의 중복 ID`);
+        continue;
+      }
       seenIds.add(id);
       const savedAt = Number(slot.savedAt);
       const entry = { id, name: slot.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
@@ -9185,12 +10386,27 @@ function loadSlots(){
       Object.defineProperty(entry, '_stored', { value:slot, writable:true, enumerable:false });
       cleaned.push(entry);
     }
+    if(unreadable.length){
+      slotReadIssue = `${unreadable.slice(0, 3).join(', ')}${unreadable.length > 3 ? ` 외 ${unreadable.length - 3}개 항목` : ''}을 읽지 못했습니다.`;
+      return allowPartial ? cleaned : null;
+    }
     return cleaned;
-  } catch(e){ return null; }
+  } catch(e){
+    slotReadIssue = '보관함 저장소 또는 JSON 데이터를 읽지 못했습니다.';
+    return null;
+  }
 }
 function saveSlots(list){
-  if(!Array.isArray(list)) return false;
+  slotSaveFailure = '';
+  if(!Array.isArray(list) || lastSlotReadRaw === undefined){
+    slotSaveFailure = '보관함 목록을 다시 읽은 뒤 저장해 주세요.';
+    return false;
+  }
   try {
+    if(localStorage.getItem(SLOT_KEY) !== lastSlotReadRaw){
+      slotSaveFailure = '다른 탭에서 보관함이 변경되어 저장하지 않았습니다. 보관함을 다시 열어 확인해 주세요.';
+      return false;
+    }
     const payload = list.map(slot => {
       const stored = slot && slot._stored && typeof slot._stored === 'object' ? slot._stored : null;
       const base = stored ? { ...stored } : {};
@@ -9202,16 +10418,21 @@ function saveSlots(list){
         data: stored ? stored.data : slot.data
       };
     });
-    localStorage.setItem(SLOT_KEY, JSON.stringify(payload));
+    const serialized = JSON.stringify(payload);
+    localStorage.setItem(SLOT_KEY, serialized);
+    lastSlotReadRaw = serialized;
     return true;
   }
-  catch(e){ return false; }
+  catch(e){
+    slotSaveFailure = '저장 공간 부족 또는 브라우저 저장소 오류로 보관함을 변경하지 못했습니다.';
+    return false;
+  }
 }
 
 function showSlotReadError(){
   const status = document.getElementById('slotImportStatus');
   status.style.color = '#c0392b';
-  status.textContent = '기존 보관함을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+  status.textContent = `${slotReadIssue || '기존 보관함을 읽지 못했습니다.'} 저장 데이터는 변경하지 않았습니다. 원본 백업을 먼저 보관해 주세요.`;
 }
 
 function collectValidatedSlotWork(){
@@ -9261,19 +10482,22 @@ function sanitizeImportedWork(data){
     if(typeof source[id] !== 'string' && typeof source[id] !== 'number') return null;
     const value = String(source[id]);
     if(id === 'profilePlacement' && !['below','top'].includes(value)) return null;
+    if(id === 'profileTextPosition' && !['top','center','bottom'].includes(value)) return null;
     if(id === 'creditPlacement' && !['top','bottom'].includes(value)) return null;
     if(id === 'profileStyle' && !['compact','portrait','showcase'].includes(value)) return null;
     if(id === 'profileOrder' && !['bot-user','user-bot'].includes(value)) return null;
     if(id === 'subtitleCoupleSeparator' && !['×','&','·'].includes(value)) return null;
-    if(id === 'profileCharScale' || id === 'profileUserScale'){
+    if(/^(?:profileChar|profileUser|profileExtra[3-5])Scale$/.test(id)){
       const scale = Number(value);
       if(!Number.isFinite(scale) || scale < 100 || scale > 300) return null;
     }
-    if(id === 'profileCharX' || id === 'profileCharY' || id === 'profileUserX' || id === 'profileUserY'){
+    if(/^(?:profileChar|profileUser|profileExtra[3-5])[XY]$/.test(id)){
       const position = Number(value);
       if(!Number.isFinite(position) || position < 0 || position > 100) return null;
     }
-    const limit = (id === 'imgUrl' || id === 'profileCharImage' || id === 'profileUserImage')
+    if(id === 'profileExtraCount' && !/^[0-3]$/.test(value)) return null;
+    if(/^(?:profileChar|profileUser|profileExtra[3-5])Role$/.test(id) && value.length > 24) return null;
+    const limit = (id === 'imgUrl' || /^(?:profileChar|profileUser|profileExtra[3-5])Image$/.test(id))
       ? 8192
       : ((id === 'extraChars' || id === 'creditItems') ? 200000 : 5000);
     if(value.length > limit) return null;
@@ -9287,6 +10511,12 @@ function sanitizeImportedWork(data){
     }
   });
   if(invalidBoolean) return null;
+  if(source.profileImageBackgroundOn === undefined){
+    for(const legacyId of ['profileCharImageBackgroundOn','profileUserImageBackgroundOn']){
+      if(source[legacyId] !== undefined && typeof source[legacyId] !== 'boolean') return null;
+    }
+    fields.profileImageBackgroundOn = savedProfileImageBackgroundOn(source);
+  }
   if(fields.extraChars !== undefined){
     try {
       const cleanChars = sanitizeExtraCharList(JSON.parse(fields.extraChars));
@@ -9323,6 +10553,21 @@ function sanitizeImportedWork(data){
         return { id, from:rule.from, to:rule.to };
       });
       fields.nameRules = JSON.stringify(cleaned);
+    } catch(e){ return null; }
+  }
+  if(fields.keywordRules !== undefined){
+    try {
+      const rules = JSON.parse(fields.keywordRules);
+      if(!Array.isArray(rules) || rules.length > KEYWORD_RULE_LIMIT) return null;
+      const cleaned = rules.map((rule, index) => {
+        if(!rule || typeof rule !== 'object' || Array.isArray(rule)
+          || typeof rule.from !== 'string' || typeof rule.to !== 'string'
+          || !rule.from || !rule.to || rule.from.length > 80 || rule.to.length > 80) throw new Error('invalid keyword rule');
+        const id = typeof rule.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(rule.id)
+          ? rule.id : `kr_import_${index}`;
+        return { id, from:rule.from, to:rule.to };
+      });
+      fields.keywordRules = JSON.stringify(cleaned);
     } catch(e){ return null; }
   }
   const legacyFoldDividerMinimal = cards.some(card => card.type !== 'comment' && settingFlagOn(card.foldMinimal));
@@ -9373,13 +10618,15 @@ function renderSlotList(){
   const count = document.getElementById('slotCount');
   const expandBtn = document.getElementById('slotExpandBtn');
   container.innerHTML = '';
-  const slots = loadSlots();
+  const slots = loadSlots(true);
+  document.getElementById('exportSlotsBtn').textContent = slotReadIssue ? '원본 백업' : '전체 내보내기';
   if(slots === null){
     count.textContent = '';
     expandBtn.hidden = true;
     showSlotReadError();
     return;
   }
+  if(slotReadIssue) showSlotReadError();
   const existingIds = new Set(slots.map(slot => slot.id));
   for(const id of selectedSlotIds) if(!existingIds.has(id)) selectedSlotIds.delete(id);
   updateSlotExportSelection();
@@ -9405,7 +10652,8 @@ function renderSlotList(){
   if(!visible.length){
     const empty = document.createElement('div');
     empty.className = 'slotEmpty';
-    empty.textContent = slots.length ? '일치하는 보관함이 없습니다.' : '저장된 보관함이 없습니다.';
+    empty.textContent = slots.length ? '일치하는 보관함이 없습니다.'
+      : slotReadIssue ? '읽을 수 있는 보관함이 없습니다. 원본 백업을 먼저 보관해 주세요.' : '저장된 보관함이 없습니다.';
     container.appendChild(empty);
     return;
   }
@@ -9492,19 +10740,20 @@ function renderSlotList(){
       list[targetIndex]._stored = null;
       list[targetIndex].savedAt = Date.now();
       if(!saveSlots(list)){
-        document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 덮어쓰지 못했습니다.';
+        document.getElementById('slotImportStatus').textContent = slotSaveFailure;
         return;
       }
+      const writtenStoredSlots = lastSlotReadRaw;
       renderSlotList();
       const status = document.getElementById('slotImportStatus');
       status.style.color = '';
       status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
       showUndoToast(`'${slot.name}' 보관함 덮어씀.`, () => {
-        const restored = restoreStoredValue(SLOT_KEY, previousStoredSlots);
+        const restored = restoreStoredValue(SLOT_KEY, previousStoredSlots, writtenStoredSlots);
         const undoStatus = document.getElementById('slotImportStatus');
         if(!restored){
           undoStatus.style.color = '#c0392b';
-          undoStatus.textContent = '보관함 덮어쓰기를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+          undoStatus.textContent = '보관함이 그사이 변경되었거나 저장소에 오류가 있어 되돌리지 못했습니다. 목록을 다시 확인해 주세요.';
           return;
         }
         undoStatus.style.color = '';
@@ -9521,7 +10770,7 @@ function renderSlotList(){
       if(targetIndex < 0) return;
       list.splice(targetIndex, 1);
       if(!saveSlots(list)){
-        document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 삭제하지 못했습니다.';
+        document.getElementById('slotImportStatus').textContent = slotSaveFailure;
         return;
       }
       renderSlotList();
@@ -9555,7 +10804,7 @@ document.getElementById('saveSlotBtn').addEventListener('click', () => {
   if(!data) return;
   const next = [{ id: makeSlotId(), name, savedAt: Date.now(), data }, ...list];
   if(!saveSlots(next)){
-    document.getElementById('slotImportStatus').textContent = '저장 공간 부족으로 보관하지 못했습니다.';
+    document.getElementById('slotImportStatus').textContent = slotSaveFailure;
     return;
   }
   nameInput.value = '';
@@ -9566,9 +10815,17 @@ document.getElementById('saveSlotBtn').addEventListener('click', () => {
 });
 
 function exportSlots(selectedOnly = false){
-  const slots = loadSlots();
+  const slots = loadSlots(selectedOnly);
   const list = slots === null ? null : slots.filter(slot => !selectedOnly || selectedSlotIds.has(slot.id));
-  if(list === null){ showSlotReadError(); return; }
+  if(list === null){
+    if(!selectedOnly) exportRawSlotsBackup();
+    else showSlotReadError();
+    return;
+  }
+  if(!selectedOnly && slotReadIssue){
+    exportRawSlotsBackup();
+    return;
+  }
   const st = document.getElementById('slotImportStatus');
   if(!list.length){
     st.style.color = '';
@@ -9597,6 +10854,24 @@ function exportSlots(selectedOnly = false){
   st.style.color = '';
   st.textContent = `보관함 ${list.length}개 저장됨.`;
 }
+function exportRawSlotsBackup(){
+  const st = document.getElementById('slotImportStatus');
+  let raw;
+  try { raw = localStorage.getItem(SLOT_KEY); }
+  catch(e){ showSlotReadError(); return; }
+  if(raw === null){ showSlotReadError(); return; }
+  const blob = new Blob([raw], { type:'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '조각로그_보관함_원본백업.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  st.style.color = '';
+  st.textContent = '보관함 저장 데이터를 수정하지 않고 원본 그대로 백업했습니다.';
+}
 document.getElementById('exportSlotsBtn').addEventListener('click', () => exportSlots());
 document.getElementById('exportSelectedSlotsBtn').addEventListener('click', () => exportSlots(true));
 function deleteSelectedSlots(){
@@ -9606,7 +10881,7 @@ function deleteSelectedSlots(){
   if(!removed.length) return;
   const status = document.getElementById('slotImportStatus');
   if(!saveSlots(list.filter(slot => !selectedSlotIds.has(slot.id)))){
-    status.textContent = '보관함을 삭제하지 못했습니다. 저장 공간을 확인해 주세요.';
+    status.textContent = slotSaveFailure;
     return;
   }
   selectedSlotIds.clear();
@@ -9619,7 +10894,7 @@ function deleteSelectedSlots(){
     const existingIds = new Set(current.map(slot => slot.id));
     const restored = removed.filter(slot => !existingIds.has(slot.id));
     if(!saveSlots(current.concat(restored))){
-      status.textContent = '삭제를 되돌리지 못했습니다. 저장 공간을 확인해 주세요.';
+      status.textContent = slotSaveFailure;
       return;
     }
     renderSlotList();
@@ -9665,7 +10940,9 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
       return;
     }
     const cleaned = imported.map(sl => {
-      const data = sl && sanitizeImportedWork(sl.data);
+      let data;
+      try { data = sl && sanitizeImportedWork(sl.data); }
+      catch(err){ data = null; }
       if(!data || typeof sl.name !== 'string' || !sl.name.trim() || sl.name.length > 100 || /[\u0000-\u001F\u007F]/.test(sl.name)) return null;
       if(sl.id !== undefined && sl.id !== '' && !validSlotId(sl.id)) return null;
       const savedAt = Number(sl.savedAt);
@@ -9681,6 +10958,12 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
     if(new Set(importedIds).size !== importedIds.length){
       st.style.color = '#c0392b';
       st.textContent = '보관함 파일 안에 중복된 항목 ID가 있습니다.';
+      return;
+    }
+    const idlessNames = imported.filter(sl => !sl.id).map(sl => sl.name);
+    if(new Set(idlessNames).size !== idlessNames.length){
+      st.style.color = '#c0392b';
+      st.textContent = 'ID가 없는 보관함 항목의 이름이 중복되어 가져오지 않았습니다.';
       return;
     }
     const list = loadSlots();
@@ -9699,7 +10982,7 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
     });
     if(!saveSlots(list)){
       st.style.color = '#c0392b';
-      st.textContent = '저장 공간 부족으로 보관함을 불러오지 못했습니다.';
+      st.textContent = slotSaveFailure;
       return;
     }
     renderSlotList();
@@ -9850,7 +11133,7 @@ document.querySelectorAll('details.foldGroup').forEach(el => {
   });
 });
 
-// 글자 설정 안의 보조 항목도 서로 독립적으로 열고 닫으며 상태를 기억한다.
+// 글자와 세부 조정의 소그룹은 서로 독립적으로 열고 닫으며 상태를 기억한다.
 const TYPOGRAPHY_SUBSECTION_KEY = 'logGenTypographySubsection_v1';
 document.querySelectorAll('details.typographySubsection').forEach(el => {
   const key = TYPOGRAPHY_SUBSECTION_KEY + ':' + el.id;
@@ -10161,7 +11444,7 @@ function updateCounter(){
   const longCount = bodyParaList.filter(l => {
     const structuralLine = l.replace(/^\[C\]\s*/i, '');
     const u = structuralLine.toUpperCase();
-    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u)
+    if(['[HR]', '[HR2]', '[HR3]', '[HR4]', '[GAP]'].includes(u)
        || /^#{1,4}\s/.test(structuralLine)
        || /^\[IMG\s/i.test(structuralLine)
        || /^\[\/?접기(?:\s|\])/i.test(structuralLine)
@@ -10175,7 +11458,7 @@ function updateCounter(){
   bodyParaList.forEach(l => {
     const structuralLine = l.replace(/^\[C\]\s*/i, '');
     const u = structuralLine.toUpperCase();
-    if(['[HR]', '[HR2]', '[HR3]', '[GAP]'].includes(u) || /^#{1,4}\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
+    if(['[HR]', '[HR2]', '[HR3]', '[HR4]', '[GAP]'].includes(u) || /^#{1,4}\s/.test(structuralLine) || /^\[IMG\s/i.test(structuralLine)
        || statusLineContent(structuralLine) !== null
        || /^\[접기/.test(structuralLine) || /^\[\/접기\]$/.test(structuralLine)) return;
     let body = normalizeQuotes(structuralLine);
@@ -10327,6 +11610,101 @@ document.getElementById('draftConflictBtn').addEventListener('click', () => {
   saveDraft(true);
 });
 
+// 저장 내용을 끝까지 확인한 뒤에만 화면을 변경한다. 오래된 초안의 카드 저장
+// 형식(cards/cardBodies/bodyInput)과 빠진 옵션의 HTML 기본값은 그대로 지원한다.
+function prepareDraftRestore(d){
+  if(!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const fields = {};
+  for(const id of DRAFT_FIELDS){
+    if(d[id] === undefined) continue;
+    if(typeof d[id] !== 'string' && typeof d[id] !== 'number') return null;
+    fields[id] = String(d[id]);
+  }
+  if(fields.profileTextPosition === undefined) fields.profileTextPosition = 'center';
+  if(!['top','center','bottom'].includes(fields.profileTextPosition)) return null;
+  for(const id of ['extraChars','creditItems','nameRules','keywordRules']){
+    if(fields[id] === undefined) continue;
+    try { if(!Array.isArray(JSON.parse(fields[id] || '[]'))) return null; }
+    catch(e){ return null; }
+  }
+  const booleans = {};
+  for(const id of WORK_BOOLEAN_FIELDS){
+    if(d[id] === undefined) continue;
+    if(!['boolean','string','number'].includes(typeof d[id])) return null;
+    booleans[id] = settingFlagOn(d[id]);
+  }
+  booleans.profileImageBackgroundOn = savedProfileImageBackgroundOn(d);
+  let style = null;
+  if(d.style !== undefined && d.style !== null){
+    if(typeof d.style !== 'object' || Array.isArray(d.style)) return null;
+    for(const id of STYLE_FIELDS){
+      const value = d.style[id];
+      if(value !== undefined && !['boolean','string','number'].includes(typeof value)) return null;
+    }
+    style = { ...d.style };
+  }
+  let cards = [];
+  if(Array.isArray(d.cards) && d.cards.length) cards = d.cards;
+  else if(Array.isArray(d.cardBodies) && d.cardBodies.length) cards = d.cardBodies;
+  else if(typeof d.bodyInput === 'string'){
+    const parts = [];
+    let cur = [];
+    d.bodyInput.split('\n').forEach(line => {
+      if(line.trim().toUpperCase() === '[NEWCARD]'){ parts.push(cur.join('\n')); cur = []; }
+      else cur.push(line);
+    });
+    parts.push(cur.join('\n'));
+    cards = parts;
+  }
+  for(const card of cards){
+    if(typeof card === 'string') continue;
+    if(!card || typeof card !== 'object' || Array.isArray(card)) return null;
+    if(card.body !== undefined && typeof card.body !== 'string') return null;
+    if(card.type !== undefined && !['card','comment'].includes(card.type)) return null;
+    for(const key of ['foldTitle','cardTitle']){
+      if(card[key] !== undefined && typeof card[key] !== 'string') return null;
+    }
+    for(const key of ['folded','foldMinimal','visible']){
+      if(card[key] !== undefined && !['boolean','string','number'].includes(typeof card[key])) return null;
+    }
+  }
+  const legacyFoldDividerMinimal = cards.some(card => card && typeof card === 'object'
+    && card.type !== 'comment' && settingFlagOn(card.foldMinimal));
+  if(style && style.foldDividerOn === undefined && style.foldDividerMinimal === undefined && legacyFoldDividerMinimal){
+    style.foldDividerOn = false;
+  }
+  const timestamp = Number(d.updatedAt);
+  return {
+    fields, booleans, style, cards, legacyFoldDividerMinimal,
+    updatedAt:Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
+  };
+}
+
+function captureDraftUiState(){
+  const fields = {};
+  DRAFT_FIELDS.forEach(id => { fields[id] = document.getElementById(id).value; });
+  const booleans = {};
+  WORK_BOOLEAN_FIELDS.forEach(id => { booleans[id] = document.getElementById(id).checked; });
+  return { fields, booleans, style:currentStyleValues(), cards:getCards(),
+    updatedAt:draftBaseUpdatedAt, dirty:draftDirty };
+}
+
+function applyDraftRestorePlan(plan){
+  Object.entries(plan.fields).forEach(([id, value]) => { document.getElementById(id).value = value; });
+  Object.entries(plan.booleans).forEach(([id, value]) => { document.getElementById(id).checked = value; });
+  if(plan.style) applyStyleValues(plan.style);
+  else if(plan.legacyFoldDividerMinimal) document.getElementById('foldDividerOn').checked = false;
+  clearCardEditors();
+  plan.cards.forEach(card => addCard(card, false));
+  syncTypographyRangeLabels();
+  ['xpos','ypos','imgHeight'].forEach(id => {
+    document.getElementById(`${id}Val`).value = document.getElementById(id).value;
+  });
+  syncCharList();
+  draftBaseUpdatedAt = plan.updatedAt;
+  draftDirty = Boolean(plan.dirty);
+}
+
 function restoreDraft(){
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -10336,58 +11714,40 @@ function restoreDraft(){
       localStorage.removeItem(DRAFT_KEY);
       return;
     }
-    draftBaseUpdatedAt = Number(d.updatedAt) || 0;
-    draftDirty = false;
-    DRAFT_FIELDS.forEach(id => {
-      if(d[id] !== undefined) document.getElementById(id).value = d[id];
-    });
-    syncTypographyRangeLabels();
-    document.getElementById('xposVal').value = document.getElementById('xpos').value;
-    document.getElementById('yposVal').value = document.getElementById('ypos').value;
-    document.getElementById('imgHeightVal').value = document.getElementById('imgHeight').value;
-    // 과거 배포본에 없던 옵션은 HTML의 현재 기본값을 유지한다. 따라서 v134 초안의
-    // BOT·USER·관계 프로필은 업그레이드 후에도 기존처럼 모두 활성 상태로 열린다.
-    WORK_BOOLEAN_FIELDS.forEach(id => {
-      if(d[id] !== undefined) document.getElementById(id).checked = settingFlagOn(d[id]);
-    });
-    const legacyFoldDividerMinimal = Array.isArray(d.cards)
-      && d.cards.some(card => card && typeof card === 'object'
-        && card.type !== 'comment' && settingFlagOn(card.foldMinimal));
-    if(d.style && typeof d.style === 'object'){
-      const restoredStyle = { ...d.style };
-      // 카드별 미니멀 저장값은 현재의 전체 접기 구분선 옵션으로 합친다.
-      if(restoredStyle.foldDividerOn === undefined && restoredStyle.foldDividerMinimal === undefined && legacyFoldDividerMinimal){
-        restoredStyle.foldDividerOn = false;
-      }
-      applyStyleValues(restoredStyle);
-    } else if(legacyFoldDividerMinimal){
-      document.getElementById('foldDividerOn').checked = false;
-    }
-    syncCharList();
-
-    // 카드 본문은 객체 배열, 문자열 배열, 단일 본문 순으로 저장 형식을 판별한다.
-    if(Array.isArray(d.cards) && d.cards.length){
-      d.cards.forEach(c => addCard(c, false));
-    } else if(Array.isArray(d.cardBodies) && d.cardBodies.length){
-      d.cardBodies.forEach(b => addCard(b, false));
-    } else if(typeof d.bodyInput === 'string'){
-      // 단일 본문에 [NEWCARD] 마커가 있으면 카드 단위로 분할한다.
-      const parts = [];
-      let cur = [];
-      d.bodyInput.split('\n').forEach(l => {
-        if(l.trim().toUpperCase() === '[NEWCARD]'){ parts.push(cur.join('\n')); cur = []; }
-        else cur.push(l);
-      });
-      parts.push(cur.join('\n'));
-      parts.forEach(b => addCard(b, false));
+    const plan = prepareDraftRestore(d);
+    if(!plan) throw new Error('invalid draft');
+    const before = captureDraftUiState();
+    try { applyDraftRestorePlan(plan); }
+    catch(e){
+      try { applyDraftRestorePlan(before); }
+      catch(rollbackError){ clearCardEditors(); }
+      throw e;
     }
   } catch(e){
-    setDraftStatus('초안 복원 실패', 'error', '저장된 초안을 읽지 못해 기본 예시를 표시함');
+    setDraftStatus('초안 복원 실패', 'error', '저장된 초안을 보존하고 기본 화면을 표시함');
   }
 }
 
-// ---------- 아카라이브 게시글 테마 미리보기 ----------
-// 화면 확인용 상태일 뿐 출력 HTML·초안·프리셋에는 저장하지 않는다.
+// ---------- 미리보기 도구모음 ----------
+// 표지의 표시 스위치를 그대로 조작해 저장·복원 경로를 공유한다.
+const PREVIEW_VISIBILITY_TOGGLES = [
+  ['previewProfileBtn', 'profileOn', '프로필'],
+  ['previewCreditBtn', 'creditOn', '크레딧']
+];
+function syncPreviewVisibilityToggles(){
+  PREVIEW_VISIBILITY_TOGGLES.forEach(([buttonId, inputId, label]) => {
+    const button = document.getElementById(buttonId);
+    const visible = document.getElementById(inputId).checked;
+    button.setAttribute('aria-pressed', String(visible));
+    button.title = `${label} ${visible ? '숨기기' : '표시'}`;
+  });
+}
+PREVIEW_VISIBILITY_TOGGLES.forEach(([buttonId, inputId]) => {
+  document.getElementById(buttonId).addEventListener('click', () => {
+    document.getElementById(inputId).click();
+  });
+});
+// 카드 표시 방식은 기존 디자인 설정과 연결한다.
 function syncPreviewCardStyleToggles(){
   const borderButton = document.getElementById('previewCardBorderBtn');
   const layoutButton = document.getElementById('previewCardLayoutBtn');
@@ -10435,7 +11795,11 @@ document.getElementById('previewThemeDarkBtn').addEventListener('click', () => {
   setPreviewArcaTheme('dark');
 });
 
-// ---------- 미리보기 폭 토글 (데스크톱/모바일) ----------
+// ---------- 미리보기 폭 (일반: 카드 폭 순환 / 전체화면: 데스크톱·모바일) ----------
+document.getElementById('previewWidthCycleBtn').addEventListener('click', () => {
+  stepSelectOption('cardWidth', 1);
+  requestAnimationFrame(layoutPreviewFloatingButtons);
+});
 document.getElementById('widthDesktopBtn').addEventListener('click', () => {
   const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
   document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
@@ -10443,7 +11807,11 @@ document.getElementById('widthDesktopBtn').addEventListener('click', () => {
   document.getElementById('widthMobileBtn').classList.remove('active');
   document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
   document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
-  requestAnimationFrame(layoutPreviewFloatingButtons);
+  syncPreviewToolbarLabel();
+  requestAnimationFrame(() => {
+    syncPreviewCommentOutset();
+    layoutPreviewFloatingButtons();
+  });
 });
 document.getElementById('widthMobileBtn').addEventListener('click', () => {
   document.getElementById('previewWrap').style.maxWidth = '380px';
@@ -10451,7 +11819,11 @@ document.getElementById('widthMobileBtn').addEventListener('click', () => {
   document.getElementById('widthDesktopBtn').classList.remove('active');
   document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'false');
   document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'true');
-  requestAnimationFrame(layoutPreviewFloatingButtons);
+  syncPreviewToolbarLabel();
+  requestAnimationFrame(() => {
+    syncPreviewCommentOutset();
+    layoutPreviewFloatingButtons();
+  });
 });
 
 document.getElementById('copyWithOuterBreaks').addEventListener('change', () => {
@@ -10572,10 +11944,13 @@ const THEME_COLOR_FIELDS = ['bgColor', 'narrColor', 'emphasisColor', 'charColor'
 const SAVED_PRESET_FIELDS = [...THEME_COLOR_FIELDS, 'outputTheme', 'dlgStyle'];
 const DEFAULT_STYLE = {
   textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
-  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', softBreakSpacing: '0',
+  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
-  outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff', narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
+  outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff',
+  advancedOn:true, hrShape:'solid', hrOpacity:'50', hrLength:'100', hrVerticalSpace:'26', hr2Shape:'star', hr2Opacity:'50', hr2VerticalSpace:'48', hr3Shape:'dots', hr3Opacity:'50', hr3VerticalSpace:'36', gapHeight:'48', coverVerticalSpace:'0',
+  profileOuterBackground:'filled', profileItemGap:'0', profileTitleGap:'0', coverCardGap:'0', cardGap:'20', unifiedBottomSpace:'0', creditWidth:'380', creditCardGap:'40', cardInlinePadding:'22', cardBodyTopSpace:'0', cardBodyBottomSpace:'0', headingTopSpace:'0', headingBetweenSpace:'0', headingBottomSpace:'0', cardCornerRadius:'16', cardTitleOrnamentOpacity:'50', foldAutoNumberStyle:'arabic', coverDividerLength:'100', cardTitlePadding:'26', cardDividerLength:'100', creditBorderOn:false, creditTransparentOn:false,
+  narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 };
 
 // 저채도 배경과 4.5:1 이상의 본문 대비를 기준으로 구성한 추천 색 조합.
@@ -10690,7 +12065,7 @@ document.getElementById('cardLayoutUnifiedOn').addEventListener('change', event 
   commitStyleHistory(true);
 });
 
-const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileStyle', 'profileProfileOrder', 'creditPlacement'];
+const SEGMENTED_CHOICE_SELECT_IDS = ['titleProfileOrder', 'profilePlacement', 'profileTextPosition', 'profileStyle', 'profileProfileOrder', 'profileOuterBackground', 'creditPlacement', 'hrShape', 'hr2Shape', 'hr3Shape', 'foldAutoNumberStyle'];
 
 function syncMinimalChoiceControls(){
   document.querySelectorAll('[data-minimal-control]').forEach(group => {
@@ -10802,13 +12177,13 @@ function beginThemeHoverPreview(key, values){
     if(values[id] !== undefined) previewColors[id] = values[id];
   });
   const previewSettings = { ...getSettings(), ...previewColors, outputTheme: document.getElementById('outputTheme').value };
-  renderPreview(buildCard(previewSettings));
+  renderPreview(buildCard(previewSettings, getCards()));
 }
 
 function endThemeHoverPreview(key){
   if(!themeHoverPreview || themeHoverPreview.key !== key) return;
   themeHoverPreview = null;
-  renderPreview(buildCard(getSettings()));
+  renderPreview(buildCard(getSettings(), getCards()));
 }
 
 function commitThemeHoverPreview(){
@@ -10995,6 +12370,16 @@ function savedPresetStateEqual(a, b){
 function applyStyleValues(v){
   // 따로 저장된 나레이션·대사 폰트는 전체 폰트 값으로 정규화한다.
   const values = { ...v, outputTheme: normalizeOutputTheme(v.outputTheme) };
+  if(values.hrShape !== undefined) values.hrShape = normalizeHrShape(values.hrShape);
+  if(values.hr2Shape !== undefined) values.hr2Shape = normalizeHr2Shape(values.hr2Shape);
+  if(values.hr3Shape !== undefined) values.hr3Shape = normalizeHr3Shape(values.hr3Shape);
+  // 고급 스위치가 없는 이전 저장본은 기존 100% 농도를 새 슬라이더의 50%로 옮긴다.
+  if(values.advancedOn === undefined){
+    ['hrOpacity','hr2Opacity','hr3Opacity'].forEach(id => {
+      if(values[id] !== undefined) values[id] = String(advancedPercent(values[id], 100) / 2);
+    });
+    values.advancedOn = true;
+  }
   // 이전 버전의 `장식/구분선 제거` 값을 긍정형 `표시` 설정으로 변환한다.
   if(values.foldTitleDecorationOn === undefined && values.foldTitleMinimal !== undefined){
     values.foldTitleDecorationOn = !settingFlagOn(values.foldTitleMinimal);
@@ -11011,7 +12396,23 @@ function applyStyleValues(v){
     else if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
   }
   if(values.paragraphGap === undefined) values.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(values.narrDialogueGap === undefined) values.narrDialogueGap = values.paragraphGap;
   if(values.softBreakSpacing === undefined) values.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  ['hrVerticalSpace','hr2VerticalSpace','hr3VerticalSpace'].forEach(id => {
+    if(values[id] === undefined) values[id] = DEFAULT_STYLE[id];
+  });
+  if(values.cardBodyTopSpace === undefined) values.cardBodyTopSpace = DEFAULT_STYLE.cardBodyTopSpace;
+  if(values.cardBodyBottomSpace === undefined) values.cardBodyBottomSpace = DEFAULT_STYLE.cardBodyBottomSpace;
+  if(values.profileOuterBackground === undefined) values.profileOuterBackground = DEFAULT_STYLE.profileOuterBackground;
+  if(values.profileItemGap === undefined) values.profileItemGap = DEFAULT_STYLE.profileItemGap;
+  if(values.headingTopSpace === undefined) values.headingTopSpace = DEFAULT_STYLE.headingTopSpace;
+  if(values.headingBetweenSpace === undefined) values.headingBetweenSpace = DEFAULT_STYLE.headingBetweenSpace;
+  if(values.headingBottomSpace === undefined) values.headingBottomSpace = DEFAULT_STYLE.headingBottomSpace;
+  if(values.cardTitleOrnamentOpacity === undefined) values.cardTitleOrnamentOpacity = DEFAULT_STYLE.cardTitleOrnamentOpacity;
+  values.foldAutoNumberStyle = values.foldAutoNumberStyle === 'roman' ? 'roman' : 'arabic';
+  if(values.creditTransparentOn === undefined && values.creditOpacity !== undefined){
+    values.creditTransparentOn = Number(values.creditOpacity) === 0;
+  }
   // v1.5.x 초안에는 카드 구성 값이 없으므로 기존 개별 카드 방식으로 읽는다.
   values.cardLayout = normalizeCardLayout(values.cardLayout);
   // rev1의 문자열 저장값(normal/relaxed/wide)도 현재 3단계 range 값으로 변환한다.
@@ -11028,12 +12429,15 @@ function applyStyleValues(v){
   }
   values.commentWidth = normalizeCommentWidth(values.commentWidth);
   values.commentAlign = normalizeCommentAlign(values.commentAlign);
+  // 이전 화면의 사진 상태가 바꿔 둔 min 때문에 저장된 음수 간격이 대입 즉시 잘리지 않게 한다.
+  // 전체 값 적용 후 syncTypographyRangeLabels가 복원된 프로필 상태로 최솟값을 다시 계산한다.
+  document.getElementById('profileItemGap').min = '-10';
   STYLE_FIELDS.forEach(id => {
     if(values[id] === undefined) return;
     const el = document.getElementById(id);
     if(el.type === 'checkbox'){
       el.checked = settingFlagOn(values[id]);
-    } else if(el.type === 'range' && (id === 'titleSize' || id === 'foldTitleSize')){
+    } else if(el.type === 'range' && (id === 'titleSize' || id === 'foldTitleSize' || id === 'cardCornerRadius' || id === 'gapHeight' || id === 'narrDialogueGap')){
       // 제목 크기는 현재 슬라이더 단위인 1px에 맞춘다.
       const n = Number(values[id]);
       const rounded = Number.isFinite(n) ? Math.round(n) : Number(DEFAULT_STYLE[id]);
@@ -11045,6 +12449,7 @@ function applyStyleValues(v){
   syncParagraphSettingsUI();
   syncTypographyRangeLabels();
   syncDesignSummaries();
+  ['hrShape','hr2Shape','hr3Shape','foldAutoNumberStyle','profileOuterBackground'].forEach(syncSegmentedChoiceControl);
   updateHexLabels();
 }
 
@@ -11077,8 +12482,8 @@ function parseExtraChars(){
 }
 
 // 모든 카드 본문에서 [이름] 마커를 훑어 등장 순서대로 이름 목록을 만듦
-// ([HR...], [GAP], [IMG ...], [C], [접기...] 같은 기능 마커는 제외)
-const RESERVED_MARKERS = /^(HR(?:2|3)?|GAP|C|IMG\b|NEWCARD|\/?접기)/i;
+// ([HR...] 및 이전 여백 별칭, [IMG ...], [C], [접기...] 같은 기능 마커는 제외)
+const RESERVED_MARKERS = /^(HR(?:[2-4])?|GAP|C|IMG\b|NEWCARD|\/?접기)/i;
 function detectCharNames(){
   const names = [];
   getCards().filter(card => card.type !== 'comment' && card.visible !== false).forEach(card => {
@@ -11319,15 +12724,18 @@ document.addEventListener('input', (e) => {
 // 단계로 기록한다. range 드래그나 URL 타이핑 중간값을 매번 쌓지 않고, 포커스를
 // 얻은 시점의 상태와 현재 상태 두 항목만 유지해 되돌리기 버튼을 즉시 활성화한다.
 const IMAGE_HISTORY_IDS = new Set([
-  'imgOn', 'imgUrl', 'imgHeight', 'xpos', 'ypos',
-  'profileCharImage', 'profileCharScale', 'profileCharX', 'profileCharY',
-  'profileUserImage', 'profileUserScale', 'profileUserX', 'profileUserY'
+  'imgOn', 'imgUrl', 'imgHeight', 'xpos', 'ypos', 'titleImageBackgroundOn',
+  'profileImageBackgroundOn', 'profileCharImage', 'profileCharScale', 'profileCharX', 'profileCharY',
+  'profileUserImage', 'profileUserScale', 'profileUserX', 'profileUserY',
+  ...EXTRA_PROFILE_SLOTS.flatMap(slot => ['Image','Scale','X','Y'].map(field => `profileExtra${slot}${field}`))
 ]);
 let imageHistorySession = null;
 
 function imageHistoryLabel(id){
+  if(id === 'profileImageBackgroundOn') return '프로필 사진 배경 변경';
   if(id.startsWith('profileChar')) return 'BOT 프로필 이미지 변경';
   if(id.startsWith('profileUser')) return 'USER 프로필 이미지 변경';
+  if(id.startsWith('profileExtra')) return '추가 인물 프로필 이미지 변경';
   return '대표 이미지 변경';
 }
 
@@ -11457,6 +12865,20 @@ function sanitizeImportedPreset(preset){
   const clean = { ...DEFAULT_STYLE };
   // 나레이션·대사 폰트가 따로 저장돼 있으면 나레이션 값을 우선해 전체 폰트로 읽는다.
   const sourceValues = { ...preset.values };
+  if(['dotted','double','fade','end-dots'].includes(sourceValues.hrShape)){
+    sourceValues.hrShape = normalizeHrShape(sourceValues.hrShape);
+  }
+  if(['circle','line'].includes(sourceValues.hr2Shape)) sourceValues.hr2Shape = normalizeHr2Shape(sourceValues.hr2Shape);
+  if(sourceValues.hr3Shape === 'diamond') sourceValues.hr3Shape = normalizeHr3Shape(sourceValues.hr3Shape);
+  if(sourceValues.advancedOn === undefined){
+    ['hrOpacity','hr2Opacity','hr3Opacity'].forEach(id => {
+      const number = Number(sourceValues[id]);
+      if(sourceValues[id] !== undefined && Number.isFinite(number) && number >= 0 && number <= 100) {
+        sourceValues[id] = String(number / 2);
+      }
+    });
+    sourceValues.advancedOn = true;
+  }
   if(sourceValues.foldTitleDecorationOn === undefined && sourceValues.foldTitleMinimal !== undefined){
     if(typeof sourceValues.foldTitleMinimal !== 'boolean') return null;
     sourceValues.foldTitleDecorationOn = !sourceValues.foldTitleMinimal;
@@ -11483,7 +12905,11 @@ function sanitizeImportedPreset(preset){
     sourceValues.commentAlign = sourceValues.commentLayout === 'center' ? 'center' : DEFAULT_STYLE.commentAlign;
   }
   if(sourceValues.paragraphGap === undefined) sourceValues.paragraphGap = DEFAULT_STYLE.paragraphGap;
+  if(sourceValues.narrDialogueGap === undefined) sourceValues.narrDialogueGap = sourceValues.paragraphGap;
   if(sourceValues.softBreakSpacing === undefined) sourceValues.softBreakSpacing = DEFAULT_STYLE.softBreakSpacing;
+  if(sourceValues.creditTransparentOn === undefined && sourceValues.creditOpacity !== undefined){
+    sourceValues.creditTransparentOn = Number(sourceValues.creditOpacity) === 0;
+  }
   if(sourceValues.cardLayout === undefined) sourceValues.cardLayout = DEFAULT_STYLE.cardLayout;
   if(!['0','1','2','normal','relaxed','wide'].includes(String(sourceValues.softBreakSpacing))) return null;
   sourceValues.softBreakSpacing = softBreakSpacingControlValue(sourceValues.softBreakSpacing);
@@ -11500,11 +12926,20 @@ function sanitizeImportedPreset(preset){
       if(!color) return null;
       clean[id] = color;
     } else if(el.type === 'range'){
-      const n = Number(raw), min = Number(el.min), max = Number(el.max);
-      if(!Number.isFinite(n) || n < min || n > max) return null;
+      // 화면의 동적 최솟값은 현재 작업의 사진 상태에 따라 달라진다. 저장값의 유효 범위는 고정이다.
+      const n = Number(raw), min = id === 'profileItemGap' ? -10 : Number(el.min), max = Number(el.max);
+      const raisedMinimum = id === 'creditCardGap'
+        || (id === 'coverCardGap' && n >= -20);
+      const previousTitleHeight = id === 'cardTitlePadding' && n <= 60;
+      const previousCardGap = id === 'cardGap' && n <= 80;
+      const previousUnifiedBottomSpace = id === 'unifiedBottomSpace' && n >= 0 && n <= 80;
+      const previousCornerRadius = id === 'cardCornerRadius' && n <= 32;
+      const previousGapHeight = id === 'gapHeight' && n >= 16 && n <= 144;
+      const previousNarrDialogueGap = id === 'narrDialogueGap' && n >= 0 && n < min;
+      if(!Number.isFinite(n) || (n < min && !raisedMinimum && !previousGapHeight && !previousNarrDialogueGap) || (n > max && !previousTitleHeight && !previousCardGap && !previousUnifiedBottomSpace && !previousCornerRadius && !previousGapHeight)) return null;
       clean[id] = (id === 'titleSize' || id === 'foldTitleSize')
         ? String(Math.round(n))
-        : String(raw);
+        : String(Math.max(min, Math.min(max, n)));
     } else if(el.tagName === 'SELECT'){
       const value = String(raw);
       if(Array.from(el.options).some(opt => opt.value === value)){
@@ -11981,6 +13416,47 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
   commitStyleHistory(true);
 });
 
+const ADVANCED_RESET_GROUP_FIELDS = {
+  cardTitle:['cardDividerLength','cardTitlePadding','cardTitleOrnamentOpacity','foldAutoNumberStyle'],
+  cardOutline:['cardCornerRadius'],
+  cardSpacing:['profileTitleGap','coverCardGap','cardGap'],
+  creditAppearance:['creditWidth','creditCardGap','creditBorderOn','creditTransparentOn'],
+  coverSpace:['coverVerticalSpace','coverDividerLength'],
+  topProfile:['profileOuterBackground','profileItemGap'],
+  cardInterior:['cardBodyTopSpace','cardBodyBottomSpace','cardInlinePadding','unifiedBottomSpace'],
+  headingSpacing:['headingTopSpace','headingBetweenSpace','headingBottomSpace'],
+  hr:['hrShape','hrOpacity','hrLength','hrVerticalSpace'],
+  hr2:['hr2Shape','hr2Opacity','hr2VerticalSpace'],
+  hr3:['hr3Shape','hr3Opacity','hr3VerticalSpace'],
+  hr4:['gapHeight']
+};
+
+function resetAdvancedControlFields(ids){
+  if(!document.getElementById('advancedOn').checked) return;
+  ids.forEach(id => {
+    const input = document.getElementById(id);
+    if(input.type === 'checkbox') input.checked = DEFAULT_STYLE[id];
+    else input.value = DEFAULT_STYLE[id];
+  });
+  ['hrShape','hr2Shape','hr3Shape','foldAutoNumberStyle','profileOuterBackground'].filter(id => ids.includes(id)).forEach(syncSegmentedChoiceControl);
+  syncTypographyRangeLabels();
+  syncDesignSummaries();
+  updateHexLabels();
+  render();
+  saveDraft();
+  commitStyleHistory(true);
+}
+
+document.getElementById('advancedResetBtn').addEventListener('click', () => {
+  resetAdvancedControlFields(['advancedOn', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
+});
+document.querySelectorAll('#advancedDesignGroup .advancedOptionResetBtn').forEach(button => {
+  button.addEventListener('click', () => {
+    const fields = ADVANCED_RESET_GROUP_FIELDS[button.dataset.resetGroup];
+    if(fields) resetAdvancedControlFields(fields);
+  });
+});
+
 // ---------- 프리셋 내보내기 / 불러오기 ----------
 document.getElementById('exportPresetBtn').addEventListener('click', () => {
   const list = loadPresets();
@@ -12093,6 +13569,7 @@ const IMAGE_STATUS_CONFIGS = [
   { inputId:'imgUrl', statusId:'imageLoadStatus', enabledIds:['imgOn'], showDimensions:true },
   { inputId:'profileCharImage', statusId:'profileCharImageStatus', enabledIds:['profileOn','profileCharOn'] },
   { inputId:'profileUserImage', statusId:'profileUserImageStatus', enabledIds:['profileOn','profileUserOn'] },
+  ...EXTRA_PROFILE_SLOTS.map(slot => ({ inputId:`profileExtra${slot}Image`, statusId:`profileExtra${slot}ImageStatus`, enabledIds:['profileOn',`profileExtra${slot}On`], slot })),
 ];
 const imageStatusTimers = new Map();
 const imageStatusTokens = new Map();
@@ -12146,16 +13623,21 @@ function refreshAfterImageStatusChange(){
 async function updateSingleImageLoadStatus(config){
   const status = document.getElementById(config.statusId);
   if(!status) return;
+  const backgroundWasOn = config.inputId.startsWith('profile')
+    ? document.getElementById('profileImageBackgroundOn').checked
+    : document.getElementById('titleImageBackgroundOn').checked;
   const isProfileStatus = status.classList.contains('profileImageDot');
   const token = (imageStatusTokens.get(config.statusId) || 0) + 1;
   imageStatusTokens.set(config.statusId, token);
-  const enabled = config.enabledIds.every(id => document.getElementById(id).checked);
+  const enabled = (!config.slot || config.slot <= extraProfileCount() + 2)
+    && config.enabledIds.every(id => document.getElementById(id).checked);
   const raw = document.getElementById(config.inputId).value.trim();
   if(!enabled){
     status.dataset.state = 'idle';
     status.textContent = '';
     status.hidden = true;
     status.title = '';
+    syncImageBackgroundToggleAvailability();
     return;
   }
   if(!raw){
@@ -12163,6 +13645,7 @@ async function updateSingleImageLoadStatus(config){
     status.textContent = '';
     status.hidden = true;
     status.title = '';
+    syncImageBackgroundToggleAvailability();
     return;
   }
   let url;
@@ -12173,7 +13656,8 @@ async function updateSingleImageLoadStatus(config){
     status.dataset.state = 'error';
     status.textContent = isProfileStatus ? '!' : '주소 형식 확인 필요';
     status.title = '주소 형식 확인 필요';
-    if(config.inputId === 'imgUrl'){
+    syncImageBackgroundToggleAvailability();
+    if(config.inputId === 'imgUrl' || backgroundWasOn){
       refreshAfterImageStatusChange();
     }
     return;
@@ -12185,7 +13669,7 @@ async function updateSingleImageLoadStatus(config){
   const result = await probeImage(url);
   if(token !== imageStatusTokens.get(config.statusId)) return;
   if(result.ok){
-    if(config.inputId === 'profileCharImage' || config.inputId === 'profileUserImage'){
+    if(config.inputId.startsWith('profile')){
       const imageKey = normalizeProtocolRelativeUrl(raw);
       const previous = profileImageDimensions.get(imageKey);
       const dimensionsChanged = !previous
@@ -12212,9 +13696,10 @@ async function updateSingleImageLoadStatus(config){
     status.textContent = isProfileStatus ? '!' : errorText;
     status.title = errorText;
   }
+  syncImageBackgroundToggleAvailability();
   // 대표 이미지의 성공·실패 판정이 끝난 시점에 출력도 다시 만들어,
   // 실패한 배경 이미지가 통합 카드의 단색 상단 블록으로 남지 않게 한다.
-  if(config.inputId === 'imgUrl'){
+  if(config.inputId === 'imgUrl' || backgroundWasOn){
     refreshAfterImageStatusChange();
   }
 }
@@ -12279,7 +13764,7 @@ function navigatorItemsForCard(card, index){
     if(structuralLine.toUpperCase() === '[HR]') items.push({ lineIndex, label:'— 구분선' });
     else if(structuralLine.toUpperCase() === '[HR2]') items.push({ lineIndex, label:'✦ 장면 전환' });
     else if(structuralLine.toUpperCase() === '[HR3]') items.push({ lineIndex, label:'··· 호흡' });
-    else if(structuralLine.toUpperCase() === '[GAP]') items.push({ lineIndex, label:'↕ 넓은 여백' });
+    else if(['[HR4]', '[GAP]'].includes(structuralLine.toUpperCase())) items.push({ lineIndex, label:'↕ 여백' });
     else if(statusLineContent(structuralLine) !== null) items.push({ lineIndex, label:'◌ 상태창' });
     else if(parseOutputBodyImage(raw)) items.push({ lineIndex, label:'▧ 본문 이미지' });
     else if(/^\[접기/i.test(structuralLine)){
@@ -12632,6 +14117,7 @@ if(IS_MAC){
 restoreDraft();
 renderCreditItemsEditor();
 renderCreditPresetOptions();
+renderDetailPresetOptions();
 renderNameRuleList();
 renderKeywordRuleList();
 syncProfileTagEditorsFromMasters();
