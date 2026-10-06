@@ -1,6 +1,6 @@
-// 조각로그 v1.8.1 상태 스키마.
+// 조각로그 v1.8.2 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 
 const EXTRA_PROFILE_SLOTS = [3, 4, 5];
 const extraProfilePrefix = slot => `profileExtra${slot}`;

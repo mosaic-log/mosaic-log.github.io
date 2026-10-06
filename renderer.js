@@ -1,6 +1,6 @@
-// 조각로그 v1.8.1 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.2 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.1 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.2 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -565,6 +565,10 @@ function coverVerticalSpacePx(settings){
   const number = Number(settings.coverVerticalSpace);
   return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
 }
+function titleBottomPaddingPx(titleMinimal, imageBackground, spacingMultiplier, extraVerticalSpace){
+  const base = titleMinimal && !imageBackground ? 12 : 20;
+  return Math.round(base * spacingMultiplier) + extraVerticalSpace;
+}
 function cardTitlePaddingPx(settings){
   const number = Number(settings.cardTitlePadding);
   return Number.isFinite(number) ? Math.max(12, Math.min(40, number)) : 26;
@@ -585,11 +589,19 @@ function coverDividerTopCss(settings, color){
 }
 function appendCoverDividerLine(boundary, edge, settings, color){
   const length = coverDividerLengthPercent(settings);
-  boundary.style.setProperty('position', 'relative');
-  const line = document.createElement('div');
-  line.setAttribute('aria-hidden', 'true');
-  line.style.cssText = `position:absolute; z-index:1; left:${(100 - length) / 2}%; ${edge}:0; width:${length}%; height:1px; margin:0; padding:0; border:0; background-color:${color}; pointer-events:none;`;
-  boundary.appendChild(line);
+  const start = (100 - length) / 2;
+  const end = start + length;
+  const lineImage = `linear-gradient(to right, transparent ${start}%, ${color} ${start}%, ${color} ${end}%, transparent ${end}%)`;
+  const style = boundary.style;
+  const existingImage = style.backgroundImage && style.backgroundImage !== 'none'
+    ? style.backgroundImage : '';
+  const existingRepeat = style.backgroundRepeat || 'repeat';
+  const existingPosition = style.backgroundPosition || '0% 0%';
+  const existingSize = style.backgroundSize || 'auto';
+  style.setProperty('background-image', existingImage ? `${lineImage}, ${existingImage}` : lineImage);
+  style.setProperty('background-repeat', existingImage ? `no-repeat, ${existingRepeat}` : 'no-repeat');
+  style.setProperty('background-position', existingImage ? `center ${edge}, ${existingPosition}` : `center ${edge}`);
+  style.setProperty('background-size', existingImage ? `100% 1px, ${existingSize}` : '100% 1px');
 }
 function cardCornerRadiusPx(settings){
   const number = Number(settings.cardCornerRadius);
@@ -1580,7 +1592,7 @@ function deleteSelectedDetailPreset(){
   showNoticeToast(`'${preset.name}' 세부 조정 프리셋을 삭제했습니다.`);
 }
 
-// Output settings reader lives in settings.js. Keep output builders independent of input controls.
+// Output settings reader lives in state.js. Keep output builders independent of input controls.
 
 
 
@@ -1922,7 +1934,7 @@ function assembleBody(lines, settings){
 
 // 로그 표제 밴드: 번호/제목/부제 — 대표 이미지 바로 아래, 첫 카드 위에 붙는 표지 영역.
 // 카드 밖에 있어서 첫 카드를 접어도 이미지와 함께 항상 보임.
-function buildTitleBlock(settings, hasImg, connectedAbove = false){
+function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelow = false){
   if(!settings.logTitleOn) return '';
   const num = (settings.logNumber || '').trim();
   const title = (settings.logTitle || '').trim();
@@ -1966,11 +1978,13 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false){
   const topEdge = hasImg
     ? ``
     : `${showOuterBorder && !connectedAbove ? `border-top:1px solid ${outerBorderColor};` : ''} border-radius:${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px ${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px 0 0;`;
-  // 미니멀 표제는 바로 아래 프로필과 하나의 카드처럼 이어지므로 하단 여백을 줄인다.
-  // 일반 표제의 기존 간격은 그대로 유지한다.
+  // 단색 미니멀 표제는 하단 여백을 줄이되, 사진 배경 표제는 기본·미니멀의
+  // 중심축을 같게 유지한다. 사진 높이는 같아도 하단 패딩이 달라지면 라벨이 움직인다.
   const extraVerticalSpace = coverVerticalSpacePx(settings);
   const padTop = Math.round(22*sm) + extraVerticalSpace;
-  const padBottom = (settings.titleMinimal ? Math.round(12*sm) : Math.round(20*sm)) + extraVerticalSpace;
+  const padBottom = titleBottomPaddingPx(
+    settingFlagOn(settings.titleMinimal), imageBackground, sm, extraVerticalSpace
+  );
   const inlinePadding = cardInlinePaddingCss(settings);
   const W = parseInt(settings.cardWidth) || 750;
   const xValue = Number(settings.xpos);
@@ -1980,12 +1994,15 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false){
   const imageStyle = imageBackground
     ? `background-color:#303030; background-image:linear-gradient(rgba(0,0,0,.56),rgba(0,0,0,.56)),url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:center center,${xpos}% ${ypos}%; background-size:cover,cover; background-clip:padding-box;`
     : `background-color:${pal.cardBg};`;
+  const seamlessBottom = imageBackground && connectedBelow
+    ? 'border-bottom:0 !important; border-bottom-width:0 !important; border-bottom-style:none !important; border-bottom-color:transparent !important; outline:0 !important; box-shadow:none !important; background-clip:border-box !important;'
+    : '';
   const imageHeightValue = Number(settings.imgHeight);
   const imageHeight = Number.isFinite(imageHeightValue) ? Math.min(600, Math.max(100, imageHeightValue)) : 300;
   const titleContent = imageBackground
     ? `<div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;">${inner}</div></div>`
     : inner;
-  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} padding:${padTop}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
+  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} ${seamlessBottom} padding:${padTop}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
 `;
 }
 
@@ -2039,6 +2056,49 @@ function profileDisplayRowAt(index, columns, rowLengths){
     length,
     position:index - start,
     indices:Array.from({ length }, (_, position) => start + position)
+  };
+}
+
+function profileRowSeamFlagsAt(index, columns, rowLengths){
+  const rows = [];
+  let start = 0;
+  rowLengths.forEach(length => {
+    for(let offset = 0; offset < length; offset += columns){
+      rows.push(Array.from({length:Math.min(columns, length - offset)}, (_, position) =>
+        start + offset + position
+      ));
+    }
+    start += length;
+  });
+  const rowIndex = rows.findIndex(row => row.includes(index));
+  const row = rows[rowIndex] || [];
+  const position = row.indexOf(index);
+  return {
+    right:position >= 0 && position < row.length - 1,
+    top:rowIndex > 0
+  };
+}
+
+function responsiveProfileSeamWidth(values, fallbackWidth){
+  const [narrow, medium, wide] = values.map(value => Number(Boolean(value)));
+  const fallback = fallbackWidth >= 690 ? wide : fallbackWidth >= 500 ? medium : narrow;
+  const responsive = unit => {
+    if(narrow === medium && medium === wide) return `${narrow}px`;
+    const steps = [`${narrow}px`];
+    const mediumDifference = medium - narrow;
+    const wideDifference = wide - medium;
+    if(mediumDifference){
+      steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - 499px), 1px)`);
+    }
+    if(wideDifference){
+      steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - 689px), 1px)`);
+    }
+    return `clamp(0px, calc(${steps.join(' ')}), 1px)`;
+  };
+  return {
+    fallback:`${fallback}px`,
+    viewport:responsive('vw'),
+    container:responsive('cqw')
   };
 }
 
@@ -2282,6 +2342,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const joinedProfileBottomRadius = !connectedBelow && !relationship && !situation
     ? joinedProfileRadius : 0;
   const profileCornerWidth = W - (showOuterBorder ? 2 : 0);
+  const profileSeamFallbackWidth = profileCornerWidth;
   const responsiveProfileLength = (values, maximum) => {
     const [narrow, medium, wide] = values;
     const fallback = profileCornerWidth >= 690 ? wide
@@ -2344,17 +2405,17 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const topRightRadius = responsiveProfileLength(radiusValues('topRight'), 10);
     const bottomRightRadius = responsiveProfileLength(radiusValues('bottomRight'), 10);
     const bottomLeftRadius = responsiveProfileLength(radiusValues('bottomLeft'), 10);
-    const rightSeam = responsiveProfileLength(layout.rows.map(row => Number(
+    const rightSeam = responsiveProfileSeamWidth(layout.rows.map(row =>
       row.joined && row.axis === 'horizontal' && row.position < row.length - 1
-    )), 1);
-    const bottomSeam = responsiveProfileLength(layout.rows.map(row => Number(
+    ), profileSeamFallbackWidth);
+    const bottomSeam = responsiveProfileSeamWidth(layout.rows.map(row =>
       row.joined && row.axis === 'vertical' && row.position < row.length - 1
-    )), 1);
+    ), profileSeamFallbackWidth);
     const seamColor = 'rgba(128,128,128,.22)';
     return {
       wrapper:`padding-top:0; padding-bottom:${bottomPadding.fallback}; padding-bottom:${bottomPadding.responsive}; padding-left:${leftPadding.fallback}; padding-left:${leftPadding.responsive}; padding-right:${rightPadding.fallback}; padding-right:${rightPadding.responsive};`,
       radius:`border-radius:${topLeftRadius.fallback} ${topRightRadius.fallback} ${bottomRightRadius.fallback} ${bottomLeftRadius.fallback}; border-radius:${topLeftRadius.responsive} ${topRightRadius.responsive} ${bottomRightRadius.responsive} ${bottomLeftRadius.responsive};`,
-      seam:`border-right:${rightSeam.fallback} solid ${seamColor}; border-right-width:${rightSeam.responsive}; border-bottom:${bottomSeam.fallback} solid ${seamColor}; border-bottom-width:${bottomSeam.responsive};`
+      seam:`border-right:${rightSeam.fallback} solid ${seamColor}; border-right-width:${rightSeam.viewport}; border-right-width:${rightSeam.container}; border-bottom:${bottomSeam.fallback} solid ${seamColor}; border-bottom-width:${bottomSeam.viewport}; border-bottom-width:${bottomSeam.container};`
     };
   };
   // 브라우저가 게시용 inline style을 직렬화하면 cqw 선언과 고정 폴백이 한
@@ -2439,20 +2500,14 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const wide = flagsAt(3);
     const fallback = W - (showOuterBorder ? 2 : 0) >= 690 ? wide
       : W - (showOuterBorder ? 2 : 0) >= twoColumnContentBreakpoint ? medium : narrow;
-    const responsiveWidth = key => {
-      const first = Number(narrow[key]);
-      const middle = Number(medium[key]);
-      const last = Number(wide[key]);
-      if(first === middle && middle === last) return `${first}px`;
-      const steps = [`${first}px`];
-      const mediumDifference = middle - first;
-      const wideDifference = last - middle;
-      if(mediumDifference) steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 499px), 1px)`);
-      if(wideDifference) steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 689px), 1px)`);
-      return `clamp(0px, calc(${steps.join(' ')}), 1px)`;
-    };
+    const rightWidth = responsiveProfileSeamWidth(
+      [narrow.right, medium.right, wide.right], profileSeamFallbackWidth
+    );
+    const bottomWidth = responsiveProfileSeamWidth(
+      [narrow.bottom, medium.bottom, wide.bottom], profileSeamFallbackWidth
+    );
     const seamColor = 'rgba(128,128,128,.22)';
-    return `border-right:${Number(fallback.right)}px solid ${seamColor}; border-right-width:${responsiveWidth('right')}; border-bottom:${Number(fallback.bottom)}px solid ${seamColor}; border-bottom-width:${responsiveWidth('bottom')};`;
+    return `border-right:${Number(fallback.right)}px solid ${seamColor}; border-right-width:${rightWidth.viewport}; border-right-width:${rightWidth.container}; border-bottom:${Number(fallback.bottom)}px solid ${seamColor}; border-bottom-width:${bottomWidth.viewport}; border-bottom-width:${bottomWidth.container};`;
   };
   const profileItems = profiles.map((profile, profileIndex) => {
     const profileFieldPrefix = profile.prefix;
@@ -2542,25 +2597,19 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
       // 가로선은 윗줄 사진의 아래 테두리가 아니라 다음 줄 사진의 위 테두리에 둔다.
       // 아래 사진이 나중에 칠해져도 선이 가려지지 않으며 사진 높이도 그대로다.
       // cqw가 없는 환경에서는 현재 카드 폭을 기준으로 계산한 선을 폴백으로 쓴다.
-      const seamFallbackWidth = W - (showOuterBorder ? 2 : 0);
-      const rightSeamBreakpoint = row.position === 0 && row.length >= 2
-        ? twoColumnContentBreakpoint
-        : (row.position === 1 && row.length === 3 ? 690 : 0);
-      const topSeamAt = columns => profileIndex >= Math.min(columns, rowLengths[0]);
-      const topSeamAlways = topSeamAt(3);
-      const topSeamBreakpoint = topSeamAlways ? 0
-        : topSeamAt(2) ? 690
-        : topSeamAt(1) ? twoColumnContentBreakpoint : 0;
+      const seamLayouts = [1, 2, 3].map(columns =>
+        profileRowSeamFlagsAt(profileIndex, columns, rowLengths)
+      );
+      const rightSeam = responsiveProfileSeamWidth(
+        seamLayouts.map(layout => layout.right), profileSeamFallbackWidth
+      );
+      const topSeam = responsiveProfileSeamWidth(
+        seamLayouts.map(layout => layout.top), profileSeamFallbackWidth
+      );
       // 사진은 선 아래까지 칠하고, 접합선만 반투명하게 얹는다.
       const photoJointColor = 'rgba(128,128,128,.22)';
       const photoJointBorder = joinedPortraitPhotos && profiles.length > 1
-        ? `${rightSeamBreakpoint
-            ? `border-right:${seamFallbackWidth >= rightSeamBreakpoint ? 1 : 0}px solid ${photoJointColor}; border-right-width:clamp(0px, calc(100cqw - ${rightSeamBreakpoint - 1}px), 1px);`
-            : ''}${topSeamAlways
-            ? `border-top:1px solid ${photoJointColor};`
-            : topSeamBreakpoint
-              ? `border-top:${seamFallbackWidth < topSeamBreakpoint ? 1 : 0}px solid ${photoJointColor}; border-top-width:clamp(0px, calc(${topSeamBreakpoint}px - 100cqw), 1px);`
-              : ''}`
+        ? `border-right:${rightSeam.fallback} solid ${photoJointColor}; border-right-width:${rightSeam.viewport}; border-right-width:${rightSeam.container}; border-top:${topSeam.fallback} solid ${photoJointColor}; border-top-width:${topSeam.viewport}; border-top-width:${topSeam.container};`
         : joinedShowcaseProfiles ? '' : partialPortraitCss.seam;
       const textVerticalAlign = settings.profileTextPosition === 'top' ? 'top'
         : settings.profileTextPosition === 'bottom' ? 'bottom' : 'middle';
@@ -3082,6 +3131,54 @@ function stripEditorOutputMetadata(html){
   return template.innerHTML;
 }
 
+function shouldRemoveImageTitleBodySeam({imageBackedTitle, nextIsBody, coverCardGap}){
+  return Boolean(imageBackedTitle && nextIsBody && coverCardGap === 0);
+}
+
+// 아카라이브는 비어 있는 div 경계에 게시판 기본선을 다시 입힐 수 있다.
+// 대표 이미지를 배경으로 쓴 표제와 첫 본문이 바로 맞닿을 때만 양쪽 경계를
+// 인라인 !important로 닫는다. 새 요소나 겹치기 문법을 추가하지 않는다.
+function removeImageTitleBodySeam(html, settings){
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  const sections = Array.from(template.content.children).filter(section =>
+    !section.hidden && section.getAttribute('aria-hidden') !== 'true'
+  );
+  for(let index = 0; index < sections.length - 1; index++){
+    const title = sections[index];
+    const body = sections[index + 1];
+    if(!shouldRemoveImageTitleBodySeam({
+      imageBackedTitle:title.hasAttribute('data-mosaic-title')
+        && title.hasAttribute('data-mosaic-image-background'),
+      nextIsBody:body.hasAttribute('data-mosaic-card-index'),
+      coverCardGap:coverCardGapPx(settings)
+    })) continue;
+
+    title.style.setProperty('border-bottom', '0', 'important');
+    title.style.setProperty('border-bottom-width', '0', 'important');
+    title.style.setProperty('border-bottom-style', 'none', 'important');
+    title.style.setProperty('border-bottom-color', 'transparent', 'important');
+    title.style.setProperty('background-clip', 'border-box', 'important');
+    title.style.setProperty('outline', '0', 'important');
+    title.style.setProperty('box-shadow', 'none', 'important');
+    body.style.setProperty('border-top', '0', 'important');
+    body.style.setProperty('border-top-width', '0', 'important');
+    body.style.setProperty('border-top-style', 'none', 'important');
+    body.style.setProperty('border-top-color', 'transparent', 'important');
+    body.style.setProperty('outline', '0', 'important');
+    body.style.setProperty('box-shadow', 'none', 'important');
+    if(body.style.backgroundImage && !body.style.backgroundImage.includes('url(')){
+      body.style.setProperty('background-image', 'none', 'important');
+    }
+    Array.from(title.children).forEach(child => {
+      if(child.getAttribute('aria-hidden') !== 'true') return;
+      if(child.style.position === 'absolute' && child.style.bottom === '0px'
+        && (child.style.height === '1px' || child.style.height === '0.5px')) child.remove();
+    });
+  }
+  return template.innerHTML;
+}
+
 // 색상만 호스트 문서에 맡긴다. 타이포그래피 잠금과 이미지/레이아웃은 유지한다.
 function transparentOutput(html, settings){
   const template = document.createElement('template');
@@ -3281,8 +3378,8 @@ function specialThemeOutput(html, mode, settings){
 }
 
 // 사진 면에 닿는 기존 외곽선의 색만 접합선과 같은 반투명색으로 맞춘다.
-// 프로필과 실제 사진 면이 빈틈 없이 붙는 경우에는 사진 위에 가로선도 얹는다.
-// 테두리로 높이를 늘리지 않아 이어보기·개별 카드 양쪽에서 같은 위치에 놓인다.
+// 아카라이브는 position:absolute를 제거할 수 있으므로 별도 선 요소를 만들지 않고,
+// 프로필과 사진 면이 맞닿는 실제 변의 인라인 border를 직접 확정한다.
 function addProfilePhotoJoinLines(html, settings){
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
@@ -3328,12 +3425,11 @@ function addProfilePhotoJoinLines(html, settings){
       if(second.style.backgroundImage.includes('linear-gradient')
         && !second.style.backgroundImage.includes('url(')) second.style.removeProperty('background-image');
     }
-    photo.style.setProperty('position', 'relative');
-    const line = document.createElement('div');
-    line.setAttribute('data-mosaic-generated', 'true');
-    line.setAttribute('aria-hidden', 'true');
-    line.style.cssText = `position:absolute; z-index:1; left:0; right:0; ${profileFirst ? 'top' : 'bottom'}:0; height:1px; margin:0; padding:0; border:0; background-color:rgba(128,128,128,.22); pointer-events:none;`;
-    photo.appendChild(line);
+    const edge = profileFirst ? 'top' : 'bottom';
+    photo.style.setProperty(`border-${edge}`, `1px solid ${photoEdgeColor}`, 'important');
+    photo.style.setProperty(`border-${edge}-width`, '1px', 'important');
+    photo.style.setProperty(`border-${edge}-style`, 'solid', 'important');
+    photo.style.setProperty(`border-${edge}-color`, photoEdgeColor, 'important');
   }
   return template.innerHTML;
 }
@@ -3427,7 +3523,13 @@ function buildCard(settings, sourceCards){
   const cardGap = cardGapPx(settings);
   const coverCardGap = coverCardGapPx(settings);
   const imageTitleTouchesBody = hasTitle && !hasAttachedProfile
-    && titleImageBackgroundEnabled(settings) && coverCardGap === 0;
+    && titleImageBackgroundEnabled(settings) && coverCardGap === 0
+    && cardList.length > 0 && cardList[0].sourceIndex === firstBodySourceIndex;
+  if(imageTitleTouchesBody){
+    // 후처리용 data 속성이 제거된 아카라이브 복사본에서도 하단 경계가
+    // 살아나지 않도록 사진 표제 자체에 접합 상태를 직접 기록한다.
+    titleBand = buildTitleBlock(settings, hasImg, joinTopProfile && !hasImg, true);
+  }
   const cardOrnamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   let blankFoldNumber = 0;
   const cards = cardList.map((card, idx) => {
@@ -3573,5 +3675,6 @@ ${bodyHTML}${footer}  </div>
   const themedOutput = outputThemeTransparent(settings.outputTheme)
     ? transparentOutput(shapedOutput, settings)
     : shapedOutput;
-  return addProfilePhotoJoinLines(themedOutput, settings);
+  const joinedOutput = addProfilePhotoJoinLines(themedOutput, settings);
+  return removeImageTitleBodySeam(joinedOutput, settings);
 }

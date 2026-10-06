@@ -1,6 +1,6 @@
-// 조각로그 v1.8.1 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.2 미리보기·편집 UI 모듈.
 
-// 조각로그 v1.8.1 미리보기 렌더 조정기.
+// 조각로그 v1.8.2 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = buildCard(settings, cards);
   const html = generateHTML(false, previewHTML);
@@ -53,7 +53,7 @@ function scheduleRender(){
   });
 }
 
-// 조각로그 v1.8.1 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.2 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches

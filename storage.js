@@ -1,4 +1,4 @@
-// 조각로그 v1.8.1 HTML 복원·파일 저장·로그 보관함 모듈.
+// 조각로그 v1.8.2 HTML 복원·파일 저장·로그 보관함 모듈.
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
