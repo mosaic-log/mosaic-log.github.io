@@ -3976,6 +3976,13 @@
     margin: 0;
     border-top: 1px solid var(--line);
   }
+  /* 기본 2인 내부와 NPC끼리는 같은 묶음임을 파선으로 표시하고,
+     기본 2인 묶음과 첫 NPC 사이의 경계는 기존 실선을 유지한다. */
+  #profileEntityEditors > [data-profile-key="bot"] + [data-profile-key="user"],
+  #profileEntityEditors > [data-profile-key="user"] + [data-profile-key="bot"],
+  #profileEntityEditors > [data-profile-key^="extra"] + [data-profile-key^="extra"] {
+    border-top-style: dashed;
+  }
   #profileGroup .profileSubHead {
     display: flex;
     align-items: center;
@@ -3995,7 +4002,7 @@
     font-size: 12.5px;
     font-weight: 750;
   }
-  #profileExtraEditors .profileSubTitle {
+  #profileEntityEditors [data-profile-key^="extra"] .profileSubTitle {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
@@ -4134,10 +4141,22 @@
     background: var(--bg-muted);
     color: #a65f59;
   }
+  #profileGroup .profileSubActions .profileResetIconBtn {
+    width: 24px;
+    height: 26px;
+    color: color-mix(in srgb, var(--ink-faint) 48%, transparent);
+    font-size: 12px;
+    opacity: .72;
+  }
+  #profileGroup .profileSubActions .profileResetIconBtn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--bg-muted) 72%, transparent);
+    color: color-mix(in srgb, #a65f59 72%, var(--ink-faint));
+    opacity: .92;
+  }
   :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn:disabled { cursor: default; }
   #profileGroup .profileSubActions .profileResetIconBtn:disabled { opacity: .4; }
   #profileGroup .profileSubFold[hidden] { display: none !important; }
-  #profileGroup .profileSubActions :is(.profileMoveBtn, .profileRemoveBtn) {
+  #profileGroup :is(.profileMoveBtn, .profileRemoveBtn) {
     width: 24px;
     height: 30px;
     padding: 0;
@@ -4148,9 +4167,31 @@
     font-size: 14px;
     cursor: pointer;
   }
-  #profileGroup .profileSubActions :is(.profileMoveBtn, .profileRemoveBtn):hover:not(:disabled) {
+  #profileGroup .profileMoveBtn {
+    width: 20px;
+    height: 26px;
+    font-size: 12px;
+  }
+  #profileGroup .profileRemoveBtn {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 20px;
+    margin-right: -5px;
+    border-radius: 4px;
+    color: color-mix(in srgb, var(--ink-faint) 48%, transparent);
+    font-size: 10px;
+    font-weight: 400;
+    opacity: .58;
+    transition: color .14s ease, background .14s ease, opacity .14s ease;
+  }
+  #profileGroup .profileMoveBtn:hover:not(:disabled) {
     background: var(--bg-muted);
     color: var(--accent);
+  }
+  #profileGroup .profileRemoveBtn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--bg-muted) 58%, transparent);
+    color: color-mix(in srgb, #a65f59 62%, var(--ink-faint));
+    opacity: .82;
   }
   #profileGroup .profileSubActions .profileMoveBtn:disabled { opacity: .3; cursor: default; }
   #profileGroup .profileAddBtn {

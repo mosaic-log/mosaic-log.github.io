@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.1 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=20261003-202038">
+<link rel="stylesheet" href="./styles.css?v=d4e9efc7d5f1">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.0 GitHub 저장소 열기">v1.8.0</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.1 GitHub 저장소 열기">v1.8.1</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -106,17 +106,6 @@
         <input type="text" id="logSubtitle" aria-label="자유 부제" placeholder="예: Log #1">
       </span>
     </div>
-    <div class="row segmentedChoiceRow">
-      <label id="titleProfileOrderLabel">인물 순서</label>
-      <select id="titleProfileOrder" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
-        <option value="bot-user" selected>BOT → USER</option>
-        <option value="user-bot">USER → BOT</option>
-      </select>
-      <span class="segmentedChoice" data-control="titleProfileOrder" role="group" aria-labelledby="titleProfileOrderLabel">
-        <button class="uiButton" type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
-        <button class="uiButton" type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
-      </span>
-    </div>
     </div>
   </details>
 
@@ -178,22 +167,13 @@
           <button class="uiButton" type="button" data-value="showcase" aria-pressed="false">포트레이트</button>
         </span>
       </div>
-      <div class="row segmentedChoiceRow">
-        <label id="profileProfileOrderLabel">인물 순서</label>
-        <select id="profileProfileOrder" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
-          <option value="bot-user" selected>BOT → USER</option>
-          <option value="user-bot">USER → BOT</option>
-        </select>
-        <span class="segmentedChoice" data-control="profileProfileOrder" role="group" aria-labelledby="profileProfileOrderLabel">
-          <button class="uiButton" type="button" data-value="bot-user" aria-pressed="true">BOT → USER</button>
-          <button class="uiButton" type="button" data-value="user-bot" aria-pressed="false">USER → BOT</button>
-        </span>
-      </div>
       <input type="hidden" id="profileOrder" value="bot-user">
+      <input type="hidden" id="profileEntityOrder" value='["bot","user"]'>
       </div>
 
-      <details class="profileSubFold" id="profileCharGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCharResetBtn" aria-label="BOT 전체 초기화" title="BOT 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="BOT 프로필 표시 전환"><input type="checkbox" id="profileCharOn" checked aria-label="BOT 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+      <div id="profileEntityEditors">
+      <details class="profileSubFold" id="profileCharGroup" data-profile-key="bot">
+        <summary class="profileSubHead"><span class="profileSubTitle">BOT</span><span class="profileSubActions"><button type="button" class="profileMoveBtn" data-profile-move="up" data-profile-key="bot" aria-label="BOT 위로 이동" title="위로 이동">↑</button><button type="button" class="profileMoveBtn" data-profile-move="down" data-profile-key="bot" aria-label="BOT 아래로 이동" title="아래로 이동">↓</button><button type="button" class="profileResetIconBtn" id="profileCharResetBtn" aria-label="BOT 전체 초기화" title="BOT 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="BOT 프로필 표시 전환"><input type="checkbox" id="profileCharOn" checked aria-label="BOT 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row profileImageRow">
         <label for="profileCharImage">이미지 URL</label>
@@ -246,8 +226,8 @@
         </div>
       </details>
 
-      <details class="profileSubFold" id="profileUserGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileUserResetBtn" aria-label="USER 전체 초기화" title="USER 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="USER 프로필 표시 전환"><input type="checkbox" id="profileUserOn" checked aria-label="USER 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+      <details class="profileSubFold" id="profileUserGroup" data-profile-key="user">
+        <summary class="profileSubHead"><span class="profileSubTitle">USER</span><span class="profileSubActions"><button type="button" class="profileMoveBtn" data-profile-move="up" data-profile-key="user" aria-label="USER 위로 이동" title="위로 이동">↑</button><button type="button" class="profileMoveBtn" data-profile-move="down" data-profile-key="user" aria-label="USER 아래로 이동" title="아래로 이동">↓</button><button type="button" class="profileResetIconBtn" id="profileUserResetBtn" aria-label="USER 전체 초기화" title="USER 전체 초기화">↺</button><label class="coverVisibilitySwitch" title="USER 프로필 표시 전환"><input type="checkbox" id="profileUserOn" checked aria-label="USER 프로필 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
       <div class="row profileImageRow">
         <label for="profileUserImage">이미지 URL</label>
@@ -302,6 +282,7 @@
 
       <input type="hidden" id="profileExtraCount" value="0">
       <div id="profileExtraEditors"></div>
+      </div>
       <button type="button" id="profileAddBtn" class="profileAddBtn">+ 인물 추가</button>
 
       <details class="profileSubFold" id="profileCommonGroup">
@@ -1383,8 +1364,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./settings.js?v=20261003-185129" defer></script>
-<script src="./app.js?v=20261003-210624" defer></script>
+<script src="./state.js?v=ffbd6ae7c901" defer></script>
+<script src="./parser.js?v=8c17d9c7d081" defer></script>
+  <script src="./renderer.js?v=0f1dc179f0bb" defer></script>
+<script src="./ui.js?v=cd37d44ab795" defer></script>
+<script src="./storage.js?v=a941a942e580" defer></script>
+<script src="./app.js?v=70262746c34b" defer></script>
 
 </body>
 </html>
