@@ -592,7 +592,11 @@ function appendCoverDividerLine(boundary, edge, settings, color){
   const start = (100 - length) / 2;
   const end = start + length;
   const lineImage = `linear-gradient(to right, transparent ${start}%, ${color} ${start}%, ${color} ${end}%, transparent ${end}%)`;
-  const style = boundary.style;
+  // 게시판이 사진 주소를 독립적으로 처리할 수 있도록 단일 url()로 유지한다.
+  // 길이 조절용 선은 사진이 아닌 기존 덮개 면에 그린다.
+  const overlay = boundary.hasAttribute('data-mosaic-image-background')
+    ? boundary.querySelector(':scope > [data-mosaic-photo-overlay="true"]') : null;
+  const style = (overlay || boundary).style;
   const existingImage = style.backgroundImage && style.backgroundImage !== 'none'
     ? style.backgroundImage : '';
   const existingRepeat = style.backgroundRepeat || 'repeat';
@@ -1949,7 +1953,7 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const xpos = Number.isFinite(xValue) ? Math.min(100, Math.max(0, xValue)) : 50;
   const ypos = Number.isFinite(yValue) ? Math.min(100, Math.max(0, yValue)) : 0;
   const imageStyle = imageBackground
-    ? `background-color:#303030; background-image:linear-gradient(rgba(0,0,0,.56),rgba(0,0,0,.56)),url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:center center,${xpos}% ${ypos}%; background-size:cover,cover; background-clip:padding-box;`
+    ? `background-color:#303030; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; background-clip:padding-box; overflow:hidden;`
     : `background-color:${pal.cardBg};`;
   const seamlessBottom = imageBackground && connectedBelow
     ? 'border-bottom:0 !important; border-bottom-width:0 !important; border-bottom-style:none !important; border-bottom-color:transparent !important; outline:0 !important; box-shadow:none !important; background-clip:border-box !important;'
@@ -1957,9 +1961,10 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const imageHeightValue = Number(settings.imgHeight);
   const imageHeight = Number.isFinite(imageHeightValue) ? Math.min(600, Math.max(100, imageHeightValue)) : 300;
   const titleContent = imageBackground
-    ? `<div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;">${inner}</div></div>`
+    ? `<div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${padTop}px ${inlinePadding} ${padBottom}px; background-color:rgba(0,0,0,.56);"><div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;">${inner}</div></div></div>`
     : inner;
-  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} ${seamlessBottom} padding:${padTop}px ${inlinePadding} ${padBottom}px; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
+  const titlePadding = imageBackground ? '0' : `${padTop}px ${inlinePadding} ${padBottom}px`;
+  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} ${seamlessBottom} padding:${titlePadding}; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
 `;
 }
 
@@ -2562,7 +2567,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
         : joinedShowcaseProfiles ? '' : partialPortraitCss.seam;
       const textVerticalAlign = settings.profileTextPosition === 'top' ? 'top'
         : settings.profileTextPosition === 'bottom' ? 'bottom' : 'middle';
-      return wrapProfileItem(`<div data-mosaic-image-background="true" data-mosaic-profile-image-field="${profileFieldPrefix}Image" style="box-sizing:border-box; width:100%; ${outerHeightCss} display:block; padding:${backgroundPadding}px 14px; background-color:#303030; background-image:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.58)),url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:center center,${imagePosition}; background-size:cover,${profileImageBackgroundSize(profile.image, zoom)}; background-origin:border-box; border-radius:${joinedProfileItems ? 0 : portraitPhotoBackgroundOnly ? cardRadius : 10}px; ${partialPortraitCss.radius}${cornerCss}${photoJointBorder}${compactSeam} text-align:center; overflow-wrap:anywhere; word-break:break-word;"><div style="box-sizing:border-box; width:100%; ${innerHeightCss} display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div>`);
+      return wrapProfileItem(`<div data-mosaic-image-background="true" data-mosaic-profile-image-field="${profileFieldPrefix}Image" style="box-sizing:border-box; width:100%; ${outerHeightCss} display:block; padding:0; background-color:#303030; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; background-origin:border-box; border-radius:${joinedProfileItems ? 0 : portraitPhotoBackgroundOnly ? cardRadius : 10}px; ${partialPortraitCss.radius}${cornerCss}${photoJointBorder}${compactSeam} text-align:center; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;"><div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${backgroundPadding}px 14px; background-color:rgba(0,0,0,.58);"><div style="box-sizing:border-box; width:100%; ${innerHeightCss} display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div></div>`);
     }
     const imageRadius = showcase ? '12px' : (large ? '10px' : '50%');
     const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
@@ -3136,6 +3141,8 @@ function clearCoverEdge(element, edge){
   element.style.setProperty('outline', '0', 'important');
   element.style.setProperty('box-shadow', 'none', 'important');
   removeCoverEdgeBackgroundLine(element, edge);
+  const overlay = element.querySelector(':scope > [data-mosaic-photo-overlay="true"]');
+  if(overlay) removeCoverEdgeBackgroundLine(overlay, edge);
 }
 
 // 이웃한 두 영역의 사진 접합 규칙은 여기서 한 번 결정한다.
