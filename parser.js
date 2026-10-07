@@ -45,6 +45,16 @@ function normalizeQuotes(text){
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\uFF07]/g, "'");
 }
 
+function stripMarkers(value){
+  return String(value).replace(/__|\*/g, '');
+}
+
+function formatMatchContent(format, match){
+  // ***글***에서 강조만 해제할 때 굵기는 남겨 **글**로 되돌린다.
+  if(format === 'emphasis' && match[0].startsWith('***')) return `**${match[1]}**`;
+  return match[1] !== undefined ? match[1] : match[2];
+}
+
 function parallelDialogueSegments(line){
   const source = normalizeQuotes(String(line));
   const pattern = /((?:"[^"\r\n]*"|'[^'\r\n]*'))([ \t]*)([（(])([ \t]*)([^()（）\r\n]+?)([ \t]*)([)）])/g;
@@ -142,3 +152,15 @@ function processBodyInline(text, emphasisColor, options){
   const softBreak = `<br><span data-mosaic-generated='true' aria-hidden='true' style='display:block; width:100%; height:${extra}em; overflow:hidden; font-size:inherit; line-height:0;'></span>`;
   return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join(softBreak);
 }
+
+// 본문 문법 소비자는 파서의 공개 계약만 사용한다.
+const MosaicParser = Object.freeze({
+  SOFT_BREAK_TOKEN,
+  formatMatchContent,
+  normalizeBodyHrMarkers,
+  normalizeQuotes,
+  normalizeStandaloneHr,
+  normalizeStandaloneHrInput,
+  normalizeSubtitleCoupleSeparator,
+  stripMarkers
+});

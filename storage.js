@@ -36,9 +36,9 @@ document.getElementById('restoreHtmlFile').addEventListener('change', (e) => {
       status.textContent = 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.';
       return;
     }
-    snapshotCards();
-    applyWork(work);
-    showUndoToast('출력 HTML에서 작업 복원.');
+    MosaicUI.cards.snapshot();
+    MosaicUI.work.apply(work);
+    MosaicUI.feedback.undo('출력 HTML에서 작업 복원.');
     status.style.color = '';
     status.textContent = `복원 완료: ${work.cards.length}개 블록`;
   };
@@ -74,6 +74,20 @@ const MAX_IMPORTED_SLOTS = 200;
 const MAX_CARD_CHARS = 500000;
 const MAX_TOTAL_BODY_CHARS = 2000000;
 const MAX_FOLD_TITLE_CHARS = 200;
+
+// 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
+// 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
+// 덮어쓰기 직후에는 정확한 저장 상태로 되돌릴 수 있다.
+function restoreStoredValue(key, previousValue, expectedCurrentValue){
+  try {
+    if(expectedCurrentValue !== undefined && localStorage.getItem(key) !== expectedCurrentValue) return false;
+    if(previousValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previousValue);
+    return true;
+  } catch(e){
+    return false;
+  }
+}
 
 function validSlotId(id){
   return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
@@ -188,7 +202,7 @@ function showSlotReadError(){
 }
 
 function collectValidatedSlotWork(){
-  const data = sanitizeImportedWork(collectSlotWork());
+  const data = sanitizeImportedWork(MosaicUI.work.collectSlot());
   if(data) return data;
   const status = document.getElementById('slotImportStatus');
   status.style.color = '#c0392b';
@@ -483,9 +497,9 @@ function renderSlotList(){
         select.dispatchEvent(new Event('change'));
         return;
       }
-      snapshotCards();
-      applyWork(JSON.parse(JSON.stringify(slot.data)));
-      showUndoToast(`'${slot.name}' 불러옴.`);
+      MosaicUI.cards.snapshot();
+      MosaicUI.work.apply(JSON.parse(JSON.stringify(slot.data)));
+      MosaicUI.feedback.undo(`'${slot.name}' 불러옴.`);
       setArchiveDrawerOpen(false);
     });
     over.addEventListener('click', (e) => {
@@ -513,7 +527,7 @@ function renderSlotList(){
       const status = document.getElementById('slotImportStatus');
       status.style.color = '';
       status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
-      showUndoToast(`'${slot.name}' 보관함 덮어씀.`, () => {
+      MosaicUI.feedback.undo(`'${slot.name}' 보관함 덮어씀.`, () => {
         const restored = restoreStoredValue(SLOT_KEY, previousStoredSlots, writtenStoredSlots);
         const undoStatus = document.getElementById('slotImportStatus');
         if(!restored){
@@ -652,7 +666,7 @@ function deleteSelectedSlots(){
   selectedSlotIds.clear();
   renderSlotList();
   status.textContent = `보관함 ${removed.length}개를 삭제했습니다.`;
-  showUndoToast(`보관함 ${removed.length}개 삭제됨.`, () => {
+  MosaicUI.feedback.undo(`보관함 ${removed.length}개 삭제됨.`, () => {
     const current = loadSlots();
     if(current === null){ showSlotReadError(); return; }
     // 삭제 이후 저장한 항목은 유지하고, 사라진 항목만 복원한다.
@@ -763,21 +777,21 @@ document.getElementById('importSlotsFile').addEventListener('change', (e) => {
 });
 
 function startNewLog(){
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   // 디자인 설정, 화자 이름, 꼬리말은 유지하고 본문·표제·이미지만 초기화
   ['imgUrl','logNumber','subChar','subUser','logSubtitle'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('logTitle').value = '';
   document.getElementById('imgOn').checked = false;
   document.getElementById('logTitleOn').checked = false;
-  syncCoverControlState();
-  syncDesignSummaries();
-  clearCardEditors();
-  activeTa = null;
-  addCard('', true);
-  render();
+  MosaicUI.controls.syncCover();
+  MosaicUI.controls.syncDesignSummaries();
+  MosaicUI.cards.clear();
+  MosaicUI.cards.setActiveTextarea(null);
+  MosaicUI.cards.add('', true);
+  MosaicUI.preview.render();
   updateCounter();
   saveDraft();
-  showUndoToast('새 로그 시작.');
+  MosaicUI.feedback.undo('새 로그 시작.');
   setArchiveDrawerOpen(false);
 }
 document.getElementById('newLogBtn').addEventListener('click', startNewLog);
@@ -785,27 +799,27 @@ document.getElementById('sidebarNewLogBtn').addEventListener('click', startNewLo
 
 document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   clearTimeout(styleCommitTimer);
-  snapshotCards();
+  MosaicUI.cards.snapshot();
 
   // 현재 작업 데이터만 빈 작업 상태로 되돌림. SLOT_KEY·PRESET_KEY는 건드리지 않는다.
   Object.entries(WORK_FIELD_DEFAULTS).forEach(([id, value]) => {
     document.getElementById(id).value = value;
   });
-  syncProfileTagEditorsFromMasters();
-  renderNameRuleList();
-  renderKeywordRuleList();
+  MosaicUI.controls.syncProfileTags();
+  MosaicUI.controls.renderNameRules();
+  MosaicUI.controls.renderKeywordRules();
   Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, value]) => {
     document.getElementById(id).checked = value;
   });
-  syncCoverControlState();
+  MosaicUI.controls.syncCover();
   document.getElementById('imgHeightVal').value = '300';
   document.getElementById('xposVal').value = '50';
   document.getElementById('yposVal').value = '0';
 
-  clearCardEditors();
-  activeTa = null;
-  addCard('', false);
-  activeTa = bodyCardTextareas()[0] || null;
+  MosaicUI.cards.clear();
+  MosaicUI.cards.setActiveTextarea(null);
+  MosaicUI.cards.add('', false);
+  MosaicUI.cards.setActiveTextarea(MosaicUI.cards.textareas()[0] || null);
 
   applyStyleValues(DEFAULT_STYLE);
   currentPresetName = null;
@@ -815,9 +829,9 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   syncCharList();
 
   // 검색·선택·임시 입력 같은 화면 상태도 함께 비움.
-  closePreviewSearch();
-  fsClearSearch();
-  hideSelToolbar();
+  MosaicUI.preview.closeSearch();
+  MosaicUI.preview.clearFullscreenSearch();
+  MosaicUI.preview.hideSelectionToolbar();
   ['pvFindInput','pvReplInput','fsFindInput','fsReplInput','nameFrom','nameTo','keywordFrom','keywordTo','slotName','presetName']
     .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   ['nameStatus','keywordStatus','copyStatus','presetStatus','importStatus']
@@ -827,16 +841,17 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   renderPresetList();
   renderComboList();
   updateSavePresetBtn();
-  render();
+  MosaicUI.preview.render();
   updateCounter();
   saveDraft();
-  showUndoToast('현재 작업 전체 초기화.');
+  MosaicUI.feedback.undo('현재 작업 전체 초기화.');
 
   const status = document.getElementById('slotImportStatus');
   status.style.color = '';
   status.textContent = '현재 작업을 모두 비웠습니다.';
   setTimeout(() => { status.textContent = ''; }, 3000);
-  if(activeTa) activeTa.focus();
+  const activeTextarea = MosaicUI.cards.activeTextarea();
+  if(activeTextarea) activeTextarea.focus();
 });
 
 // ---------- 초안 자동 저장 ----------
@@ -908,6 +923,13 @@ function isRetiredDefaultDraft(d){
     && body.includes('...진짜?');
 }
 
+function deferDraftSave(){
+  // 한글 조합 중간값도 이탈 시에는 보존하되, 조합 중에는 저장 알림을 반복하지 않는다.
+  draftDirty = true;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+}
+
 function scheduleDraftSave(){
   draftDirty = true;
   clearTimeout(draftSaveTimer);
@@ -934,7 +956,7 @@ function saveDraft(force = true){
     }
     const d = {};
     DRAFT_FIELDS.forEach(id => { d[id] = document.getElementById(id).value; });
-    d.cards = getCards();
+    d.cards = MosaicUI.cards.all();
     WORK_BOOLEAN_FIELDS.forEach(id => { d[id] = document.getElementById(id).checked; });
     d.style = currentStyleValues();
     d.updatedAt = Math.max(Date.now(), draftBaseUpdatedAt + 1);
@@ -1067,7 +1089,7 @@ function captureDraftUiState(){
   DRAFT_FIELDS.forEach(id => { fields[id] = document.getElementById(id).value; });
   const booleans = {};
   WORK_BOOLEAN_FIELDS.forEach(id => { booleans[id] = document.getElementById(id).checked; });
-  return { fields, booleans, style:currentStyleValues(), cards:getCards(),
+  return { fields, booleans, style:currentStyleValues(), cards:MosaicUI.cards.all(),
     updatedAt:draftBaseUpdatedAt, dirty:draftDirty };
 }
 
@@ -1076,9 +1098,9 @@ function applyDraftRestorePlan(plan){
   Object.entries(plan.booleans).forEach(([id, value]) => { document.getElementById(id).checked = value; });
   if(plan.style) applyStyleValues(plan.style);
   else if(plan.legacyFoldDividerMinimal) document.getElementById('foldDividerOn').checked = false;
-  clearCardEditors();
-  plan.cards.forEach(card => addCard(card, false));
-  syncTypographyRangeLabels();
+  MosaicUI.cards.clear();
+  plan.cards.forEach(card => MosaicUI.cards.add(card, false));
+  MosaicUI.controls.syncTypographyLabels();
   ['xpos','ypos','imgHeight'].forEach(id => {
     document.getElementById(`${id}Val`).value = document.getElementById(id).value;
   });
@@ -1104,7 +1126,7 @@ function restoreDraft(){
     try { applyDraftRestorePlan(plan); }
     catch(e){
       try { applyDraftRestorePlan(before); }
-      catch(rollbackError){ clearCardEditors(); }
+      catch(rollbackError){ MosaicUI.cards.clear(); }
       throw e;
     }
     draftReadRaw = raw;
@@ -1308,13 +1330,13 @@ function beginThemeHoverPreview(key, values){
     if(values[id] !== undefined) previewColors[id] = values[id];
   });
   const previewSettings = { ...getSettings(), ...previewColors, outputTheme: document.getElementById('outputTheme').value };
-  renderPreview(buildCard(previewSettings, getCards()));
+  MosaicUI.preview.renderMarkup(buildCard(previewSettings, MosaicUI.cards.all()));
 }
 
 function endThemeHoverPreview(key){
   if(!themeHoverPreview || themeHoverPreview.key !== key) return;
   themeHoverPreview = null;
-  renderPreview(buildCard(getSettings(), getCards()));
+  MosaicUI.preview.renderMarkup(buildCard(getSettings(), MosaicUI.cards.all()));
 }
 
 function commitThemeHoverPreview(){
@@ -1364,7 +1386,7 @@ function renderCurrentThemePalette(){
     const input = document.getElementById(chip.dataset.themeColor);
     if(input) chip.style.background = input.value;
   });
-  const styleName = selectedControlText('dlgStyle') || '글자 강조';
+  const styleName = MosaicUI.controls.selectedText('dlgStyle') || '글자 강조';
   const option = document.getElementById('currentThemePaletteOption');
   if(option) option.textContent = styleName;
   button.setAttribute('aria-label', `현재 테마 컬러칩 · ${styleName} · 누를 때마다 다음 대사 표현 방식으로 변경`);
@@ -1373,8 +1395,8 @@ function renderCurrentThemePalette(){
 document.getElementById('currentThemePaletteButton').addEventListener('click', () => {
   const select = document.getElementById('dlgStyle');
   select.value = nextDialogueStyleValue(select.value);
-  syncDesignSummaries();
-  render();
+  MosaicUI.controls.syncDesignSummaries();
+  MosaicUI.preview.render();
   updateOverwriteBtn();
   saveDraft();
   commitStyleHistory(true);
@@ -1436,10 +1458,10 @@ function renderComboList(){
       applyThemeColorValues(v);
       currentComboName = combo.name;
       currentPresetName = null;
-      updateHexLabels();
+      MosaicUI.controls.updateHexLabels();
       renderPresetList();
       renderComboList();
-      render();
+      MosaicUI.preview.render();
       saveDraft();
       commitStyleHistory(true);
     });
@@ -1479,19 +1501,19 @@ function applyThemeColorValues(values){
     const color = normalizeHex(String(values[id]));
     if(input && color) input.value = color;
   });
-  updateHexLabels();
+  MosaicUI.controls.updateHexLabels();
 }
 function applySavedPresetValues(values){
   const outputTheme = document.getElementById('outputTheme');
   const nextTheme = normalizeOutputTheme(values.outputTheme);
-  setCardDefaultsForShapeChange(outputTheme.value, nextTheme);
+  MosaicUI.cards.setDefaultsForShape(outputTheme.value, nextTheme);
   outputTheme.value = nextTheme;
   applyThemeColorValues(values);
   const dialogueStyle = document.getElementById('dlgStyle');
   if(values && Array.from(dialogueStyle.options).some(option => option.value === values.dlgStyle)){
     dialogueStyle.value = values.dlgStyle;
   }
-  syncDesignSummaries();
+  MosaicUI.controls.syncDesignSummaries();
 }
 function savedPresetStateEqual(a, b){
   if(!a || !b) return false;
@@ -1534,6 +1556,7 @@ function applyStyleValues(v){
   });
   if(values.cardBodyTopSpace === undefined) values.cardBodyTopSpace = DEFAULT_STYLE.cardBodyTopSpace;
   if(values.cardBodyBottomSpace === undefined) values.cardBodyBottomSpace = DEFAULT_STYLE.cardBodyBottomSpace;
+  if(values.footerBodyGap === undefined) values.footerBodyGap = DEFAULT_STYLE.footerBodyGap;
   if(values.profileOuterBackground === undefined) values.profileOuterBackground = DEFAULT_STYLE.profileOuterBackground;
   if(values.profileItemGap === undefined) values.profileItemGap = DEFAULT_STYLE.profileItemGap;
   if(values.headingTopSpace === undefined) values.headingTopSpace = DEFAULT_STYLE.headingTopSpace;
@@ -1577,11 +1600,11 @@ function applyStyleValues(v){
       el.value = values[id];
     }
   });
-  syncParagraphSettingsUI();
-  syncTypographyRangeLabels();
-  syncDesignSummaries();
+  MosaicUI.controls.syncParagraphSettings();
+  MosaicUI.controls.syncTypographyLabels();
+  MosaicUI.controls.syncDesignSummaries();
   ['hrShape','hr2Shape','hr3Shape','foldAutoNumberStyle','profileOuterBackground'].forEach(syncSegmentedChoiceControl);
-  updateHexLabels();
+  MosaicUI.controls.updateHexLabels();
 }
 
 // ---------- 추가 인물 (본문에서 자동 감지) ----------
@@ -1617,7 +1640,7 @@ function parseExtraChars(){
 const RESERVED_MARKERS = /^(HR(?:[2-4])?|GAP|C|IMG\b|NEWCARD|\/?접기)/i;
 function detectCharNames(){
   const names = [];
-  getCards().filter(card => card.type !== 'comment' && card.visible !== false).forEach(card => {
+  MosaicUI.cards.all().filter(card => card.type !== 'comment' && card.visible !== false).forEach(card => {
     const body = card.body;
     normalizeQuotes(body).split('\n').forEach(line => {
       const re = /\[([^\[\]\n]{1,24})\]\s*(?=")/g;
@@ -1646,6 +1669,9 @@ function currentChars(){
 // 저장된 색은 지우지 않고 병합한다 — 초기화 중(카드 복원 전) 감지 결과가 비어 있을 때
 // 저장된 색이 날아가는 것을 막기 위함.
 let charRowsKey = null;   // 현재 화면에 그려진 인물 이름 목록
+function invalidateCharacterRows(){
+  charRowsKey = null;
+}
 function syncCharList(){
   const chars = currentChars();
   const saved = parseExtraChars();
@@ -1703,7 +1729,7 @@ function syncCharList(){
       const target = saved.find(x => x.name.toLowerCase() === c.name.toLowerCase());
       if(target) target.color = val;
       document.getElementById('extraChars').value = JSON.stringify(saved);
-      render();
+      MosaicUI.preview.render();
       saveDraft();
     };
     color.addEventListener('input', () => { hex.value = color.value; commit(color.value); });
@@ -1726,7 +1752,20 @@ function syncCharList(){
 let actionHistory = [];
 let actionIndex = -1;
 let styleCommitTimer = null;
+// 큰 작업 직전 스냅샷은 통합 작업 히스토리와 같은 저장 계층이 소유한다.
+// ui.js의 MosaicUI.cards.snapshot()는 이 값을 준비하고, 아래 기록기가 완료 상태와 짝지어 소비한다.
+let undoSnapshot = null;
 const ACTION_HISTORY_MAX = 30;
+
+function discardUndoSnapshot(){
+  undoSnapshot = null;
+}
+
+function snapshotCards(){
+  // 막 끝난 디자인 조절이 뒤늦게 끼어들지 않도록 작업 경계를 확정한다.
+  clearTimeout(styleCommitTimer);
+  undoSnapshot = captureActionState('작업 전');
+}
 
 function styleStateEqual(a, b){
   if(!a || !b) return false;
@@ -1740,7 +1779,7 @@ function cloneHistoryValue(value){
 function captureActionState(label){
   return {
     label: label || '작업',
-    work: cloneHistoryValue(collectWork()),
+    work: cloneHistoryValue(MosaicUI.work.collect()),
     style: cloneHistoryValue(currentStyleValues())
   };
 }
@@ -1817,8 +1856,8 @@ function goActionHistory(delta){
   const state = actionHistory[actionIndex];
   undoSnapshot = null;
   imageHistorySession = null;
-  dismissToast();
-  applyWorkState({
+  MosaicUI.feedback.dismiss();
+  MosaicUI.work.applyState({
     ...cloneHistoryValue(state.work),
     style: cloneHistoryValue(state.style)
   });
@@ -1826,7 +1865,7 @@ function goActionHistory(delta){
   currentComboName = null;
   renderPresetList();
   renderComboList();
-  finishWorkRestore();
+  MosaicUI.work.finishRestore();
   updateHistoryButtons();
 }
 
@@ -2267,7 +2306,7 @@ function renderPresetList(){
       currentComboName = null;
       renderPresetList();
       renderComboList();
-      render();
+      MosaicUI.preview.render();
       saveDraft();
       commitStyleHistory(true);
     });
@@ -2475,7 +2514,7 @@ function updateOverwriteBtn(){
     savedActiveName.textContent = source.kind === 'saved' ? `${source.name} · 적용 중` : '';
   }
   if(savedCountWrap) savedCountWrap.hidden = source.kind === 'saved';
-  const styleName = selectedControlText('dlgStyle') || '글자 강조';
+  const styleName = MosaicUI.controls.selectedText('dlgStyle') || '글자 강조';
   if(status) status.textContent = source.kind === 'direct'
     ? `직접 편집 · ${styleName}`
     : styleName;
@@ -2501,7 +2540,7 @@ document.getElementById('overwritePresetBtn').addEventListener('click', () => {
   renderPresetList();
   const st = document.getElementById('presetStatus');
   st.textContent = `'${overwrittenPresetName}'에 덮어씀.`;
-  showUndoToast(`'${overwrittenPresetName}' 프리셋 덮어씀.`, () => {
+  MosaicUI.feedback.undo(`'${overwrittenPresetName}' 프리셋 덮어씀.`, () => {
     const restored = restoreStoredValue(PRESET_KEY, previousStoredPresets, writtenStoredPresets);
     const undoStatus = document.getElementById('presetStatus');
     if(!restored){
@@ -2559,7 +2598,7 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
   currentComboFamily = 'featured';
   renderPresetList();
   renderComboList();
-  render();
+  MosaicUI.preview.render();
   saveDraft();
   commitStyleHistory(true);
 });
@@ -2572,6 +2611,7 @@ const ADVANCED_RESET_GROUP_FIELDS = {
   coverSpace:['coverVerticalSpace','coverDividerLength'],
   topProfile:['profileOuterBackground','profileItemGap'],
   cardInterior:['cardBodyTopSpace','cardBodyBottomSpace','cardInlinePadding','unifiedBottomSpace'],
+  footerSpacing:['footerBodyGap'],
   headingSpacing:['headingTopSpace','headingBetweenSpace','headingBottomSpace'],
   hr:['hrShape','hrOpacity','hrLength','hrVerticalSpace'],
   hr2:['hr2Shape','hr2Opacity','hr2VerticalSpace'],
@@ -2587,10 +2627,10 @@ function resetAdvancedControlFields(ids){
     else input.value = DEFAULT_STYLE[id];
   });
   ['hrShape','hr2Shape','hr3Shape','foldAutoNumberStyle','profileOuterBackground'].filter(id => ids.includes(id)).forEach(syncSegmentedChoiceControl);
-  syncTypographyRangeLabels();
-  syncDesignSummaries();
-  updateHexLabels();
-  render();
+  MosaicUI.controls.syncTypographyLabels();
+  MosaicUI.controls.syncDesignSummaries();
+  MosaicUI.controls.updateHexLabels();
+  MosaicUI.preview.render();
   saveDraft();
   commitStyleHistory(true);
 }
@@ -2697,7 +2737,7 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
     applyThemeColorValues(imported[0].values);
     renderPresetList();
     renderComboList();
-    render();
+    MosaicUI.preview.render();
     saveDraft();
     commitStyleHistory(true);
 
@@ -2710,4 +2750,98 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
   };
   reader.readAsText(file);
   e.target.value = ''; // 같은 파일 다시 선택해도 change가 발생하도록 초기화
+});
+
+function initializeThemeSelection(){
+  const initialList = loadPresets();
+  const matchingInitialPreset = initialList && initialList.find(p => savedPresetStateEqual(p.values, currentSavedPresetValues()));
+  const matchingInitialCombo = COLOR_COMBOS.find(combo =>
+    Object.entries(combo.v).every(([id, value]) =>
+      String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
+    )
+  );
+  currentComboName = matchingInitialCombo ? matchingInitialCombo.name : null;
+  if(matchingInitialCombo && !matchingInitialCombo.families.includes('featured')){
+    currentComboFamily = matchingInitialCombo.families[0];
+  }
+  currentPresetName = matchingInitialCombo ? null : (matchingInitialPreset ? matchingInitialPreset.name : null);
+  renderPresetList();
+  renderComboFamilyFilters();
+  renderComboList();
+  renderSlotList();
+  commitStyleHistory(true); // 초기 작업 상태를 기록의 첫 항목으로
+  updateHistoryButtons();
+}
+
+// ---------- 크레딧·세부 프리셋의 저장 충돌 보호 ----------
+const presetReadSnapshots = new Map();
+
+// 보관함과 마찬가지로, 읽지 못한 원본이나 다른 탭이 바꾼 원본은 덮어쓰지 않는다.
+// 수정하지 않은 항목은 저장 당시의 필드를 그대로 유지한다.
+function loadProtectedPresetList(key, sanitize, maxCount){
+  presetReadSnapshots.delete(key);
+  try {
+    const raw = localStorage.getItem(key);
+    if(raw === null){
+      presetReadSnapshots.set(key, null);
+      return [];
+    }
+    const stored = JSON.parse(raw);
+    if(!Array.isArray(stored) || stored.length > maxCount) return null;
+    const presets = sanitize(stored);
+    if(presets.length !== stored.length) return null;
+    presets.forEach((preset, index) => {
+      Object.defineProperty(preset, '_stored', { value:stored[index], enumerable:false });
+    });
+    presetReadSnapshots.set(key, raw);
+    return presets;
+  }catch(e){ return null; }
+}
+
+function saveProtectedPresetList(key, presets, sanitize, maxCount, label){
+  const fail = message => { MosaicUI.feedback.notice(`${label} ${message}`); return false; };
+  if(!Array.isArray(presets) || presets.length > maxCount || !presetReadSnapshots.has(key)){
+    return fail('원본을 읽지 못해 저장하지 않았습니다.');
+  }
+  try {
+    const cleaned = sanitize(presets);
+    if(cleaned.length !== presets.length) return fail('항목 형식을 확인하지 못해 저장하지 않았습니다.');
+    if(localStorage.getItem(key) !== presetReadSnapshots.get(key)){
+      presetReadSnapshots.delete(key);
+      return fail('다른 탭에서 변경되어 저장하지 않았습니다. 다시 열어 확인해 주세요.');
+    }
+    const payload = presets.map((preset, index) => preset._stored || cleaned[index]);
+    const serialized = JSON.stringify(payload);
+    localStorage.setItem(key, serialized);
+    presetReadSnapshots.set(key, serialized);
+    return true;
+  }catch(e){ return fail('저장소 오류로 저장하지 못했습니다.'); }
+}
+
+// 편집 UI가 저장 계층의 내부 상태를 직접 만지지 않도록 공개 작업만 묶는다.
+const MosaicStorage = Object.freeze({
+  applyStyleValues,
+  commitStyleHistory,
+  commitThemeHoverPreview,
+  currentStyleValues,
+  discardUndoSnapshot,
+  goActionHistory,
+  invalidateCharacterRows,
+  initializeThemeSelection,
+  loadProtectedPresetList,
+  recordCompletedAction,
+  renderComboList,
+  renderCurrentThemePalette,
+  renderPresetList,
+  restoreDraft,
+  saveDraft,
+  saveProtectedPresetList,
+  scheduleDraftSave,
+  deferDraftSave,
+  snapshotCards,
+  syncAllSegmentedChoiceControls,
+  syncCharList,
+  syncMinimalChoiceControls,
+  syncSegmentedChoiceControl,
+  updateOverwriteBtn
 });

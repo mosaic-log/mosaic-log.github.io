@@ -17,7 +17,7 @@ document.addEventListener('keydown', (e) => {
   if(!isBodyTa) return;
 
   e.preventDefault();
-  applyTextareaFormat(el, fmt);
+  MosaicUI.cards.format(el, fmt);
 });
 
 // ---------- 키보드 단축키 ----------
@@ -38,9 +38,9 @@ document.addEventListener('keydown', (e) => {
     if(document.getElementById('codeOverlay').style.display === 'block') return;
     e.preventDefault();
     if(document.getElementById('fsOverlay').style.display === 'block'){
-      setFsSearchOpen(true, true);
+      MosaicUI.preview.setFullscreenSearchOpen(true, true);
     } else {
-      openPreviewSearch();
+      MosaicUI.preview.openSearch();
     }
   }
 });
@@ -186,8 +186,8 @@ function setLayoutMirrored(on, save){
     catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 배치는 유지 */ }
   }
   requestAnimationFrame(() => {
-    syncPreviewCommentOutset();
-    layoutPreviewFloatingButtons();
+    MosaicUI.preview.syncCommentOutset();
+    MosaicUI.preview.layoutFloatingButtons();
   });
 }
 
@@ -347,15 +347,13 @@ document.querySelector('.tabBar').addEventListener('keydown', (e) => {
 });
 
 // ---------- 본문 글자수/문단수/읽기시간 카운터 ----------
-function updateCounter(){
-  const allCards = getCards();
+function updateCounter(allCards = MosaicUI.cards.all(), settings = getSettings()){
   const visibleCards = allCards.filter(card => card.visible !== false);
   const bodies = visibleCards.map(card => card.body);
   const bodyCardText = visibleCards
     .filter(card => card.type !== 'comment')
     .map(card => card.body)
     .join('\n');
-  const settings = getSettings();
   const text = bodies.join('\n');
   const paraList = text.split('\n').map(l => l.trim()).filter(l => l !== '');
   const bodyParaList = bodyCardText.split('\n').map(l => l.trim()).filter(l => l !== '');
@@ -421,14 +419,14 @@ function updateCounter(){
 }
 
 document.getElementById('clearBodyBtn').addEventListener('click', () => {
-  snapshotCards();
-  clearCardEditors();
-  activeTa = null;
-  addCard('', true);
-  render();
+  MosaicUI.cards.snapshot();
+  MosaicUI.cards.clear();
+  MosaicUI.cards.setActiveTextarea(null);
+  MosaicUI.cards.add('', true);
+  MosaicUI.preview.render();
   updateCounter();
   saveDraft();
-  showUndoToast('본문 전부 비움.');
+  MosaicUI.feedback.undo('본문 전부 비움.');
 });
 
 // ---------- 미리보기 도구모음 ----------
@@ -510,10 +508,10 @@ document.getElementById('widthDesktopBtn').addEventListener('click', () => {
   document.getElementById('widthMobileBtn').classList.remove('active');
   document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
   document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
-  syncPreviewToolbarLabel();
+  MosaicUI.preview.syncToolbarLabel();
   requestAnimationFrame(() => {
-    syncPreviewCommentOutset();
-    layoutPreviewFloatingButtons();
+    MosaicUI.preview.syncCommentOutset();
+    MosaicUI.preview.layoutFloatingButtons();
   });
 });
 document.getElementById('widthMobileBtn').addEventListener('click', () => {
@@ -522,15 +520,15 @@ document.getElementById('widthMobileBtn').addEventListener('click', () => {
   document.getElementById('widthDesktopBtn').classList.remove('active');
   document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'false');
   document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'true');
-  syncPreviewToolbarLabel();
+  MosaicUI.preview.syncToolbarLabel();
   requestAnimationFrame(() => {
-    syncPreviewCommentOutset();
-    layoutPreviewFloatingButtons();
+    MosaicUI.preview.syncCommentOutset();
+    MosaicUI.preview.layoutFloatingButtons();
   });
 });
 
 document.getElementById('copyWithOuterBreaks').addEventListener('change', () => {
-  syncPreviewOuterBreaks();
+  MosaicUI.preview.syncOuterBreaks();
   requestAnimationFrame(layoutPreviewFloatingButtons);
 });
 
@@ -594,7 +592,7 @@ function openCodeFullscreen(){
   const overlay = document.getElementById('codeOverlay');
   overlay.style.display = 'block';
   overlay.setAttribute('aria-hidden', 'false');
-  setWorkspaceInert(true);
+  MosaicUI.workspace.setInert(true);
   document.body.classList.add('fsLock');
   area.focus();
   area.setSelectionRange(0, 0);
@@ -605,7 +603,7 @@ function closeCodeFullscreen(){
   overlay.style.display = 'none';
   overlay.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('fsLock');
-  setWorkspaceInert(false);
+  MosaicUI.workspace.setInert(false);
   if(codePrevFocus && typeof codePrevFocus.focus === 'function'){
     try { codePrevFocus.focus({ preventScroll: true }); }
     catch(e){ codePrevFocus.focus(); }
@@ -650,6 +648,7 @@ const IMAGE_STATUS_CONFIGS = [
 ];
 const imageStatusTimers = new Map();
 const imageStatusTokens = new Map();
+let deferredImageStatusEditor = null;
 
 function probeImage(url, timeoutMs = 6000){
   return new Promise(resolve => {
@@ -680,19 +679,22 @@ function refreshAfterImageStatusChange(){
     : null;
   if(!editor){
     deferredImageStatusEditor = null;
-    render();
-    updateCounter();
+    MosaicUI.preview.scheduleRefresh(() => {
+      // 예약 뒤 새로 직접 편집을 시작했으면 실제 교체 직전에 다시 미룬다.
+      if(!document.activeElement?.closest?.('#preview [data-preview-direct-edit="true"]')) return true;
+      refreshAfterImageStatusChange();
+      return false;
+    });
     return;
   }
   if(deferredImageStatusEditor === editor) return;
   deferredImageStatusEditor = editor;
-  const revision = previewRenderRevision;
+  const revision = MosaicUI.preview.revision();
   editor.addEventListener('blur', () => {
     if(deferredImageStatusEditor === editor) deferredImageStatusEditor = null;
     requestAnimationFrame(() => {
-      if(previewRenderRevision !== revision) return;
-      render();
-      updateCounter();
+      if(MosaicUI.preview.revision() !== revision) return;
+      refreshAfterImageStatusChange();
     });
   }, { once:true });
 }
@@ -711,7 +713,7 @@ async function updateSingleImageLoadStatus(config){
     status.textContent = '';
     status.hidden = true;
     status.title = '';
-    syncImageBackgroundToggleAvailability();
+    MosaicUI.controls.syncImageBackgroundAvailability();
     return;
   }
   if(!raw){
@@ -719,7 +721,7 @@ async function updateSingleImageLoadStatus(config){
     status.textContent = '';
     status.hidden = true;
     status.title = '';
-    syncImageBackgroundToggleAvailability();
+    MosaicUI.controls.syncImageBackgroundAvailability();
     return;
   }
   let url;
@@ -730,7 +732,7 @@ async function updateSingleImageLoadStatus(config){
     status.dataset.state = 'error';
     status.textContent = isProfileStatus ? '!' : '주소 형식 확인 필요';
     status.title = '주소 형식 확인 필요';
-    syncImageBackgroundToggleAvailability();
+    MosaicUI.controls.syncImageBackgroundAvailability();
     refreshAfterImageStatusChange();
     return;
   }
@@ -762,7 +764,7 @@ async function updateSingleImageLoadStatus(config){
     status.textContent = isProfileStatus ? '!' : errorText;
     status.title = errorText;
   }
-  syncImageBackgroundToggleAvailability();
+  MosaicUI.controls.syncImageBackgroundAvailability();
   // 대표·프로필 이미지는 URL을 보존하되 검사에 실패하면 출력에서 제외한다.
   // 성공으로 돌아오면 같은 URL을 다시 살려 옛 동작 계약을 유지한다.
   refreshAfterImageStatusChange();
@@ -808,9 +810,9 @@ function jumpToDocumentLine(cardIndex, lineIndex){
   try { ta.focus({ preventScroll:true }); }
   catch(e){ ta.focus(); }
   ta.setSelectionRange(start, Math.min(start + line.length, ta.value.length));
-  activeTa = ta;
-  revealEditorOffsetAtTop(ta, start, editor);
-  if(positionSyncEnabled()) requestAnimationFrame(() => focusPreviewOnCaret(ta));
+  MosaicUI.cards.setActiveTextarea(ta);
+  MosaicUI.preview.revealOffsetAtTop(ta, start, editor);
+  if(MosaicUI.preview.positionSyncEnabled()) requestAnimationFrame(() => MosaicUI.preview.focusCaret(ta));
 }
 
 function navigatorItemsForCard(card, index){
@@ -852,7 +854,7 @@ function navigatorItemsForCard(card, index){
 
 function buildDocumentNavigator(){
   if(docNavPanel.hidden) return;
-  const cards = getCards();
+  const cards = MosaicUI.cards.all();
   docNavPanel.innerHTML = '';
   let visibleCardNumber = 0;
   let commentNumber = 0;
@@ -923,7 +925,8 @@ function setFocusMode(enabled){
   focusModeBtn.textContent = enabled ? '집중 종료' : '집중 모드';
   focusModeBtn.title = enabled ? '일반 화면으로 돌아가기 (Esc)' : '본문 입력과 미리보기만 보기';
   requestAnimationFrame(() => {
-    if(activeTa) activeTa.scrollIntoView({ block:'nearest' });
+    const activeTextarea = MosaicUI.cards.activeTextarea();
+    if(activeTextarea) activeTextarea.scrollIntoView({ block:'nearest' });
   });
 }
 focusModeBtn.addEventListener('click', () => setFocusMode(!document.body.classList.contains('labFocus')));
@@ -982,7 +985,7 @@ function renderPreflightIssues(issues, checking){
 
 function basicPreflightIssues(){
   const issues = [];
-  const cards = getCards();
+  const cards = MosaicUI.cards.all();
   let cardNumber = 0;
   let commentNumber = 0;
   cards.forEach((card, cardIndex) => {
@@ -1039,7 +1042,7 @@ function basicPreflightIssues(){
   if(document.getElementById('userSpeakerOn').checked && !document.getElementById('userName').value.trim()){
     issues.push({ severity:'warn', message:'빈 {{user}} 이름은 {{user}} 변수로 출력됩니다.', targetId:'userName' });
   }
-  render();
+  MosaicUI.preview.render();
   const bytes = new Blob([document.getElementById('codeBox').value]).size;
   if(bytes > 1024 * 1024){
     issues.push({ severity:'warn', message:`출력 HTML이 ${(bytes / 1024 / 1024).toFixed(1)}MB로 큽니다.` });
@@ -1073,7 +1076,7 @@ async function runPreflight(){
   }
   const bodyImages = [];
   let visibleBodyCardNumber = 0;
-  getCards().forEach((card, cardIndex) => {
+  MosaicUI.cards.all().forEach((card, cardIndex) => {
     if(card.type === 'comment' || card.visible === false) return;
     const cardNumber = ++visibleBodyCardNumber;
     card.body.split('\n').forEach((raw, lineIndex) => {
@@ -1144,40 +1147,37 @@ if(IS_MAC){
   });
 }
 
-// 초기 렌더
-restoreDraft();
-renderCreditItemsEditor();
-renderCreditPresetOptions();
-renderDetailPresetOptions();
-renderNameRuleList();
-renderKeywordRuleList();
-syncProfileTagEditorsFromMasters();
-syncCoverControlState();
-if(bodyCardTextareas().length === 0){
-  addCard(EXAMPLE_BODY, false); // 초안이 없으면 예시 본문으로 시작
+// UI가 앱 셸의 내부 전역 대신 필요한 화면 작업만 호출하도록 경계를 고정한다.
+const MosaicApp = Object.freeze({
+  buildDocumentNavigator,
+  isDesktopLayoutMirrored,
+  setPreviewArcaTheme,
+  syncPreviewCardStyleToggles,
+  syncPreviewVisibilityToggles,
+  updateAllImageLoadStatuses,
+  updateCounter
+});
+
+// 시작 순서는 앱 셸이 조율하고 저장 상태 판정은 저장 계층에 맡긴다.
+function initializeApplication(){
+  MosaicStorage.restoreDraft();
+  MosaicRenderer.renderCreditItemsEditor();
+  MosaicRenderer.renderCreditPresetOptions();
+  MosaicRenderer.renderDetailPresetOptions();
+  MosaicUI.controls.renderNameRules();
+  MosaicUI.controls.renderKeywordRules();
+  MosaicUI.controls.syncProfileTags();
+  MosaicUI.controls.syncCover();
+  if(MosaicUI.cards.textareas().length === 0){
+    MosaicUI.cards.add(MosaicUI.cards.exampleBody, false); // 초안이 없으면 예시 본문으로 시작
+  }
+  MosaicUI.cards.setActiveTextarea(MosaicUI.cards.textareas()[0] || null);
+  MosaicUI.controls.updateHexLabels();
+  MosaicUI.controls.syncTypographyLabels();
+  MosaicUI.controls.syncDesignSummaries();
+  MosaicUI.preview.setDirectEditReady(true);
+  MosaicUI.preview.render();
+  updateCounter();
+  MosaicStorage.initializeThemeSelection();
 }
-activeTa = bodyCardTextareas()[0] || null;
-updateHexLabels();
-syncTypographyRangeLabels();
-syncDesignSummaries();
-previewDirectEditReady = true;
-render();
-updateCounter();
-const initialList = loadPresets();
-const matchingInitialPreset = initialList && initialList.find(p => savedPresetStateEqual(p.values, currentSavedPresetValues()));
-const matchingInitialCombo = COLOR_COMBOS.find(combo =>
-  Object.entries(combo.v).every(([id, value]) =>
-    String(document.getElementById(id).value).toLowerCase() === String(value).toLowerCase()
-  )
-);
-currentComboName = matchingInitialCombo ? matchingInitialCombo.name : null;
-if(matchingInitialCombo && !matchingInitialCombo.families.includes('featured')){
-  currentComboFamily = matchingInitialCombo.families[0];
-}
-currentPresetName = matchingInitialCombo ? null : (matchingInitialPreset ? matchingInitialPreset.name : null);
-renderPresetList();
-renderComboFamilyFilters();
-renderComboList();
-renderSlotList();
-commitStyleHistory(true); // 초기 작업 상태를 기록의 첫 항목으로
-updateHistoryButtons();
+initializeApplication();

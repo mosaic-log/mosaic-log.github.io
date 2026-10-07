@@ -200,11 +200,11 @@ function decodeRestoreState(html){
 
 function generateHTML(includeRestoreState = false, prebuiltOutput){
   const rawOutput = prebuiltOutput === undefined
-    ? buildCard(getSettings(), getCards())
+    ? buildCard(getSettings(), MosaicUI.cards.all())
     : prebuiltOutput;
   const output = stripEditorOutputMetadata(rawOutput);
   if(!includeRestoreState) return output;
-  const restoreMeta = RESTORE_META_PREFIX + encodeRestoreState(collectSlotWork()) + RESTORE_META_SUFFIX + '\n';
+  const restoreMeta = RESTORE_META_PREFIX + encodeRestoreState(MosaicUI.work.collectSlot()) + RESTORE_META_SUFFIX + '\n';
   return restoreMeta + output;
 }
 
@@ -229,7 +229,7 @@ async function loadSelectedWebFont(selectId){
   const key = document.getElementById(selectId).value;
   try {
     await document.fonts.load(`16px ${fontStack(key)}`, '가나다라마바사 대사와 나레이션');
-    renderPreview();
+    MosaicUI.preview.renderMarkup();
   } catch(e){ /* 로컬 글꼴이나 네트워크 미연결 시 기존 대체 글꼴 유지 */ }
 }
 
@@ -1097,10 +1097,10 @@ function reorderCreditItem(from, insertionIndex){
   if(target > from) target--;
   if(target === from) return false;
   items.splice(target, 0, moved);
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   setStoredCreditItems(items, true);
   renderCreditItemsEditor();
-  showUndoToast('크레딧 항목 순서를 변경했습니다.');
+  MosaicUI.feedback.undo('크레딧 항목 순서를 변경했습니다.');
   return true;
 }
 
@@ -1284,12 +1284,12 @@ function renderCreditItemsEditor(){
     down.addEventListener('click', () => moveCreditItem(index, 1));
     divider.addEventListener('click', () => {
       if(index === 0) return;
-      snapshotCards();
+      MosaicUI.cards.snapshot();
       const enabled = row.dataset.dividerBefore !== 'true';
       row.dataset.dividerBefore = String(enabled);
       divider.setAttribute('aria-pressed', String(enabled));
       syncCreditItemsField();
-      showUndoToast(`크레딧 ${index + 1} 위 구분선을 ${enabled ? '표시합니다.' : '숨겼습니다.'}`);
+      MosaicUI.feedback.undo(`크레딧 ${index + 1} 위 구분선을 ${enabled ? '표시합니다.' : '숨겼습니다.'}`);
     });
     remove.addEventListener('click', () => deleteCreditItem(index));
     const fields = document.createElement('div');
@@ -1299,7 +1299,7 @@ function renderCreditItemsEditor(){
     row.append(header, fields);
     list.appendChild(row);
   });
-  syncCreditControlState();
+  MosaicUI.controls.syncCredit();
 }
 
 document.getElementById('creditEditorList').addEventListener('dragover', event => {
@@ -1312,84 +1312,41 @@ document.getElementById('creditEditorList').addEventListener('drop', finishCredi
 function addCreditItem(){
   const items = creditItemsFromEditor();
   if(items.length >= MAX_CREDIT_ITEMS){
-    showNoticeToast(`크레딧은 최대 ${MAX_CREDIT_ITEMS}개까지 추가할 수 있습니다.`);
+    MosaicUI.feedback.notice(`크레딧은 최대 ${MAX_CREDIT_ITEMS}개까지 추가할 수 있습니다.`);
     return;
   }
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   items.push({ label:'', value:'', url:'', dividerBefore:false });
   setStoredCreditItems(items, true);
   renderCreditItemsEditor();
   const next = document.querySelector('#creditEditorList .creditEditorRow:last-child .creditLabelInput');
   if(next) next.focus();
-  showUndoToast('크레딧 항목을 추가했습니다.');
+  MosaicUI.feedback.undo('크레딧 항목을 추가했습니다.');
 }
 
 function moveCreditItem(index, delta){
   const items = creditItemsFromEditor();
   const target = index + delta;
   if(target < 0 || target >= items.length) return;
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   [items[index], items[target]] = [items[target], items[index]];
   setStoredCreditItems(items, true);
   renderCreditItemsEditor();
-  showUndoToast('크레딧 항목 순서를 변경했습니다.');
+  MosaicUI.feedback.undo('크레딧 항목 순서를 변경했습니다.');
 }
 
 function deleteCreditItem(index){
   const items = creditItemsFromEditor();
   if(index < 0 || index >= items.length) return;
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   items.splice(index, 1);
   setStoredCreditItems(items, true);
   renderCreditItemsEditor();
-  showUndoToast('크레딧 항목을 삭제했습니다.');
+  MosaicUI.feedback.undo('크레딧 항목을 삭제했습니다.');
 }
 
 const CREDIT_PRESET_KEY = 'mosaicCreditItemPresets_v1';
 const MAX_CREDIT_PRESETS = 50;
-const presetReadSnapshots = new Map();
-
-// 보관함과 마찬가지로, 읽지 못한 원본이나 다른 탭이 바꾼 원본은 덮어쓰지 않는다.
-// 수정하지 않은 항목은 저장 당시의 필드를 그대로 유지한다.
-function loadProtectedPresetList(key, sanitize, maxCount){
-  presetReadSnapshots.delete(key);
-  try {
-    const raw = localStorage.getItem(key);
-    if(raw === null){
-      presetReadSnapshots.set(key, null);
-      return [];
-    }
-    const stored = JSON.parse(raw);
-    if(!Array.isArray(stored) || stored.length > maxCount) return null;
-    const presets = sanitize(stored);
-    if(presets.length !== stored.length) return null;
-    presets.forEach((preset, index) => {
-      Object.defineProperty(preset, '_stored', { value:stored[index], enumerable:false });
-    });
-    presetReadSnapshots.set(key, raw);
-    return presets;
-  }catch(e){ return null; }
-}
-
-function saveProtectedPresetList(key, presets, sanitize, maxCount, label){
-  const fail = message => { showNoticeToast(`${label} ${message}`); return false; };
-  if(!Array.isArray(presets) || presets.length > maxCount || !presetReadSnapshots.has(key)){
-    return fail('원본을 읽지 못해 저장하지 않았습니다.');
-  }
-  try {
-    const cleaned = sanitize(presets);
-    if(cleaned.length !== presets.length) return fail('항목 형식을 확인하지 못해 저장하지 않았습니다.');
-    if(localStorage.getItem(key) !== presetReadSnapshots.get(key)){
-      presetReadSnapshots.delete(key);
-      return fail('다른 탭에서 변경되어 저장하지 않았습니다. 다시 열어 확인해 주세요.');
-    }
-    const payload = presets.map((preset, index) => preset._stored || cleaned[index]);
-    const serialized = JSON.stringify(payload);
-    localStorage.setItem(key, serialized);
-    presetReadSnapshots.set(key, serialized);
-    return true;
-  }catch(e){ return fail('저장소 오류로 저장하지 못했습니다.'); }
-}
 
 function sanitizeCreditPresetList(value){
   if(!Array.isArray(value)) return [];
@@ -1408,11 +1365,11 @@ function sanitizeCreditPresetList(value){
 }
 
 function loadCreditPresets(){
-  return loadProtectedPresetList(CREDIT_PRESET_KEY, sanitizeCreditPresetList, MAX_CREDIT_PRESETS);
+  return MosaicStorage.loadProtectedPresetList(CREDIT_PRESET_KEY, sanitizeCreditPresetList, MAX_CREDIT_PRESETS);
 }
 
 function saveCreditPresets(presets){
-  return saveProtectedPresetList(CREDIT_PRESET_KEY, presets, sanitizeCreditPresetList, MAX_CREDIT_PRESETS, '크레딧 프리셋');
+  return MosaicStorage.saveProtectedPresetList(CREDIT_PRESET_KEY, presets, sanitizeCreditPresetList, MAX_CREDIT_PRESETS, '크레딧 프리셋');
 }
 
 function syncCreditPresetControls(){
@@ -1440,14 +1397,14 @@ function saveCurrentCreditPreset(){
   const items = normalizeCreditItems(creditItemsFromEditor())
     .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
   if(!items.length){
-    showNoticeToast('저장할 크레딧 항목이 없습니다.');
+    MosaicUI.feedback.notice('저장할 크레딧 항목이 없습니다.');
     return;
   }
   const presets = loadCreditPresets();
-  if(presets === null){ showNoticeToast('크레딧 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
+  if(presets === null){ MosaicUI.feedback.notice('크레딧 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
   const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
   if(!existing && presets.length >= MAX_CREDIT_PRESETS){
-    showNoticeToast(`크레딧 프리셋은 최대 ${MAX_CREDIT_PRESETS}개까지 저장할 수 있습니다.`);
+    MosaicUI.feedback.notice(`크레딧 프리셋은 최대 ${MAX_CREDIT_PRESETS}개까지 저장할 수 있습니다.`);
     return;
   }
   const id = existing ? existing.id : `credit-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1456,7 +1413,7 @@ function saveCurrentCreditPreset(){
     : [...presets, { id, name, items, updatedAt:Date.now() }];
   if(!saveCreditPresets(next)) return;
   renderCreditPresetOptions(id);
-  showNoticeToast(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
+  MosaicUI.feedback.notice(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
 }
 
 function loadSelectedCreditPreset(){
@@ -1464,12 +1421,12 @@ function loadSelectedCreditPreset(){
   const presets = loadCreditPresets();
   const preset = presets && presets.find(item => item.id === id);
   if(!preset) return;
-  snapshotCards();
+  MosaicUI.cards.snapshot();
   setStoredCreditItems(preset.items, true);
   renderCreditItemsEditor();
   document.getElementById('creditPresetName').value = preset.name;
   syncCreditPresetControls();
-  showUndoToast(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
+  MosaicUI.feedback.undo(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
 }
 
 function deleteSelectedCreditPreset(){
@@ -1479,7 +1436,7 @@ function deleteSelectedCreditPreset(){
   if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
   if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
   renderCreditPresetOptions('');
-  showNoticeToast(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
+  MosaicUI.feedback.notice(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
 }
 
 const DETAIL_PRESET_KEY = 'mosaicDetailPresets_v1';
@@ -1490,7 +1447,7 @@ const DETAIL_PRESET_FIELDS = [
   'profileOuterBackground', 'profileItemGap', 'cardTitlePadding',
   'coverDividerLength', 'cardDividerLength', 'cardCornerRadius', 'cardTitleOrnamentOpacity', 'foldAutoNumberStyle',
   'profileTitleGap', 'coverCardGap', 'cardGap', 'unifiedBottomSpace', 'creditCardGap',
-  'cardInlinePadding', 'cardBodyTopSpace', 'cardBodyBottomSpace', 'headingTopSpace', 'headingBetweenSpace', 'headingBottomSpace',
+  'cardInlinePadding', 'cardBodyTopSpace', 'cardBodyBottomSpace', 'footerBodyGap', 'headingTopSpace', 'headingBetweenSpace', 'headingBottomSpace',
   'creditBorderOn', 'creditTransparentOn'
 ];
 
@@ -1513,11 +1470,11 @@ function sanitizeDetailPresetList(value){
 }
 
 function loadDetailPresets(){
-  return loadProtectedPresetList(DETAIL_PRESET_KEY, sanitizeDetailPresetList, MAX_DETAIL_PRESETS);
+  return MosaicStorage.loadProtectedPresetList(DETAIL_PRESET_KEY, sanitizeDetailPresetList, MAX_DETAIL_PRESETS);
 }
 
 function saveDetailPresets(presets){
-  return saveProtectedPresetList(DETAIL_PRESET_KEY, presets, sanitizeDetailPresetList, MAX_DETAIL_PRESETS, '세부 조정 프리셋');
+  return MosaicStorage.saveProtectedPresetList(DETAIL_PRESET_KEY, presets, sanitizeDetailPresetList, MAX_DETAIL_PRESETS, '세부 조정 프리셋');
 }
 
 function syncDetailPresetControls(){
@@ -1553,10 +1510,10 @@ function saveCurrentDetailPreset(){
   if(!name) return;
   const values = currentDetailPresetValues();
   const presets = loadDetailPresets();
-  if(presets === null){ showNoticeToast('세부 조정 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
+  if(presets === null){ MosaicUI.feedback.notice('세부 조정 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
   const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
   if(!existing && presets.length >= MAX_DETAIL_PRESETS){
-    showNoticeToast(`세부 조정 프리셋은 최대 ${MAX_DETAIL_PRESETS}개까지 저장할 수 있습니다.`);
+    MosaicUI.feedback.notice(`세부 조정 프리셋은 최대 ${MAX_DETAIL_PRESETS}개까지 저장할 수 있습니다.`);
     return;
   }
   const id = existing ? existing.id : `detail-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1565,7 +1522,7 @@ function saveCurrentDetailPreset(){
     : [...presets, { id, name, values, updatedAt:Date.now() }];
   if(!saveDetailPresets(next)) return;
   renderDetailPresetOptions(id);
-  showNoticeToast(existing ? `'${name}' 세부 조정 프리셋을 덮어썼습니다.` : `'${name}' 세부 조정 프리셋을 저장했습니다.`);
+  MosaicUI.feedback.notice(existing ? `'${name}' 세부 조정 프리셋을 덮어썼습니다.` : `'${name}' 세부 조정 프리셋을 저장했습니다.`);
 }
 
 function loadSelectedDetailPreset(){
@@ -1574,12 +1531,12 @@ function loadSelectedDetailPreset(){
   const preset = presets && presets.find(item => item.id === id);
   if(!preset) return;
   applyStyleValues({ ...currentStyleValues(), ...preset.values });
-  render();
+  MosaicUI.preview.render();
   saveDraft();
   commitStyleHistory(true);
   document.getElementById('detailPresetName').value = preset.name;
   syncDetailPresetControls();
-  openToast(`'${preset.name}' 세부 조정을 불러왔습니다.`, null, true);
+  MosaicUI.feedback.open(`'${preset.name}' 세부 조정을 불러왔습니다.`, null, true);
 }
 
 function deleteSelectedDetailPreset(){
@@ -1589,7 +1546,7 @@ function deleteSelectedDetailPreset(){
   if(!preset || !confirm(`'${preset.name}' 세부 조정 프리셋을 삭제하십시오.\n삭제 후 되돌릴 수 없습니다.`)) return;
   if(!saveDetailPresets(presets.filter(item => item.id !== id))) return;
   renderDetailPresetOptions('');
-  showNoticeToast(`'${preset.name}' 세부 조정 프리셋을 삭제했습니다.`);
+  MosaicUI.feedback.notice(`'${preset.name}' 세부 조정 프리셋을 삭제했습니다.`);
 }
 
 // Output settings reader lives in state.js. Keep output builders independent of input controls.
@@ -2059,7 +2016,8 @@ function profileDisplayRowAt(index, columns, rowLengths){
   };
 }
 
-function profileRowSeamFlagsAt(index, columns, rowLengths){
+// 모서리·사진 접합선 모두 동일한 3→2→1열 행을 기준으로 판단한다.
+function profileDisplayRows(columns, rowLengths){
   const rows = [];
   let start = 0;
   rowLengths.forEach(length => {
@@ -2070,6 +2028,10 @@ function profileRowSeamFlagsAt(index, columns, rowLengths){
     }
     start += length;
   });
+  return rows;
+}
+
+function profileRowSeamFlagsAt(index, columns, rowLengths, rows = profileDisplayRows(columns, rowLengths)){
   const rowIndex = rows.findIndex(row => row.includes(index));
   const row = rows[rowIndex] || [];
   const position = row.indexOf(index);
@@ -2330,6 +2292,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // 넓은 화면은 3 / 2+2 / 2+3을 따른다. DOM 행을 강제로 분리하지 않아
   // 중간 폭에서는 전체 인물이 2명씩 다시 흐르고, 안쪽 폭 500px 미만에서 한 명씩 놓인다.
   const rowLengths = profileRowLengths(profiles.length);
+  const displayRows = [1, 2, 3].map(columns => profileDisplayRows(columns, rowLengths));
   const rowForIndex = index => profileLogicalRowAt(index, rowLengths);
   const partialPortraitPhotoRows = showcase && !portraitPhotoBackgroundOnly
     && profiles.some((profile, profileIndex) => profile.image && profile.backgroundOn
@@ -2422,14 +2385,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // border-radius 값으로 합쳐질 수 있다. 구형 모바일 WebView에서는 그 값 전체가
   // 무효가 되므로, 보이는 사진·배경 요소에 vw 기반 모서리를 직접 둔다.
   const profileCornersAt = (index, columns) => {
-    const rows = [];
-    let start = 0;
-    rowLengths.forEach(length => {
-      for(let offset = 0; offset < length; offset += columns){
-        rows.push(Array.from({length:Math.min(columns, length - offset)}, (_, position) => start + offset + position));
-      }
-      start += length;
-    });
+    const rows = displayRows[columns - 1];
     const first = rows[0] || [];
     const last = rows[rows.length - 1] || [];
     return {
@@ -2473,14 +2429,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     if(!joinedCompactProfiles && !joinedMixedShowcase) return '';
     const hasPhotoBackground = profileIndex => Boolean(profiles[profileIndex].image && profiles[profileIndex].backgroundOn);
     const flagsAt = columns => {
-      const rows = [];
-      let start = 0;
-      rowLengths.forEach(length => {
-        for(let offset = 0; offset < length; offset += columns){
-          rows.push(Array.from({length:Math.min(columns, length - offset)}, (_, position) => start + offset + position));
-        }
-        start += length;
-      });
+      const rows = displayRows[columns - 1];
       const rowIndex = rows.findIndex(row => row.includes(index));
       const row = rows[rowIndex];
       const position = row.indexOf(index);
@@ -2598,7 +2547,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
       // 아래 사진이 나중에 칠해져도 선이 가려지지 않으며 사진 높이도 그대로다.
       // cqw가 없는 환경에서는 현재 카드 폭을 기준으로 계산한 선을 폴백으로 쓴다.
       const seamLayouts = [1, 2, 3].map(columns =>
-        profileRowSeamFlagsAt(profileIndex, columns, rowLengths)
+        profileRowSeamFlagsAt(profileIndex, columns, rowLengths, displayRows[columns - 1])
       );
       const rightSeam = responsiveProfileSeamWidth(
         seamLayouts.map(layout => layout.right), profileSeamFallbackWidth
@@ -2722,17 +2671,24 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
 }
 
 
+function footerSpacing(settings){
+  const number = Number(settings.footerBodyGap);
+  const extra = Number.isFinite(number) ? Math.max(-60, Math.min(80, number)) : 0;
+  const total = Math.max(0, Math.max(0, Math.round(28 * spacingMult(settings)) + cardBodyBottomSpacePx(settings)) + 14 + extra);
+  const paddingTop = Math.min(14, total);
+  return { marginTop:total - paddingTop, paddingTop };
+}
+
 function buildFooter(settings){
   if(!settings.footerOn) return '';
   // 도구 이름만 공식 페이지로 연결하고, 작성자 표기는 링크 밖에 둔다.
   // 게시판의 기본 링크색이 덮어쓰지 못하도록 링크와 내부 글자에 현재 꼬리말색을 직접 지정한다.
   const author = (settings.footerAuthor || '').trim();
   const pal = tonePalette(settings);
-  const sm = spacingMult(settings);
   // 꼬리말은 항상 낮은 위계의 미니멀 서명으로 출력한다.
   const footerColor = pal.footerText;
   // 선은 없애되 기존 여백은 유지해 본문과 너무 가까워지지 않게 한다.
-  const topPadding = 14;
+  const { marginTop, paddingTop:topPadding } = footerSpacing(settings);
   // 작은 꼬리말 크기 유지
   const footerFontSize = 10.5;
   // 모바일 Safari와 게시판의 링크 자동 확대가 상속 글자 크기를 따로 키우지 못하도록
@@ -2744,7 +2700,7 @@ function buildFooter(settings){
     ? toolText
     : `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
   const authorText = author ? ` <span style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
-  return `    <div data-mosaic-footer="true" style="margin-top:${Math.max(0, Math.round(28*sm) + cardBodyBottomSpacePx(settings))}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
+  return `    <div data-mosaic-footer="true" style="margin-top:${marginTop}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCreditLink(contentHTML, rawUrl, color){
@@ -3131,52 +3087,82 @@ function stripEditorOutputMetadata(html){
   return template.innerHTML;
 }
 
-function shouldRemoveImageTitleBodySeam({imageBackedTitle, nextIsBody, coverCardGap}){
-  return Boolean(imageBackedTitle && nextIsBody && coverCardGap === 0);
+function shouldRemoveImageTitleBodySeam({imageBackedTitle, nextExists, gap}){
+  return Boolean(imageBackedTitle && nextExists && gap === 0);
 }
 
-// 아카라이브는 비어 있는 div 경계에 게시판 기본선을 다시 입힐 수 있다.
-// 대표 이미지를 배경으로 쓴 표제와 첫 본문이 바로 맞닿을 때만 양쪽 경계를
-// 인라인 !important로 닫는다. 새 요소나 겹치기 문법을 추가하지 않는다.
-function removeImageTitleBodySeam(html, settings){
-  const template = document.createElement('template');
-  template.innerHTML = String(html || '');
-  const sections = Array.from(template.content.children).filter(section =>
-    !section.hidden && section.getAttribute('aria-hidden') !== 'true'
-  );
-  for(let index = 0; index < sections.length - 1; index++){
-    const title = sections[index];
-    const body = sections[index + 1];
-    if(!shouldRemoveImageTitleBodySeam({
-      imageBackedTitle:title.hasAttribute('data-mosaic-title')
-        && title.hasAttribute('data-mosaic-image-background'),
-      nextIsBody:body.hasAttribute('data-mosaic-card-index'),
-      coverCardGap:coverCardGapPx(settings)
-    })) continue;
-
-    title.style.setProperty('border-bottom', '0', 'important');
-    title.style.setProperty('border-bottom-width', '0', 'important');
-    title.style.setProperty('border-bottom-style', 'none', 'important');
-    title.style.setProperty('border-bottom-color', 'transparent', 'important');
-    title.style.setProperty('background-clip', 'border-box', 'important');
-    title.style.setProperty('outline', '0', 'important');
-    title.style.setProperty('box-shadow', 'none', 'important');
-    body.style.setProperty('border-top', '0', 'important');
-    body.style.setProperty('border-top-width', '0', 'important');
-    body.style.setProperty('border-top-style', 'none', 'important');
-    body.style.setProperty('border-top-color', 'transparent', 'important');
-    body.style.setProperty('outline', '0', 'important');
-    body.style.setProperty('box-shadow', 'none', 'important');
-    if(body.style.backgroundImage && !body.style.backgroundImage.includes('url(')){
-      body.style.setProperty('background-image', 'none', 'important');
-    }
-    Array.from(title.children).forEach(child => {
-      if(child.getAttribute('aria-hidden') !== 'true') return;
-      if(child.style.position === 'absolute' && child.style.bottom === '0px'
-        && (child.style.height === '1px' || child.style.height === '0.5px')) child.remove();
-    });
+function splitCssBackgroundLayers(value){
+  const layers = [];
+  let depth = 0, quote = '', start = 0;
+  for(let index = 0; index < value.length; index++){
+    const char = value[index];
+    if(quote){
+      if(char === '\\') index++;
+      else if(char === quote) quote = '';
+    }else if(char === '"' || char === "'") quote = char;
+    else if(char === '(') depth++;
+    else if(char === ')') depth--;
+    else if(char === ',' && depth === 0){ layers.push(value.slice(start, index).trim()); start = index + 1; }
   }
-  return template.innerHTML;
+  layers.push(value.slice(start).trim());
+  return layers;
+}
+
+function removeCoverEdgeBackgroundLine(element, edge){
+  const style = element.style;
+  const images = splitCssBackgroundLayers(style.backgroundImage || '');
+  const properties = ['background-size','background-position','background-repeat'];
+  const lists = properties.map(property => splitCssBackgroundLayers(style.getPropertyValue(property) || ''));
+  const keep = images.map((image, index) => {
+    const size = lists[0][index % lists[0].length];
+    const position = lists[1][index % lists[1].length];
+    return !(image.includes('linear-gradient') && !image.includes('url(')
+      && /(?:^|\s)(?:0?\.5|1|2)px$/.test(size) && position.includes(edge));
+  });
+  if(keep.every(Boolean)) return;
+  style.setProperty('background-image', images.filter((_, index) => keep[index]).join(', ') || 'none', 'important');
+  properties.forEach((property, propertyIndex) => {
+    const list = lists[propertyIndex];
+    style.setProperty(property, images.map((_, index) => list[index % list.length])
+      .filter((_, index) => keep[index]).join(', ') || (property === 'background-repeat' ? 'no-repeat' : 'auto'), 'important');
+  });
+}
+
+function clearCoverEdge(element, edge){
+  element.style.setProperty(`border-${edge}`, '0', 'important');
+  element.style.setProperty(`border-${edge}-width`, '0', 'important');
+  element.style.setProperty(`border-${edge}-style`, 'none', 'important');
+  element.style.setProperty(`border-${edge}-color`, 'transparent', 'important');
+  element.style.setProperty('outline', '0', 'important');
+  element.style.setProperty('box-shadow', 'none', 'important');
+  removeCoverEdgeBackgroundLine(element, edge);
+}
+
+// 이웃한 두 영역의 사진 접합 규칙은 여기서 한 번 결정한다.
+function resolveCoverProfileBoundary(first, second, settings){
+  const isProfile = section => section.hasAttribute('data-mosaic-profile');
+  const isPhotoCover = section => section.hasAttribute('data-mosaic-cover-image')
+    || (section.hasAttribute('data-mosaic-title') && section.hasAttribute('data-mosaic-image-background'));
+  const profileFirst = isProfile(first) && isPhotoCover(second);
+  const photoFirst = isPhotoCover(first) && isProfile(second);
+  // 일반 사진/단색/공통 설명은 사진 접합면이 아니다. 프로필 끝까지 배경사진이
+  // 채워진 경우에만 사진끼리 닿는 선을 만든다. 사진 표제의 아래는 계속 선 없이 잇는다.
+  const profileHasPhotoEdge = (profileFirst ? first : second).hasAttribute('data-mosaic-photo-profile');
+  const joinPhoto = profileHasPhotoEdge && (profileFirst
+    ? normalizeCardLayout(settings.cardLayout) === 'unified' || profileTitleGapPx(settings) === -20
+    : photoFirst && !first.hasAttribute('data-mosaic-title'));
+  const nextIsBody = second.hasAttribute('data-mosaic-card-index') || second.hasAttribute('data-mosaic-comment-index');
+  const gap = Math.max(0, Number.parseFloat(first.style.marginBottom) || 0)
+    + Math.max(0, Number.parseFloat(second.style.marginTop) || 0)
+    + (nextIsBody ? coverCardGapPx(settings) : 0);
+  return {
+    photo:joinPhoto ? (profileFirst ? second : first) : null,
+    photoEdge:profileFirst ? 'top' : 'bottom',
+    removeImageSeam:shouldRemoveImageTitleBodySeam({
+      imageBackedTitle:first.hasAttribute('data-mosaic-title') && first.hasAttribute('data-mosaic-image-background'),
+      nextExists:true, gap
+    })
+  };
 }
 
 // 색상만 호스트 문서에 맡긴다. 타이포그래피 잠금과 이미지/레이아웃은 유지한다.
@@ -3377,16 +3363,14 @@ function specialThemeOutput(html, mode, settings){
   return template.innerHTML;
 }
 
-// 사진 면에 닿는 기존 외곽선의 색만 접합선과 같은 반투명색으로 맞춘다.
-// 아카라이브는 position:absolute를 제거할 수 있으므로 별도 선 요소를 만들지 않고,
-// 프로필과 사진 면이 맞닿는 실제 변의 인라인 border를 직접 확정한다.
-function addProfilePhotoJoinLines(html, settings){
+// 테마 처리 뒤 한 단계에서 사진·프로필 접합선을 확정한다.
+// 사진 표지의 아래는 선 없이 잇고, 나머지 사진 접합선은 기존 인라인 border를 유지한다.
+function finalizeCoverProfileBoundaries(html, settings){
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
   const sections = Array.from(template.content.children).filter(section =>
     !section.hidden && section.getAttribute('aria-hidden') !== 'true'
   );
-  const isProfile = section => section.hasAttribute('data-mosaic-profile');
   const isPhotoCover = section => section.hasAttribute('data-mosaic-cover-image')
     || (section.hasAttribute('data-mosaic-title') && section.hasAttribute('data-mosaic-image-background'));
   const photoEdgeColor = 'rgba(128,128,128,.22)';
@@ -3409,28 +3393,43 @@ function addProfilePhotoJoinLines(html, settings){
       }
     });
   });
-  const unified = normalizeCardLayout(settings.cardLayout) === 'unified';
-  for(let index = 0; index < sections.length - 1; index++){
-    const first = sections[index];
+  const boundaries = sections.slice(0, -1).map((first, index) =>
+    resolveCoverProfileBoundary(first, sections[index + 1], settings)
+  );
+  boundaries.forEach(({ photo, photoEdge:edge }, index) => {
     const second = sections[index + 1];
-    const profileFirst = isProfile(first) && isPhotoCover(second);
-    const photoFirst = isPhotoCover(first) && isProfile(second);
-    if(!profileFirst && !photoFirst) continue;
-    // 최상단 프로필과 뒤따르는 표지는 -20px일 때만 붙는다.
-    if(profileFirst && !unified && profileTitleGapPx(settings) !== -20) continue;
-    const photo = profileFirst ? second : first;
-    if(photoFirst){
+    if(photo && edge === 'bottom'){
       // 일반 표제의 기존 위쪽 구분선과 중복되지 않게 새 사진 선으로 교체한다.
       second.style.setProperty('border-top', '0');
       if(second.style.backgroundImage.includes('linear-gradient')
         && !second.style.backgroundImage.includes('url(')) second.style.removeProperty('background-image');
     }
-    const edge = profileFirst ? 'top' : 'bottom';
-    photo.style.setProperty(`border-${edge}`, `1px solid ${photoEdgeColor}`, 'important');
-    photo.style.setProperty(`border-${edge}-width`, '1px', 'important');
-    photo.style.setProperty(`border-${edge}-style`, 'solid', 'important');
-    photo.style.setProperty(`border-${edge}-color`, photoEdgeColor, 'important');
-  }
+    if(photo){
+      photo.style.setProperty(`border-${edge}`, `1px solid ${photoEdgeColor}`, 'important');
+      photo.style.setProperty(`border-${edge}-width`, '1px', 'important');
+      photo.style.setProperty(`border-${edge}-style`, 'solid', 'important');
+      photo.style.setProperty(`border-${edge}-color`, photoEdgeColor, 'important');
+    }
+  });
+  // CSS 축약형·!important의 기존 직렬화 결과를 유지한다. 판단은 다시 하지 않는다.
+  template.innerHTML = template.innerHTML;
+  const finalSections = Array.from(template.content.children).filter(section =>
+    !section.hidden && section.getAttribute('aria-hidden') !== 'true'
+  );
+  boundaries.forEach(({ removeImageSeam }, index) => {
+    if(!removeImageSeam) return;
+    const title = finalSections[index], body = finalSections[index + 1];
+    clearCoverEdge(title, 'bottom');
+    title.style.setProperty('background-clip', 'border-box', 'important');
+    clearCoverEdge(body, 'top');
+    const heading = body.querySelector(':scope > summary, :scope > [data-mosaic-card-title="true"]');
+    if(heading) clearCoverEdge(heading, 'top');
+    Array.from(title.children).forEach(child => {
+      if(child.getAttribute('aria-hidden') !== 'true') return;
+      if(child.style.position === 'absolute' && child.style.bottom === '0px'
+        && (child.style.height === '1px' || child.style.height === '0.5px')) child.remove();
+    });
+  });
   return template.innerHTML;
 }
 
@@ -3675,6 +3674,51 @@ ${bodyHTML}${footer}  </div>
   const themedOutput = outputThemeTransparent(settings.outputTheme)
     ? transparentOutput(shapedOutput, settings)
     : shapedOutput;
-  const joinedOutput = addProfilePhotoJoinLines(themedOutput, settings);
-  return removeImageTitleBodySeam(joinedOutput, settings);
+  return finalizeCoverProfileBoundaries(themedOutput, settings);
 }
+
+// 편집 UI가 출력 구현의 내부 전역을 하나씩 붙잡지 않도록 공개 경계를 고정한다.
+const MosaicRenderer = Object.freeze({
+  MOD_KEY,
+  addCreditItem,
+  assembleBody,
+  buildCard,
+  buildParagraph,
+  combineSoftBreakPair,
+  commentParagraphEntries,
+  composeOutputTheme,
+  creditItemsFromEditor,
+  deleteSelectedCreditPreset,
+  deleteSelectedDetailPreset,
+  expandDialogueLinesForOutput,
+  findChar,
+  formatStatusContent,
+  generateHTML,
+  isStatusBodyLine,
+  isStructuralBodyLine,
+  loadSelectedCreditPreset,
+  loadSelectedDetailPreset,
+  loadSelectedWebFont,
+  normalizeCardLayout,
+  normalizeCreditPlacement,
+  outputThemeShape,
+  outputThemeTransparent,
+  parseBodyHeading,
+  parseBodyImageLine,
+  profileItemGapBasePx,
+  renderCreditItemsEditor,
+  renderCreditPresetOptions,
+  renderDetailPresetOptions,
+  saveCurrentCreditPreset,
+  saveCurrentDetailPreset,
+  setStoredCreditItems,
+  splitDialogueLineForOutput,
+  statusLineContent,
+  storedCreditItems,
+  stripEditorOutputMetadata,
+  syncCardLayoutCheckbox,
+  syncCreditPresetControls,
+  syncDetailPresetControls,
+  syncHiddenEditorCollapse,
+  syncSoftBreakSpacingControl
+});

@@ -2,6 +2,30 @@
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
 const APP_VERSION = '1.8.2';
 
+// 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
+// UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
+function normalizeProtocolRelativeUrl(value){
+  const url = String(value || '').trim();
+  return url.startsWith('//') ? 'https:' + url : url;
+}
+
+function normalizeHex(raw){
+  let value = String(raw || '').trim();
+  if(!value.startsWith('#')) value = '#' + value;
+  if(/^#[0-9A-Fa-f]{3}$/.test(value)){
+    value = '#' + value[1] + value[1] + value[2] + value[2] + value[3] + value[3];
+  }
+  return /^#[0-9A-Fa-f]{6}$/.test(value) ? value.toLowerCase() : null;
+}
+
+function normalizeCommentWidth(value){
+  return ['default','card'].includes(value) ? value : 'default';
+}
+
+function normalizeCommentAlign(value){
+  return ['left','center'].includes(value) ? value : 'left';
+}
+
 const EXTRA_PROFILE_SLOTS = [3, 4, 5];
 const extraProfilePrefix = slot => `profileExtra${slot}`;
 const profileEntityKeys = extraCount => [
@@ -77,7 +101,7 @@ const WORK_BOOLEAN_DEFAULTS = Object.freeze({
 
 const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 
-const STYLE_FIELDS = ['outputTheme','textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','narrDialogueGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','advancedOn','hrShape','hrOpacity','hrLength','hrVerticalSpace','hr2Shape','hr2Opacity','hr2VerticalSpace','hr3Shape','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileOuterBackground','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','foldAutoNumberStyle','coverDividerLength','cardTitlePadding','cardDividerLength','creditBorderOn','creditTransparentOn','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
+const STYLE_FIELDS = ['outputTheme','textFont','narrSize','narrLine','narrColor','dlgStyle','dlgSize','dlgLine','paragraphGap','narrDialogueGap','softBreakSpacing','titleSize','titleBold','foldTitleSize','foldTitleBold','foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber','charColor','userColor','emphasisColor','cardLayout','spacingMode','cardWidth','cardBorderOn','bgColor','advancedOn','hrShape','hrOpacity','hrLength','hrVerticalSpace','hr2Shape','hr2Opacity','hr2VerticalSpace','hr3Shape','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileOuterBackground','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','footerBodyGap','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','foldAutoNumberStyle','coverDividerLength','cardTitlePadding','cardDividerLength','creditBorderOn','creditTransparentOn','narrIndent','narrCenter','headingCenter','dialogueCenter','quoteCenter','bodyFoldTitleCenter','commentWidth','commentAlign','parallelTranslationLayout','charSpeakerOn','userSpeakerOn'];
 
 const DEFAULT_STYLE = Object.freeze({
   textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
@@ -87,6 +111,7 @@ const DEFAULT_STYLE = Object.freeze({
   outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff',
   advancedOn:true, hrShape:'solid', hrOpacity:'50', hrLength:'100', hrVerticalSpace:'26', hr2Shape:'star', hr2Opacity:'50', hr2VerticalSpace:'48', hr3Shape:'dots', hr3Opacity:'50', hr3VerticalSpace:'36', gapHeight:'48', coverVerticalSpace:'0',
   profileOuterBackground:'filled', profileItemGap:'0', profileTitleGap:'0', coverCardGap:'0', cardGap:'20', unifiedBottomSpace:'0', creditWidth:'380', creditCardGap:'40', cardInlinePadding:'22', cardBodyTopSpace:'0', cardBodyBottomSpace:'0', headingTopSpace:'0', headingBetweenSpace:'0', headingBottomSpace:'0', cardCornerRadius:'16', cardTitleOrnamentOpacity:'50', foldAutoNumberStyle:'arabic', coverDividerLength:'100', cardTitlePadding:'26', cardDividerLength:'100', creditBorderOn:false, creditTransparentOn:false,
+  footerBodyGap:'0',
   narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 });
 
@@ -254,6 +279,7 @@ function getSettings(){
     cardInlinePadding: advancedOn ? document.getElementById('cardInlinePadding').value : '22',
     cardBodyTopSpace: advancedOn ? document.getElementById('cardBodyTopSpace').value : '0',
     cardBodyBottomSpace: advancedOn ? document.getElementById('cardBodyBottomSpace').value : '0',
+    footerBodyGap: advancedOn ? document.getElementById('footerBodyGap').value : '0',
     headingTopSpace: advancedOn ? document.getElementById('headingTopSpace').value : '0',
     headingBetweenSpace: advancedOn ? document.getElementById('headingBetweenSpace').value : '0',
     headingBottomSpace: advancedOn ? document.getElementById('headingBottomSpace').value : '0',
@@ -277,3 +303,26 @@ function getSettings(){
     commentAlign: normalizeCommentAlign(document.getElementById('commentAlign').value),
   };
 }
+
+// 다른 런타임 파일은 흩어진 전역 이름 대신 이 책임 경계를 통해 상태 스키마를 쓴다.
+const MosaicState = Object.freeze({
+  APP_VERSION,
+  EXTRA_PROFILE_SLOTS,
+  STYLE_FIELDS,
+  WORK_BOOLEAN_DEFAULTS,
+  WORK_BOOLEAN_FIELDS,
+  WORK_FIELDS,
+  WORK_FIELD_DEFAULTS,
+  collectWorkState,
+  extraProfileFields,
+  extraProfilePrefix,
+  getSettings,
+  moveProfileEntityOrder,
+  normalizeCommentAlign,
+  normalizeCommentWidth,
+  normalizeHex,
+  normalizeProfileEntityOrder,
+  normalizeProtocolRelativeUrl,
+  savedProfileImageBackgroundOn,
+  settingFlagOn
+});

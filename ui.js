@@ -1,57 +1,131 @@
 // 조각로그 v1.8.2 미리보기·편집 UI 모듈.
 
+// 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
+// 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
+const uiElements = Object.freeze({
+  preview:document.getElementById('preview'),
+  previewArea:document.getElementById('previewArea'),
+  cardEditors:document.getElementById('cardEditors')
+});
+
 // 조각로그 v1.8.2 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
-  const previewHTML = buildCard(settings, cards);
-  const html = generateHTML(false, previewHTML);
+  const previewHTML = MosaicRenderer.buildCard(settings, cards);
+  const html = MosaicRenderer.generateHTML(false, previewHTML);
   document.getElementById('codeBox').value = html;
   renderPreview(previewHTML);
-  renderCurrentThemePalette();
+  syncUIControlsWhenChanged('palette', () => uiControlValues([
+    'narrColor','charColor','userColor','emphasisColor','bgColor','dlgStyle'
+  ]), MosaicStorage.renderCurrentThemePalette);
 }
 
+const previewPositionState = {
+  syncingCharacters:false,
+  pendingFocus:null,
+  pendingFallbackScrollTop:null,
+  fullscreenScrollTop:0,
+  toolbarSyncFrame:null
+};
+
 function schedulePreviewFocusAfterRender(){
-  if(pendingPreviewFocus && positionSyncEnabled()){
-    const getter = pendingPreviewFocus;
-    const fallbackScrollTop = pendingPreviewFallbackScrollTop;
-    pendingPreviewFocus = null;
-    pendingPreviewFallbackScrollTop = null;
+  if(previewPositionState.pendingFocus && positionSyncEnabled()){
+    const getter = previewPositionState.pendingFocus;
+    const fallbackScrollTop = previewPositionState.pendingFallbackScrollTop;
+    previewPositionState.pendingFocus = null;
+    previewPositionState.pendingFallbackScrollTop = null;
     requestAnimationFrame(() => {
       if(!positionSyncEnabled()) return;
       try {
         const target = getter();
         if(target) scrollPreviewIfNeeded(target);
-        else if(Number.isFinite(fallbackScrollTop)) document.getElementById('previewArea').scrollTop = fallbackScrollTop;
+        else if(Number.isFinite(fallbackScrollTop)) uiElements.previewArea.scrollTop = fallbackScrollTop;
       } catch(e){ /* 위치 대상이 사라졌으면 현재 위치를 유지한다. */ }
     });
   } else if(!positionSyncEnabled()){
-    pendingPreviewFocus = null;
-    pendingPreviewFallbackScrollTop = null;
+    previewPositionState.pendingFocus = null;
+    previewPositionState.pendingFallbackScrollTop = null;
   }
 }
 
-let renderFrame = 0;
+const previewRenderState = {
+  frame:0,
+  revision:0,
+  sourceHTML:'',
+  countPending:false,
+  beforeFrame:null
+};
 function performRender(){
-  previewRenderRevision += 1;
-  syncRenderInputs();
-  renderOutputViews(getSettings(), getCards());
+  previewRenderState.revision += 1;
+  const cards = getCards();
+  syncRenderInputs(cards);
+  const settings = MosaicState.getSettings();
+  renderOutputViews(settings, cards);
+  if(previewRenderState.countPending){
+    previewRenderState.countPending = false;
+    uiUpdateEffects.refreshCount(cards, settings);
+  }
   schedulePreviewFocusAfterRender();
 }
 
 function render(){
-  if(renderFrame){
-    cancelAnimationFrame(renderFrame);
-    renderFrame = 0;
+  if(previewRenderState.frame){
+    cancelAnimationFrame(previewRenderState.frame);
+    previewRenderState.frame = 0;
   }
+  previewRenderState.beforeFrame = null;
   performRender();
 }
 
-function scheduleRender(){
-  if(renderFrame) return;
-  renderFrame = requestAnimationFrame(() => {
-    renderFrame = 0;
+function scheduleRender(beforeFrame = null){
+  // 일반 입력은 조건 없이 갱신한다. 이미지 전용 예약만 실행 직전에 편집 상태를
+  // 다시 확인한다. 이미 예약된 일반 입력을 이미지 검사 조건으로 막지 않는다.
+  if(!beforeFrame) previewRenderState.beforeFrame = null;
+  else if(!previewRenderState.frame) previewRenderState.beforeFrame = beforeFrame;
+  if(previewRenderState.frame) return;
+  previewRenderState.frame = requestAnimationFrame(() => {
+    previewRenderState.frame = 0;
+    const check = previewRenderState.beforeFrame;
+    previewRenderState.beforeFrame = null;
+    if(check && check() === false) return;
     performRender();
   });
 }
+
+// 화면 변경이 일으키는 렌더·카운터·초안 저장의 즉시/지연 순서를 한곳에서
+// 관리한다. 각 기능은 의도에 맞는 이름을 골라 호출하고 저장 시점을 재조립하지 않는다.
+const uiUpdateEffects = Object.freeze({
+  renderNow(){ render(); },
+  renderLater(beforeFrame){ scheduleRender(beforeFrame); },
+  refreshCount(cards, settings){ MosaicApp.updateCounter(cards, settings); },
+  saveNow(){ MosaicStorage.saveDraft(); },
+  saveLater(){ MosaicStorage.scheduleDraftSave(); },
+  renderCountLater(beforeFrame){
+    previewRenderState.countPending = true;
+    uiUpdateEffects.renderLater(beforeFrame);
+  },
+  liveInput(){
+    uiUpdateEffects.renderCountLater();
+    uiUpdateEffects.saveLater();
+  },
+  controlChange(){
+    previewRenderState.countPending = true;
+    uiUpdateEffects.renderNow();
+    uiUpdateEffects.saveLater();
+  },
+  committedChange(){
+    previewRenderState.countPending = true;
+    uiUpdateEffects.renderNow();
+    uiUpdateEffects.saveNow();
+  },
+  renderedDraftChange(){
+    uiUpdateEffects.renderNow();
+    uiUpdateEffects.saveLater();
+  },
+  renderedSavedChange(){
+    uiUpdateEffects.renderNow();
+    uiUpdateEffects.saveNow();
+  }
+});
 
 // 조각로그 v1.8.2 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
@@ -66,27 +140,37 @@ function syncSidebarFieldActive(){
   }
 }
 
-document.addEventListener('focusin', syncSidebarFieldActive);
-document.addEventListener('focusout', () => requestAnimationFrame(syncSidebarFieldActive));
+function bindGlobalUIEvents(){
+  bindUIFeatureEvents('global', () => {
+    document.addEventListener('focusin', syncSidebarFieldActive);
+    document.addEventListener('focusout', () => requestAnimationFrame(syncSidebarFieldActive));
 
-window.addEventListener('error', event => {
-  const bar = document.getElementById('errorBar');
-  if(!bar) return;
-  bar.style.display = 'block';
-  bar.textContent = '⚠ 오류: ' + event.message + ' — 이 메시지를 캡처해 개발자에게 전달.';
-});
+    window.addEventListener('error', event => {
+      const bar = document.getElementById('errorBar');
+      if(!bar) return;
+      bar.style.display = 'block';
+      bar.textContent = '⚠ 오류: ' + event.message + ' — 이 메시지를 캡처해 개발자에게 전달.';
+    });
 
-window.addEventListener('unhandledrejection', event => {
-  const bar = document.getElementById('errorBar');
-  if(!bar) return;
-  const message = event.reason && event.reason.message
-    ? event.reason.message
-    : String(event.reason || '알 수 없는 비동기 오류');
-  bar.style.display = 'block';
-  bar.textContent = '⚠ 오류: ' + message + ' — 이 메시지를 캡처해 개발자에게 전달.';
-});
+    window.addEventListener('unhandledrejection', event => {
+      const bar = document.getElementById('errorBar');
+      if(!bar) return;
+      const message = event.reason && event.reason.message
+        ? event.reason.message
+        : String(event.reason || '알 수 없는 비동기 오류');
+      bar.style.display = 'block';
+      bar.textContent = '⚠ 오류: ' + message + ' — 이 메시지를 캡처해 개발자에게 전달.';
+    });
+  });
+}
 
-let dragState = null;  // 블록 드래그 상태 (선택 서식과 공유)
+const previewEditState = {
+  drag:null,
+  selection:null,
+  block:null,
+  ready:false,
+  committing:false
+};
 
 // ---------- 미리보기에서 선택해 서식 적용 ----------
 // 미리보기 글자를 드래그하면 작은 도구막대가 뜨고, 굵게/강조를 본문에 바로 적용함.
@@ -100,24 +184,7 @@ const FMT_RE = {
   emphasis: /\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)/g
 };
 const CENTER_RE = /^(>\s?)?\[C\]\s*/i;   // 줄 맨 앞 또는 인용 뒤의 [C]
-let selCtx = null;
-let blockCtx = null;
-let previewDirectEditReady = false;
-let previewDirectEditCommitting = false;
 const previewDirectEditDescriptors = new WeakMap();
-let previewRenderRevision = 0;
-let deferredImageStatusEditor = null;
-
-// 문자열에서 인라인 마커를 걷어내 순수 글자만 남김 (비교용)
-function stripMarkers(s){
-  return s.replace(/__|\*/g, '');
-}
-
-function formatMatchContent(fmt, match){
-  // ***글***에서 강조만 해제할 때 굵기는 남겨 **글**로 되돌린다.
-  if(fmt === 'emphasis' && match[0].startsWith('***')) return `**${match[1]}**`;
-  return match[1] !== undefined ? match[1] : match[2];
-}
 
 function maskInlineFormatMarkers(value, mask){
   const normalized = String(value);
@@ -135,11 +202,11 @@ function maskInlineFormatMarkers(value, mask){
   });
 }
 
-// buildParagraph/assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
+// MosaicRenderer.buildParagraph/MosaicRenderer.assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
 // 원문 인덱스를 유지한 채 기록하고, 제목·인용문 안의 화자처럼 보이는 글자는 그대로 둔다.
 function sourceProjectionMeta(line){
-  const normalized = normalizeQuotes(String(line));
-  const currentSettings = getSettings();
+  const normalized = MosaicParser.normalizeQuotes(String(line));
+  const currentSettings = MosaicState.getSettings();
   const hidden = [];
   const hide = (start, end) => {
     if(end > start) hidden.push([Math.max(0, start), Math.min(normalized.length, end)]);
@@ -169,7 +236,7 @@ function sourceProjectionMeta(line){
     const titlePrefix = rest.match(/^(?:\[C\]\s*)?\[접기\s+/i);
     const titleAt = titlePrefix ? titlePrefix[0].length : rest.indexOf(fold[1]);
     const visibleTitle = fold[1].trim();
-    const heading = parseBodyHeading(visibleTitle);
+    const heading = MosaicRenderer.parseBodyHeading(visibleTitle);
     const headingPrefixLength = heading ? visibleTitle.match(/^#{1,4}\s+/)[0].length : 0;
     hide(offset, offset + titleAt + headingPrefixLength);
     hide(offset + titleAt + visibleTitle.length, normalized.length);
@@ -185,7 +252,7 @@ function sourceProjectionMeta(line){
   }
 
   // 상태창은 출력에서 바깥 대괄호와 그 안쪽 여백만 숨긴다.
-  const statusText = statusLineContent(rest);
+  const statusText = MosaicRenderer.statusLineContent(rest);
   if(statusText !== null){
     const textAt = rest.indexOf(statusText);
     hide(offset, offset + textAt);
@@ -194,7 +261,7 @@ function sourceProjectionMeta(line){
   }
 
   // 공통 파서의 원문 범위로 캡션만 남긴다. 주소 안의 동일한 글자는 숨긴다.
-  const image = parseBodyImageLine(normalized);
+  const image = MosaicRenderer.parseBodyImageLine(normalized);
   if(image){
     if(image.captionStart === null){
       hide(offset, normalized.length);
@@ -242,7 +309,7 @@ function sourceProjectionMeta(line){
     offset += fixedSpeaker[0].length;
   } else {
     const named = rest.match(/^\[([^\[\]\n]{1,24})\]\s*(?=["“‘'])/);
-    if(named && findChar(currentSettings, named[1])){
+    if(named && MosaicRenderer.findChar(currentSettings, named[1])){
       hide(offset, offset + named[0].length);
       offset += named[0].length;
     }
@@ -268,10 +335,10 @@ function lineSearchProjection(line){
   let m;
   // 일반 문단 중간의 화자 마커만 화면에서 사라진다. 제목·인용문에서는 글자 그대로다.
   if(meta.maskInlineSpeakers){
-    const settings = getSettings();
+    const settings = MosaicState.getSettings();
     const speakerRe = /(>>|<<|\[([^\[\]\n]{1,24})\])\s*(?=["“‘'])/g;
     while((m = speakerRe.exec(normalized)) !== null){
-      const known = m[1] === '>>' || m[1] === '<<' || !!findChar(settings, m[2]);
+      const known = m[1] === '>>' || m[1] === '<<' || !!MosaicRenderer.findChar(settings, m[2]);
       if(known) mask(m.index, m.index + m[0].length);
     }
   }
@@ -290,7 +357,7 @@ function sourceDisplayProjectionMap(line){
   for(let i = 0; i < projection.length; i++){
     if(projection[i] !== '\u0000') items.push({ char:projection[i], raw:i });
   }
-  if(!isStatusBodyLine(line)){
+  if(!MosaicRenderer.isStatusBodyLine(line)){
     return { text:items.map(item => item.char).join(''), map:items.map(item => item.raw) };
   }
 
@@ -329,7 +396,7 @@ function findSourceRange(line, text, occurrence, caseInsensitive){
 function findAllSourceRanges(line, text, caseInsensitive){
   if(!text) return [];
   const display = sourceDisplayProjectionMap(line);
-  const normalizedText = normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
+  const normalizedText = MosaicParser.normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
   if(!normalizedText) return [];
   const hay = caseInsensitive ? display.text.toLowerCase() : display.text;
   const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
@@ -387,20 +454,20 @@ function replaceSourceRange(line, sourceRange, replacement){
 }
 
 function comparableFormattedText(value){
-  return formatStatusContent(stripMarkers(normalizeQuotes(String(value)))).trim();
+  return MosaicRenderer.formatStatusContent(MosaicParser.stripMarkers(MosaicParser.normalizeQuotes(String(value)))).trim();
 }
 
 function hideSelToolbar(){
   const bar = document.getElementById('selToolbar');
   bar.style.display = 'none';
   bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-  selCtx = null;
+  previewEditState.selection = null;
 }
 
 function hideBlockToolbar(){
   const bar = document.getElementById('blockToolbar');
   bar.style.display = 'none';
-  blockCtx = null;
+  previewEditState.block = null;
 }
 
 function showBlockToolbar(ctx){
@@ -410,7 +477,7 @@ function showBlockToolbar(ctx){
   const active = document.activeElement;
   if(active && active.closest && active.closest('#sidebar')) active.blur();
   document.body.classList.remove('sidebarFieldActive');
-  blockCtx = ctx;
+  previewEditState.block = ctx;
   const bar = document.getElementById('blockToolbar');
   const isImage = ctx.type === 'img';
   const isHeading = ctx.type === 'heading';
@@ -511,7 +578,7 @@ function buildBodyImageLine(parsed, width, caption){
 function editBodyImageText(text, raw, action){
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
-  const parsed = parseBodyImageLine(lines[raw]);
+  const parsed = MosaicRenderer.parseBodyImageLine(lines[raw]);
   if(!parsed) return null;
 
   if(action === 'delete'){
@@ -543,27 +610,29 @@ function editBodyImageText(text, raw, action){
 }
 
 function finishBlockToolbarAction(action){
-  if(!blockCtx) return;
-  const { ta, raw, type } = blockCtx;
+  if(!previewEditState.block) return;
+  const { ta, raw, type } = previewEditState.block;
   const result = type === 'heading'
     ? editHeadingLevelText(ta.value, raw, action)
     : (type === 'img'
         ? editBodyImageText(ta.value, raw, action)
         : editSeparatorText(ta.value, raw, type, action));
   if(!result){ hideBlockToolbar(); return; }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   ta.value = result.text;
   hideBlockToolbar();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(result.message);
 }
 
-document.querySelectorAll('#blockToolbar button').forEach(btn => {
-  btn.addEventListener('mousedown', e => e.preventDefault());
-  btn.addEventListener('click', () => finishBlockToolbarAction(btn.dataset.blockAction));
-});
+function bindBlockToolbarEvents(){
+  bindUIFeatureEvents('block-toolbar', () => {
+    document.querySelectorAll('#blockToolbar button').forEach(btn => {
+      btn.addEventListener('mousedown', e => e.preventDefault());
+      btn.addEventListener('click', () => finishBlockToolbarAction(btn.dataset.blockAction));
+    });
+  });
+}
 
 // 선택 영역을 감싸고 있는 서식 태그(<strong>/<em>)를 블록 안에서 찾음
 function activeFormatEl(node, tagName, block){
@@ -576,9 +645,9 @@ function activeFormatEl(node, tagName, block){
 }
 
 function previewCardContexts(){
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
-  // 출력 순서를 추측하지 않고 buildCard가 기록한 원래 카드 번호로 직접 연결한다.
+  // 출력 순서를 추측하지 않고 MosaicRenderer.buildCard가 기록한 원래 카드 번호로 직접 연결한다.
   // 빈 카드·접기·카드 제목이 중간에 섞여도 다른 카드 textarea로 밀리지 않는다.
   return Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]')).map(cardEl => {
     const sourceIndex = Number(cardEl.dataset.mosaicCardIndex);
@@ -593,7 +662,7 @@ function previewCardContexts(){
 }
 
 function previewCommentContexts(){
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
   return Array.from(preview.querySelectorAll(':scope > [data-mosaic-comment-index]')).map(commentEl => {
     const sourceIndex = Number(commentEl.dataset.mosaicCommentIndex);
@@ -610,7 +679,7 @@ function previewCommentContexts(){
 
 // 코멘트의 [BR] 연결 구간은 미리보기에서 하나의 <p>가 되므로 같은 원문 범위와 연결한다.
 function commentDisplayEntries(ta){
-  return commentParagraphEntries(ta.value);
+  return MosaicRenderer.commentParagraphEntries(ta.value);
 }
 
 function previewCardBody(cardEl){
@@ -639,7 +708,7 @@ function previewSourceBlocks(cardEl){
 // 제목 없는 수동 접기는 기본 제목이 생성되므로 정렬용 항목은 남기되 직접 편집은 막는다.
 function sourceDisplayEntries(ta){
   const result = [];
-  const settings = getSettings();
+  const settings = MosaicState.getSettings();
   const sourceLines = ta.value.split('\n');
   for(let raw = 0; raw < sourceLines.length; raw++){
     let line = sourceLines[raw];
@@ -657,16 +726,16 @@ function sourceDisplayEntries(ta){
     while(/\[BR\]\s*$/i.test(combinedLine) && rawEnd + 1 < sourceLines.length){
       const left = combinedLine.replace(/\[BR\]\s*$/i, '');
       const right = sourceLines[rawEnd + 1];
-      const joined = combineSoftBreakPair(left, right);
+      const joined = MosaicRenderer.combineSoftBreakPair(left, right);
       if(joined === null) break;
       combinedLine = joined;
       rawEnd++;
     }
     if(rawEnd > raw){
-      const renderLines = expandDialogueLinesForOutput([combinedLine], settings);
+      const renderLines = MosaicRenderer.expandDialogueLinesForOutput([combinedLine], settings);
       renderLines.forEach(renderLine => {
         const projection = sourceDisplayProjectionMap(renderLine).text
-          .split(SOFT_BREAK_TOKEN).join('\n').trim();
+          .split(MosaicParser.SOFT_BREAK_TOKEN).join('\n').trim();
         if(!projection) return;
         result.push({
           raw,
@@ -686,7 +755,7 @@ function sourceDisplayEntries(ta){
     // 대사 옵션 3–5는 한 원문 줄 안의 서술과 대사를 여러 출력 문단으로 나눈다.
     // 미리보기 편집 연결도 같은 분할 결과를 사용해야 HR 등 구조 요소 뒤에서
     // 문단 인덱스가 밀리지 않는다.
-    const renderLines = expandDialogueLinesForOutput([line], settings);
+    const renderLines = MosaicRenderer.expandDialogueLinesForOutput([line], settings);
     let sourceCursor = 0;
     renderLines.forEach(renderLine => {
       const projection = sourceDisplayProjectionMap(renderLine).text.trim();
@@ -738,7 +807,7 @@ function findBlockSource(node){
 // 출력 HTML 문자열에는 편집 속성을 넣지 않고, 미리보기 DOM을 그린 뒤에만 연결한다.
 // 따라서 복사·다운로드되는 HTML에는 contenteditable이나 연결 정보가 섞이지 않는다.
 function inlineEditProjection(value){
-  const normalized = normalizeQuotes(String(value));
+  const normalized = MosaicParser.normalizeQuotes(String(value));
   const chars = normalized.split('');
   const mask = (start, end) => {
     for(let i = start; i < end && i < chars.length; i++) chars[i] = '\u0000';
@@ -759,7 +828,7 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preser
     oldVisible += projected[i];
     rawIndexes.push(i);
   }
-  const normalizedNext = normalizeQuotes(String(nextVisible))
+  const normalizedNext = MosaicParser.normalizeQuotes(String(nextVisible))
     .replace(/\u00a0/g, ' ')
     .replace(/\r\n?/g, '\n');
   const next = preserveLineBreaks
@@ -799,7 +868,7 @@ function replacePreviewBodyLine(rawLine, nextVisible){
   if(centerMatch){
     core = core.slice(centerMatch[0].length);
   }
-  if(statusLineContent(core) !== null){
+  if(MosaicRenderer.statusLineContent(core) !== null){
     const clean = String(nextVisible).replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
     if(!clean) return '';
     // 상태창은 화면에서만 | 공백이 정리된다. 보이는 글자가 그대로라면 원문의
@@ -968,7 +1037,7 @@ function revealCreditControl(index, field){
 // 포커스는 미리보기에 둔 채 왼쪽 탭·카드·원문 줄만 찾아 보여준다.
 function syncDirectEditPosition(el, descriptor){
   if(descriptor.type === 'body' || descriptor.type === 'comment'){
-    activeTa = descriptor.ta;
+    cardEditorState.activeTextarea = descriptor.ta;
     syncBodyOnlyToolbarAvailability({ target:descriptor.ta });
   }
   if(!positionSyncEnabled()) return;
@@ -1004,162 +1073,159 @@ function syncDirectEditPosition(el, descriptor){
   }
 }
 
-function commitPreviewDirectEdit(el, descriptor){
-  if(previewDirectEditCommitting) return;
-  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
-  const next = previewEditableText(el, preservesLineBreaks);
-  if(descriptor.type === 'cover'){
-    const input = document.getElementById(descriptor.id);
-    if(!input) return;
-    const updated = replaceVisibleUsingProjection(input.value, next, inlineEditProjection(input.value));
-    if(updated === input.value) return;
-    previewDirectEditCommitting = true;
-    snapshotCards();
+function commitPreviewCoverEdit(el, descriptor, next){
+  const input = document.getElementById(descriptor.id);
+  if(!input) return;
+  const updated = replaceVisibleUsingProjection(input.value, next, inlineEditProjection(input.value));
+  if(updated === input.value) return;
+  previewEditState.committing = true;
+  MosaicStorage.snapshotCards();
+  input.value = updated;
+  input.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast('미리보기에서 표지 수정.');
+  previewEditState.committing = false;
+  return;
+}
+
+function commitPreviewSubtitleEdit(el, descriptor, next){
+  const ids = descriptor.ids || [];
+  const values = {};
+  const hasCouple = ids.includes('subChar') || ids.includes('subUser');
+  const hasFree = ids.includes('logSubtitle');
+  let coupleText = hasCouple ? next : '';
+  let freeText = hasFree ? next : '';
+  if(hasCouple && hasFree){
+    // 이름 구분 기호도 ·일 수 있으므로 자유 부제 앞의 마지막 구분점을 사용한다.
+    const spacedDividerAt = next.lastIndexOf(' · ');
+    const dividerAt = spacedDividerAt >= 0 ? spacedDividerAt : next.lastIndexOf('·');
+    if(dividerAt >= 0){
+      const dividerLength = spacedDividerAt >= 0 ? 3 : 1;
+      coupleText = next.slice(0, dividerAt).trim();
+      freeText = next.slice(dividerAt + dividerLength).trim();
+    }else{
+      // 보호 기호를 우회해 ·가 사라져도 이름과 자유 부제를 한 값으로 합치지 않는다.
+      const currentNames = [
+        document.getElementById('subChar').value,
+        document.getElementById('subUser').value
+      ];
+      const separator = MosaicParser.normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+      coupleText = currentNames
+        .filter(value => value.trim()).join(` ${separator} `);
+      freeText = document.getElementById('logSubtitle').value;
+    }
+  }
+  if(ids.includes('subChar') && ids.includes('subUser')){
+    const separator = MosaicParser.normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+    const divider = coupleText.match(new RegExp(`\\s+${escRe(separator)}\\s+|${escRe(separator)}`));
+    if(divider){
+      const at = divider.index;
+      const first = coupleText.slice(0, at).trim();
+      const second = coupleText.slice(at + divider[0].length).trim();
+      values.subChar = first;
+      values.subUser = second;
+    }else{
+      // 보호 기호를 우회해 구분 기호가 사라져도 두 입력값을 합치지 않는다.
+      // 기존 값을 그대로 보존해 두 이름이 중복되는 회귀를 막는다.
+      values.subChar = document.getElementById('subChar').value;
+      values.subUser = document.getElementById('subUser').value;
+    }
+  }else if(ids.includes('subChar')){
+    values.subChar = coupleText;
+  }else if(ids.includes('subUser')){
+    values.subUser = coupleText;
+  }
+  if(hasFree) values.logSubtitle = freeText;
+  Object.keys(values).forEach(id => {
+    const input = document.getElementById(id);
+    values[id] = replaceVisibleUsingProjection(input.value, values[id], inlineEditProjection(input.value));
+  });
+  const changed = Object.entries(values).some(([id, value]) => document.getElementById(id).value !== value);
+  if(!changed) return;
+  previewEditState.committing = true;
+  MosaicStorage.snapshotCards();
+  Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
+  const trigger = document.getElementById(Object.keys(values)[0]);
+  if(trigger) trigger.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast('미리보기에서 부제 수정.');
+  previewEditState.committing = false;
+  return;
+}
+
+function commitPreviewProfileEdit(el, descriptor, next){
+  const input = document.getElementById(descriptor.id);
+  if(!input) return;
+  const visible = descriptor.normalizeTag ? normalizeProfileTag(next) : next;
+  const updated = replaceVisibleUsingProjection(
+    input.value,
+    visible,
+    inlineEditProjection(input.value),
+    descriptor.multiline === true
+  );
+  if(updated === input.value) return;
+  previewEditState.committing = true;
+  try {
+    MosaicStorage.snapshotCards();
     input.value = updated;
     input.dispatchEvent(new Event('input', { bubbles:true }));
-    showUndoToast('미리보기에서 표지 수정.');
-    previewDirectEditCommitting = false;
+    showUndoToast('미리보기에서 프로필 수정.');
+  } finally {
+    previewEditState.committing = false;
+  }
+  return;
+}
+
+function commitPreviewCreditEdit(el, descriptor, next){
+  const input = creditEditorInput(descriptor.index, descriptor.field);
+  if(!input) return;
+  const updated = String(next).slice(0, Number(input.maxLength) > 0 ? Number(input.maxLength) : 500);
+  const staged = el.dataset.previewCreditStaged === 'true';
+  if(updated === input.value && !staged) return;
+  previewEditState.committing = true;
+  try {
+    // 입력 중 이미 원본 필드에 임시 동기화했다면 그때 만든 수정 전 스냅샷을 보존한다.
+    // blur에서 다시 스냅샷을 만들면 실행 취소 기준도 수정 후 값으로 덮일 수 있다.
+    if(!staged) MosaicStorage.snapshotCards();
+    input.value = updated;
+    MosaicRenderer.setStoredCreditItems(MosaicRenderer.creditItemsFromEditor(), true);
+    showUndoToast(`미리보기에서 크레딧 ${descriptor.field === 'label' ? '항목명' : '내용'} 수정.`);
+  } finally {
+    delete el.dataset.previewCreditStaged;
+    previewEditState.committing = false;
+  }
+  return;
+}
+
+function commitPreviewCommentEdit(el, descriptor, next){
+  const owningContext = previewCommentContexts().find(ctx => ctx.commentEl.contains(el));
+  if(!owningContext || owningContext.ta !== descriptor.ta){
+    // 다시 렌더된 오래된 문단이 다른 코멘트 원문을 덮어쓰지 않게 한다.
+    uiUpdateEffects.renderNow();
     return;
   }
+  const ta = descriptor.ta;
+  const lines = ta ? ta.value.split('\n') : [];
+  if(!ta || lines[descriptor.raw] === undefined) return;
+  const rawEnd = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
+  const updatedGroup = next.split('\n').join('[BR]\n');
+  const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
+  if(updatedGroup === oldGroup) return;
+  previewEditState.committing = true;
+  MosaicStorage.snapshotCards();
+  const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
+  lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
+  ta.value = lines.join('\n');
+  cardEditorState.activeTextarea = ta;
+  ta.dispatchEvent(new Event('input', { bubbles:true }));
+  showUndoToast('미리보기에서 코멘트 수정.');
+  previewEditState.committing = false;
+  return;
+}
 
-  if(descriptor.type === 'coverSubtitle'){
-    const ids = descriptor.ids || [];
-    const values = {};
-    const hasCouple = ids.includes('subChar') || ids.includes('subUser');
-    const hasFree = ids.includes('logSubtitle');
-    let coupleText = hasCouple ? next : '';
-    let freeText = hasFree ? next : '';
-    if(hasCouple && hasFree){
-      // 이름 구분 기호도 ·일 수 있으므로 자유 부제 앞의 마지막 구분점을 사용한다.
-      const spacedDividerAt = next.lastIndexOf(' · ');
-      const dividerAt = spacedDividerAt >= 0 ? spacedDividerAt : next.lastIndexOf('·');
-      if(dividerAt >= 0){
-        const dividerLength = spacedDividerAt >= 0 ? 3 : 1;
-        coupleText = next.slice(0, dividerAt).trim();
-        freeText = next.slice(dividerAt + dividerLength).trim();
-      }else{
-        // 보호 기호를 우회해 ·가 사라져도 이름과 자유 부제를 한 값으로 합치지 않는다.
-        const currentNames = [
-          document.getElementById('subChar').value,
-          document.getElementById('subUser').value
-        ];
-        const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
-        coupleText = currentNames
-          .filter(value => value.trim()).join(` ${separator} `);
-        freeText = document.getElementById('logSubtitle').value;
-      }
-    }
-    if(ids.includes('subChar') && ids.includes('subUser')){
-      const separator = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
-      const divider = coupleText.match(new RegExp(`\\s+${escRe(separator)}\\s+|${escRe(separator)}`));
-      if(divider){
-        const at = divider.index;
-        const first = coupleText.slice(0, at).trim();
-        const second = coupleText.slice(at + divider[0].length).trim();
-        values.subChar = first;
-        values.subUser = second;
-      }else{
-        // 보호 기호를 우회해 구분 기호가 사라져도 두 입력값을 합치지 않는다.
-        // 기존 값을 그대로 보존해 두 이름이 중복되는 회귀를 막는다.
-        values.subChar = document.getElementById('subChar').value;
-        values.subUser = document.getElementById('subUser').value;
-      }
-    }else if(ids.includes('subChar')){
-      values.subChar = coupleText;
-    }else if(ids.includes('subUser')){
-      values.subUser = coupleText;
-    }
-    if(hasFree) values.logSubtitle = freeText;
-    Object.keys(values).forEach(id => {
-      const input = document.getElementById(id);
-      values[id] = replaceVisibleUsingProjection(input.value, values[id], inlineEditProjection(input.value));
-    });
-    const changed = Object.entries(values).some(([id, value]) => document.getElementById(id).value !== value);
-    if(!changed) return;
-    previewDirectEditCommitting = true;
-    snapshotCards();
-    Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
-    const trigger = document.getElementById(Object.keys(values)[0]);
-    if(trigger) trigger.dispatchEvent(new Event('input', { bubbles:true }));
-    showUndoToast('미리보기에서 부제 수정.');
-    previewDirectEditCommitting = false;
-    return;
-  }
-
-  if(descriptor.type === 'profile'){
-    const input = document.getElementById(descriptor.id);
-    if(!input) return;
-    const visible = descriptor.normalizeTag ? normalizeProfileTag(next) : next;
-    const updated = replaceVisibleUsingProjection(
-      input.value,
-      visible,
-      inlineEditProjection(input.value),
-      descriptor.multiline === true
-    );
-    if(updated === input.value) return;
-    previewDirectEditCommitting = true;
-    try {
-      snapshotCards();
-      input.value = updated;
-      input.dispatchEvent(new Event('input', { bubbles:true }));
-      showUndoToast('미리보기에서 프로필 수정.');
-    } finally {
-      previewDirectEditCommitting = false;
-    }
-    return;
-  }
-
-  if(descriptor.type === 'credit'){
-    const input = creditEditorInput(descriptor.index, descriptor.field);
-    if(!input) return;
-    const updated = String(next).slice(0, Number(input.maxLength) > 0 ? Number(input.maxLength) : 500);
-    const staged = el.dataset.previewCreditStaged === 'true';
-    if(updated === input.value && !staged) return;
-    previewDirectEditCommitting = true;
-    try {
-      // 입력 중 이미 원본 필드에 임시 동기화했다면 그때 만든 수정 전 스냅샷을 보존한다.
-      // blur에서 다시 스냅샷을 만들면 실행 취소 기준도 수정 후 값으로 덮일 수 있다.
-      if(!staged) snapshotCards();
-      input.value = updated;
-      setStoredCreditItems(creditItemsFromEditor(), true);
-      showUndoToast(`미리보기에서 크레딧 ${descriptor.field === 'label' ? '항목명' : '내용'} 수정.`);
-    } finally {
-      delete el.dataset.previewCreditStaged;
-      previewDirectEditCommitting = false;
-    }
-    return;
-  }
-
-  if(descriptor.type === 'comment'){
-    const owningContext = previewCommentContexts().find(ctx => ctx.commentEl.contains(el));
-    if(!owningContext || owningContext.ta !== descriptor.ta){
-      // 다시 렌더된 오래된 문단이 다른 코멘트 원문을 덮어쓰지 않게 한다.
-      render();
-      return;
-    }
-    const ta = descriptor.ta;
-    const lines = ta ? ta.value.split('\n') : [];
-    if(!ta || lines[descriptor.raw] === undefined) return;
-    const rawEnd = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
-    const updatedGroup = next.split('\n').join('[BR]\n');
-    const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
-    if(updatedGroup === oldGroup) return;
-    previewDirectEditCommitting = true;
-    snapshotCards();
-    const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
-    lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
-    ta.value = lines.join('\n');
-    activeTa = ta;
-    ta.dispatchEvent(new Event('input', { bubbles:true }));
-    showUndoToast('미리보기에서 코멘트 수정.');
-    previewDirectEditCommitting = false;
-    return;
-  }
-
+function commitPreviewBodyEdit(el, descriptor, next){
   const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
   if(!owningContext || owningContext.ta !== descriptor.ta){
     // 연결이 바뀐 오래된 미리보기 요소는 절대 다른 카드 원문에 저장하지 않는다.
-    render();
+    uiUpdateEffects.renderNow();
     return;
   }
   const ta = descriptor.ta;
@@ -1179,15 +1245,15 @@ function commitPreviewDirectEdit(el, descriptor){
     }).join('[BR]\n');
     const oldGroup = lines.slice(descriptor.raw, rawEnd + 1).join('\n');
     if(updatedGroup === oldGroup) return;
-    previewDirectEditCommitting = true;
-    snapshotCards();
+    previewEditState.committing = true;
+    MosaicStorage.snapshotCards();
     const replacementLines = updatedGroup ? updatedGroup.split('\n') : [];
     lines.splice(descriptor.raw, rawEnd - descriptor.raw + 1, ...replacementLines);
     ta.value = lines.join('\n');
-    activeTa = ta;
+    cardEditorState.activeTextarea = ta;
     ta.dispatchEvent(new Event('input', { bubbles:true }));
     showUndoToast('미리보기에서 같은 문단 줄바꿈 수정.');
-    previewDirectEditCommitting = false;
+    previewEditState.committing = false;
     return;
   }
   let updated;
@@ -1201,17 +1267,30 @@ function commitPreviewDirectEdit(el, descriptor){
     updated = replacePreviewBodyLine(rawLine, next);
   }
   if(updated === lines[descriptor.raw]) return;
-  previewDirectEditCommitting = true;
-  snapshotCards();
+  previewEditState.committing = true;
+  MosaicStorage.snapshotCards();
   if(!descriptor.segmented && updated === '') lines.splice(descriptor.raw, 1);
   else lines[descriptor.raw] = updated;
   ta.value = lines.join('\n');
-  activeTa = ta;
+  cardEditorState.activeTextarea = ta;
   ta.dispatchEvent(new Event('input', { bubbles:true }));
   showUndoToast('미리보기에서 본문 수정.');
-  previewDirectEditCommitting = false;
+  previewEditState.committing = false;
 }
 
+function commitPreviewDirectEdit(el, descriptor){
+  if(previewEditState.committing) return;
+  const preservesLineBreaks = descriptor.type === 'body' || descriptor.type === 'comment' || descriptor.multiline === true;
+  const next = previewEditableText(el, preservesLineBreaks);
+  switch(descriptor.type){
+    case 'cover': return commitPreviewCoverEdit(el, descriptor, next);
+    case 'coverSubtitle': return commitPreviewSubtitleEdit(el, descriptor, next);
+    case 'profile': return commitPreviewProfileEdit(el, descriptor, next);
+    case 'credit': return commitPreviewCreditEdit(el, descriptor, next);
+    case 'comment': return commitPreviewCommentEdit(el, descriptor, next);
+    default: return commitPreviewBodyEdit(el, descriptor, next);
+  }
+}
 function previewSelectionDetails(el, formatNode){
   let text = '';
   let before = '';
@@ -1248,7 +1327,7 @@ function previewSelectionDetails(el, formatNode){
 // 브라우저가 contenteditable 내부에 자체 <b>/<i>를 넣더라도 DOM에만 남겨두지 않고
 // 반드시 대응하는 본문 원문 줄의 **...** / *...* 문법으로 변환한다.
 function applyPreviewFormatToSource(el, descriptor, fmt, details){
-  if(previewDirectEditCommitting || !descriptor || descriptor.type !== 'body' || !details) return false;
+  if(previewEditState.committing || !descriptor || descriptor.type !== 'body' || !details) return false;
   const owningContext = previewCardContexts().find(ctx => ctx.cardEl.contains(el));
   if(!owningContext || owningContext.ta !== descriptor.ta) return false;
   const ta = descriptor.ta;
@@ -1270,7 +1349,7 @@ function applyPreviewFormatToSource(el, descriptor, fmt, details){
     const innerStart = match.index + wrap.length;
     const innerEnd = match.index + match[0].length - wrap.length;
     if(sourceRange.start >= innerStart && sourceRange.end <= innerEnd){
-      nextLine = line.slice(0, match.index) + formatMatchContent(fmt, match) + line.slice(match.index + match[0].length);
+      nextLine = line.slice(0, match.index) + MosaicParser.formatMatchContent(fmt, match) + line.slice(match.index + match[0].length);
       removed = true;
       break;
     }
@@ -1281,16 +1360,16 @@ function applyPreviewFormatToSource(el, descriptor, fmt, details){
   }
   if(nextLine === line) return false;
 
-  previewDirectEditCommitting = true;
+  previewEditState.committing = true;
   try {
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     lines[raw] = nextLine;
     ta.value = lines.join('\n');
-    activeTa = ta;
+    cardEditorState.activeTextarea = ta;
     ta.dispatchEvent(new Event('input', { bubbles:true }));
     showUndoToast(`${fmt === 'bold' ? '굵게' : '강조'} 서식 ${removed ? '해제' : '적용'}.`);
   } finally {
-    previewDirectEditCommitting = false;
+    previewEditState.committing = false;
   }
   return true;
 }
@@ -1328,7 +1407,7 @@ function protectPreviewSubtitleDividers(el, keys){
   if(!el || !Array.isArray(keys) || !keys.length) return;
   let text = el.textContent;
   if(keys.includes('subtitle-couple-divider')){
-    const token = normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
+    const token = MosaicParser.normalizeSubtitleCoupleSeparator(document.getElementById('subtitleCoupleSeparator').value);
     const spacedAt = text.indexOf(` ${token} `);
     const offset = spacedAt >= 0 ? spacedAt + 1 : text.indexOf(token);
     wrapPreviewTextTokenAt(el, offset, token, 'subtitle-couple-divider', '이름 구분 기호');
@@ -1464,7 +1543,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     if(descriptor.protectedSubtitleTokens && descriptor.protectedSubtitleTokens.some(key =>
       !el.querySelector(`[data-preview-protected-token="${key}"]`))){
       // 일부 브라우저의 편집 명령이 beforeinput을 건너뛰면 원본 필드로 즉시 복구한다.
-      render();
+      uiUpdateEffects.renderNow();
       return;
     }
     const fmt = e.inputType === 'formatBold' ? 'bold'
@@ -1479,9 +1558,9 @@ function enablePreviewDirectEditor(el, descriptor, label){
       if(staged === input.value) return;
       // 다음 크레딧 입력이 전체 항목을 직렬화하기 전에 현재 미리보기 수정값을
       // 원본 입력과 숨은 저장 필드에 함께 반영한다. 렌더는 blur까지 미뤄 포커스를 지킨다.
-      if(el.dataset.previewCreditStaged !== 'true') snapshotCards();
+      if(el.dataset.previewCreditStaged !== 'true') MosaicStorage.snapshotCards();
       input.value = staged;
-      setStoredCreditItems(creditItemsFromEditor(), false);
+      MosaicRenderer.setStoredCreditItems(MosaicRenderer.creditItemsFromEditor(), false);
       el.dataset.previewCreditStaged = 'true';
     }
   });
@@ -1500,7 +1579,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
       if(descriptor.type === 'body'){
         const fmt = shortcut === 'b' ? 'bold' : 'emphasis';
         const button = document.querySelector(`#selToolbar button[data-fmt="${fmt}"]`);
-        if(selCtx && button) button.click();
+        if(previewEditState.selection && button) button.click();
       }
       return;
     }
@@ -1531,13 +1610,13 @@ function enablePreviewDirectEditor(el, descriptor, label){
         const input = creditEditorInput(descriptor.index, descriptor.field);
         if(input){
           input.value = focusValue;
-          setStoredCreditItems(creditItemsFromEditor(), false);
+          MosaicRenderer.setStoredCreditItems(MosaicRenderer.creditItemsFromEditor(), false);
         }
         delete el.dataset.previewCreditStaged;
-        undoSnapshot = null;
+        MosaicStorage.discardUndoSnapshot();
       }
       el.blur();
-      render();
+      uiUpdateEffects.renderNow();
     }
   });
   el.addEventListener('blur', () => {
@@ -1545,7 +1624,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
     // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
     if(previewEditableText(el, preservesLineBreaks) === focusValue){
-      if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true') undoSnapshot = null;
+      if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true') MosaicStorage.discardUndoSnapshot();
       delete el.dataset.previewCreditStaged;
       delete el.dataset.previewEditChanged;
       return;
@@ -1559,7 +1638,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   if(descriptor.type === 'body' && typeof MutationObserver === 'function'){
     const knownNodes = new WeakSet([el, ...el.querySelectorAll('*')]);
     const observer = new MutationObserver(() => {
-      if(previewDirectEditCommitting || !el.isConnected) return;
+      if(previewEditState.committing || !el.isConnected) return;
       const candidates = Array.from(el.querySelectorAll('b, strong, i, em, span[style]'));
       const added = candidates.find(node => !knownNodes.has(node));
       candidates.forEach(node => knownNodes.add(node));
@@ -1601,7 +1680,7 @@ const PROFILE_DIRECT_EDIT_LABELS = Object.freeze({
 });
 
 function decoratePreviewProfileEditors(){
-  if(!previewDirectEditReady) return;
+  if(!previewEditState.ready) return;
   const profile = previewParts().profile;
   if(!profile) return;
   profile.querySelectorAll('[data-mosaic-profile-field]').forEach(field => {
@@ -1658,7 +1737,7 @@ function decoratePreviewProfileEditors(){
 }
 
 function decoratePreviewCreditEditors(){
-  if(!previewDirectEditReady) return;
+  if(!previewEditState.ready) return;
   const credit = previewParts().credit;
   if(!credit) return;
   const fields = Array.from(credit.querySelectorAll('[data-mosaic-credit-index][data-mosaic-credit-field]'));
@@ -1695,10 +1774,10 @@ function decoratePreviewCreditEditors(){
 }
 
 function decoratePreviewDirectEditors(){
-  if(!previewDirectEditReady) return;
+  if(!previewEditState.ready) return;
   const title = previewParts().title;
   if(title){
-    const settings = getSettings();
+    const settings = MosaicState.getSettings();
     const rows = [];
     if((settings.logNumber || '').trim()) rows.push({ id:'logNumber', label:'표지 메모 수정' });
     if((settings.logTitle || '').trim()) rows.push({ id:'logTitle', label:'표지 제목 수정' });
@@ -1803,7 +1882,7 @@ function revealPreviewCardTitleEditor(ctx){
     if(collapse) collapse.click();
   }
   if(ta){
-    activeTa = ta;
+    cardEditorState.activeTextarea = ta;
     syncBodyOnlyToolbarAvailability({ target:ta });
   }
   requestAnimationFrame(() => {
@@ -1909,7 +1988,7 @@ function revealCommentInEditor(ta, raw, rawEnd){
     if(collapse) collapse.click();
   }
   target.setSelectionRange(start, Math.max(start, end));
-  activeTa = ta;
+  cardEditorState.activeTextarea = ta;
   revealEditorOffsetAtTop(target, start, editor);
 }
 
@@ -1950,9 +2029,11 @@ function revealInEditor(ta, raw, text, occurrence, sourceBounds, segmented = fal
 }
 
 
-document.getElementById('preview').addEventListener('mouseup', () => {
+function bindPreviewSelectionEvents(){
+  bindUIFeatureEvents('preview-selection', () => {
+uiElements.preview.addEventListener('mouseup', () => {
   // 블록 드래그 이동 중에는 무시
-  if(dragState) return;
+  if(previewEditState.drag) return;
   const directEditor = document.activeElement && document.activeElement.closest
     ? document.activeElement.closest('[data-preview-direct-edit="true"]')
     : null;
@@ -2003,7 +2084,7 @@ document.getElementById('preview').addEventListener('mouseup', () => {
     const centerLine = src.ta.value.split('\n')[centerRaw] || '';
     active.center = CENTER_RE.test(centerLine) ? 'on' : null;
 
-    selCtx = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
+    previewEditState.selection = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
     if(positionSyncEnabled()) revealInEditor(
       src.ta,
       resolved.raw,
@@ -2035,8 +2116,8 @@ document.addEventListener('mousedown', (e) => {
 document.querySelectorAll('#selToolbar button').forEach(btn => {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
-    if(!selCtx) return;
-    const { ta, raw, centerRaw = raw, text, occurrence, active, sourceRange:capturedRange } = selCtx;
+    if(!previewEditState.selection) return;
+    const { ta, raw, centerRaw = raw, text, occurrence, active, sourceRange:capturedRange } = previewEditState.selection;
     const fmt = btn.dataset.fmt;
     const wrap = FMT_WRAP[fmt];
     const lines = ta.value.split('\n');
@@ -2052,19 +2133,17 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
     const finish = (newLine, label, targetRaw = raw) => {
       // 미리보기를 다시 그릴 때 기존 contenteditable이 blur되며 평문을 재저장하면
       // 방금 넣은 **...** / *...* 마커가 지워진다. 서식 작업 동안 blur 저장을 잠근다.
-      previewDirectEditCommitting = true;
+      previewEditState.committing = true;
       try {
-        snapshotCards();
+        MosaicStorage.snapshotCards();
         lines[targetRaw] = newLine;
         ta.value = lines.join('\n');
         hideSelToolbar();
         window.getSelection().removeAllRanges();
-        render();
-        updateCounter();
-        saveDraft();
+        uiUpdateEffects.committedChange();
         showUndoToast(label);
       } finally {
-        previewDirectEditCommitting = false;
+        previewEditState.committing = false;
       }
     };
     const name = { bold: '굵게', emphasis: '강조', center: '가운데 정렬' }[fmt];
@@ -2091,13 +2170,13 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false);
       while((m = re.exec(line)) !== null){
         const containsSelection = sourceRange && sourceRange.start >= m.index && sourceRange.end <= m.index + m[0].length;
-        if(containsSelection && comparableFormattedText(formatMatchContent(fmt, m)) === comparableFormattedText(targetPlain)){
+        if(containsSelection && comparableFormattedText(MosaicParser.formatMatchContent(fmt, m)) === comparableFormattedText(targetPlain)){
           found = m;
           break;
         }
       }
       if(!found) return fail(`${name} 서식을 찾지 못함. 본문에서 직접 삭제.`);
-      const newLine = line.slice(0, found.index) + formatMatchContent(fmt, found) + line.slice(found.index + found[0].length);
+      const newLine = line.slice(0, found.index) + MosaicParser.formatMatchContent(fmt, found) + line.slice(found.index + found[0].length);
       return finish(newLine, `${name} 서식 해제.`);
     }
 
@@ -2109,9 +2188,11 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
     finish(line.slice(0, sourceRange.start) + wrap + selectedSource + wrap + line.slice(sourceRange.end), `${name} 서식 적용.`);
   });
 });
+  });
+}
 
 // ---------- 미리보기 블록 드래그 이동 (이미지·문단 구분 요소) ----------
-// assembleBody의 라우팅 규칙을 그대로 재현해, 카드 본문의 '최상위 블록'이
+// MosaicRenderer.assembleBody의 라우팅 규칙을 그대로 재현해, 카드 본문의 '최상위 블록'이
 // 원본 텍스트의 몇 번째 줄에서 나왔는지 매핑한다.
 // entries: [{raw, text}] (빈 줄 제외, raw는 원본 줄 번호)
 // 반환: [{kind:'line'|'fold', startRaw, text}]
@@ -2139,7 +2220,7 @@ function topLevelMap(entries){
   return res;
 }
 
-// assembleBody와 같은 순서로 빈 줄 제거 → [BR] 문단 결합 → 대사 분할을 적용하되,
+// MosaicRenderer.assembleBody와 같은 순서로 빈 줄 제거 → [BR] 문단 결합 → 대사 분할을 적용하되,
 // 각 출력 항목이 시작된 원문 줄 번호는 보존한다. 이전 매핑은 [BR] 두 줄을 각각
 // 세어 미리보기 블록 수와 어긋났고, 그 순간 이미지가 클릭 편집 전용 폴백으로
 // 내려가 드래그가 비활성화됐다.
@@ -2158,7 +2239,7 @@ function topLevelSourceEntries(text, settings){
     while(/\[BR\]\s*$/i.test(current) && index + 1 < sourceEntries.length){
       const left = current.replace(/\[BR\]\s*$/i, '');
       const next = sourceEntries[index + 1];
-      const joined = combineSoftBreakPair(left, next.text);
+      const joined = MosaicRenderer.combineSoftBreakPair(left, next.text);
       if(joined === null) break;
       current = joined;
       rawEnd = next.raw;
@@ -2169,7 +2250,7 @@ function topLevelSourceEntries(text, settings){
 
   const entries = [];
   combinedEntries.forEach(entry => {
-    const outputParts = expandDialogueLinesForOutput([entry.text], settings)
+    const outputParts = MosaicRenderer.expandDialogueLinesForOutput([entry.text], settings)
       .map(value => String(value).trim())
       .filter(Boolean);
     outputParts.forEach((value, partIndex) => {
@@ -2218,7 +2299,7 @@ function moveSeparatorIntoSplitLine(text, srcRaw, destInfo, settings){
   if(moved === undefined || targetLine === undefined || srcRaw === targetRaw) return null;
   if(!/^\s*\[(?:HR(?:[2-4])?|GAP)\]\s*$/i.test(moved)) return null;
 
-  const parts = splitDialogueLineForOutput(targetLine, settings)
+  const parts = MosaicRenderer.splitDialogueLineForOutput(targetLine, settings)
     .map(part => String(part).trim())
     .filter(Boolean);
   const splitAt = destInfo.partIndex;
@@ -2242,9 +2323,8 @@ function moveSeparatorIntoSplitLine(text, srcRaw, destInfo, settings){
   return lines.join('\n');
 }
 
-// 화면에 장식·편집 기능을 붙이기 전의 순수 출력 HTML을 보관한다.
+// 화면에 장식·편집 기능을 붙이기 전의 순수 출력 HTML은 previewRenderState가 보관한다.
 // 카드별 복사는 이 문자열에서 꺼내므로 미리보기 전용 버튼이나 편집 속성이 섞이지 않는다.
-let previewSourceHTML = '';
 
 function copyPreviewCardText(text){
   // file:// 미리보기에서도 동작하도록 동기 복사를 우선하고 Clipboard API를 보조로 쓴다.
@@ -2305,7 +2385,7 @@ function previewControlGeometry(button, positioningRoot){
   const anchorRect = previewElementRect(anchor, positioningRoot);
   const buttonWidth = button.offsetWidth || PREVIEW_CONTROL_SIZE;
   const buttonHeight = button.offsetHeight || PREVIEW_CONTROL_SIZE;
-  const mirrored = isDesktopLayoutMirrored();
+  const mirrored = MosaicApp.isDesktopLayoutMirrored();
   const priority = button.classList.contains('previewBlockCopyBtn')
     ? 0
     : (button.classList.contains('previewProfilePlacementBtn') ? 1 : 2);
@@ -2364,9 +2444,9 @@ function refreshPreviewFloatingButtonLayout(){
 // 왼쪽 설정 패널 쪽부터 시작하도록 한다. 전체화면의 모바일 380 미리보기는
 // 그 폭 자체가 게시글 viewport이므로 바깥 확장을 적용하지 않는다.
 function syncPreviewCommentOutset(){
-  const previewArea = document.getElementById('previewArea');
+  const previewArea = uiElements.previewArea;
   const previewWrap = document.getElementById('previewWrap');
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   const mobileButton = document.getElementById('widthMobileBtn');
   if(!previewArea || !previewWrap || !preview) return;
   if(document.body.classList.contains('previewFullscreen') && mobileButton && mobileButton.classList.contains('active')){
@@ -2432,9 +2512,9 @@ function previewTopLevelCopyLabel(element, visibleCardNumbers, visibleCommentNum
 // 노드를 복사한다. 대표 이미지 인식용 숨김 노드는 최상단 프로필을 건너뛰고
 // 실제 대표 이미지 블록과 함께 보존한다.
 function previewCopySegments(){
-  const preview = document.getElementById('preview');
-  if(!previewSourceHTML || !preview) return [];
-  const sourceDocument = new DOMParser().parseFromString(previewSourceHTML, 'text/html');
+  const preview = uiElements.preview;
+  if(!previewRenderState.sourceHTML || !preview) return [];
+  const sourceDocument = new DOMParser().parseFromString(previewRenderState.sourceHTML, 'text/html');
   const sourceChildren = Array.from(sourceDocument.body.children);
   const previewChildren = Array.from(preview.children);
   const visibleCardNumbers = new Map(
@@ -2464,7 +2544,7 @@ function previewCopySegments(){
     const sourceHTML = keepHiddenForCoverImage
       ? sourceElement.outerHTML
       : [...pendingHiddenElements.map(element => element.outerHTML), sourceElement.outerHTML].join('\n');
-    const html = stripEditorOutputMetadata(
+    const html = MosaicRenderer.stripEditorOutputMetadata(
       sourceHTML
     );
     if(!keepHiddenForCoverImage) pendingHiddenElements = [];
@@ -2477,7 +2557,7 @@ function previewCopySegments(){
   });
   if(pendingHiddenElements.length && segments.length){
     const lastSegment = segments[segments.length - 1];
-    lastSegment.html += `\n${stripEditorOutputMetadata(pendingHiddenElements.map(element => element.outerHTML).join('\n'))}`;
+    lastSegment.html += `\n${MosaicRenderer.stripEditorOutputMetadata(pendingHiddenElements.map(element => element.outerHTML).join('\n'))}`;
   }
   return segments;
 }
@@ -2569,7 +2649,7 @@ function decoratePreviewProfilePlacementButton(){
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const next = placement.value === 'top' ? 'below' : 'top';
     placement.value = next;
     placement.dispatchEvent(new Event('input', { bubbles:true }));
@@ -2585,14 +2665,14 @@ function decoratePreviewCreditPlacementButton(){
   if(!credit) return;
   const placement = document.getElementById('creditPlacement');
   if(!placement || placement.disabled) return;
-  const atTop = normalizeCreditPlacement(placement.value) === 'top';
+  const atTop = MosaicRenderer.normalizeCreditPlacement(placement.value) === 'top';
   const title = atTop ? '크레딧을 최하단으로 이동' : '크레딧을 최상단으로 이동';
   const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
   button._mosaicProfileTarget = credit;
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const next = atTop ? 'bottom' : 'top';
     placement.value = next;
     placement.dispatchEvent(new Event('input', { bubbles:true }));
@@ -2614,7 +2694,7 @@ function addPreviewMinimalToggleButton(target, anchor, inputId, label){
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const enabled = !input.checked;
     input.checked = enabled;
     input.dispatchEvent(new Event('input', { bubbles:true }));
@@ -2648,7 +2728,7 @@ function addPreviewFooterVisibilityButton(){
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     input.checked = !visible;
     syncCoverControlState();
     input.dispatchEvent(new Event('input', { bubbles:true }));
@@ -2670,11 +2750,10 @@ function addPreviewCardDividerToggleButton(cardEl, titleEl){
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     divider.checked = !divider.checked;
     syncDesignSummaries();
-    render();
-    scheduleDraftSave();
+    uiUpdateEffects.renderedDraftChange();
     showUndoToast(divider.checked
       ? '모든 카드 제목 구분선을 표시했습니다.'
       : '모든 카드 제목 구분선을 숨겼습니다.');
@@ -2695,15 +2774,18 @@ function decoratePreviewOptionButtons(){
   });
 }
 
-window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewFloatingButtons));
-// 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
-// 달라지는 경우에도 외곽 복사 버튼을 해당 카드 오른쪽에 다시 맞춘다.
-const previewCopyResizeObserver = typeof ResizeObserver === 'function'
-  ? new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons))
-  : null;
-if(previewCopyResizeObserver){
-  previewCopyResizeObserver.observe(document.getElementById('preview'));
-  previewCopyResizeObserver.observe(document.getElementById('pvSearchBox'));
+function bindPreviewLayoutEvents(){
+  bindUIFeatureEvents('preview-layout', () => {
+    window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewFloatingButtons));
+    // 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
+    // 달라지는 경우에도 외곽 복사 버튼을 해당 카드 오른쪽에 다시 맞춘다.
+    if(typeof ResizeObserver === 'function'){
+      const observer = new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons));
+      observer.observe(uiElements.preview);
+      observer.observe(document.getElementById('pvSearchBox'));
+      uiLifecycleState.observers.push(observer);
+    }
+  });
 }
 
 // 접기 카드 자체와 카드 안의 일부 접기를 같은 순서로 다룬다.
@@ -2736,7 +2818,7 @@ function restorePreviewFoldState(states){
 // HTML 교체로 사라진 편집·검색·버튼 기능을 기존 순서로 연결한다.
 function bindPreviewInteractions(preview){
   enableBlockDrag(preview);
-  if(pvSearchOn) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
+  if(previewSearchState.open) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
   decoratePreviewDirectEditors();
   decoratePreviewProfileEditors();
   decoratePreviewCreditEditors();
@@ -2758,16 +2840,16 @@ function finishPreviewLayout(preview){
 
 // 미리보기 갱신 순서: 이전 UI 정리 → 상태 보관 → HTML 교체 → 상태 복원 → 기능 연결.
 function renderPreview(prebuiltHTML){
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   // 외곽 버튼은 HTML 교체 후에도 남으므로 이전 대상을 참조하는 버튼부터 제거한다.
   document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
   preview.classList.add('previewRefreshing');
   hideBlockToolbar();
   const openStates = capturePreviewFoldState();
-  previewSourceHTML = prebuiltHTML !== undefined
+  previewRenderState.sourceHTML = prebuiltHTML !== undefined
     ? prebuiltHTML
-    : buildCard(getSettings(), getCards());
-  preview.innerHTML = previewSourceHTML;
+    : MosaicRenderer.buildCard(MosaicState.getSettings(), getCards());
+  preview.innerHTML = previewRenderState.sourceHTML;
   syncPreviewOuterBreaks();
   restorePreviewFoldState(openStates);
   bindPreviewInteractions(preview);
@@ -2775,7 +2857,7 @@ function renderPreview(prebuiltHTML){
 }
 
 function syncPreviewOuterBreaks(){
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   const option = document.getElementById('copyWithOuterBreaks');
   if(!preview || !option) return;
   preview.classList.toggle('previewOuterBreaks', option.checked);
@@ -2867,8 +2949,8 @@ function enableBlockDrag(preview){
     const editor = Number.isInteger(sourceIndex) ? editors[sourceIndex] : nonEmpty[cardIdx];
     if(!editor) return;
     const ta = editor.querySelector('textarea');
-    const settings = getSettings();
-    // assembleBody의 [BR] 결합과 대사 분할을 모두 반영해 이미지·구분선의
+    const settings = MosaicState.getSettings();
+    // MosaicRenderer.assembleBody의 [BR] 결합과 대사 분할을 모두 반영해 이미지·구분선의
     // 드래그 대상 수가 실제 미리보기 최상위 블록 수와 항상 같게 한다.
     const entries = topLevelSourceEntries(ta.value, settings);
     const map = topLevelMap(entries);
@@ -2881,7 +2963,7 @@ function enableBlockDrag(preview){
     const bindRemainingBodyImages = () => {
       const sourceImages = [];
       ta.value.split('\n').forEach((line, raw) => {
-        if(parseBodyImageLine(line)) sourceImages.push({ raw });
+        if(MosaicRenderer.parseBodyImageLine(line)) sourceImages.push({ raw });
       });
       const previewImages = Array.from(bodyDiv.querySelectorAll('img'));
       if(sourceImages.length !== previewImages.length) return;
@@ -2941,7 +3023,7 @@ function enableBlockDrag(preview){
       const info = map[i];
       if(info.kind !== 'line') return;
       const text = info.text;
-      const isImg = !!parseBodyImageLine(text);
+      const isImg = !!MosaicRenderer.parseBodyImageLine(text);
       const isHr = /^\[HR\]$/i.test(text);
       const isHr2 = /^\[HR2\]$/i.test(text);
       const isHr3 = /^\[HR3\]$/i.test(text);
@@ -2976,23 +3058,23 @@ function startBlockDrag(ctx){
 
   const marker = document.createElement('div');
   marker.style.cssText = 'height:3px; background:#111; border-radius:2px; margin:4px 0; pointer-events:none;';
-  dragState = Object.assign({}, ctx, { marker, destIndex: null, moved: false });
+  previewEditState.drag = Object.assign({}, ctx, { marker, destIndex:null, moved:false });
 
   document.addEventListener('mousemove', onBlockDragMove);
   document.addEventListener('mouseup', onBlockDragEnd);
 }
 
 function onBlockDragMove(e){
-  if(!dragState) return;
-  dragState.moved = true;
-  const { blocks, marker, srcIndex } = dragState;
+  if(!previewEditState.drag) return;
+  previewEditState.drag.moved = true;
+  const { blocks, marker, srcIndex } = previewEditState.drag;
   // 커서와 가장 가까운 삽입 지점(문단 경계)을 찾음
   let dest = blocks.length;
   for(let i = 0; i < blocks.length; i++){
     const r = blocks[i].getBoundingClientRect();
     if(e.clientY < r.top + r.height / 2){ dest = i; break; }
   }
-  dragState.destIndex = dest;
+  previewEditState.drag.destIndex = dest;
   // 제자리면 표시 안 함
   if(dest === srcIndex || dest === srcIndex + 1){
     if(marker.parentNode) marker.remove();
@@ -3006,12 +3088,12 @@ function onBlockDragMove(e){
 function onBlockDragEnd(){
   document.removeEventListener('mousemove', onBlockDragMove);
   document.removeEventListener('mouseup', onBlockDragEnd);
-  if(!dragState) return;
-  const { block, marker, map, ta, srcIndex, destIndex, moved, label, type } = dragState;
+  if(!previewEditState.drag) return;
+  const { block, marker, map, ta, srcIndex, destIndex, moved, label, type } = previewEditState.drag;
   block.style.opacity = '';
   block.style.cursor = 'grab';
   if(marker.parentNode) marker.remove();
-  dragState = null;
+  previewEditState.drag = null;
 
   if(!moved || destIndex === null) return;
   if(destIndex === srcIndex || destIndex === srcIndex + 1) return; // 제자리
@@ -3020,36 +3102,31 @@ function onBlockDragEnd(){
   const destInfo = destIndex < map.length ? map[destIndex] : null;
   const destRaw = destInfo ? destInfo.startRaw : null;
   const splitMove = (type === 'hr' || type === 'hr2')
-    ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, getSettings())
+    ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, MosaicState.getSettings())
     : null;
   const nextText = splitMove === null
     ? moveLineInText(ta.value, srcRaw, destRaw)
     : splitMove;
   if(nextText === ta.value) return;
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   ta.value = nextText;
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(splitMove === null ? `${label} 위치 변경.` : `${label} 위치 변경 · 원문 자동 분리.`);
 }
 
-let syncingChars = false;
 // ---------- 편집 중인 부분을 미리보기에서 자동으로 보여주기 ----------
 // 다음 렌더 직후 어떤 요소로 스크롤할지 지정 (getter는 렌더된 DOM에서 요소를 찾아 반환)
-let pendingPreviewFocus = null;
-let pendingPreviewFallbackScrollTop = null;
 function focusPreviewOn(getter){
   if(!positionSyncEnabled()){
-    pendingPreviewFocus = null;
-    pendingPreviewFallbackScrollTop = null;
+    previewPositionState.pendingFocus = null;
+    previewPositionState.pendingFallbackScrollTop = null;
     return;
   }
-  pendingPreviewFocus = getter;
+  previewPositionState.pendingFocus = getter;
   // 표시 옵션을 끄는 순간 대상 DOM이 사라지면 브라우저의 스크롤 앵커가
   // 미리보기 위치를 임의로 보정할 수 있다. 그 경우에만 되돌릴 기준 위치를 기억한다.
-  const previewArea = document.getElementById('previewArea');
-  pendingPreviewFallbackScrollTop = previewArea ? previewArea.scrollTop : null;
+  const previewArea = uiElements.previewArea;
+  previewPositionState.pendingFallbackScrollTop = previewArea ? previewArea.scrollTop : null;
 }
 
 // 본문 입력 ↔ 미리보기 자동 이동은 편집 내용과 별개인 화면 설정으로 기억한다.
@@ -3070,23 +3147,26 @@ function syncPositionSyncFloatingUi(){
   document.getElementById('previewSyncFloat').title = text;
   positionSyncInput.setAttribute('aria-label', text);
 }
-positionSyncInput.addEventListener('change', () => {
-  pendingPreviewFocus = null;
-  pendingPreviewFallbackScrollTop = null;
-  syncPositionSyncFloatingUi();
-  try { localStorage.setItem(POSITION_SYNC_KEY, positionSyncInput.checked ? 'on' : 'off'); }
-  catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 설정은 유지 */ }
-});
+function bindPositionSyncEvents(){
+  bindUIFeatureEvents('position-sync', () => {
+    positionSyncInput.addEventListener('change', () => {
+      previewPositionState.pendingFocus = null;
+      previewPositionState.pendingFallbackScrollTop = null;
+      syncPositionSyncFloatingUi();
+      try { localStorage.setItem(POSITION_SYNC_KEY, positionSyncInput.checked ? 'on' : 'off'); }
+      catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 설정은 유지 */ }
+    });
+  });
+}
 syncPositionSyncFloatingUi();
 
 // 미리보기 전체화면: 설정 패널을 숨기고 작업 화면 색상에 맞는 캔버스에서 확인한다.
 const previewFullscreenBtn = document.getElementById('previewFullscreenBtn');
-let previewFullscreenScrollTop = 0;
 function setPreviewFullscreen(on){
-  const previewArea = document.getElementById('previewArea');
+  const previewArea = uiElements.previewArea;
   if(on){
-    setPreviewArcaTheme(document.documentElement.classList.contains('uiNight') ? 'dark' : 'light');
-    previewFullscreenScrollTop = previewArea.scrollTop;
+    MosaicApp.setPreviewArcaTheme(document.documentElement.classList.contains('uiNight') ? 'dark' : 'light');
+    previewPositionState.fullscreenScrollTop = previewArea.scrollTop;
     previewArea.scrollTop = 0;
   }
   document.body.classList.toggle('previewFullscreen', !!on);
@@ -3109,21 +3189,25 @@ function setPreviewFullscreen(on){
     syncPreviewCommentOutset();
     layoutPreviewFloatingButtons();
   });
-  if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewFullscreenScrollTop; });
+  if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewPositionState.fullscreenScrollTop; });
 }
-previewFullscreenBtn.addEventListener('click', () => {
-  setPreviewFullscreen(!document.body.classList.contains('previewFullscreen'));
-});
-document.addEventListener('keydown', (event) => {
-  if(event.key === 'Escape' && document.body.classList.contains('previewFullscreen')){
-    event.preventDefault();
-    setPreviewFullscreen(false);
-  }
-});
+function bindPreviewFullscreenEvents(){
+  bindUIFeatureEvents('preview-fullscreen', () => {
+    previewFullscreenBtn.addEventListener('click', () => {
+      setPreviewFullscreen(!document.body.classList.contains('previewFullscreen'));
+    });
+    document.addEventListener('keydown', (event) => {
+      if(event.key === 'Escape' && document.body.classList.contains('previewFullscreen')){
+        event.preventDefault();
+        setPreviewFullscreen(false);
+      }
+    });
+  });
+}
 
 // 미리보기 최상위 구성요소 분류: 이미지 밴드 / 표제 밴드 / 프로필 / 카드들
 function previewParts(){
-  const preview = document.getElementById('preview');
+  const preview = uiElements.preview;
   const parts = { image: null, title: null, profile: null, credit: null, cards: [], comments: [] };
   Array.from(preview.children).forEach(el => {
     // 대표 이미지 목록 인식용 숨김 썸네일을 표제 밴드로 오인하지 않는다.
@@ -3155,7 +3239,7 @@ function isStackedLayout(){
 // 좌우 분할 화면에서는 미리보기 변화가 왼쪽 사이드바 위치까지 흔드는 원인이 된다.
 function scrollPreviewIfNeeded(el, force){
   if(!el || isStackedLayout()) return;
-  const previewArea = document.getElementById('previewArea');
+  const previewArea = uiElements.previewArea;
   if(!previewArea || !previewArea.contains(el)) return;
   const areaRect = previewArea.getBoundingClientRect();
   const r = el.getBoundingClientRect();
@@ -3226,18 +3310,65 @@ function focusPreviewOnCaret(ta){
   focusPreviewOn(() => previewBlockFor(ta, raw));
 }
 
-// 출력 설정을 읽기 전에 컨트롤과 자동 감지 인물을 동기화한다.
-function syncRenderInputs(){
-  syncCardLayoutCheckbox();
-  syncPreviewCardStyleToggles();
-  syncImageBackgroundToggleAvailability();
-  syncCoverRangeProgress();
-  syncDesignSummaries();
-  syncHrControlAvailability();
+// DOM 자체가 아니라 기능별 입력값만 기억한다. 외부 복원은 전체 무효화하고,
+// 갱신 과정에서 값이 정규화되면 정규화 뒤의 값을 기준으로 다음 갱신을 판단한다.
+const uiControlSyncState = { keys:new Map() };
+function uiControlValues(ids){
+  return ids.map(id => {
+    const input = document.getElementById(id);
+    return [input.value, input.checked];
+  });
+}
+function syncUIControlsWhenChanged(name, readValues, sync){
+  const key = JSON.stringify(readValues());
+  if(uiControlSyncState.keys.get(name) === key) return;
+  sync();
+  uiControlSyncState.keys.set(name, JSON.stringify(readValues()));
+}
+function profileControlPresence(){
+  return ['profileChar','profileUser',...MosaicState.EXTRA_PROFILE_SLOTS.map(MosaicState.extraProfilePrefix)].map(prefix => [
+    document.getElementById(`${prefix}On`).checked,
+    ...['Image','Name','Desc','Tags'].map(field => Boolean(document.getElementById(prefix + field).value.trim()))
+  ]);
+}
+
+// 출력 설정을 읽기 전에 관련 값이 바뀐 컨트롤 묶음만 동기화한다.
+function syncRenderInputs(cards){
+  syncUIControlsWhenChanged('image-background', () => uiControlValues([
+    'imgUrl','imgOn','titleImageBackgroundOn','profileImageBackgroundOn','profileExtraCount',
+    'profileCharImage','profileUserImage',...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}Image`)
+  ]), syncImageBackgroundToggleAvailability);
+  syncUIControlsWhenChanged('ranges', () => [
+    uiControlValues([...MosaicState.STYLE_FIELDS,...COVER_IMAGE_RANGE_IDS,...PROFILE_IMAGE_RANGE_IDS,'profileStyle','profileExtraCount','profileImageBackgroundOn']),
+    profileControlPresence(), document.activeElement?.id
+  ], () => {
+    syncTypographyRangeLabels();
+    syncCoverRangeProgress();
+  });
+  const usedHr = [...usedHrTypes(cards)].sort();
+  syncUIControlsWhenChanged('hr', () => [usedHr, document.getElementById('advancedOn').checked],
+    () => syncHrControlAvailability(cards));
+  syncUIControlsWhenChanged('design', () => [
+    uiControlValues([...MosaicState.STYLE_FIELDS,...MosaicState.WORK_BOOLEAN_FIELDS,
+      'imgHeight','profilePlacement','profileStyle','profileExtraCount','footerAuthor','creditItems','creditPlacement']),
+    profileControlPresence(), usedHr
+  ], syncDesignSummaries);
+  syncUIControlsWhenChanged('preview-style', () => uiControlValues(['cardLayout','cardBorderOn']),
+    MosaicApp.syncPreviewCardStyleToggles);
+  syncUIControlsWhenChanged('paragraph', () => [
+    uiControlValues(['narrIndent','commentWidth','commentAlign']),
+    hasMarkdownCardContent(), hasQuoteCardContent(), hasBodyFoldTitleContent(),
+    Boolean(document.querySelector('#cardEditors .commentEditor'))
+  ], syncParagraphSettingsUI);
   // 본문에 새 [이름] 마커가 생기면 인물 목록을 자동 갱신 (재진입 방지)
-  if(!syncingChars){
-    syncingChars = true;
-    try { syncCharList(); } finally { syncingChars = false; }
+  if(!previewPositionState.syncingCharacters){
+    previewPositionState.syncingCharacters = true;
+    try {
+      syncUIControlsWhenChanged('characters', () => [
+        cards.filter(card => card.type !== 'comment' && card.visible !== false).map(card => card.body),
+        uiControlValues(['extraChars','narrColor'])
+      ], MosaicStorage.syncCharList);
+    } finally { previewPositionState.syncingCharacters = false; }
   }
 }
 
@@ -3251,7 +3382,7 @@ const HR_CONTROL_IDS = {
 function usedHrTypes(cards){
   const used = new Set();
   cards.filter(card => card.type === 'card').forEach(card => {
-    normalizeBodyHrMarkers(card.body).split('\n').forEach(line => {
+    MosaicParser.normalizeBodyHrMarkers(card.body).split('\n').forEach(line => {
       const token = line.trim().toUpperCase();
       const type = token === '[GAP]' ? 'hr4' : token.slice(1, -1).toLowerCase();
       if(token.startsWith('[') && token.endsWith(']') && HR_CONTROL_IDS[type]) used.add(type);
@@ -3260,8 +3391,8 @@ function usedHrTypes(cards){
   return used;
 }
 
-function syncHrControlAvailability(){
-  const used = usedHrTypes(getCards());
+function syncHrControlAvailability(cards = getCards()){
+  const used = usedHrTypes(cards);
   const advancedOn = document.getElementById('advancedOn').checked;
   document.querySelectorAll('#advancedDesignGroup [data-hr-control]').forEach(element => {
     element.classList.toggle('isUnavailable', !used.has(element.dataset.hrControl));
@@ -3270,13 +3401,13 @@ function syncHrControlAvailability(){
     ids.forEach(id => {
       document.getElementById(id).disabled = !used.has(type) || (id.endsWith('ResetBtn') && !advancedOn);
     });
-    if(type !== 'hr4') syncSegmentedChoiceControl(`${type}Shape`);
+    if(type !== 'hr4') MosaicStorage.syncSegmentedChoiceControl(`${type}Shape`);
   });
 }
 
 function syncCreditDetailAvailability(){
   const creditOn = document.getElementById('creditOn').checked;
-  const transparentTheme = outputThemeTransparent(document.getElementById('outputTheme').value);
+  const transparentTheme = MosaicRenderer.outputThemeTransparent(document.getElementById('outputTheme').value);
   document.getElementById('creditAppearancePanel').classList.toggle('isUnavailable', !creditOn);
   document.getElementById('creditBorderOn').disabled = !creditOn;
   document.getElementById('creditTransparentOn').disabled = !creditOn || transparentTheme;
@@ -3289,8 +3420,8 @@ function syncCreditDetailAvailability(){
 
 function syncOutputThemeControls(){
   const mode = document.getElementById('outputTheme').value;
-  const shape = outputThemeShape(mode);
-  const transparent = outputThemeTransparent(mode);
+  const shape = MosaicRenderer.outputThemeShape(mode);
+  const transparent = MosaicRenderer.outputThemeTransparent(mode);
   const isAngularCard = shape === 'document';
   document.querySelectorAll('[data-output-shape]').forEach(button => {
     const selected = button.dataset.outputShape === shape;
@@ -3318,115 +3449,121 @@ function syncOutputThemeControls(){
 }
 
 function setCardDefaultsForShapeChange(previousTheme, nextTheme){
-  const previousShape = outputThemeShape(previousTheme);
-  const nextShape = outputThemeShape(nextTheme);
+  const previousShape = MosaicRenderer.outputThemeShape(previousTheme);
+  const nextShape = MosaicRenderer.outputThemeShape(nextTheme);
   if(previousShape === nextShape) return;
   // 카드 모양을 새로 고를 때만 이어보기와 외곽선 기본값을 적용한다.
   // 이후 체크박스와 미리보기 버튼에서 바꾼 값은 그대로 유지한다.
   document.getElementById('cardLayout').value = nextShape === 'document' ? 'unified' : 'separate';
   document.getElementById('cardBorderOn').checked = nextShape !== 'document';
-  syncCardLayoutCheckbox();
+  MosaicRenderer.syncCardLayoutCheckbox();
 }
 
 function chooseOutputTheme(shape, transparent){
-  commitThemeHoverPreview();
+  MosaicStorage.commitThemeHoverPreview();
   const outputTheme = document.getElementById('outputTheme');
-  const nextTheme = composeOutputTheme(shape, transparent);
+  const nextTheme = MosaicRenderer.composeOutputTheme(shape, transparent);
   setCardDefaultsForShapeChange(outputTheme.value, nextTheme);
   outputTheme.value = nextTheme;
   updateHexLabels();
-  renderComboList();
-  renderPresetList();
-  render();
-  saveDraft();
-  commitStyleHistory(true);
+  MosaicStorage.renderComboList();
+  MosaicStorage.renderPresetList();
+  uiUpdateEffects.renderedSavedChange();
+  MosaicStorage.commitStyleHistory(true);
 }
 
-document.querySelectorAll('[data-output-shape]').forEach(button => {
-  button.addEventListener('click', () => {
-    const mode = document.getElementById('outputTheme').value;
-    chooseOutputTheme(button.dataset.outputShape, outputThemeTransparent(mode));
-  });
-});
-document.getElementById('previewCardShapeBtn').addEventListener('click', () => {
-  const mode = document.getElementById('outputTheme').value;
-  const nextShape = outputThemeShape(mode) === 'document' ? 'solid' : 'document';
-  chooseOutputTheme(nextShape, outputThemeTransparent(mode));
-});
+function bindThemeChoiceEvents(){
+  bindUIFeatureEvents('theme-choice', () => {
+    document.querySelectorAll('[data-output-shape]').forEach(button => {
+      button.addEventListener('click', () => {
+        const mode = document.getElementById('outputTheme').value;
+        chooseOutputTheme(button.dataset.outputShape, MosaicRenderer.outputThemeTransparent(mode));
+      });
+    });
+    document.getElementById('previewCardShapeBtn').addEventListener('click', () => {
+      const mode = document.getElementById('outputTheme').value;
+      const nextShape = MosaicRenderer.outputThemeShape(mode) === 'document' ? 'solid' : 'document';
+      chooseOutputTheme(nextShape, MosaicRenderer.outputThemeTransparent(mode));
+    });
 
-document.getElementById('outputTransparentOn').addEventListener('change', event => {
-  const mode = document.getElementById('outputTheme').value;
-  chooseOutputTheme(outputThemeShape(mode), event.target.checked);
-});
+    document.getElementById('outputTransparentOn').addEventListener('change', event => {
+      const mode = document.getElementById('outputTheme').value;
+      chooseOutputTheme(MosaicRenderer.outputThemeShape(mode), event.target.checked);
+    });
+  });
+}
 
 function updateHexLabels(){
   syncOutputThemeControls();
   const transparentHint = document.getElementById('transparentThemeHint');
-  if(transparentHint) transparentHint.hidden = !outputThemeTransparent(document.getElementById('outputTheme').value);
+  if(transparentHint) transparentHint.hidden = !MosaicRenderer.outputThemeTransparent(document.getElementById('outputTheme').value);
   ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
     document.getElementById(id + 'Hex').value = document.getElementById(id).value;
   });
 }
 
-function normalizeHex(raw){
-  let v = raw.trim();
-  if(!v.startsWith('#')) v = '#' + v;
-  if(/^#[0-9A-Fa-f]{3}$/.test(v)){
-    v = '#' + v[1]+v[1] + v[2]+v[2] + v[3]+v[3];
-  }
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)) return v.toLowerCase();
-  return null;
+// 컬러피커 <-> 헥스코드 입력창 양방향 연동
+function bindColorInputEvents(){
+  bindUIFeatureEvents('color-inputs', () => {
+    ['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
+      const colorInput = document.getElementById(id);
+      const hexInput = document.getElementById(id + 'Hex');
+
+      colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+      });
+
+      hexInput.addEventListener('input', () => {
+        const normalized = MosaicState.normalizeHex(hexInput.value);
+        if(normalized){
+          colorInput.value = normalized;
+          // HEX 입력은 연결된 color input의 input 이벤트를 자동으로 만들지 않는다.
+          // 프리셋 출처 요약도 실제 색상과 동시에 다시 판정한다.
+          MosaicStorage.updateOverwriteBtn();
+          uiUpdateEffects.renderedDraftChange();
+          MosaicStorage.commitStyleHistory(false);
+        }
+      });
+
+      hexInput.addEventListener('blur', () => {
+        // 입력을 마쳤을 때 유효하지 않으면 현재 컬러값으로 되돌림
+        const normalized = MosaicState.normalizeHex(hexInput.value);
+        hexInput.value = normalized || colorInput.value;
+      });
+    });
+  });
 }
 
-// 컬러피커 <-> 헥스코드 입력창 양방향 연동
-['narrColor','charColor','userColor','emphasisColor','bgColor'].forEach(id => {
-  const colorInput = document.getElementById(id);
-  const hexInput = document.getElementById(id + 'Hex');
-
-  colorInput.addEventListener('input', () => {
-    hexInput.value = colorInput.value;
-  });
-
-  hexInput.addEventListener('input', () => {
-    const normalized = normalizeHex(hexInput.value);
-    if(normalized){
-      colorInput.value = normalized;
-      // HEX 입력은 연결된 color input의 input 이벤트를 자동으로 만들지 않는다.
-      // 프리셋 출처 요약도 실제 색상과 동시에 다시 판정한다.
-      updateOverwriteBtn();
-      render();
-      scheduleDraftSave();
-      commitStyleHistory(false);
-    }
-  });
-
-  hexInput.addEventListener('blur', () => {
-    // 입력을 마쳤을 때 유효하지 않으면 현재 컬러값으로 되돌림
-    const normalized = normalizeHex(hexInput.value);
-    hexInput.value = normalized || colorInput.value;
-  });
-});
-
 // 이미지 슬라이더 값 라벨 갱신
-document.getElementById('imgHeight').addEventListener('input', e => {
-  const editor = document.getElementById('imgHeightVal');
-  if(editor !== document.activeElement) editor.value = e.target.value;
-});
+const extraProfileRangeIds = MosaicState.EXTRA_PROFILE_SLOTS.flatMap(slot => ['Scale','X','Y'].map(field => MosaicState.extraProfilePrefix(slot) + field));
+const COVER_IMAGE_RANGE_IDS = ['imgHeight','xpos','ypos'];
+const PROFILE_IMAGE_RANGE_IDS = [
+  'profileCharScale','profileCharX','profileCharY',
+  'profileUserScale','profileUserX','profileUserY',
+  ...extraProfileRangeIds
+];
 
-document.getElementById('xpos').addEventListener('input', e => {
-  const editor = document.getElementById('xposVal');
-  if(editor !== document.activeElement) editor.value = e.target.value;
-});
+function syncLinkedRangeEditor(id){
+  const input = document.getElementById(id);
+  const editor = document.getElementById(id + 'Val');
+  if(input && editor && editor !== document.activeElement) editor.value = input.value;
+}
 
-document.getElementById('ypos').addEventListener('input', e => {
-  const editor = document.getElementById('yposVal');
-  if(editor !== document.activeElement) editor.value = e.target.value;
-});
+function bindRangeLabelMirrors(bindingName, ids){
+  bindUIFeatureEvents(bindingName, () => {
+    ids.forEach(id => {
+      document.getElementById(id).addEventListener('input', () => syncLinkedRangeEditor(id));
+    });
+  });
+}
 
-const extraProfileRangeIds = EXTRA_PROFILE_SLOTS.flatMap(slot => ['Scale','X','Y'].map(field => extraProfilePrefix(slot) + field));
+function bindCoverRangeLabelEvents(){
+  bindRangeLabelMirrors('cover-range-labels', COVER_IMAGE_RANGE_IDS);
+}
+
 const extraProfileCount = () => Math.max(0, Math.min(3, Math.floor(Number(document.getElementById('profileExtraCount').value) || 0)));
-document.getElementById('profileExtraEditors').innerHTML = EXTRA_PROFILE_SLOTS.map(slot => {
-  const prefix = extraProfilePrefix(slot);
+document.getElementById('profileExtraEditors').innerHTML = MosaicState.EXTRA_PROFILE_SLOTS.map(slot => {
+  const prefix = MosaicState.extraProfilePrefix(slot);
   const range = (field, label, min, max, step, value, unit = '') => `<div class="row"><label for="${prefix}${field}">${label}</label><input type="range" id="${prefix}${field}" min="${min}" max="${max}" step="${step}" value="${value}"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="${prefix}${field}Val" data-range="${prefix}${field}" value="${value}" aria-label="인물 ${slot} 사진 ${label} 직접 입력">${unit ? `<span class="rangeUnit">${unit}</span>` : ''}</span></div>`;
   const key = `extra${slot}`;
   return `<details class="profileSubFold" id="${prefix}Group" data-profile-key="${key}" hidden><summary class="profileSubHead"><button type="button" class="profileRemoveBtn" data-profile-remove="${slot}" aria-label="인물 ${slot} 삭제" title="인물 삭제">×</button><span class="profileSubTitle" id="${prefix}Title">인물 ${slot}</span><span class="profileSubActions"><button type="button" class="profileMoveBtn" data-profile-move="up" data-profile-key="${key}" aria-label="인물 ${slot} 위로 이동" title="위로 이동">↑</button><button type="button" class="profileMoveBtn" data-profile-move="down" data-profile-key="${key}" aria-label="인물 ${slot} 아래로 이동" title="아래로 이동">↓</button><button type="button" class="profileResetIconBtn" id="${prefix}ResetBtn" aria-label="인물 ${slot} 초기화" title="인물 ${slot} 초기화">↺</button><label class="coverVisibilitySwitch" title="인물 ${slot} 표시 전환"><input type="checkbox" id="${prefix}On" checked aria-label="인물 ${slot} 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary><div class="profileSubBody"><div class="row profileImageRow"><label for="${prefix}Image">이미지 URL</label><div class="profileImageField"><input type="url" id="${prefix}Image" maxlength="8192" placeholder="프로필 이미지 URL"><span class="imageLoadStatus profileImageDot" id="${prefix}ImageStatus" data-state="idle" aria-live="polite" hidden></span><button type="button" class="profileImageAdjustBtn" id="${prefix}ImageAdjustBtn" aria-label="인물 ${slot} 사진 조정 열기" title="사진 조정" aria-expanded="false" aria-controls="${prefix}ImageAdjustPanel">⚙︎</button></div></div><div class="profileImageAdjustPanel" id="${prefix}ImageAdjustPanel" hidden><div class="profileImageAdjustments" role="group" aria-label="인물 ${slot} 사진 조절">${range('Scale','배율',100,300,5,100,'%')}${range('X','가로',0,100,1,50)}${range('Y','세로',0,100,1,50)}</div></div><div class="row"><label for="${prefix}Role">라벨</label><input type="text" id="${prefix}Role" maxlength="24" value="CHAR" placeholder="CHAR"></div><div class="row"><label for="${prefix}Name">이름</label><input type="text" id="${prefix}Name" maxlength="100" placeholder="표시 이름"></div><div class="row profileTagsRow"><label id="${prefix}TagsLabel">태그</label><div class="profileTagFields" role="group" aria-labelledby="${prefix}TagsLabel"><input type="text" id="${prefix}Tag1" maxlength="150" placeholder="태그 1"><input type="text" id="${prefix}Tag2" maxlength="150" placeholder="태그 2"><input type="text" id="${prefix}Tag3" maxlength="150" placeholder="태그 3"></div><input type="hidden" id="${prefix}Tags" value=""></div><div class="row"><label for="${prefix}Desc">소개</label><textarea id="${prefix}Desc" maxlength="500" rows="2" style="min-height:58px; resize:vertical;" placeholder="한 줄 설명"></textarea></div></div></details>`;
@@ -3434,7 +3571,7 @@ document.getElementById('profileExtraEditors').innerHTML = EXTRA_PROFILE_SLOTS.m
 
 function currentProfileEntityOrder(){
   const input = document.getElementById('profileEntityOrder');
-  const order = normalizeProfileEntityOrder(
+  const order = MosaicState.normalizeProfileEntityOrder(
     input.value,
     extraProfileCount(),
     document.getElementById('profileOrder').value
@@ -3444,7 +3581,7 @@ function currentProfileEntityOrder(){
 }
 
 function setProfileEntityOrder(order){
-  document.getElementById('profileEntityOrder').value = JSON.stringify(normalizeProfileEntityOrder(
+  document.getElementById('profileEntityOrder').value = JSON.stringify(MosaicState.normalizeProfileEntityOrder(
     order,
     extraProfileCount(),
     document.getElementById('profileOrder').value
@@ -3461,24 +3598,28 @@ function profileEntityGroup(key){
 function syncProfileEntityEditors(){
   const container = document.getElementById('profileEntityEditors');
   const order = currentProfileEntityOrder();
-  order.forEach(key => {
+  order.forEach((key, index) => {
     const group = profileEntityGroup(key);
-    if(group) container.appendChild(group);
+    if(!group) return;
+    // 같은 부모 안에서 다시 append해도 한글 조합과 포커스가 끊길 수 있다.
+    // 입력 중에는 그대로 두고 실제 순서가 달라진 요소만 옮긴다.
+    const current = container.querySelectorAll(':scope > [data-profile-key]')[index];
+    if(current !== group) container.insertBefore(group, current || null);
   });
   order.forEach((key, index) => {
     const group = profileEntityGroup(key);
     if(!group) return;
     const up = group.querySelector('[data-profile-move="up"]');
     const down = group.querySelector('[data-profile-move="down"]');
-    if(up) up.disabled = moveProfileEntityOrder(order, key, 'up').join('\u0000') === order.join('\u0000');
-    if(down) down.disabled = moveProfileEntityOrder(order, key, 'down').join('\u0000') === order.join('\u0000');
+    if(up) up.disabled = MosaicState.moveProfileEntityOrder(order, key, 'up').join('\u0000') === order.join('\u0000');
+    if(down) down.disabled = MosaicState.moveProfileEntityOrder(order, key, 'down').join('\u0000') === order.join('\u0000');
   });
 }
 
 function syncExtraProfileEditors(){
   const count = extraProfileCount();
-  EXTRA_PROFILE_SLOTS.forEach(slot => {
-    const prefix = extraProfilePrefix(slot);
+  MosaicState.EXTRA_PROFILE_SLOTS.forEach(slot => {
+    const prefix = MosaicState.extraProfilePrefix(slot);
     const group = document.getElementById(prefix + 'Group');
     group.hidden = slot > count + 2;
     const name = document.getElementById(prefix + 'Name').value.trim() || `인물 ${slot}`;
@@ -3486,29 +3627,22 @@ function syncExtraProfileEditors(){
     title.textContent = name;
     title.title = name;
   });
-  document.getElementById('profileAddBtn').disabled = count >= EXTRA_PROFILE_SLOTS.length;
+  document.getElementById('profileAddBtn').disabled = count >= MosaicState.EXTRA_PROFILE_SLOTS.length;
   syncProfileEntityEditors();
 }
 
-['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY',...extraProfileRangeIds].forEach(id => {
-  document.getElementById(id).addEventListener('input', e => {
-    const editor = document.getElementById(id + 'Val');
-    if(editor !== document.activeElement) editor.value = e.target.value;
-  });
-});
+function bindProfileRangeLabelEvents(){
+  bindRangeLabelMirrors('profile-range-labels', PROFILE_IMAGE_RANGE_IDS);
+}
 
 function syncProfileImageRangeLabels(){
-  ['profileCharScale','profileCharX','profileCharY','profileUserScale','profileUserX','profileUserY',...extraProfileRangeIds].forEach(id => {
-    const input = document.getElementById(id);
-    const label = document.getElementById(id + 'Val');
-    if(input && label && label !== document.activeElement) label.value = input.value;
-  });
+  PROFILE_IMAGE_RANGE_IDS.forEach(syncLinkedRangeEditor);
 }
 
 const PROFILE_IMAGE_UI_CONFIGS = [
   { label:'BOT', inputId:'profileCharImage', buttonId:'profileCharImageAdjustBtn', panelId:'profileCharImageAdjustPanel', toggleId:'profileCharOn' },
   { label:'USER', inputId:'profileUserImage', buttonId:'profileUserImageAdjustBtn', panelId:'profileUserImageAdjustPanel', toggleId:'profileUserOn' },
-  ...EXTRA_PROFILE_SLOTS.map(slot => ({ label:`인물 ${slot}`, inputId:`profileExtra${slot}Image`, buttonId:`profileExtra${slot}ImageAdjustBtn`, panelId:`profileExtra${slot}ImageAdjustPanel`, toggleId:`profileExtra${slot}On` })),
+  ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => ({ label:`인물 ${slot}`, inputId:`profileExtra${slot}Image`, buttonId:`profileExtra${slot}ImageAdjustBtn`, panelId:`profileExtra${slot}ImageAdjustPanel`, toggleId:`profileExtra${slot}On` })),
 ];
 
 const IMAGE_BACKGROUND_TOGGLE_CONFIGS = [
@@ -3527,20 +3661,24 @@ function syncImageBackgroundChoice(id){
   }
 }
 
-document.querySelectorAll('[data-background-control] button[data-value]').forEach(button => {
-  button.addEventListener('click', () => {
-    const input = document.getElementById(button.closest('[data-background-control]').dataset.backgroundControl);
-    const next = button.dataset.value === 'image';
-    if(input.disabled || input.checked === next) return;
-    input.checked = next;
-    input.dispatchEvent(new Event('input', { bubbles:true }));
-    input.dispatchEvent(new Event('change', { bubbles:true }));
-    syncImageBackgroundChoice(input.id);
+function bindImageBackgroundChoiceEvents(){
+  bindUIFeatureEvents('image-background-choice', () => {
+    document.querySelectorAll('[data-background-control] button[data-value]').forEach(button => {
+      button.addEventListener('click', () => {
+        const input = document.getElementById(button.closest('[data-background-control]').dataset.backgroundControl);
+        const next = button.dataset.value === 'image';
+        if(input.disabled || input.checked === next) return;
+        input.checked = next;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
+        syncImageBackgroundChoice(input.id);
+      });
+    });
+    ['titleImageBackgroundOn','profileImageBackgroundOn'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => syncImageBackgroundChoice(id));
+    });
   });
-});
-['titleImageBackgroundOn','profileImageBackgroundOn'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => syncImageBackgroundChoice(id));
-});
+}
 
 function syncImageBackgroundToggleAvailability(){
   IMAGE_BACKGROUND_TOGGLE_CONFIGS.forEach(config => {
@@ -3554,7 +3692,7 @@ function syncImageBackgroundToggleAvailability(){
     toggle.closest('.imageBackgroundToggleRow').classList.toggle('isUnavailable', !available);
   });
   const profileToggle = document.getElementById('profileImageBackgroundOn');
-  const profileImageAvailable = ['profileChar','profileUser',...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)].some(role => {
+  const profileImageAvailable = ['profileChar','profileUser',...MosaicState.EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(MosaicState.extraProfilePrefix)].some(role => {
     const source = document.getElementById(`${role}Image`);
     return source.value.trim() !== '';
   });
@@ -3588,21 +3726,21 @@ function syncProfileImageUiState(){
   });
 }
 
-PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
-  const input = document.getElementById(config.inputId);
-  const button = document.getElementById(config.buttonId);
-  button.addEventListener('click', () => {
-    setProfileImageAdjustOpen(config, button.getAttribute('aria-expanded') !== 'true');
+function bindProfileImageEvents(){
+  bindUIFeatureEvents('profile-images', () => {
+    PROFILE_IMAGE_UI_CONFIGS.forEach(config => {
+      const input = document.getElementById(config.inputId);
+      const button = document.getElementById(config.buttonId);
+      button.addEventListener('click', () => {
+        setProfileImageAdjustOpen(config, button.getAttribute('aria-expanded') !== 'true');
+      });
+      input.addEventListener('input', syncProfileImageUiState);
+    });
   });
-  input.addEventListener('input', syncProfileImageUiState);
-});
+}
 
 function syncCoverImageRangeLabels(){
-  ['imgHeight','xpos','ypos'].forEach(id => {
-    const input = document.getElementById(id);
-    const editor = document.getElementById(id + 'Val');
-    if(input && editor && editor !== document.activeElement) editor.value = input.value;
-  });
+  COVER_IMAGE_RANGE_IDS.forEach(syncLinkedRangeEditor);
 }
 
 function syncCoverRangeProgress(){
@@ -3621,22 +3759,22 @@ function syncTypographyRangeLabels(){
     // 직접 입력 중에는 "1." 같은 소수점 입력 중간값을 덮어쓰지 않는다.
     if(input && label && label !== document.activeElement) label.value = input.value;
   });
-  ['hrOpacity','hrLength','hrVerticalSpace','hr2Opacity','hr2VerticalSpace','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','coverDividerLength','cardTitlePadding','cardDividerLength'].forEach(id => {
+  ['hrOpacity','hrLength','hrVerticalSpace','hr2Opacity','hr2VerticalSpace','hr3Opacity','hr3VerticalSpace','gapHeight','coverVerticalSpace','profileItemGap','profileTitleGap','coverCardGap','cardGap','unifiedBottomSpace','creditWidth','creditCardGap','cardInlinePadding','cardBodyTopSpace','cardBodyBottomSpace','footerBodyGap','headingTopSpace','headingBetweenSpace','headingBottomSpace','cardCornerRadius','cardTitleOrnamentOpacity','coverDividerLength','cardTitlePadding','cardDividerLength'].forEach(id => {
     const input = document.getElementById(id);
     const label = document.getElementById(id + 'Val');
     if(id === 'profileItemGap'){
-      input.min = String(-profileItemGapBasePx());
+      input.min = String(-MosaicRenderer.profileItemGapBasePx());
       if(Number(input.value) < Number(input.min)) input.value = input.min;
     }
     if(label !== document.activeElement) label.value = id === 'profileItemGap'
-      ? String(Math.max(0, profileItemGapBasePx() + Number(input.value)))
+      ? String(Math.max(0, MosaicRenderer.profileItemGapBasePx() + Number(input.value)))
       : id === 'cardInlinePadding' ? String(Number(input.value) - 22) : input.value;
     const min = Number(input.min);
     const max = Number(input.max);
     const progress = max > min ? (Number(input.value) - min) / (max - min) * 100 : 0;
     input.style.setProperty('--advanced-range-progress', `${Math.max(0, Math.min(100, progress))}%`);
   });
-  syncSoftBreakSpacingControl();
+  MosaicRenderer.syncSoftBreakSpacingControl();
   ['narrSize','narrLine','dlgSize','dlgLine','paragraphGap','narrDialogueGap','softBreakSpacing','titleSize','foldTitleSize'].forEach(id => {
     const input = document.getElementById(id);
     const min = Number(input.min);
@@ -3647,29 +3785,33 @@ function syncTypographyRangeLabels(){
 }
 
 // 슬라이더와 숫자 입력을 양방향으로 연결해 빠른 조절과 정확한 입력을 모두 지원한다.
-document.querySelectorAll('.rangeEditor input[data-range]').forEach(editor => {
-  const range = document.getElementById(editor.dataset.range);
-  if(!range) return;
-  editor.addEventListener('input', () => {
-    const value = Number(editor.value) - (range.id === 'profileItemGap' ? profileItemGapBasePx()
-      : range.id === 'cardInlinePadding' ? -22 : 0);
-    if(!Number.isFinite(value) || value < Number(range.min) || value > Number(range.max)) return;
-    range.value = String(value);
-    range.dispatchEvent(new Event('input', { bubbles:true }));
+function bindRangeEditorEvents(){
+  bindUIFeatureEvents('range-editors', () => {
+    document.querySelectorAll('.rangeEditor input[data-range]').forEach(editor => {
+      const range = document.getElementById(editor.dataset.range);
+      if(!range) return;
+      editor.addEventListener('input', () => {
+        const value = Number(editor.value) - (range.id === 'profileItemGap' ? MosaicRenderer.profileItemGapBasePx()
+          : range.id === 'cardInlinePadding' ? -22 : 0);
+        if(!Number.isFinite(value) || value < Number(range.min) || value > Number(range.max)) return;
+        range.value = String(value);
+        range.dispatchEvent(new Event('input', { bubbles:true }));
+      });
+      editor.addEventListener('change', () => {
+        const base = range.id === 'profileItemGap' ? MosaicRenderer.profileItemGapBasePx()
+          : range.id === 'cardInlinePadding' ? -22 : 0;
+        const value = Number(editor.value) - base;
+        const safeValue = Number.isFinite(value)
+          ? Math.min(Number(range.max), Math.max(Number(range.min), value))
+          : Number(range.value);
+        range.value = String(safeValue);
+        editor.value = String(range.id === 'cardInlinePadding' || range.id === 'footerBodyGap'
+          ? Number(range.value) + base : Math.max(0, Number(range.value) + base));
+        range.dispatchEvent(new Event('input', { bubbles:true }));
+      });
+    });
   });
-  editor.addEventListener('change', () => {
-    const base = range.id === 'profileItemGap' ? profileItemGapBasePx()
-      : range.id === 'cardInlinePadding' ? -22 : 0;
-    const value = Number(editor.value) - base;
-    const safeValue = Number.isFinite(value)
-      ? Math.min(Number(range.max), Math.max(Number(range.min), value))
-      : Number(range.value);
-    range.value = String(safeValue);
-    editor.value = String(range.id === 'cardInlinePadding'
-      ? Number(range.value) + base : Math.max(0, Number(range.value) + base));
-    range.dispatchEvent(new Event('input', { bubbles:true }));
-  });
-});
+}
 
 function selectedControlText(id){
   const select = document.getElementById(id);
@@ -3686,7 +3828,7 @@ function syncDesktopPreviewWidth(){
 
 function syncPreviewToolbarLabel(){
   const toolbar = document.getElementById('previewToolbar');
-  const previewArea = document.getElementById('previewArea');
+  const previewArea = uiElements.previewArea;
   const areaStyle = getComputedStyle(previewArea);
   const availableWidth = previewArea.clientWidth
     - (parseFloat(areaStyle.paddingLeft) || 0)
@@ -3726,23 +3868,27 @@ function syncPreviewToolbarLabel(){
   setLabel(mobileButton, fullLabels ? mobileLabel : '380');
   toolbar.classList.toggle('previewToolbarStacked', toolbarWidth < 580);
 }
-let previewToolbarSyncFrame = null;
 function schedulePreviewToolbarSync(){
-  if(previewToolbarSyncFrame !== null) return;
-  previewToolbarSyncFrame = requestAnimationFrame(() => {
-    previewToolbarSyncFrame = null;
+  if(previewPositionState.toolbarSyncFrame !== null) return;
+  previewPositionState.toolbarSyncFrame = requestAnimationFrame(() => {
+    previewPositionState.toolbarSyncFrame = null;
     syncPreviewToolbarLabel();
   });
 }
-if(typeof ResizeObserver === 'function'){
-  const previewToolbarResizeObserver = new ResizeObserver(schedulePreviewToolbarSync);
-  previewToolbarResizeObserver.observe(document.getElementById('previewArea'));
-  previewToolbarResizeObserver.observe(document.getElementById('previewWrap'));
-  previewToolbarResizeObserver.observe(document.querySelector('#previewToolbar .previewTools'));
+function bindPreviewToolbarLayoutEvents(){
+  bindUIFeatureEvents('preview-toolbar-layout', () => {
+    if(typeof ResizeObserver === 'function'){
+      const observer = new ResizeObserver(schedulePreviewToolbarSync);
+      observer.observe(uiElements.previewArea);
+      observer.observe(document.getElementById('previewWrap'));
+      observer.observe(document.querySelector('#previewToolbar .previewTools'));
+      uiLifecycleState.observers.push(observer);
+    }
+    // 전체화면에서 본문은 380px로 고정되어 있어도 도구모음은 창 폭을 따른다.
+    // 관찰 중인 본문·도구 폭이 그대로인 채 창만 넓어지는 경우도 다시 계산한다.
+    window.addEventListener('resize', schedulePreviewToolbarSync);
+  });
 }
-// 전체화면에서 본문은 380px로 고정되어 있어도 도구모음은 창 폭을 따른다.
-// 관찰 중인 본문·도구 폭이 그대로인 채 창만 넓어지는 경우도 다시 계산한다.
-window.addEventListener('resize', schedulePreviewToolbarSync);
 
 function syncDividerLengthControlState(){
   const controls = [
@@ -3757,7 +3903,7 @@ function syncDividerLengthControlState(){
 }
 
 function syncUnifiedBottomSpaceControlState(){
-  const unavailable = normalizeCardLayout(document.getElementById('cardLayout').value) !== 'unified';
+  const unavailable = MosaicRenderer.normalizeCardLayout(document.getElementById('cardLayout').value) !== 'unified';
   document.getElementById('unifiedBottomSpaceRow').classList.toggle('isUnavailable', unavailable);
   document.getElementById('unifiedBottomSpace').disabled = unavailable;
   document.getElementById('unifiedBottomSpaceVal').disabled = unavailable;
@@ -3765,7 +3911,7 @@ function syncUnifiedBottomSpaceControlState(){
 function syncProfileTitleGapControlState(){
   const unavailable = !document.getElementById('profileOn').checked
     || document.getElementById('profilePlacement').value !== 'top'
-    || normalizeCardLayout(document.getElementById('cardLayout').value) === 'unified';
+    || MosaicRenderer.normalizeCardLayout(document.getElementById('cardLayout').value) === 'unified';
   document.getElementById('profileTitleGapRow').classList.toggle('isUnavailable', unavailable);
   document.getElementById('profileTitleGap').disabled = unavailable;
   document.getElementById('profileTitleGapVal').disabled = unavailable;
@@ -3774,7 +3920,7 @@ function syncTopProfileDetailControlState(){
   const available = document.getElementById('profileOn').checked
     && document.getElementById('profilePlacement').value === 'top';
   const activePrefixes = ['profileChar','profileUser',
-    ...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)];
+    ...MosaicState.EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(MosaicState.extraProfilePrefix)];
   const visibleProfiles = activePrefixes.filter(prefix => {
     if(!document.getElementById(`${prefix}On`).checked) return false;
     const image = document.getElementById(`${prefix}Image`).value.trim();
@@ -3784,7 +3930,7 @@ function syncTopProfileDetailControlState(){
   document.getElementById('topProfileDetailPanel').classList.toggle('isUnavailable', !available);
   const background = document.getElementById('profileOuterBackground');
   background.disabled = !available;
-  syncSegmentedChoiceControl('profileOuterBackground');
+  MosaicStorage.syncSegmentedChoiceControl('profileOuterBackground');
   const gapUnavailable = !available || visibleProfiles < 2;
   document.getElementById('profileItemGapRow').classList.toggle('isUnavailable', gapUnavailable);
   document.getElementById('profileItemGap').disabled = gapUnavailable;
@@ -3795,7 +3941,7 @@ function syncFoldAutoNumberStyleControlState(){
   const unavailable = !document.getElementById('foldTitleAutoNumber').checked;
   document.getElementById('foldAutoNumberStyleRow').classList.toggle('isUnavailable', unavailable);
   document.getElementById('foldAutoNumberStyle').disabled = unavailable;
-  syncSegmentedChoiceControl('foldAutoNumberStyle');
+  MosaicStorage.syncSegmentedChoiceControl('foldAutoNumberStyle');
 }
 
 function syncCardTitleOrnamentOpacityControlState(){
@@ -3815,23 +3961,32 @@ function syncAdvancedResetAvailability(){
       || (group === 'topProfile' && (!document.getElementById('profileOn').checked
         || document.getElementById('profilePlacement').value !== 'top'))
       || (group === 'creditAppearance' && !creditOn)
+      || (group === 'footerSpacing' && !document.getElementById('footerOn').checked)
       || (Boolean(HR_CONTROL_IDS[group]) && button.classList.contains('isUnavailable'));
   });
 }
 
-function syncDesignSummaries(){
-  syncCardLayoutCheckbox();
-  syncMinimalChoiceControls();
+function syncDesignControlStates(){
+  MosaicRenderer.syncCardLayoutCheckbox();
+  MosaicStorage.syncMinimalChoiceControls();
   syncDividerLengthControlState();
   syncUnifiedBottomSpaceControlState();
   syncProfileTitleGapControlState();
   syncTopProfileDetailControlState();
   syncFoldAutoNumberStyleControlState();
   syncCardTitleOrnamentOpacityControlState();
+  const footerUnavailable = !document.getElementById('footerOn').checked;
+  document.getElementById('footerBodyGapRow').classList.toggle('isUnavailable', footerUnavailable);
+  ['footerBodyGap','footerBodyGapVal'].forEach(id => {
+    document.getElementById(id).disabled = footerUnavailable;
+  });
   document.getElementById('advancedDesignGroup').classList.toggle(
     'isAdvancedInactive', !document.getElementById('advancedOn').checked
   );
   syncAdvancedResetAvailability();
+}
+
+function syncDesignSummaryText(){
   const font = selectedControlText('textFont');
   const dialogue = selectedControlText('dlgStyle');
   const cardWidthSelect = document.getElementById('cardWidth');
@@ -3868,21 +4023,21 @@ function syncDesignSummaries(){
     ? `©${footerAuthorSummary}`
     : '';
   const creditOn = document.getElementById('creditOn').checked;
-  const creditCount = storedCreditItems().filter(item => item.label.trim() || item.value.trim()).length;
+  const creditCount = MosaicRenderer.storedCreditItems().filter(item => item.label.trim() || item.value.trim()).length;
   document.getElementById('creditCoverSummary').textContent = creditOn
     ? `${selectedControlText('creditPlacement')} · ${creditCount}개 항목`
     : '';
 }
 
-function normalizeProtocolRelativeUrl(value){
-  const url = String(value || '').trim();
-  return url.startsWith('//') ? 'https:' + url : url;
+function syncDesignSummaries(){
+  syncDesignControlStates();
+  syncDesignSummaryText();
 }
 
 const PROFILE_TAG_GROUPS = [
   { masterId:'profileCharTags', editorIds:['profileCharTag1','profileCharTag2','profileCharTag3'] },
   { masterId:'profileUserTags', editorIds:['profileUserTag1','profileUserTag2','profileUserTag3'] },
-  ...EXTRA_PROFILE_SLOTS.map(slot => ({ masterId:`profileExtra${slot}Tags`, editorIds:[1,2,3].map(index => `profileExtra${slot}Tag${index}`) })),
+  ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => ({ masterId:`profileExtra${slot}Tags`, editorIds:[1,2,3].map(index => `profileExtra${slot}Tag${index}`) })),
   { masterId:'profileRelationship', editorIds:['profileRelationship1','profileRelationship2','profileRelationship3'] },
 ];
 
@@ -3929,10 +4084,10 @@ const PROFILE_ENTITY_CONFIGS = [
     controlIds:['profileUserRole','profileUserName','profileUserTag1','profileUserTag2','profileUserTag3','profileUserDesc','profileUserImage','profileUserScale','profileUserX','profileUserY'],
     resetValues:{ profileUserRole:'USER', profileUserName:'', profileUserTags:'', profileUserDesc:'', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50' }
   },
-  ...EXTRA_PROFILE_SLOTS.map(slot => {
-    const prefix = extraProfilePrefix(slot);
+  ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => {
+    const prefix = MosaicState.extraProfilePrefix(slot);
     return { label:`인물 ${slot}`, toggleId:prefix + 'On', groupId:prefix + 'Group', resetButtonId:prefix + 'ResetBtn',
-      controlIds:[...extraProfileFields(slot), ...[1,2,3].map(index => `${prefix}Tag${index}`)],
+      controlIds:[...MosaicState.extraProfileFields(slot), ...[1,2,3].map(index => `${prefix}Tag${index}`)],
       resetValues:{ [`${prefix}Role`]:'CHAR', [`${prefix}Name`]:'', [`${prefix}Tags`]:'', [`${prefix}Desc`]:'', [`${prefix}Image`]:'', [`${prefix}Scale`]:'100', [`${prefix}X`]:'50', [`${prefix}Y`]:'50' } };
   }),
   {
@@ -3945,7 +4100,7 @@ const PROFILE_ENTITY_CONFIGS = [
 ];
 
 function applyProfileReset(entries, message){
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   entries.forEach(([id, value]) => {
     const control = document.getElementById(id);
     if(control.type === 'checkbox') control.checked = value;
@@ -3955,9 +4110,7 @@ function applyProfileReset(entries, message){
   syncProfileImageRangeLabels();
   syncCoverControlState();
   syncDesignSummaries();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(message);
 }
 
@@ -3975,20 +4128,24 @@ function resetProfileEntity(config){
   applyProfileReset(entries, config.completeMessage || `${config.label} 프로필을 초기화했습니다.`);
 }
 
-PROFILE_ENTITY_CONFIGS.forEach(config => {
-  document.getElementById(config.resetButtonId).addEventListener('click', () => {
-    resetProfileEntity(config);
+function bindProfileResetEvents(){
+  bindUIFeatureEvents('profile-reset', () => {
+    PROFILE_ENTITY_CONFIGS.forEach(config => {
+      document.getElementById(config.resetButtonId).addEventListener('click', () => {
+        resetProfileEntity(config);
+      });
+      const actions = document.getElementById(config.toggleId).closest('.profileSubActions');
+      if(actions){
+        actions.addEventListener('click', event => event.stopPropagation());
+        actions.addEventListener('keydown', event => event.stopPropagation());
+      }
+    });
   });
-  const actions = document.getElementById(config.toggleId).closest('.profileSubActions');
-  if(actions){
-    actions.addEventListener('click', event => event.stopPropagation());
-    actions.addEventListener('keydown', event => event.stopPropagation());
-  }
-});
+}
 
 function copyExtraProfile(fromSlot, toSlot){
-  const from = extraProfilePrefix(fromSlot);
-  const to = extraProfilePrefix(toSlot);
+  const from = MosaicState.extraProfilePrefix(fromSlot);
+  const to = MosaicState.extraProfilePrefix(toSlot);
   ['Role','Image','Scale','X','Y','Name','Desc','Tags'].forEach(field => {
     document.getElementById(to + field).value = document.getElementById(from + field).value;
   });
@@ -3996,14 +4153,14 @@ function copyExtraProfile(fromSlot, toSlot){
 }
 
 function resetExtraProfileSlot(slot){
-  const prefix = extraProfilePrefix(slot);
+  const prefix = MosaicState.extraProfilePrefix(slot);
   Object.entries({ Role:'CHAR', Image:'', Scale:'100', X:'50', Y:'50', Name:'', Desc:'', Tags:'' })
     .forEach(([field,value]) => { document.getElementById(prefix + field).value = value; });
   document.getElementById(prefix + 'On').checked = true;
 }
 
 function commitExtraProfileChange(message){
-  EXTRA_PROFILE_SLOTS.forEach(slot => {
+  MosaicState.EXTRA_PROFILE_SLOTS.forEach(slot => {
     const status = document.getElementById(`profileExtra${slot}ImageStatus`);
     status.dataset.state = 'idle';
     status.hidden = true;
@@ -4014,32 +4171,28 @@ function commitExtraProfileChange(message){
   syncExtraProfileEditors();
   syncCoverControlState();
   syncDesignSummaries();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(message);
 }
 
 function moveProfileEntity(key, direction){
   const order = currentProfileEntityOrder();
-  const nextOrder = moveProfileEntityOrder(order, key, direction);
+  const nextOrder = MosaicState.moveProfileEntityOrder(order, key, direction);
   if(nextOrder.join('\u0000') === order.join('\u0000')) return false;
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   setProfileEntityOrder(nextOrder);
   syncProfileEntityEditors();
   syncCoverControlState();
   syncDesignSummaries();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast('인물 순서를 변경했습니다.');
   return true;
 }
 
-document.getElementById('profileAddBtn').addEventListener('click', () => {
+function addExtraProfile(){
   const count = extraProfileCount();
-  if(count >= EXTRA_PROFILE_SLOTS.length) return;
-  snapshotCards();
+  if(count >= MosaicState.EXTRA_PROFILE_SLOTS.length) return;
+  MosaicStorage.snapshotCards();
   const slot = count + 3;
   const order = currentProfileEntityOrder();
   resetExtraProfileSlot(slot);
@@ -4047,82 +4200,94 @@ document.getElementById('profileAddBtn').addEventListener('click', () => {
   setProfileEntityOrder([...order, `extra${slot}`]);
   document.getElementById(`profileExtra${slot}Group`).open = true;
   commitExtraProfileChange(`인물 ${slot}을 추가했습니다.`);
-});
+}
 
-document.getElementById('profileEntityEditors').addEventListener('click', event => {
-  const action = event.target.closest('[data-profile-remove], [data-profile-move]');
-  if(!action || action.disabled) return;
-  event.preventDefault();
-  event.stopPropagation();
-  if(action.dataset.profileMove){
-    moveProfileEntity(action.dataset.profileKey, action.dataset.profileMove);
-    return;
-  }
-  const slot = Number(action.dataset.profileRemove);
+function removeExtraProfile(slot){
   const count = extraProfileCount();
   if(slot < 3 || slot > count + 2) return;
-  if(action.dataset.profileRemove){
-    snapshotCards();
-    const nextOrder = currentProfileEntityOrder()
-      .filter(key => key !== `extra${slot}`)
-      .map(key => {
-        const match = key.match(/^extra([3-5])$/);
-        return match && Number(match[1]) > slot ? `extra${Number(match[1]) - 1}` : key;
-      });
-    for(let current = slot; current < count + 2; current++) copyExtraProfile(current + 1, current);
-    resetExtraProfileSlot(count + 2);
-    document.getElementById('profileExtraCount').value = String(count - 1);
-    setProfileEntityOrder(nextOrder);
-    commitExtraProfileChange(`인물 ${slot}을 삭제했습니다.`);
-  }
-}, true);
+  MosaicStorage.snapshotCards();
+  const nextOrder = currentProfileEntityOrder()
+    .filter(key => key !== `extra${slot}`)
+    .map(key => {
+      const match = key.match(/^extra([3-5])$/);
+      return match && Number(match[1]) > slot ? `extra${Number(match[1]) - 1}` : key;
+    });
+  for(let current = slot; current < count + 2; current++) copyExtraProfile(current + 1, current);
+  resetExtraProfileSlot(count + 2);
+  document.getElementById('profileExtraCount').value = String(count - 1);
+  setProfileEntityOrder(nextOrder);
+  commitExtraProfileChange(`인물 ${slot}을 삭제했습니다.`);
+}
 
-EXTRA_PROFILE_SLOTS.forEach(slot => {
-  ['Role','Name'].forEach(field => document.getElementById(`profileExtra${slot}${field}`).addEventListener('input', syncExtraProfileEditors));
-});
+function bindProfileEntityEvents(){
+  bindUIFeatureEvents('profile-entities', () => {
+    document.getElementById('profileAddBtn').addEventListener('click', addExtraProfile);
 
-// 표지 섹션 헤더의 표시 스위치는 접기/펼치기와 독립적으로 작동한다.
-document.querySelectorAll('#tabCover .coverFoldActions, #tabDesign .advancedDesignGroup .coverFoldActions').forEach(actions => {
-  actions.addEventListener('click', event => event.stopPropagation());
-  actions.addEventListener('keydown', event => event.stopPropagation());
-});
-
-PROFILE_TAG_GROUPS.forEach(group => {
-  group.editorIds.forEach((id, index) => {
-    const editor = document.getElementById(id);
-    editor.addEventListener('input', () => {
-      if(/[,，]/.test(editor.value)){
-        const tags = splitProfileTags(editor.value);
-        group.editorIds.slice(index).forEach((targetId, offset) => {
-          document.getElementById(targetId).value = tags[offset] || '';
-        });
+    document.getElementById('profileEntityEditors').addEventListener('click', event => {
+      const action = event.target.closest('[data-profile-remove], [data-profile-move]');
+      if(!action || action.disabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if(action.dataset.profileMove){
+        moveProfileEntity(action.dataset.profileKey, action.dataset.profileMove);
+        return;
       }
-      syncProfileTagMaster(group, true);
-    });
-    editor.addEventListener('blur', () => {
-      editor.value = normalizeProfileTag(editor.value);
-      syncProfileTagMaster(group, true);
-    });
-  });
-});
+      const slot = Number(action.dataset.profileRemove);
+      if(!action.dataset.profileRemove) return;
+      removeExtraProfile(slot);
+    }, true);
 
-// 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여줌
-// (이 도구가 로컬 파일로 열려있을 때 미리보기에서 못 불러오는 경우 방지)
-['imgUrl','profileCharImage','profileUserImage',...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}Image`)].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    const input = document.getElementById(id);
-    const url = normalizeProtocolRelativeUrl(input.value);
-    if(input.value !== url){
-      input.value = url;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    MosaicState.EXTRA_PROFILE_SLOTS.forEach(slot => {
+      ['Role','Name'].forEach(field => document.getElementById(`profileExtra${slot}${field}`).addEventListener('input', syncExtraProfileEditors));
+    });
   });
-});
+}
+
+function bindProfileFieldEvents(){
+  bindUIFeatureEvents('profile-fields', () => {
+    // 표지 섹션 헤더의 표시 스위치는 접기/펼치기와 독립적으로 작동한다.
+    document.querySelectorAll('#tabCover .coverFoldActions, #tabDesign .advancedDesignGroup .coverFoldActions').forEach(actions => {
+      actions.addEventListener('click', event => event.stopPropagation());
+      actions.addEventListener('keydown', event => event.stopPropagation());
+    });
+
+    PROFILE_TAG_GROUPS.forEach(group => {
+      group.editorIds.forEach((id, index) => {
+        const editor = document.getElementById(id);
+        editor.addEventListener('input', () => {
+          if(/[,，]/.test(editor.value)){
+            const tags = splitProfileTags(editor.value);
+            group.editorIds.slice(index).forEach((targetId, offset) => {
+              document.getElementById(targetId).value = tags[offset] || '';
+            });
+          }
+          syncProfileTagMaster(group, true);
+        });
+        editor.addEventListener('blur', () => {
+          editor.value = normalizeProfileTag(editor.value);
+          syncProfileTagMaster(group, true);
+        });
+      });
+    });
+
+    // 이미지 URL이 바뀌면 //로 시작하는 프로토콜 상대경로에 https:를 붙여준다.
+    ['imgUrl','profileCharImage','profileUserImage',...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}Image`)].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        const input = document.getElementById(id);
+        const url = MosaicState.normalizeProtocolRelativeUrl(input.value);
+        if(input.value !== url){
+          input.value = url;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+    });
+  });
+}
 
 const subtitleCoupleSeparatorInput = document.getElementById('subtitleCoupleSeparator');
 const subtitleCoupleSeparatorBtn = document.getElementById('subtitleCoupleSeparatorBtn');
 function syncSubtitleCoupleSeparatorControl(){
-  const separator = normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
+  const separator = MosaicParser.normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
   subtitleCoupleSeparatorInput.value = separator;
   subtitleCoupleSeparatorBtn.textContent = separator;
   const separators = ['×', '&', '·'];
@@ -4130,24 +4295,28 @@ function syncSubtitleCoupleSeparatorControl(){
   subtitleCoupleSeparatorBtn.setAttribute('aria-label', `이름 구분 기호 ${separator} · 눌러서 ${next}로 변경`);
   subtitleCoupleSeparatorBtn.title = `이름 구분 기호를 ${next}로 변경`;
 }
-subtitleCoupleSeparatorInput.addEventListener('input', syncSubtitleCoupleSeparatorControl);
-subtitleCoupleSeparatorBtn.addEventListener('click', () => {
-  if(subtitleCoupleSeparatorBtn.disabled) return;
-  snapshotCards();
-  const separators = ['×', '&', '·'];
-  const current = normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
-  subtitleCoupleSeparatorInput.value = separators[(separators.indexOf(current) + 1) % separators.length];
-  subtitleCoupleSeparatorInput.dispatchEvent(new Event('input', { bubbles:true }));
-  showUndoToast(`이름 구분 기호를 ${subtitleCoupleSeparatorInput.value}로 변경했습니다.`);
-});
+function bindSubtitleSeparatorEvents(){
+  bindUIFeatureEvents('subtitle-separator', () => {
+    subtitleCoupleSeparatorInput.addEventListener('input', syncSubtitleCoupleSeparatorControl);
+    subtitleCoupleSeparatorBtn.addEventListener('click', () => {
+      if(subtitleCoupleSeparatorBtn.disabled) return;
+      MosaicStorage.snapshotCards();
+      const separators = ['×', '&', '·'];
+      const current = MosaicParser.normalizeSubtitleCoupleSeparator(subtitleCoupleSeparatorInput.value);
+      subtitleCoupleSeparatorInput.value = separators[(separators.indexOf(current) + 1) % separators.length];
+      subtitleCoupleSeparatorInput.dispatchEvent(new Event('input', { bubbles:true }));
+      showUndoToast(`이름 구분 기호를 ${subtitleCoupleSeparatorInput.value}로 변경했습니다.`);
+    });
+  });
+}
 syncSubtitleCoupleSeparatorControl();
 
 // 모든 입력 변경시 리렌더 (헥스 입력창은 위에서 별도 처리하므로 여기선 건드리지 않음)
 // 상태 필드와 기본값은 state.js의 단일 스키마를 사용한다.
-const SIDEBAR_OUTPUT_IDS = new Set([...WORK_FIELDS, ...STYLE_FIELDS, ...WORK_BOOLEAN_FIELDS]);
+const SIDEBAR_OUTPUT_IDS = new Set([...MosaicState.WORK_FIELDS, ...MosaicState.STYLE_FIELDS, ...MosaicState.WORK_BOOLEAN_FIELDS]);
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
-const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'titleImageBackgroundOn', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', ...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`), 'profileImageBackgroundOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'titleImageBackgroundOn', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`), 'profileImageBackgroundOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
 function previewVisibleFooterElement(){
   const footer = document.querySelector('#preview [data-mosaic-footer="true"]');
   return footer && footer.getClientRects().length ? footer : null;
@@ -4247,8 +4416,8 @@ const PREVIEW_FOCUS_MAP = {
   creditPlacement: () => previewParts().credit,
   creditItems: () => activeCreditPreviewTarget(),
 };
-EXTRA_PROFILE_SLOTS.forEach(slot => {
-  const prefix = extraProfilePrefix(slot);
+MosaicState.EXTRA_PROFILE_SLOTS.forEach(slot => {
+  const prefix = MosaicState.extraProfilePrefix(slot);
   PREVIEW_FOCUS_MAP[prefix + 'On'] = () => previewProfileRoleTarget(`extra${slot}`);
   PREVIEW_FOCUS_MAP[prefix + 'Role'] = () => previewProfileFieldTarget(prefix + 'Role');
   PREVIEW_FOCUS_MAP[prefix + 'Name'] = () => previewProfileFieldTarget(prefix + 'Name');
@@ -4258,14 +4427,6 @@ EXTRA_PROFILE_SLOTS.forEach(slot => {
     PREVIEW_FOCUS_MAP[prefix + field] = () => previewProfileFieldTarget(prefix + 'Image');
   });
 });
-
-function normalizeCommentWidth(value){
-  return ['default','card'].includes(value) ? value : 'default';
-}
-
-function normalizeCommentAlign(value){
-  return ['left','center'].includes(value) ? value : 'left';
-}
 
 function hasMarkdownCardContent(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).some(editor => {
@@ -4328,8 +4489,8 @@ function syncParagraphSettingsUI(){
     hasBodyFoldTitleContent(),
     '카드에 본문 접기를 입력하면 설정할 수 있습니다.'
   );
-  const commentWidth = normalizeCommentWidth(document.getElementById('commentWidth').value);
-  const commentAlign = normalizeCommentAlign(document.getElementById('commentAlign').value);
+  const commentWidth = MosaicState.normalizeCommentWidth(document.getElementById('commentWidth').value);
+  const commentAlign = MosaicState.normalizeCommentAlign(document.getElementById('commentAlign').value);
   press('commentWidthDefault', commentWidth === 'default');
   press('commentWidthCard', commentWidth === 'card');
   press('commentAlignLeft', commentAlign === 'left');
@@ -4367,88 +4528,109 @@ function setParagraphOptions(nextState){
   if(changed.length) changed[0].dispatchEvent(new Event('input', { bubbles:true }));
 }
 
-document.getElementById('narrIndentNone').addEventListener('click', () => {
-  setParagraphOptions({ narrIndent:false });
-});
-document.getElementById('narrIndentFirst').addEventListener('click', () => {
-  setParagraphOptions({ narrIndent:!document.getElementById('narrIndent').checked });
-});
-document.getElementById('commentWidthDefault').addEventListener('click', () => {
-  setParagraphOptions({ commentWidth:'default' });
-});
-document.getElementById('commentWidthCard').addEventListener('click', () => {
-  setParagraphOptions({ commentWidth:'card' });
-});
-document.getElementById('commentAlignLeft').addEventListener('click', () => {
-  setParagraphOptions({ commentAlign:'left' });
-});
-document.getElementById('commentAlignCenter').addEventListener('click', () => {
-  setParagraphOptions({ commentAlign:'center' });
-});
+function bindParagraphSettingEvents(){
+  bindUIFeatureEvents('paragraph-settings', () => {
+    document.getElementById('narrIndentNone').addEventListener('click', () => {
+      setParagraphOptions({ narrIndent:false });
+    });
+    document.getElementById('narrIndentFirst').addEventListener('click', () => {
+      setParagraphOptions({ narrIndent:!document.getElementById('narrIndent').checked });
+    });
+    document.getElementById('commentWidthDefault').addEventListener('click', () => {
+      setParagraphOptions({ commentWidth:'default' });
+    });
+    document.getElementById('commentWidthCard').addEventListener('click', () => {
+      setParagraphOptions({ commentWidth:'card' });
+    });
+    document.getElementById('commentAlignLeft').addEventListener('click', () => {
+      setParagraphOptions({ commentAlign:'left' });
+    });
+    document.getElementById('commentAlignCenter').addEventListener('click', () => {
+      setParagraphOptions({ commentAlign:'center' });
+    });
+  });
+}
 syncParagraphSettingsUI();
 
-document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').forEach(el => {
-  if(el.classList.contains('hexLabel') || !SIDEBAR_OUTPUT_IDS.has(el.id)) return;
-  // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
-  if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
-  el.addEventListener('input', () => {
-    if(el.id !== 'advancedOn' && el.closest('#advancedDesignGroup')){
-      document.getElementById('advancedOn').checked = true;
-    }
-    syncParagraphSettingsUI();
-    syncTypographyRangeLabels();
-    syncDesignSummaries();
-    const positionSync = positionSyncEnabled();
-    const preserveViewport = !positionSync && POSITION_PRESERVE_TOGGLE_IDS.has(el.id);
-    const viewportX = preserveViewport ? window.scrollX : 0;
-    const viewportY = preserveViewport ? window.scrollY : 0;
-    if(positionSync && PREVIEW_FOCUS_MAP[el.id]) focusPreviewOn(PREVIEW_FOCUS_MAP[el.id]);
-    else if(!positionSync) pendingPreviewFocus = null;
-    scheduleRender();
-    if(preserveViewport){
-      requestAnimationFrame(() => window.scrollTo(viewportX, viewportY));
-    }
-    scheduleDraftSave();
-    if(el.id && STYLE_FIELDS.includes(el.id)) commitStyleHistory(false);
+function bindProfileCompositionEvents(input){
+  let composing = false;
+  input.addEventListener('compositionstart', () => {
+    composing = true;
+    MosaicStorage.deferDraftSave();
   });
-});
-
-// 값이 바뀌기 전에도 프로필 입력칸을 클릭하는 즉시 오른쪽의 대응 요소를 보여준다.
-document.getElementById('profileGroup').addEventListener('focusin', event => {
-  if(!positionSyncEnabled()) return;
-  const id = event.target && event.target.id;
-  if(!id) return;
-  let target = null;
-  if(/^(?:profileCharTag|profileUserTag|profileExtra[3-5]Tag|profileRelationship)[1-3]$/.test(id)){
-    target = previewProfileFieldTarget(id);
-  }else if(PREVIEW_FOCUS_MAP[id]){
-    target = PREVIEW_FOCUS_MAP[id]();
-  }
-  if(target) scrollPreviewIfNeeded(target, true);
-});
-
-// 크레딧 입력을 선택하면 같은 항목의 미리보기 글자를 보여준다. URL은 별도의
-// 출력 글자가 없으므로 해당 항목의 내용(없으면 항목명)을 대상으로 삼는다.
-document.getElementById('creditGroup').addEventListener('focusin', event => {
-  if(!positionSyncEnabled()) return;
-  const id = event.target && event.target.id;
-  const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
-  if(!match) return;
-  const field = match[1] === 'Label' ? 'label' : 'value';
-  const target = previewCreditFieldTarget(Number(match[2]), field);
-  if(target) scrollPreviewIfNeeded(target, true);
-});
-
-['foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    syncDesignSummaries();
-    render();
-    scheduleDraftSave();
-    commitStyleHistory(true);
+  input.addEventListener('compositionend', () => {
+    composing = false;
+    input.dispatchEvent(new Event('input', { bubbles:true }));
   });
-});
+  return event => composing || event.isComposing;
+}
 
-document.getElementById('textFont').addEventListener('change', () => loadSelectedWebFont('textFont'));
+function bindSidebarOutputEvents(){
+  bindUIFeatureEvents('sidebar-output', () => {
+    document.querySelectorAll('#sidebar input, #sidebar select, #sidebar textarea').forEach(el => {
+      if(el.classList.contains('hexLabel') || !SIDEBAR_OUTPUT_IDS.has(el.id)) return;
+      // 체크·해제 양쪽을 확실히 처리하기 위해 이 옵션은 아래 change 전용 처리기로 연결한다.
+      if(el.id === 'foldTitleDecorationOn' || el.id === 'foldDividerOn' || el.id === 'foldTitleAutoNumber') return;
+      const isComposing = /^profileExtra[3-5](?:Name|Role)$/.test(el.id)
+        ? bindProfileCompositionEvents(el) : () => false;
+      el.addEventListener('input', event => {
+        if(isComposing(event)){
+          MosaicStorage.deferDraftSave();
+          return;
+        }
+        if(el.id !== 'advancedOn' && el.closest('#advancedDesignGroup')){
+          document.getElementById('advancedOn').checked = true;
+        }
+        const positionSync = positionSyncEnabled();
+        const preserveViewport = !positionSync && POSITION_PRESERVE_TOGGLE_IDS.has(el.id);
+        const viewportX = preserveViewport ? window.scrollX : 0;
+        const viewportY = preserveViewport ? window.scrollY : 0;
+        if(positionSync && PREVIEW_FOCUS_MAP[el.id]) focusPreviewOn(PREVIEW_FOCUS_MAP[el.id]);
+        else if(!positionSync) previewPositionState.pendingFocus = null;
+        uiUpdateEffects.renderLater();
+        if(preserveViewport){
+          requestAnimationFrame(() => window.scrollTo(viewportX, viewportY));
+        }
+        uiUpdateEffects.saveLater();
+        if(el.id && MosaicState.STYLE_FIELDS.includes(el.id)) MosaicStorage.commitStyleHistory(false);
+      });
+    });
+
+    // 값이 바뀌기 전에도 프로필 입력칸을 클릭하는 즉시 오른쪽의 대응 요소를 보여준다.
+    document.getElementById('profileGroup').addEventListener('focusin', event => {
+      if(!positionSyncEnabled()) return;
+      const id = event.target && event.target.id;
+      if(!id) return;
+      let target = null;
+      if(/^(?:profileCharTag|profileUserTag|profileExtra[3-5]Tag|profileRelationship)[1-3]$/.test(id)){
+        target = previewProfileFieldTarget(id);
+      }else if(PREVIEW_FOCUS_MAP[id]){
+        target = PREVIEW_FOCUS_MAP[id]();
+      }
+      if(target) scrollPreviewIfNeeded(target, true);
+    });
+
+    // 크레딧 URL은 별도의 출력 글자가 없으므로 내용(없으면 항목명)을 대상으로 삼는다.
+    document.getElementById('creditGroup').addEventListener('focusin', event => {
+      if(!positionSyncEnabled()) return;
+      const id = event.target && event.target.id;
+      const match = String(id || '').match(/^credit(Label|Value|Url)(\d+)$/);
+      if(!match) return;
+      const field = match[1] === 'Label' ? 'label' : 'value';
+      const target = previewCreditFieldTarget(Number(match[2]), field);
+      if(target) scrollPreviewIfNeeded(target, true);
+    });
+
+    ['foldTitleDecorationOn','foldDividerOn','foldTitleAutoNumber'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        syncDesignSummaries();
+        uiUpdateEffects.renderedDraftChange();
+        MosaicStorage.commitStyleHistory(true);
+      });
+    });
+    document.getElementById('textFont').addEventListener('change', () => MosaicRenderer.loadSelectedWebFont('textFont'));
+  });
+}
 
 function syncProfileEntityControlState(){
   PROFILE_ENTITY_CONFIGS.forEach(config => {
@@ -4481,6 +4663,7 @@ const COVER_VISIBILITY_GROUPS = [
 ];
 
 function syncCoverControlState(){
+  uiControlSyncState.keys.clear();
   syncExtraProfileEditors();
   COVER_VISIBILITY_GROUPS.forEach(([groupId, toggleId]) => {
     document.getElementById(groupId).classList.toggle(
@@ -4496,12 +4679,12 @@ function syncCoverControlState(){
   syncProfileEntityControlState();
   syncProfileImageUiState();
   syncImageBackgroundToggleAvailability();
-  syncAllSegmentedChoiceControls();
-  syncMinimalChoiceControls();
-  updateAllImageLoadStatuses();
+  MosaicStorage.syncAllSegmentedChoiceControls();
+  MosaicStorage.syncMinimalChoiceControls();
+  MosaicApp.updateAllImageLoadStatuses();
   syncCreditControlState();
   syncCreditDetailAvailability();
-  syncPreviewVisibilityToggles();
+  MosaicApp.syncPreviewVisibilityToggles();
 }
 function syncCreditControlState(){
   const area = document.getElementById('creditEditorArea');
@@ -4514,63 +4697,66 @@ function syncCreditControlState(){
     if(moveButtons[0]) moveButtons[0].disabled = index === 0;
     if(moveButtons[1]) moveButtons[1].disabled = index === rows.length - 1;
   });
-  syncSegmentedChoiceControl('creditPlacement');
-  syncCreditPresetControls();
+  MosaicStorage.syncSegmentedChoiceControl('creditPlacement');
+  MosaicRenderer.syncCreditPresetControls();
 }
-// 표지의 접기 제목은 표시 상태를 바꾸지 않는다. 안쪽 설정을 조작할 때만
-// 해당 섹션을 먼저 켜고 원래의 클릭·입력 동작은 그대로 진행한다.
-COVER_VISIBILITY_GROUPS.forEach(([groupId, toggleId]) => {
-  const group = document.getElementById(groupId);
-  const toggle = document.getElementById(toggleId);
-  const activate = event => {
-    if(toggle.checked) return;
-    const target = event.target;
-    if(!(target instanceof Element) || !target.closest('.foldBody')) return;
-    if(target.closest('.imageBackgroundToggleRow.isUnavailable')) return;
-    if(!target.closest('input, select, textarea, button, label, .creditRowHeader')) return;
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event('input', { bubbles:true }));
-    toggle.dispatchEvent(new Event('change', { bubbles:true }));
-  };
-  group.addEventListener('pointerdown', activate, true);
-  group.addEventListener('click', activate, true);
-  group.addEventListener('input', activate, true);
-  group.addEventListener('change', activate, true);
-});
-// BOT·USER·관계가 자체 OFF일 때도 첫 입력으로 해당 항목을 켠다.
-// 상위 프로필이 OFF라면 위의 캡처 리스너가 먼저 상위를 켠다.
-PROFILE_ENTITY_CONFIGS.forEach(config => {
-  const body = document.querySelector(`#${config.groupId} > .profileSubBody`);
-  const toggle = document.getElementById(config.toggleId);
+
+function enableVisibilityToggle(toggle){
+  toggle.checked = true;
+  toggle.dispatchEvent(new Event('input', { bubbles:true }));
+  toggle.dispatchEvent(new Event('change', { bubbles:true }));
+}
+
+function bindVisibilityActivation(root, toggle, options = {}){
+  const controlSelector = options.controlSelector || 'input, select, textarea, button, label';
   const activate = event => {
     if(toggle.checked) return;
     const target = event.target;
     if(!(target instanceof Element)) return;
+    if(options.requireFoldBody && !target.closest('.foldBody')) return;
     if(target.closest('.imageBackgroundToggleRow.isUnavailable')) return;
-    if(!target.closest('input, select, textarea, button, label')) return;
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event('input', { bubbles:true }));
-    toggle.dispatchEvent(new Event('change', { bubbles:true }));
+    if(!target.closest(controlSelector)) return;
+    enableVisibilityToggle(toggle);
   };
-  body.addEventListener('pointerdown', activate, true);
-  body.addEventListener('click', activate, true);
-  body.addEventListener('input', activate, true);
-  body.addEventListener('change', activate, true);
-});
-['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn',...EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`),'profileCommonOn','footerOn','creditOn'].forEach(id => {
-  document.getElementById(id).addEventListener('change', syncCoverControlState);
-});
-document.getElementById('creditAddBtn').addEventListener('click', addCreditItem);
-document.getElementById('creditPresetSelect').addEventListener('change', syncCreditPresetControls);
-document.getElementById('creditPresetName').addEventListener('input', syncCreditPresetControls);
-document.getElementById('creditPresetLoadBtn').addEventListener('click', loadSelectedCreditPreset);
-document.getElementById('creditPresetSaveBtn').addEventListener('click', saveCurrentCreditPreset);
-document.getElementById('creditPresetDeleteBtn').addEventListener('click', deleteSelectedCreditPreset);
-document.getElementById('detailPresetSelect').addEventListener('change', syncDetailPresetControls);
-document.getElementById('detailPresetName').addEventListener('input', syncDetailPresetControls);
-document.getElementById('detailPresetLoadBtn').addEventListener('click', loadSelectedDetailPreset);
-document.getElementById('detailPresetSaveBtn').addEventListener('click', saveCurrentDetailPreset);
-document.getElementById('detailPresetDeleteBtn').addEventListener('click', deleteSelectedDetailPreset);
+  ['pointerdown','click','input','change'].forEach(type => root.addEventListener(type, activate, true));
+}
+
+function bindCoverAndPresetEvents(){
+  bindUIFeatureEvents('cover-and-presets', () => {
+    // 표지의 접기 제목은 표시 상태를 바꾸지 않는다. 안쪽 설정을 조작할 때만
+    // 해당 섹션을 먼저 켜고 원래의 클릭·입력 동작은 그대로 진행한다.
+    COVER_VISIBILITY_GROUPS.forEach(([groupId, toggleId]) => {
+      const group = document.getElementById(groupId);
+      const toggle = document.getElementById(toggleId);
+      bindVisibilityActivation(group, toggle, {
+        requireFoldBody:true,
+        controlSelector:'input, select, textarea, button, label, .creditRowHeader'
+      });
+    });
+
+    // BOT·USER·관계가 자체 OFF일 때도 첫 입력으로 해당 항목을 켠다.
+    PROFILE_ENTITY_CONFIGS.forEach(config => {
+      const body = document.querySelector(`#${config.groupId} > .profileSubBody`);
+      const toggle = document.getElementById(config.toggleId);
+      bindVisibilityActivation(body, toggle);
+    });
+    ['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn',...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`),'profileCommonOn','footerOn','creditOn'].forEach(id => {
+      document.getElementById(id).addEventListener('change', syncCoverControlState);
+    });
+
+    document.getElementById('creditAddBtn').addEventListener('click', MosaicRenderer.addCreditItem);
+    document.getElementById('creditPresetSelect').addEventListener('change', MosaicRenderer.syncCreditPresetControls);
+    document.getElementById('creditPresetName').addEventListener('input', MosaicRenderer.syncCreditPresetControls);
+    document.getElementById('creditPresetLoadBtn').addEventListener('click', MosaicRenderer.loadSelectedCreditPreset);
+    document.getElementById('creditPresetSaveBtn').addEventListener('click', MosaicRenderer.saveCurrentCreditPreset);
+    document.getElementById('creditPresetDeleteBtn').addEventListener('click', MosaicRenderer.deleteSelectedCreditPreset);
+    document.getElementById('detailPresetSelect').addEventListener('change', MosaicRenderer.syncDetailPresetControls);
+    document.getElementById('detailPresetName').addEventListener('input', MosaicRenderer.syncDetailPresetControls);
+    document.getElementById('detailPresetLoadBtn').addEventListener('click', MosaicRenderer.loadSelectedDetailPreset);
+    document.getElementById('detailPresetSaveBtn').addEventListener('click', MosaicRenderer.saveCurrentDetailPreset);
+    document.getElementById('detailPresetDeleteBtn').addEventListener('click', MosaicRenderer.deleteSelectedDetailPreset);
+  });
+}
 
 // ---------- 카드별 본문 입력 ----------
 const EXAMPLE_BODY = `<<"이리야."
@@ -4590,17 +4776,87 @@ const EXAMPLE_BODY = `<<"이리야."
 
 *이렇게 생긴 거였어? 이렇게 넓은 거였어? 이렇게 많은 색이 있었어? 나 여태까지 이걸 모르고 살았어?*`;
 
-let activeTa = null; // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
+const cardEditorState = {
+  activeTextarea:null, // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
+  toolbarHeaderObserver:null,
+  delegatedEventsBound:false
+};
 
 function bodyCardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
 }
 
+function bindCardEditorDelegatedEvents(){
+  if(cardEditorState.delegatedEventsBound) return;
+  const root = uiElements.cardEditors;
+  if(!root) return;
+  cardEditorState.delegatedEventsBound = true;
+
+  root.addEventListener('mousedown', event => {
+    if(event.target.closest('.fmtBtn[data-card-format]')) event.preventDefault();
+  });
+
+  root.addEventListener('click', event => {
+    const editor = event.target.closest('.cardEditor:not(.commentEditor)');
+    if(!editor) return;
+    const textarea = editor.querySelector('textarea');
+    const formatButton = event.target.closest('.fmtBtn[data-card-format]');
+    if(formatButton && textarea){
+      applyTextareaFormat(textarea, formatButton.dataset.cardFormat);
+      return;
+    }
+    if(event.target.closest('.foldTitleInput')){
+      scrollPreviewToCardEditor(editor);
+      return;
+    }
+    const actionButton = event.target.closest('[data-card-action]');
+    if(!actionButton || !textarea) return;
+    if(actionButton.dataset.cardAction === 'show-preview') scrollPreviewToCardEditor(editor);
+    if(actionButton.dataset.cardAction === 'fullscreen'){
+      const number = editor.querySelector('.cardNum');
+      openFullscreen(textarea, number?.textContent || '본문', editor);
+    }
+  });
+
+  root.addEventListener('keydown', event => {
+    const positionLink = event.target.closest('[data-card-action="show-preview"]');
+    if(!positionLink || (event.key !== 'Enter' && event.key !== ' ')) return;
+    const editor = positionLink.closest('.cardEditor:not(.commentEditor)');
+    if(!editor) return;
+    event.preventDefault();
+    scrollPreviewToCardEditor(editor);
+  });
+
+  root.addEventListener('focusin', event => {
+    syncBodyOnlyToolbarAvailability(event);
+    const titleInput = event.target.closest('.foldTitleInput');
+    if(!titleInput) return;
+    const editor = titleInput.closest('.cardEditor:not(.commentEditor)');
+    if(!editor) return;
+    scrollPreviewToCardEditor(editor);
+    editor.querySelector('.cardFoldRow')?.classList.add('isTitleEditing');
+  });
+
+  root.addEventListener('focusout', event => {
+    const titleInput = event.target.closest('.foldTitleInput');
+    if(!titleInput) return;
+    titleInput.closest('.cardFoldRow')?.classList.remove('isTitleEditing');
+  });
+
+  root.addEventListener('input', event => {
+    const titleInput = event.target.closest('.foldTitleInput');
+    if(!titleInput) return;
+    const editor = titleInput.closest('.cardEditor:not(.commentEditor)');
+    if(!editor) return;
+    focusPreviewOn(() => previewCardStartForEditor(editor));
+    afterEditorLiveInput();
+  });
+}
 const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
 function syncBodyOnlyToolbarAvailability(event){
   const focused = event && event.target && event.target.matches('#cardEditors textarea')
     ? event.target
-    : activeTa;
+    : cardEditorState.activeTextarea;
   const commentActive = !!(focused && focused.closest && focused.closest('.commentEditor'));
   const toolbar = document.getElementById('bodyEditorToolbar');
   if(toolbar) toolbar.setAttribute('aria-disabled', String(commentActive));
@@ -4609,10 +4865,9 @@ function syncBodyOnlyToolbarAvailability(event){
     if(button) button.disabled = commentActive;
   });
 }
-document.getElementById('cardEditors').addEventListener('focusin', syncBodyOnlyToolbarAvailability);
 
 // 일반 본문·대사·인용문 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
-// 인용문도 다음 원문 줄에 `>`를 자동으로 붙이지 않는다. combineSoftBreakPair가
+// 인용문도 다음 원문 줄에 `>`를 자동으로 붙이지 않는다. MosaicRenderer.combineSoftBreakPair가
 // 앞줄의 인용 문맥을 이어받으므로 [C]와 함께 써도 한 인용 블록으로 안전하게 출력된다.
 // 구조 문법 줄과 빈 줄에서는 브라우저 기본 줄바꿈을 유지한다.
 function handleSoftBreakKeydown(e){
@@ -4631,7 +4886,7 @@ function handleSoftBreakKeydown(e){
   const currentLine = value.slice(lineStart, lineEnd).replace(/\[BR\]\s*$/i, '');
   const semanticCurrentLine = currentLine.replace(/^\s*\[C\]\s*/i, '');
   const isQuoteLine = /^\s*>(?!>)\s?\S/.test(semanticCurrentLine);
-  if(!currentLine.trim() || (isStructuralBodyLine(currentLine) && !isQuoteLine)) return;
+  if(!currentLine.trim() || (MosaicRenderer.isStructuralBodyLine(currentLine) && !isQuoteLine)) return;
   e.preventDefault();
   ta.focus();
   ta.setSelectionRange(start, end);
@@ -4678,7 +4933,7 @@ function disposeCardEditor(ed){
 }
 
 function clearCardEditors(){
-  const container = document.getElementById('cardEditors');
+  const container = uiElements.cardEditors;
   Array.from(container.children).forEach(disposeCardEditor);
   container.replaceChildren();
 }
@@ -4691,12 +4946,15 @@ function syncBodyToolbarStickyOffset(){
   // 상단 탭과 편집 도크를 바로 이어 붙여, 스크롤된 본문이 틈 사이로 비치지 않게 한다.
   sidebar.style.setProperty('--body-toolbar-sticky-top', `${Math.round(sidebarTop.getBoundingClientRect().height)}px`);
 }
-let bodyToolbarHeaderObserver = null;
-if(typeof ResizeObserver === 'function'){
-  bodyToolbarHeaderObserver = new ResizeObserver(syncBodyToolbarStickyOffset);
-  bodyToolbarHeaderObserver.observe(document.getElementById('sidebarTop'));
+function bindCardToolbarLayoutEvents(){
+  bindUIFeatureEvents('card-toolbar-layout', () => {
+    if(typeof ResizeObserver === 'function'){
+      cardEditorState.toolbarHeaderObserver = new ResizeObserver(syncBodyToolbarStickyOffset);
+      cardEditorState.toolbarHeaderObserver.observe(document.getElementById('sidebarTop'));
+    }
+    window.addEventListener('resize', syncBodyToolbarStickyOffset);
+  });
 }
-window.addEventListener('resize', syncBodyToolbarStickyOffset);
 requestAnimationFrame(syncBodyToolbarStickyOffset);
 
 function getCards(){
@@ -4837,15 +5095,14 @@ function updateCardEditorAutoScroll(clientY){
   }
 }
 
-const cardEditorContainer = document.getElementById('cardEditors');
-cardEditorContainer.addEventListener('pointerdown', event => {
+const cardEditorContainer = uiElements.cardEditors;
+function trackCardEditorDragPointer(event){
   // 헤더 버튼을 누른 채 포인터를 바깥에서 놓아도 draggable 속성이 고착되지 않도록
   // 카드별 속성을 바꾸지 않고 이번 포인터 동작만 컨테이너 상태로 차단한다.
   cardEditorDragState.blockedByControl = !!event.target.closest('.cardEditorHead button, .cardEditorHead input, .cardEditorHead label, .cardEditorHead a, .cardEditorHead select');
-});
-document.addEventListener('pointerup', () => { cardEditorDragState.blockedByControl = false; });
-document.addEventListener('pointercancel', () => { cardEditorDragState.blockedByControl = false; });
-cardEditorContainer.addEventListener('dragstart', event => {
+}
+
+function startCardEditorDrag(event){
   const head = event.target.closest('.cardEditorHead');
   const editor = head && head.closest('.cardEditor');
   if(!editor || cardEditorDragState.blockedByControl){
@@ -4864,11 +5121,11 @@ cardEditorContainer.addEventListener('dragstart', event => {
     // Safari는 데이터가 없는 dragstart를 취소할 수 있다.
     event.dataTransfer.setData('text/plain', 'mosaic-log-editor-order');
   }
-});
+}
 
 // 카드 목록 위의 고정 헤더까지 포인터를 올려도 dragover를 계속 받아야 위쪽으로
 // 자동 스크롤할 수 있다. 컨테이너가 아닌 문서에서 받아 사이드바 내부 동작만 처리한다.
-document.addEventListener('dragover', event => {
+function moveCardEditorDrag(event){
   const dragged = cardEditorDragState.editor;
   const marker = cardEditorDragState.marker;
   if(!dragged || !marker) return;
@@ -4885,7 +5142,7 @@ document.addEventListener('dragover', event => {
   if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
   positionCardEditorDropMarker(event.clientY);
   updateCardEditorAutoScroll(event.clientY);
-});
+}
 
 function finishCardEditorDrop(event){
   const dragged = cardEditorDragState.editor;
@@ -4900,27 +5157,45 @@ function finishCardEditorDrop(event){
   const intended = cardEditorOrderAtMarker(cardEditorContainer, dragged, marker);
   const changed = before.length === intended.length && before.some((editor, index) => editor !== intended[index]);
   if(changed){
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const anchor = marker.nextElementSibling;
     cardEditorContainer.insertBefore(dragged, anchor);
     renumberCards();
-    render();
-    updateCounter();
-    saveDraft();
+    uiUpdateEffects.committedChange();
     const kind = dragged.dataset.blockType === 'comment' ? '코멘트' : '카드';
     showUndoToast(`${kind} 순서 변경.`);
   }
   cleanupCardEditorDrag();
 }
 
-cardEditorContainer.addEventListener('drop', finishCardEditorDrop);
-// 위쪽 자동 스크롤 구역이 카드 컨테이너 밖의 고정 헤더까지 확장되므로,
-// 그 위치에서 놓아도 현재 표시선에 정상적으로 정렬을 확정한다.
-document.getElementById('sidebar').addEventListener('drop', finishCardEditorDrop);
-
-cardEditorContainer.addEventListener('dragend', cleanupCardEditorDrag);
+function bindCardEditorDragEvents(){
+  bindUIFeatureEvents('card-editor-drag', () => {
+    cardEditorContainer.addEventListener('pointerdown', trackCardEditorDragPointer);
+    document.addEventListener('pointerup', () => { cardEditorDragState.blockedByControl = false; });
+    document.addEventListener('pointercancel', () => { cardEditorDragState.blockedByControl = false; });
+    cardEditorContainer.addEventListener('dragstart', startCardEditorDrag);
+    document.addEventListener('dragover', moveCardEditorDrag);
+    cardEditorContainer.addEventListener('drop', finishCardEditorDrop);
+    // 위쪽 자동 스크롤 구역이 카드 컨테이너 밖의 고정 헤더까지 확장되므로,
+    // 그 위치에서 놓아도 현재 표시선에 정상적으로 정렬을 확정한다.
+    document.getElementById('sidebar').addEventListener('drop', finishCardEditorDrop);
+    cardEditorContainer.addEventListener('dragend', cleanupCardEditorDrag);
+  });
+}
 
 const AUTO_EXPAND_ICON_MARKUP = '<svg class="autoExpandIcon" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path d="M4 2.75h10M4 15.25h10M9 5.5v7M6.75 7.75 9 5.5l2.25 2.25M6.75 10.25 9 12.5l2.25-2.25"/></svg>';
+
+function afterEditorLiveInput(){
+  uiUpdateEffects.liveInput();
+}
+
+function afterEditorControlChange(){
+  uiUpdateEffects.controlChange();
+}
+
+function afterEditorStructureChange(){
+  uiUpdateEffects.committedChange();
+}
 
 function setupAutoExpandTextarea(editor, textarea, button, minimumHeight, accessibleName = '입력창'){
   const resize = () => {
@@ -4957,20 +5232,13 @@ function setupAutoExpandTextarea(editor, textarea, button, minimumHeight, access
   return resize;
 }
 
-function createCardEditor(value){
-  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle, visible} 객체
-  const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
-  const data = {
-    ...source,
-    foldTitle:source.cardTitle !== undefined ? source.cardTitle : (source.foldTitle || ''),
-    body:normalizeBodyHrMarkers(source.body || ''),
-    visible:source.visible === undefined ? true : settingFlagOn(source.visible)
-  };
-
+function createEditorShell(type, visible){
+  const isComment = type === 'comment';
+  const noun = isComment ? '코멘트' : '카드';
   const ed = document.createElement('div');
-  ed.className = 'cardEditor';
-  ed.dataset.blockType = 'card';
-  ed.dataset.outputVisible = String(data.visible);
+  ed.className = isComment ? 'cardEditor commentEditor' : 'cardEditor';
+  ed.dataset.blockType = type;
+  ed.dataset.outputVisible = String(visible);
 
   const head = document.createElement('div');
   head.className = 'cardEditorHead';
@@ -4980,76 +5248,143 @@ function createCardEditor(value){
   const collapseBtn = document.createElement('button');
   collapseBtn.type = 'button';
   collapseBtn.className = 'miniCtl collapseCtl';
-  collapseBtn.title = '입력창 접기 (편집 화면 정리용, 출력에는 영향 없음)';
-  collapseBtn.setAttribute('aria-label', '입력창 접기');
+  collapseBtn.title = isComment ? '입력창 접기' : '입력창 접기 (편집 화면 정리용, 출력에는 영향 없음)';
   collapseBtn.setAttribute('aria-expanded', 'true');
+  collapseBtn.setAttribute('aria-label', isComment ? '코멘트 입력창 접기' : '입력창 접기');
   const visibilityBtn = document.createElement('button');
   visibilityBtn.type = 'button';
   visibilityBtn.className = 'miniCtl visibilityCtl';
   visibilityBtn.innerHTML = '<span class="visibilityIcon visibilityVisibleIcon" aria-hidden="true">○</span><span class="visibilityIcon visibilityHiddenIcon" aria-hidden="true">⊘</span>';
   const num = document.createElement('span');
   num.className = 'cardNum';
-  num.dataset.positionLink = 'true';
-  num.tabIndex = 0;
-  num.setAttribute('role', 'button');
-  num.title = '미리보기에서 이 카드 위치 보기';
-  num.setAttribute('aria-label', '미리보기에서 이 카드 위치 보기');
-  const fsBtn = document.createElement('button');
-  fsBtn.type = 'button';
-  fsBtn.className = 'miniCtl fsBtn';
-  fsBtn.textContent = '⛶';
-  fsBtn.title = '이 카드를 전체 화면으로 크게 편집';
-  fsBtn.setAttribute('aria-label', '카드 전체 화면 편집');
+  if(!isComment){
+    num.dataset.positionLink = 'true';
+    num.dataset.cardAction = 'show-preview';
+    num.tabIndex = 0;
+    num.setAttribute('role', 'button');
+    num.title = '미리보기에서 이 카드 위치 보기';
+    num.setAttribute('aria-label', '미리보기에서 이 카드 위치 보기');
+  }
+  left.append(collapseBtn, visibilityBtn, num);
+
+  const right = document.createElement('div');
+  right.className = 'headRight';
+  const arrowGroup = document.createElement('span');
+  arrowGroup.className = 'arrowGroup';
+  const upBtn = document.createElement('button');
+  upBtn.type = 'button';
+  upBtn.className = 'miniCtl itemMoveBtn';
+  upBtn.textContent = '↑';
+  upBtn.title = `${noun}를 위로`;
+  upBtn.setAttribute('aria-label', `${noun}를 위로 이동`);
+  const downBtn = document.createElement('button');
+  downBtn.type = 'button';
+  downBtn.className = 'miniCtl itemMoveBtn';
+  downBtn.textContent = '↓';
+  downBtn.title = `${noun}를 아래로`;
+  downBtn.setAttribute('aria-label', `${noun}를 아래로 이동`);
+  arrowGroup.append(upBtn, downBtn);
+
   const autoExpandBtn = document.createElement('button');
   autoExpandBtn.type = 'button';
   autoExpandBtn.className = 'miniCtl autoExpandBtn';
   autoExpandBtn.innerHTML = AUTO_EXPAND_ICON_MARKUP;
   autoExpandBtn.title = '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
-  autoExpandBtn.setAttribute('aria-label', '입력창 전체 펼치기');
+  autoExpandBtn.setAttribute('aria-label', `${isComment ? '코멘트 ' : ''}입력창 전체 펼치기`);
   autoExpandBtn.setAttribute('aria-pressed', 'false');
+  right.append(arrowGroup, autoExpandBtn);
+
+  let fsBtn = null;
+  if(!isComment){
+    fsBtn = document.createElement('button');
+    fsBtn.type = 'button';
+    fsBtn.className = 'miniCtl fsBtn';
+    fsBtn.textContent = '⛶';
+    fsBtn.title = '이 카드를 전체 화면으로 크게 편집';
+    fsBtn.setAttribute('aria-label', '카드 전체 화면 편집');
+    fsBtn.dataset.cardAction = 'fullscreen';
+    right.appendChild(fsBtn);
+  }
+  head.append(left, right);
+  return { ed, head, right, collapseBtn, visibilityBtn, num, upBtn, downBtn, autoExpandBtn, fsBtn };
+}
+
+function createEditorDeleteButton(type){
+  const isComment = type === 'comment';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'delCardBtn';
+  button.title = `이 ${isComment ? '코멘트' : '카드'} 삭제`;
+  button.setAttribute('aria-label', `${isComment ? '코멘트' : '카드'} 삭제`);
+  return button;
+}
+
+function syncEditorVisibilityUI(editor, button, type){
+  const visible = editor.dataset.outputVisible !== 'false';
+  const noun = type === 'comment' ? '코멘트' : '카드';
+  editor.classList.toggle('isOutputHidden', !visible);
+  button.classList.toggle('isHidden', !visible);
+  button.setAttribute('aria-pressed', String(!visible));
+  button.setAttribute('aria-label', visible ? `${noun} 출력 숨기기` : `${noun} 출력 다시 표시`);
+  button.title = visible
+    ? (type === 'comment' ? '미리보기와 출력 HTML에서 숨기기' : '이 카드를 미리보기와 출력 HTML에서 숨기기')
+    : (type === 'comment' ? '출력 다시 표시' : '숨긴 카드를 미리보기와 출력 HTML에 다시 표시');
+}
+
+function moveEditorBySibling(editor, direction, message){
+  const sibling = direction < 0 ? editor.previousElementSibling : editor.nextElementSibling;
+  if(!sibling) return;
+  MosaicStorage.snapshotCards();
+  if(direction < 0) editor.parentNode.insertBefore(editor, sibling);
+  else editor.parentNode.insertBefore(sibling, editor);
+  renumberCards();
+  afterEditorControlChange();
+  showUndoToast(message);
+}
+
+function deleteEditor(editor, textarea, message){
+  MosaicStorage.snapshotCards();
+  const focusEditor = editor.nextElementSibling || editor.previousElementSibling;
+  if(cardEditorState.activeTextarea === textarea) cardEditorState.activeTextarea = null;
+  disposeCardEditor(editor);
+  editor.remove();
+  renumberCards();
+  afterEditorControlChange();
+  if(focusEditor){
+    cardEditorState.activeTextarea = focusEditor.querySelector('textarea');
+    if(cardEditorState.activeTextarea) cardEditorState.activeTextarea.focus();
+  }
+  showUndoToast(message);
+}
+
+function createCardEditor(value){
+  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle, visible} 객체
+  const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
+  const data = {
+    ...source,
+    foldTitle:source.cardTitle !== undefined ? source.cardTitle : (source.foldTitle || ''),
+    body:MosaicParser.normalizeBodyHrMarkers(source.body || ''),
+    visible:source.visible === undefined ? true : MosaicState.settingFlagOn(source.visible)
+  };
+
+  const {
+    ed, head, collapseBtn, visibilityBtn, upBtn, downBtn, autoExpandBtn
+  } = createEditorShell('card', data.visible);
   const duplicateBtn = document.createElement('button');
   duplicateBtn.type = 'button';
   duplicateBtn.className = 'duplicateCardBtn uiButton';
   duplicateBtn.textContent = '⧉';
   duplicateBtn.title = '이 카드를 바로 아래에 복제';
   duplicateBtn.setAttribute('aria-label', '카드 복제');
-  // 헤더 왼쪽에는 편집창 접기, 출력 표시, 카드 번호를 둔다.
-  left.appendChild(collapseBtn);
-  left.appendChild(visibilityBtn);
-  left.appendChild(num);
-
-  const right = document.createElement('div');
-  right.className = 'headRight';
-  const upBtn = document.createElement('button');
-  upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '카드를 위로';
-  upBtn.setAttribute('aria-label', '카드를 위로 이동');
-  const downBtn = document.createElement('button');
-  downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '카드를 아래로';
-  downBtn.setAttribute('aria-label', '카드를 아래로 이동');
   const foldLabel = document.createElement('label');
   foldLabel.className = 'foldChk';
   const foldChk = document.createElement('input');
   foldChk.type = 'checkbox';
   foldChk.className = 'cardFoldChk';
-  foldChk.checked = settingFlagOn(data.folded);
+  foldChk.checked = MosaicState.settingFlagOn(data.folded);
   foldLabel.appendChild(document.createTextNode('접기'));
   foldLabel.appendChild(foldChk);
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'delCardBtn';
-  del.title = '이 카드 삭제';
-  del.setAttribute('aria-label', '카드 삭제');
-  const arrowGroup = document.createElement('span');
-  arrowGroup.className = 'arrowGroup';
-  arrowGroup.appendChild(upBtn);
-  arrowGroup.appendChild(downBtn);
-
-  right.appendChild(arrowGroup);
-  right.appendChild(autoExpandBtn);
-  right.appendChild(fsBtn);
-
-  head.appendChild(left);
-  head.appendChild(right);
+  const del = createEditorDeleteButton('card');
 
   // 카드 제목: 접기 여부와 관계없이 항상 표시하며, 접기 카드에서는 summary 제목으로 사용한다.
   const foldTitleInput = document.createElement('input');
@@ -5065,37 +5400,21 @@ function createCardEditor(value){
   ta.placeholder = '이 카드의 본문을 입력...';
   const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 200);
 
-  const refresh = (deferred = false) => {
-    if(deferred) scheduleRender();
-    else render();
-    updateCounter();
-    scheduleDraftSave();
-  };
-  const syncVisibilityUi = () => {
-    const visible = ed.dataset.outputVisible !== 'false';
-    ed.classList.toggle('isOutputHidden', !visible);
-    visibilityBtn.classList.toggle('isHidden', !visible);
-    // 이 버튼의 토글 의미는 '출력 숨김'이므로 숨겨진 상태에서 pressed=true다.
-    visibilityBtn.setAttribute('aria-pressed', String(!visible));
-    visibilityBtn.setAttribute('aria-label', visible ? '카드 출력 숨기기' : '카드 출력 다시 표시');
-    visibilityBtn.title = visible
-      ? '이 카드를 미리보기와 출력 HTML에서 숨기기'
-      : '숨긴 카드를 미리보기와 출력 HTML에 다시 표시';
-  };
+  const syncVisibilityUi = () => syncEditorVisibilityUI(ed, visibilityBtn, 'card');
   visibilityBtn.addEventListener('click', () => {
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const visible = ed.dataset.outputVisible !== 'false';
     ed.dataset.outputVisible = String(!visible);
-    syncHiddenEditorCollapse(ed, collapseBtn, visible);
+    MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, visible);
     syncVisibilityUi();
     renumberCards();
-    refresh();
-    buildDocumentNavigator();
+    afterEditorControlChange();
+    MosaicApp.buildDocumentNavigator();
     showUndoToast(visible ? '카드 출력 숨김.' : '카드 출력 다시 표시.');
   });
   syncVisibilityUi();
   duplicateBtn.addEventListener('click', () => {
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     const clone = createCardEditor({
       body: ta.value,
       folded: foldChk.checked,
@@ -5104,12 +5423,10 @@ function createCardEditor(value){
     });
     ed.after(clone);
     renumberCards();
-    render();
-    updateCounter();
-    saveDraft();
+    afterEditorStructureChange();
     const cloneTa = clone.querySelector('textarea');
     if(cloneTa){
-      activeTa = cloneTa;
+      cardEditorState.activeTextarea = cloneTa;
       cloneTa.focus();
       clone.scrollIntoView({ block:'nearest', behavior:'smooth' });
     }
@@ -5118,19 +5435,18 @@ function createCardEditor(value){
   ta.addEventListener('input', () => {
     applyActiveNameRulesToTextarea(ta);
     applyActiveKeywordRulesToTextarea(ta);
-    normalizeStandaloneHrInput(ta);
-    syncParagraphSettingsUI();
+    MosaicParser.normalizeStandaloneHrInput(ta);
     // 미리보기 직접 편집이 원문 입력창으로 반영되는 동안에는 현재 미리보기 위치를
     // 유지한다. 왼쪽 입력창에서 직접 타이핑할 때만 기존 위치 연동을 실행한다.
-    if(previewDirectEditCommitting) pendingPreviewFocus = null;
+    if(previewEditState.committing) previewPositionState.pendingFocus = null;
     else focusPreviewOnCaret(ta);
-    refresh(true);
+    afterEditorLiveInput();
     if(ed.classList.contains('isCollapsed')) updatePeek();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
   ta.addEventListener('keydown', handleSoftBreakKeydown);
   ta.addEventListener('focus', () => {
-    activeTa = ta;
+    cardEditorState.activeTextarea = ta;
     decoratePreviewDirectEditors();
   });
   // 커서만 옮겨도(클릭·방향키) 해당 문단을 보여줌
@@ -5142,10 +5458,6 @@ function createCardEditor(value){
   ta.addEventListener('click', () => {
     if(!positionSyncEnabled()) return;
     scrollPreviewIfNeeded(previewBlockFor(ta, ta.value.slice(0, ta.selectionStart).split('\n').length - 1), true);
-  });
-
-  fsBtn.addEventListener('click', () => {
-    openFullscreen(ta, num.textContent || '본문', ed);
   });
 
   // 본문 첫 줄(문법 마커는 걷어냄)을 요약으로
@@ -5175,26 +5487,8 @@ function createCardEditor(value){
     if(!collapsed && ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
 
-  upBtn.addEventListener('click', () => {
-    const prev = ed.previousElementSibling;
-    if(prev){
-      snapshotCards();
-      ed.parentNode.insertBefore(ed, prev);
-      renumberCards();
-      refresh();
-      showUndoToast('카드 순서 변경.');
-    }
-  });
-  downBtn.addEventListener('click', () => {
-    const next = ed.nextElementSibling;
-    if(next){
-      snapshotCards();
-      ed.parentNode.insertBefore(next, ed);
-      renumberCards();
-      refresh();
-      showUndoToast('카드 순서 변경.');
-    }
-  });
+  upBtn.addEventListener('click', () => moveEditorBySibling(ed, -1, '카드 순서 변경.'));
+  downBtn.addEventListener('click', () => moveEditorBySibling(ed, 1, '카드 순서 변경.'));
   const syncFoldUi = () => {
     ed.classList.toggle('isFolded', foldChk.checked);
     renumberCards();
@@ -5202,47 +5496,22 @@ function createCardEditor(value){
   let foldUndoPrepared = false;
   const prepareFoldUndo = () => {
     if(foldUndoPrepared) return;
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     foldUndoPrepared = true;
   };
   foldChk.addEventListener('pointerdown', prepareFoldUndo);
   foldChk.addEventListener('keydown', (e) => { if(e.key === ' ' || e.key === 'Enter') prepareFoldUndo(); });
   foldChk.addEventListener('change', () => {
     syncFoldUi();
-    refresh();
+    afterEditorControlChange();
     if(foldUndoPrepared) showUndoToast(foldChk.checked ? '접기 카드 설정.' : '접기 카드 해제.');
     foldUndoPrepared = false;
   });
   requestAnimationFrame(syncFoldUi);
-  const showCardInPreview = () => scrollPreviewToCardEditor(ed);
-  num.addEventListener('click', showCardInPreview);
-  num.addEventListener('keydown', event => {
-    if(event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    showCardInPreview();
-  });
-  foldTitleInput.addEventListener('focus', showCardInPreview);
-  foldTitleInput.addEventListener('click', showCardInPreview);
-  foldTitleInput.addEventListener('input', () => {
-    focusPreviewOn(() => previewCardStartForEditor(ed));
-    refresh(true);
-  });
-
   del.addEventListener('click', () => {
     const cardCount = document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor)').length;
     if(cardCount <= 1) return;
-    snapshotCards();
-    const focusEditor = ed.nextElementSibling || ed.previousElementSibling;
-    if(activeTa === ta) activeTa = null;
-    disposeCardEditor(ed);
-    ed.remove();
-    renumberCards();
-    refresh();
-    if(focusEditor){
-      activeTa = focusEditor.querySelector('textarea');
-      if(activeTa) activeTa.focus();
-    }
-    showUndoToast('카드 삭제됨.');
+    deleteEditor(ed, ta, '카드 삭제됨.');
   });
 
   // 헤더 아래 회색 줄: 왼쪽=서식 도구(입력창 바로 위), 오른쪽=접기 카드 설정
@@ -5251,16 +5520,15 @@ function createCardEditor(value){
 
   const fmtGroup = document.createElement('div');
   fmtGroup.className = 'cardFmtBar';
-  [['bold',`선택 부분 굵게 (**…**)  ·  ${MOD_KEY}+B`],
-   ['emphasis',`선택 부분 강조 (*…*)  ·  ${MOD_KEY}+I`],
-   ['center',`이 줄 가운데 정렬 ([C])  ·  ${MOD_KEY}+E`]].forEach(([f, tip]) => {
+  [['bold',`선택 부분 굵게 (**…**)  ·  ${MosaicRenderer.MOD_KEY}+B`],
+   ['emphasis',`선택 부분 강조 (*…*)  ·  ${MosaicRenderer.MOD_KEY}+I`],
+   ['center',`이 줄 가운데 정렬 ([C])  ·  ${MosaicRenderer.MOD_KEY}+E`]].forEach(([f, tip]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'fmtBtn';
+    btn.dataset.cardFormat = f;
     btn.title = tip;
     btn.innerHTML = f === 'bold' ? '<b>B</b>' : (f === 'emphasis' ? '<i>I</i>' : 'C');
-    btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
-    btn.addEventListener('click', () => applyTextareaFormat(ta, f));
     fmtGroup.appendChild(btn);
   });
 
@@ -5279,84 +5547,47 @@ function createCardEditor(value){
   fmt.appendChild(fmtGroup);
   fmt.appendChild(peek);
   fmt.appendChild(foldGroup);
-  foldTitleInput.addEventListener('focus', () => fmt.classList.add('isTitleEditing'));
-  foldTitleInput.addEventListener('blur', () => fmt.classList.remove('isTitleEditing'));
 
   ed.appendChild(head);
   ed.appendChild(fmt);
   ed.appendChild(ta);
-  if(ed.dataset.outputVisible === 'false') syncHiddenEditorCollapse(ed, collapseBtn, true);
+  if(ed.dataset.outputVisible === 'false') MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, true);
   return ed;
 }
 
 function createCommentEditor(value){
   const source = (typeof value === 'object' && value !== null) ? value : { body:value || '' };
-  const ed = document.createElement('div');
-  ed.className = 'cardEditor commentEditor';
-  ed.dataset.blockType = 'comment';
-  ed.dataset.outputVisible = String(source.visible === undefined ? true : settingFlagOn(source.visible));
-
-  const head = document.createElement('div');
-  head.className = 'cardEditorHead';
-  prepareCardEditorDragHandle(head);
-  const left = document.createElement('div');
-  left.className = 'headLeft';
-  const collapseBtn = document.createElement('button');
-  collapseBtn.type = 'button'; collapseBtn.className = 'miniCtl collapseCtl';
-  collapseBtn.title = '입력창 접기'; collapseBtn.setAttribute('aria-expanded', 'true'); collapseBtn.setAttribute('aria-label', '코멘트 입력창 접기');
-  const visibilityBtn = document.createElement('button');
-  visibilityBtn.type = 'button'; visibilityBtn.className = 'miniCtl visibilityCtl';
-  visibilityBtn.innerHTML = '<span class="visibilityIcon visibilityVisibleIcon" aria-hidden="true">○</span><span class="visibilityIcon visibilityHiddenIcon" aria-hidden="true">⊘</span>';
-  const num = document.createElement('span'); num.className = 'cardNum';
-  left.append(collapseBtn, visibilityBtn, num);
-  const right = document.createElement('div'); right.className = 'headRight';
-  const arrows = document.createElement('span'); arrows.className = 'arrowGroup';
-  const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'miniCtl itemMoveBtn'; upBtn.textContent = '↑'; upBtn.title = '코멘트를 위로'; upBtn.setAttribute('aria-label', '코멘트를 위로 이동');
-  const downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.className = 'miniCtl itemMoveBtn'; downBtn.textContent = '↓'; downBtn.title = '코멘트를 아래로'; downBtn.setAttribute('aria-label', '코멘트를 아래로 이동');
-  const autoExpandBtn = document.createElement('button');
-  autoExpandBtn.type = 'button'; autoExpandBtn.className = 'miniCtl autoExpandBtn'; autoExpandBtn.innerHTML = AUTO_EXPAND_ICON_MARKUP;
-  autoExpandBtn.title = '입력창을 본문 전체 높이로 펼쳐 내부 스크롤 없애기';
-  autoExpandBtn.setAttribute('aria-label', '코멘트 입력창 전체 펼치기');
-  autoExpandBtn.setAttribute('aria-pressed', 'false');
-  arrows.append(upBtn, downBtn); right.append(arrows, autoExpandBtn); head.append(left, right);
+  const {
+    ed, head, right, collapseBtn, visibilityBtn, upBtn, downBtn, autoExpandBtn
+  } = createEditorShell(
+    'comment',
+    source.visible === undefined ? true : MosaicState.settingFlagOn(source.visible)
+  );
 
   const ta = document.createElement('textarea');
   ta.value = String(source.body || '');
   ta.placeholder = '카드 사이에 덧붙일 코멘트를 입력...';
   const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 96, '코멘트 입력창');
-  const del = document.createElement('button'); del.type = 'button'; del.className = 'delCardBtn'; del.title = '이 코멘트 삭제'; del.setAttribute('aria-label', '코멘트 삭제');
+  const del = createEditorDeleteButton('comment');
   right.append(del);
   ed.append(head, ta);
 
-  const refresh = (deferred = false) => {
-    if(deferred) scheduleRender();
-    else render();
-    updateCounter();
-    scheduleDraftSave();
-  };
-  const syncVisibility = () => {
-    const visible = ed.dataset.outputVisible !== 'false';
-    ed.classList.toggle('isOutputHidden', !visible);
-    visibilityBtn.classList.toggle('isHidden', !visible);
-    visibilityBtn.setAttribute('aria-pressed', String(!visible));
-    visibilityBtn.setAttribute('aria-label', visible ? '코멘트 출력 숨기기' : '코멘트 출력 다시 표시');
-    visibilityBtn.title = visible ? '미리보기와 출력 HTML에서 숨기기' : '출력 다시 표시';
-  };
+  const syncVisibility = () => syncEditorVisibilityUI(ed, visibilityBtn, 'comment');
   syncVisibility();
   visibilityBtn.addEventListener('click', () => {
-    snapshotCards();
+    MosaicStorage.snapshotCards();
     ed.dataset.outputVisible = String(ed.dataset.outputVisible === 'false');
-    syncHiddenEditorCollapse(ed, collapseBtn, ed.dataset.outputVisible === 'false');
-    syncVisibility(); renumberCards(); refresh(); buildDocumentNavigator();
+    MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, ed.dataset.outputVisible === 'false');
+    syncVisibility(); renumberCards(); afterEditorControlChange(); MosaicApp.buildDocumentNavigator();
     showUndoToast(ed.dataset.outputVisible === 'false' ? '코멘트 출력 숨김.' : '코멘트 출력 다시 표시.');
   });
   ta.addEventListener('input', () => {
-    pendingPreviewFocus = null;
-    refresh(true);
+    previewPositionState.pendingFocus = null;
+    afterEditorLiveInput();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
   ta.addEventListener('keydown', handleCommentSoftBreakKeydown);
-  ta.addEventListener('focus', () => { activeTa = ta; });
+  ta.addEventListener('focus', () => { cardEditorState.activeTextarea = ta; });
   collapseBtn.addEventListener('click', () => {
     const collapse = ta.style.display !== 'none';
     ta.style.display = collapse ? 'none' : '';
@@ -5365,116 +5596,106 @@ function createCommentEditor(value){
     collapseBtn.setAttribute('aria-expanded', String(!collapse));
     if(!collapse && ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
-  const move = direction => {
-    const sibling = direction < 0 ? ed.previousElementSibling : ed.nextElementSibling;
-    if(!sibling) return;
-    snapshotCards();
-    if(direction < 0) ed.parentNode.insertBefore(ed, sibling);
-    else ed.parentNode.insertBefore(sibling, ed);
-    renumberCards(); refresh(); showUndoToast('코멘트 순서 변경.');
-  };
-  upBtn.addEventListener('click', () => move(-1));
-  downBtn.addEventListener('click', () => move(1));
-  del.addEventListener('click', () => {
-    snapshotCards();
-    const focusEditor = ed.nextElementSibling || ed.previousElementSibling;
-    if(activeTa === ta) activeTa = null;
-    disposeCardEditor(ed); ed.remove(); renumberCards(); refresh();
-    if(focusEditor){ activeTa = focusEditor.querySelector('textarea'); if(activeTa) activeTa.focus(); }
-    showUndoToast('코멘트 삭제됨.');
-  });
-  if(ed.dataset.outputVisible === 'false') syncHiddenEditorCollapse(ed, collapseBtn, true);
+  upBtn.addEventListener('click', () => moveEditorBySibling(ed, -1, '코멘트 순서 변경.'));
+  downBtn.addEventListener('click', () => moveEditorBySibling(ed, 1, '코멘트 순서 변경.'));
+  del.addEventListener('click', () => deleteEditor(ed, ta, '코멘트 삭제됨.'));
+  if(ed.dataset.outputVisible === 'false') MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, true);
   return ed;
 }
 
 function addCard(value, focus){
   const isComment = value && typeof value === 'object' && value.type === 'comment';
   const ed = isComment ? createCommentEditor(value) : createCardEditor(value);
-  document.getElementById('cardEditors').appendChild(ed);
+  uiElements.cardEditors.appendChild(ed);
   renumberCards();
   const ta = ed.querySelector('textarea');
-  if(focus){ ta.focus(); activeTa = ta; }
+  if(focus){ ta.focus(); cardEditorState.activeTextarea = ta; }
   return ta;
 }
 
-document.getElementById('addCardBtn').addEventListener('click', () => {
-  snapshotCards();
-  addCard('', true);
-  render();
-  updateCounter();
-  saveDraft();
-  showUndoToast('카드 추가됨.');
-});
+function bindCardCreationEvents(){
+  bindUIFeatureEvents('card-creation', () => {
+    document.getElementById('addCardBtn').addEventListener('click', () => {
+      MosaicStorage.snapshotCards();
+      addCard('', true);
+      afterEditorStructureChange();
+      showUndoToast('카드 추가됨.');
+    });
 
-document.getElementById('addCommentBtn').addEventListener('click', () => {
-  snapshotCards();
-  const activeEditor = activeTa && activeTa.closest ? activeTa.closest('#cardEditors .cardEditor') : null;
-  const editor = createCommentEditor({ type:'comment', body:'', visible:true });
-  if(activeEditor) activeEditor.after(editor);
-  else document.getElementById('cardEditors').appendChild(editor);
-  renumberCards();
-  const ta = editor.querySelector('textarea');
-  activeTa = ta;
-  ta.focus();
-  render(); updateCounter(); saveDraft();
-  if(ta) ta.closest('.cardEditor').scrollIntoView({ block:'nearest', behavior:'smooth' });
-  showUndoToast('코멘트 추가됨.');
-});
+    document.getElementById('addCommentBtn').addEventListener('click', () => {
+      MosaicStorage.snapshotCards();
+      const activeTextarea = cardEditorState.activeTextarea;
+      const activeEditor = activeTextarea && activeTextarea.closest
+        ? activeTextarea.closest('#cardEditors .cardEditor')
+        : null;
+      const editor = createCommentEditor({ type:'comment', body:'', visible:true });
+      if(activeEditor) activeEditor.after(editor);
+      else uiElements.cardEditors.appendChild(editor);
+      renumberCards();
+      const ta = editor.querySelector('textarea');
+      cardEditorState.activeTextarea = ta;
+      ta.focus();
+      afterEditorStructureChange();
+      if(ta) ta.closest('.cardEditor').scrollIntoView({ block:'nearest', behavior:'smooth' });
+      showUndoToast('코멘트 추가됨.');
+    });
+  });
+}
 
 // ---------- 작업 단위 되돌리기 안전망 ----------
 // 큰 작업 직전 상태를 잠시 잡아두고, 작업이 끝나면 상단 공용 기록에 전·후 상태를 함께 쌓음.
 // 글자 하나하나의 입력은 브라우저 기본 Ctrl/⌘+Z가 담당한다.
-let undoSnapshot = null;
-let undoTimer = null;
-let toastUndoAction = null;
+const undoToastState = {
+  timer:null,
+  action:null
+};
 const UNDO_TOAST_DURATION_MS = 4000;
 
 // 작업 전체(카드 + 표제/이미지/이름/꼬리말/크레딧)를 담는 헬퍼 — 보관함 슬롯과 되돌리기가 공유
 function collectWork(){
-  return collectWorkState(getCards());
+  return MosaicState.collectWorkState(getCards());
 }
 
 function collectSlotWork(){
   const data = collectWork();
-  data.style = currentStyleValues();
+  data.style = MosaicStorage.currentStyleValues();
   return data;
 }
 
 // 저장된 값과 입력 UI를 복원한다. 출력 렌더링과 초안 저장은 완료 단계에서 수행한다.
 function applyWorkState(data){
+  uiControlSyncState.keys.clear();
   const fields = data.fields || {};
-  WORK_FIELDS.forEach(id => {
-    document.getElementById(id).value = fields[id] !== undefined ? fields[id] : WORK_FIELD_DEFAULTS[id];
+  MosaicState.WORK_FIELDS.forEach(id => {
+    document.getElementById(id).value = fields[id] !== undefined ? fields[id] : MosaicState.WORK_FIELD_DEFAULTS[id];
   });
-  renderCreditItemsEditor();
+  MosaicRenderer.renderCreditItemsEditor();
   syncProfileTagEditorsFromMasters();
   renderNameRuleList();
   renderKeywordRuleList();
-  Object.entries(WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
+  Object.entries(MosaicState.WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
     document.getElementById(id).checked = id === 'profileImageBackgroundOn'
-      ? savedProfileImageBackgroundOn(fields)
-      : (fields[id] !== undefined ? settingFlagOn(fields[id]) : fallback);
+      ? MosaicState.savedProfileImageBackgroundOn(fields)
+      : (fields[id] !== undefined ? MosaicState.settingFlagOn(fields[id]) : fallback);
   });
-  if(data.style && typeof data.style === 'object') applyStyleValues(data.style);
+  if(data.style && typeof data.style === 'object') MosaicStorage.applyStyleValues(data.style);
   syncCoverControlState();
   syncDesignSummaries();
   document.getElementById('xposVal').value = document.getElementById('xpos').value;
   document.getElementById('yposVal').value = document.getElementById('ypos').value;
   document.getElementById('imgHeightVal').value = document.getElementById('imgHeight').value;
   clearCardEditors();
-  activeTa = null;
+  cardEditorState.activeTextarea = null;
   const cards = (data.cards && data.cards.length) ? data.cards : [{ body:'', folded:false, foldTitle:'' }];
   cards.forEach(c => addCard(c, false));
-  activeTa = bodyCardTextareas()[0] || null;
-  charRowsKey = null;
-  syncCharList();
+  cardEditorState.activeTextarea = bodyCardTextareas()[0] || null;
+  MosaicStorage.invalidateCharacterRows();
+  MosaicStorage.syncCharList();
 }
 
 // 본문·디자인 적용이 모두 끝난 상태만 출력하고 저장한다.
 function finishWorkRestore(){
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
 }
 
 // HTML·보관함 불러오기는 적용과 완료를 한 번에 수행한다.
@@ -5483,33 +5704,27 @@ function applyWork(data){
   finishWorkRestore();
 }
 
-function snapshotCards(){
-  // 막 끝난 디자인 조절이 뒤늦게 끼어들지 않도록 작업 경계를 확정한다.
-  clearTimeout(styleCommitTimer);
-  undoSnapshot = captureActionState('작업 전');
-}
-
 function dismissToast(){
   const toast = document.getElementById('undoToast');
   toast.style.display = 'none';
-  clearTimeout(undoTimer);
-  undoTimer = null;
-  toastUndoAction = null;
+  clearTimeout(undoToastState.timer);
+  undoToastState.timer = null;
+  undoToastState.action = null;
 }
 
 function openToast(message, undoAction, showUndoButton){
   const toast = document.getElementById('undoToast');
   const undoButton = document.getElementById('undoBtn');
   document.getElementById('undoMsg').textContent = message;
-  toastUndoAction = typeof undoAction === 'function' ? undoAction : null;
+  undoToastState.action = typeof undoAction === 'function' ? undoAction : null;
   undoButton.hidden = !showUndoButton;
   toast.style.display = 'flex';
-  clearTimeout(undoTimer);
-  undoTimer = setTimeout(dismissToast, UNDO_TOAST_DURATION_MS);
+  clearTimeout(undoToastState.timer);
+  undoToastState.timer = setTimeout(dismissToast, UNDO_TOAST_DURATION_MS);
 }
 
 function showUndoToast(message, undoAction){
-  if(typeof undoAction !== 'function') recordCompletedAction(message);
+  if(typeof undoAction !== 'function') MosaicStorage.recordCompletedAction(message);
   openToast(message, undoAction, true);
 }
 
@@ -5519,55 +5734,45 @@ function showNoticeToast(message){
   openToast(message, null, false);
 }
 
-document.getElementById('undoBtn').addEventListener('click', () => {
-  const undoAction = toastUndoAction;
-  dismissToast();
-  if(undoAction){
-    undoAction();
-    return;
-  }
-  goActionHistory(-1);
-});
+function bindUndoToastEvents(){
+  bindUIFeatureEvents('undo-toast', () => {
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      const undoAction = undoToastState.action;
+      dismissToast();
+      if(undoAction){
+        undoAction();
+        return;
+      }
+      MosaicStorage.goActionHistory(-1);
+    });
 
-// 토스트 밖의 화면을 누르면 즉시 닫는다. pointerdown 캡처 단계에서 기존
-// 토스트만 정리하므로, 이어지는 click이 새 알림을 띄우는 동작은 방해하지 않는다.
-document.addEventListener('pointerdown', event => {
-  const toast = document.getElementById('undoToast');
-  if(toast.style.display !== 'flex' || toast.contains(event.target)) return;
-  dismissToast();
-}, true);
-
-// 보관함·프리셋처럼 현재 작업과 별도로 저장되는 자료는 덮어쓰기 직전의
-// 원본 문자열만 잠시 보관한다. 큰 보관함을 일반 작업 기록마다 복제하지 않으면서
-// 덮어쓰기 직후에는 정확한 저장 상태로 되돌릴 수 있다.
-function restoreStoredValue(key, previousValue, expectedCurrentValue){
-  try {
-    if(expectedCurrentValue !== undefined && localStorage.getItem(key) !== expectedCurrentValue) return false;
-    if(previousValue === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, previousValue);
-    return true;
-  } catch(e){
-    return false;
-  }
+    // 토스트 밖의 화면을 누르면 즉시 닫는다. pointerdown 캡처 단계에서 기존
+    // 토스트만 정리하므로, 이어지는 click이 새 알림을 띄우는 동작은 방해하지 않는다.
+    document.addEventListener('pointerdown', event => {
+      const toast = document.getElementById('undoToast');
+      if(toast.style.display !== 'flex' || toast.contains(event.target)) return;
+      dismissToast();
+    }, true);
+  });
 }
 
 // ---------- 본문 삽입 툴바 ----------
 // 커서 위치(또는 선택 영역)에 텍스트를 넣고 편집 상태를 자연스럽게 유지
 function insertIntoBody(prefix, suffix, placeholder, label){
   // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
-  let ta = activeTa;
+  let ta = cardEditorState.activeTextarea;
   // 코멘트에 포커스가 있을 때 본문 전용 버튼이 인접 카드까지 몰래 수정하지 않게 한다.
   if(ta && ta.closest('.commentEditor')) return;
   ta = ta || document.querySelector('#cardEditors .cardEditor:not(.commentEditor) textarea');
   if(!ta) return;
-  activeTa = ta;
+  cardEditorState.activeTextarea = ta;
   const start = ta.selectionStart;
   const end = ta.selectionEnd;
   const before = ta.value.slice(0, start);
   const after = ta.value.slice(end);
   const selected = ta.value.slice(start, end);
   const middle = selected || placeholder || '';
-  snapshotCards();
+  MosaicStorage.snapshotCards();
 
   // 앞뒤로 빈 줄이 없으면 자동으로 넣어서 문단 규칙(엔터 구분)이 안 깨지게 함
   const needNlBefore = before.length > 0 && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
@@ -5586,9 +5791,7 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   }
   syncMirror(ta);   // 전체 화면 편집 중이면 실제 카드 입력창에도 선택 위치까지 반영
   ta.focus();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(label || '본문 요소 삽입.');
 }
 
@@ -5623,7 +5826,7 @@ function applyTextareaFormat(ta, fmt){
   const val = ta.value;
   const s = ta.selectionStart, e = ta.selectionEnd;
   if(fmt !== 'center' && s === e) return;
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   let resultLabel = '';
 
   if(fmt === 'center'){
@@ -5679,19 +5882,21 @@ function applyTextareaFormat(ta, fmt){
 
   syncMirror(ta);
   ta.focus();
-  render();
-  updateCounter();
-  saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(resultLabel || '본문 서식 변경.');
 }
 
 // 전체 화면 편집기의 서식 바 (입력창 바로 위)
-document.querySelectorAll('.fmtBar[data-scope="fs"] .fmtBtn').forEach(btn => {
-  btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
-  btn.addEventListener('click', () => {
-    applyTextareaFormat(document.getElementById('fsTextarea'), btn.dataset.tfmt);
+function bindFullscreenFormatEvents(){
+  bindUIFeatureEvents('fullscreen-format', () => {
+    document.querySelectorAll('.fmtBar[data-scope="fs"] .fmtBtn').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault());  // 선택 유지
+      btn.addEventListener('click', () => {
+        applyTextareaFormat(document.getElementById('fsTextarea'), btn.dataset.tfmt);
+      });
+    });
   });
-});
+}
 
 // ---------- 전체 화면 본문 편집 ----------
 // 오버레이의 입력창은 실제 카드 입력창의 '거울'이다. 값이 바뀌면 원본에 그대로 옮기고
@@ -5713,10 +5918,15 @@ function syncMirror(ta){
   }
 }
 
-let fsPrevActive = null;
-
-let fsScrollY = 0;
-let fsEditor = null;   // 전체 화면으로 열려 있는 카드 에디터 요소
+const fullscreenEditorState = {
+  previousActive:null,
+  scrollY:0,
+  editor:null,
+  searchQuery:'',
+  searchCurrent:-1,
+  searchAt:-1,
+  bound:false
+};
 
 function setWorkspaceInert(on){
   ['sidebar','previewArea','sidebarResizer'].forEach(id => {
@@ -5735,13 +5945,13 @@ function openFullscreen(realTa, title, editor){
   const fsTa = document.getElementById('fsTextarea');
   fsTa.value = realTa.value;
   fsTa.__mirror = realTa;
-  fsEditor = editor || null;
+  fullscreenEditorState.editor = editor || null;
 
   // 접기 카드 여부·카드 제목을 그대로 가져옴
   const chk = document.getElementById('fsFoldChk');
   const titleInput = document.getElementById('fsFoldTitle');
-  const realChk = fsEditor && fsEditor.querySelector('.cardFoldChk');
-  const realTitle = fsEditor && fsEditor.querySelector('.foldTitleInput');
+  const realChk = fullscreenEditorState.editor && fullscreenEditorState.editor.querySelector('.cardFoldChk');
+  const realTitle = fullscreenEditorState.editor && fullscreenEditorState.editor.querySelector('.foldTitleInput');
   chk.checked = !!(realChk && realChk.checked);
   titleInput.value = realTitle ? realTitle.value : '';
   syncFsFold();
@@ -5754,10 +5964,10 @@ function openFullscreen(realTa, title, editor){
   overlay.setAttribute('aria-hidden', 'false');
   setWorkspaceInert(true);
   // 배경 스크롤 잠금 (위치를 기억했다가 닫을 때 그대로 복원)
-  fsScrollY = window.scrollY;
+  fullscreenEditorState.scrollY = window.scrollY;
   document.body.classList.add('fsLock');
-  fsPrevActive = activeTa;
-  activeTa = fsTa;            // 툴바 삽입이 전체 화면 입력창을 향하게 함
+  fullscreenEditorState.previousActive = cardEditorState.activeTextarea;
+  cardEditorState.activeTextarea = fsTa; // 툴바 삽입이 전체 화면 입력창을 향하게 함
   fsTa.focus();
   fsTa.setSelectionRange(realTa.selectionStart, realTa.selectionEnd);
   fsTa.scrollTop = realTa.scrollTop;
@@ -5768,74 +5978,18 @@ function closeFullscreen(){
   const overlay = document.getElementById('fsOverlay');
   overlay.style.display = 'none';
   overlay.setAttribute('aria-hidden', 'true');
-  fsEditor = null;
+  fullscreenEditorState.editor = null;
   document.body.classList.remove('fsLock');
   setWorkspaceInert(false);
-  window.scrollTo(0, fsScrollY);
+  window.scrollTo(0, fullscreenEditorState.scrollY);
   const real = fsTa.__mirror;
   fsTa.__mirror = null;
-  activeTa = real || fsPrevActive;
+  cardEditorState.activeTextarea = real || fullscreenEditorState.previousActive;
   if(real){
     try { real.focus({ preventScroll: true }); }
     catch(e){ real.focus(); }
   }
 }
-
-// 입력창이 아닌 곳(패널 여백·배경)에서의 휠은 아예 무시해 뒤쪽이 밀리지 않게 함
-document.getElementById('fsOverlay').addEventListener('wheel', (e) => {
-  if(!e.target.closest('#fsTextarea')) e.preventDefault();
-}, { passive: false });
-
-document.getElementById('fsTextarea').addEventListener('input', function(){
-  normalizeStandaloneHrInput(this);
-  syncMirror(this);
-  if(fsHlQuery) fsHlPaint(fsHlQuery, fsHlCur);
-});
-document.getElementById('fsTextarea').addEventListener('keydown', handleSoftBreakKeydown);
-document.getElementById('fsTextarea').addEventListener('scroll', function(){
-  const hl = document.getElementById('fsHl');
-  hl.scrollTop = this.scrollTop;
-  hl.scrollLeft = this.scrollLeft;
-});
-// 전체 화면에서도 커서 위치의 문단을 미리보기에서 보여줌 (뒤에 가려 안 보이므로 스크롤만 맞춤)
-document.getElementById('fsTextarea').addEventListener('keyup', function(e){
-  if(!this.__mirror || !positionSyncEnabled()) return;
-  if(!['ArrowUp','ArrowDown','PageUp','PageDown'].includes(e.key)) return;
-  const raw = this.value.slice(0, this.selectionStart).split('\n').length - 1;
-  if(isStackedLayout()) return;
-  const el = previewBlockFor(this.__mirror, raw);
-  if(el) el.scrollIntoView({ block: 'center' });
-});
-
-// 접기 카드 체크/제목을 바꾸면 실제 카드 컨트롤에 그대로 옮기고 이벤트를 흘려보냄
-document.getElementById('fsFoldChk').addEventListener('change', function(){
-  syncFsFold();
-  if(!fsEditor) return;
-  snapshotCards();
-  const realChk = fsEditor.querySelector('.cardFoldChk');
-  realChk.checked = this.checked;
-  realChk.dispatchEvent(new Event('change', { bubbles: true }));
-  showUndoToast(this.checked ? '접기 카드 설정.' : '접기 카드 해제.');
-});
-
-document.getElementById('fsFoldTitle').addEventListener('input', function(){
-  if(!fsEditor) return;
-  const realTitle = fsEditor.querySelector('.foldTitleInput');
-  realTitle.value = this.value;
-  realTitle.dispatchEvent(new Event('input', { bubbles: true }));
-});
-
-document.getElementById('fsCloseBtn').addEventListener('click', closeFullscreen);
-document.getElementById('fsOverlay').addEventListener('mousedown', (e) => {
-  if(e.target.id === 'fsOverlay') closeFullscreen();   // 바깥 여백 클릭
-});
-document.addEventListener('keydown', (e) => {
-  if(e.isComposing || e.keyCode === 229) return;
-  if(e.key === 'Escape' && document.getElementById('fsOverlay').style.display === 'block'){
-    e.preventDefault();
-    closeFullscreen();
-  }
-});
 
 // 전체 화면 툴바: 사이드바 툴바와 같은 동작을 그대로 호출
 const FS_ACTIONS = {
@@ -5848,25 +6002,10 @@ const FS_ACTIONS = {
   quote:  () => insertIntoBody('> ', '', '인용할 내용', '인용 삽입.'),
   tidy:   () => document.getElementById('tidyBtn').click(),
 };
-document.querySelectorAll('#fsToolbar button[data-fs]').forEach(btn => {
-  btn.addEventListener('mousedown', (e) => e.preventDefault());  // 포커스 유지
-  btn.addEventListener('click', () => {
-    const fn = FS_ACTIONS[btn.dataset.fs];
-    if(fn) fn();
-    // 정돈은 실제 입력창을 직접 고치므로, 전체 화면 쪽 값을 다시 맞춰줌
-    const fsTa = document.getElementById('fsTextarea');
-    if(btn.dataset.fs === 'tidy' && fsTa.__mirror) fsTa.value = fsTa.__mirror.value;
-    fsTa.focus();
-  });
-});
 
 // ---------- 전체 화면 본문 검색 ----------
 // textarea가 포커스를 잃으면 selection 색이 사라지는 브라우저가 있어,
 // 입력창 뒤 미러 레이어(#fsHl)에 전체 결과와 현재 결과를 직접 칠한다.
-let fsHlQuery = '';
-let fsHlCur = -1;
-let fsHlAt = -1;
-
 function fsScrollToIndex(ta, idx){
   const { top } = caretOffsetTop(ta, idx);
   ta.scrollTop = Math.max(0, top - ta.clientHeight / 2);
@@ -5874,14 +6013,21 @@ function fsScrollToIndex(ta, idx){
 
 function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-function fsFindHits(q){
-  if(!q) return [];
-  const hay = normalizeQuotes(document.getElementById('fsTextarea').value).toLowerCase();
-  const needle = normalizeQuotes(q).toLowerCase();
-  const hits = [];
+function normalizedLiteralOffsets(text, query){
+  if(!query) return [];
+  const hay = MosaicParser.normalizeQuotes(text).toLowerCase();
+  const needle = MosaicParser.normalizeQuotes(query).toLowerCase();
+  const offsets = [];
   let p = hay.indexOf(needle);
-  while(p !== -1){ hits.push(p); p = hay.indexOf(needle, p + Math.max(1, needle.length)); }
-  return hits;
+  while(p !== -1){
+    offsets.push(p);
+    p = hay.indexOf(needle, p + Math.max(1, needle.length));
+  }
+  return offsets;
+}
+
+function fsFindHits(q){
+  return normalizedLiteralOffsets(document.getElementById('fsTextarea').value, q);
 }
 
 function fsHlPaint(query, current){
@@ -5904,9 +6050,9 @@ function fsHlPaint(query, current){
 }
 
 function fsClearSearch(){
-  fsHlQuery = '';
-  fsHlCur = -1;
-  fsHlAt = -1;
+  fullscreenEditorState.searchQuery = '';
+  fullscreenEditorState.searchCurrent = -1;
+  fullscreenEditorState.searchAt = -1;
   const find = document.getElementById('fsFindInput');
   if(find) find.value = '';
   const count = document.getElementById('fsFindCount');
@@ -5920,9 +6066,9 @@ function fsFindApply(){
   const ta = document.getElementById('fsTextarea');
   const q = document.getElementById('fsFindInput').value;
   const counter = document.getElementById('fsFindCount');
-  fsHlQuery = q;
-  fsHlCur = -1;
-  fsHlAt = -1;
+  fullscreenEditorState.searchQuery = q;
+  fullscreenEditorState.searchCurrent = -1;
+  fullscreenEditorState.searchAt = -1;
   // 검색창에 포커스가 있을 때 남는 파란 네이티브 선택 영역은 접어 미러 강조와 겹치지 않게 함
   ta.setSelectionRange(ta.selectionStart, ta.selectionStart);
   const hits = fsFindHits(q);
@@ -5938,7 +6084,7 @@ function fsFindStep(dir, fromIndex){
   if(!q){ fsClearSearch(); return; }
   const hits = fsFindHits(q);
   if(!hits.length){ fsHlPaint(q, -1); counter.textContent = '0 / 0'; return; }
-  const old = hits.indexOf(fsHlAt);
+  const old = hits.indexOf(fullscreenEditorState.searchAt);
   let next;
   if(old < 0 && Number.isFinite(fromIndex)){
     if(dir >= 0){
@@ -5955,11 +6101,11 @@ function fsFindStep(dir, fromIndex){
   }
   const idx = hits[next];
   fsScrollToIndex(ta, idx);
-  fsHlQuery = q;
-  fsHlCur = next;
-  fsHlAt = idx;
-  fsHlPaint(q, fsHlCur);
-  counter.textContent = (fsHlCur + 1) + ' / ' + hits.length;
+  fullscreenEditorState.searchQuery = q;
+  fullscreenEditorState.searchCurrent = next;
+  fullscreenEditorState.searchAt = idx;
+  fsHlPaint(q, fullscreenEditorState.searchCurrent);
+  counter.textContent = (fullscreenEditorState.searchCurrent + 1) + ' / ' + hits.length;
 }
 
 // 현재 선택된 일치를 대치하고 다음 일치로 이동.
@@ -5970,10 +6116,11 @@ function fsReplaceCurrent(){
   const q = document.getElementById('fsFindInput').value;
   if(!q) return;
   const r = document.getElementById('fsReplInput').value;
-  const selTxt = fsHlAt >= 0 ? ta.value.slice(fsHlAt, fsHlAt + q.length) : '';
+  const searchAt = fullscreenEditorState.searchAt;
+  const selTxt = searchAt >= 0 ? ta.value.slice(searchAt, searchAt + q.length) : '';
   if(selTxt.toLowerCase() !== q.toLowerCase()){ fsFindStep(1); return; }  // 먼저 현재 항목 표시
-  const s = fsHlAt;
-  snapshotCards();
+  const s = searchAt;
+  MosaicStorage.snapshotCards();
   ta.focus();
   ta.setSelectionRange(s, s + q.length);  // 실제 대치 순간에만 잠깐 선택해 브라우저 되돌리기를 유지
   let ok = false;
@@ -5983,7 +6130,7 @@ function fsReplaceCurrent(){
     ta.setSelectionRange(s + r.length, s + r.length);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   } else syncMirror(ta);
-  fsHlAt = -1;
+  fullscreenEditorState.searchAt = -1;
   fsFindStep(1, s + r.length);
   showUndoToast('1곳 변경.');
 }
@@ -5998,7 +6145,7 @@ function fsReplaceAll(){
   const re = new RegExp(escRe(q), 'gi');
   const matches = ta.value.match(re);
   if(!matches){ counter.textContent = '0 / 0'; return; }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   const newVal = ta.value.replace(re, () => r);
   ta.focus();
   ta.setSelectionRange(0, ta.value.length);
@@ -6010,8 +6157,8 @@ function fsReplaceAll(){
   } else syncMirror(ta);
   ta.setSelectionRange(0, 0);
   ta.scrollTop = 0;
-  fsHlAt = -1;
-  fsHlCur = -1;
+  fullscreenEditorState.searchAt = -1;
+  fullscreenEditorState.searchCurrent = -1;
   fsHlPaint(q, -1);
   counter.textContent = matches.length + '곳 변경';
   showUndoToast(matches.length + '곳 변경.');
@@ -6032,7 +6179,84 @@ function setFsSearchOpen(open, focusInput){
   }
 }
 
-(function(){
+function bindFullscreenTextareaEvents(overlay, textarea){
+  // 입력창이 아닌 곳의 휠은 뒤쪽 작업 화면까지 전달하지 않는다.
+  overlay.addEventListener('wheel', event => {
+    if(!event.target.closest('#fsTextarea')) event.preventDefault();
+  }, { passive:false });
+
+  textarea.addEventListener('input', function(){
+    MosaicParser.normalizeStandaloneHrInput(this);
+    syncMirror(this);
+    if(fullscreenEditorState.searchQuery){
+      fsHlPaint(fullscreenEditorState.searchQuery, fullscreenEditorState.searchCurrent);
+    }
+  });
+  textarea.addEventListener('keydown', handleSoftBreakKeydown);
+  textarea.addEventListener('scroll', function(){
+    const highlight = document.getElementById('fsHl');
+    highlight.scrollTop = this.scrollTop;
+    highlight.scrollLeft = this.scrollLeft;
+  });
+  // 전체 화면에서도 커서 위치의 문단을 미리보기에서 보여준다.
+  textarea.addEventListener('keyup', function(event){
+    if(!this.__mirror || !positionSyncEnabled()) return;
+    if(!['ArrowUp','ArrowDown','PageUp','PageDown'].includes(event.key)) return;
+    const raw = this.value.slice(0, this.selectionStart).split('\n').length - 1;
+    if(isStackedLayout()) return;
+    const element = previewBlockFor(this.__mirror, raw);
+    if(element) element.scrollIntoView({ block:'center' });
+  });
+}
+
+function bindFullscreenFoldEvents(foldCheckbox, foldTitle){
+  // 접기 카드 설정을 실제 카드 컨트롤에 옮기고 기존 change/input 흐름을 유지한다.
+  foldCheckbox.addEventListener('change', function(){
+    syncFsFold();
+    if(!fullscreenEditorState.editor) return;
+    MosaicStorage.snapshotCards();
+    const realCheckbox = fullscreenEditorState.editor.querySelector('.cardFoldChk');
+    realCheckbox.checked = this.checked;
+    realCheckbox.dispatchEvent(new Event('change', { bubbles:true }));
+    showUndoToast(this.checked ? '접기 카드 설정.' : '접기 카드 해제.');
+  });
+  foldTitle.addEventListener('input', function(){
+    if(!fullscreenEditorState.editor) return;
+    const realTitle = fullscreenEditorState.editor.querySelector('.foldTitleInput');
+    realTitle.value = this.value;
+    realTitle.dispatchEvent(new Event('input', { bubbles:true }));
+  });
+}
+
+function bindFullscreenOverlayEvents(overlay){
+  document.getElementById('fsCloseBtn').addEventListener('click', closeFullscreen);
+  overlay.addEventListener('mousedown', event => {
+    if(event.target === overlay) closeFullscreen();
+  });
+  document.addEventListener('keydown', event => {
+    if(event.isComposing || event.keyCode === 229) return;
+    if(event.key === 'Escape' && overlay.style.display === 'block'){
+      event.preventDefault();
+      closeFullscreen();
+    }
+  });
+}
+
+function bindFullscreenToolbarEvents(textarea){
+  document.getElementById('fsToolbar').addEventListener('mousedown', event => {
+    if(event.target.closest('button[data-fs]')) event.preventDefault();
+  });
+  document.getElementById('fsToolbar').addEventListener('click', event => {
+    const button = event.target.closest('button[data-fs]');
+    if(!button) return;
+    const action = FS_ACTIONS[button.dataset.fs];
+    if(action) action();
+    if(button.dataset.fs === 'tidy' && textarea.__mirror) textarea.value = textarea.__mirror.value;
+    textarea.focus();
+  });
+}
+
+function bindFullscreenSearchEvents(){
   const input = document.getElementById('fsFindInput');
   const repl = document.getElementById('fsReplInput');
   input.addEventListener('input', fsFindApply);
@@ -6064,26 +6288,49 @@ function setFsSearchOpen(open, focusInput){
     const open = document.getElementById('fsPanel').classList.contains('fsSearchOpen');
     setFsSearchOpen(!open, !open);
   });
-})();
+}
+
+function bindFullscreenEditorEvents(){
+  if(fullscreenEditorState.bound) return;
+  fullscreenEditorState.bound = true;
+
+  const overlay = document.getElementById('fsOverlay');
+  const textarea = document.getElementById('fsTextarea');
+  bindFullscreenTextareaEvents(overlay, textarea);
+  bindFullscreenFoldEvents(
+    document.getElementById('fsFoldChk'),
+    document.getElementById('fsFoldTitle')
+  );
+  bindFullscreenOverlayEvents(overlay);
+  bindFullscreenToolbarEvents(textarea);
+  bindFullscreenSearchEvents();
+}
 
 // ---------- 미리보기 검색 (Ctrl/⌘+F) ----------
 // 미리보기 DOM 의 텍스트 노드에만 강조 span(.pvHit)을 끼워 넣는다.
-// 출력물(generateHTML)은 항상 입력값에서 새로 만들어지므로 강조가 결과물에 섞일 일은 없음.
+// 출력물(MosaicRenderer.generateHTML)은 항상 입력값에서 새로 만들어지므로 강조가 결과물에 섞일 일은 없음.
 // 리렌더(renderPreview)가 innerHTML 을 갈아엎으므로, 검색이 켜져 있으면 끝에서 다시 칠한다.
-let pvSearchOn = false;
-let pvHits = [];
-let pvCur = -1;
-// 삭제로 검색 결과가 잠시 없어져도 되돌리기 후 선택 결과를 다시 펼칠 수 있게 기억한다.
-let pvLastActiveIndex = -1;
+const previewSearchState = {
+  open:false,
+  hits:[],
+  current:-1,
+  // 삭제로 검색 결과가 잠시 없어져도 되돌리기 후 선택 결과를 다시 펼칠 수 있게 기억한다.
+  lastActiveIndex:-1,
+  statusTimer:null,
+  bound:false
+};
 
 function pvScopeTextarea(){
   const scope = document.getElementById('pvScopeSelect').value;
   if(scope === 'all') return null;
   const match = scope.match(/^card:(\d+)$/);
   if(match) return bodyCardTextareas()[Number(match[1])] || null;
-  if(activeTa && activeTa.matches('#cardEditors .cardEditor:not(.commentEditor) textarea')) return activeTa;
-  if(pvCur >= 0 && pvHits[pvCur]){
-    const src = findBlockSource(pvHits[pvCur]);
+  const activeTextarea = cardEditorState.activeTextarea;
+  if(activeTextarea && activeTextarea.matches('#cardEditors .cardEditor:not(.commentEditor) textarea')){
+    return activeTextarea;
+  }
+  if(previewSearchState.current >= 0 && previewSearchState.hits[previewSearchState.current]){
+    const src = findBlockSource(previewSearchState.hits[previewSearchState.current]);
     if(src && src.ta) return src.ta;
   }
   return bodyCardTextareas()[0] || null;
@@ -6130,7 +6377,8 @@ function pvClearHits(){
     sp.remove();
     parent.normalize();
   });
-  pvHits = []; pvCur = -1;
+  previewSearchState.hits = [];
+  previewSearchState.current = -1;
 }
 
 // 한 출력 문단의 여러 텍스트 노드를 하나의 문자열처럼 검색한다.
@@ -6148,15 +6396,8 @@ function pvHighlightBlock(block, query){
   }
   if(!nodes.length) return [];
   const text = nodes.map(item => item.data).join('');
-  const hay = normalizeQuotes(text).toLowerCase();
-  const needle = normalizeQuotes(query).toLowerCase();
-  if(!needle) return [];
-  const matches = [];
-  let at = hay.indexOf(needle);
-  while(at !== -1){
-    matches.push({ start:at, end:at + query.length });
-    at = hay.indexOf(needle, at + Math.max(1, query.length));
-  }
+  const matches = normalizedLiteralOffsets(text, query)
+    .map(start => ({ start, end:start + query.length }));
   if(!matches.length) return [];
 
   const boundaries = [];
@@ -6197,36 +6438,44 @@ function pvHighlightBlock(block, query){
 function pvUpdateCount(){
   const q = document.getElementById('pvFindInput').value;
   document.getElementById('pvFindCount').textContent =
-    !q ? '' : (pvHits.length ? (pvCur >= 0 ? (pvCur + 1) + ' / ' + pvHits.length : pvHits.length + '곳') : '0 / 0');
+    !q ? '' : (previewSearchState.hits.length
+      ? (previewSearchState.current >= 0
+          ? (previewSearchState.current + 1) + ' / ' + previewSearchState.hits.length
+          : previewSearchState.hits.length + '곳')
+      : '0 / 0');
 }
 
 // keepPos: 리렌더 후 재적용 시 현재 위치를 유지하고 스크롤하지 않음 (타이핑이 화면을 끌고 다니지 않게)
 function pvApplySearch(keepPos){
-  const prevCur = keepPos ? (pvCur >= 0 ? pvCur : pvLastActiveIndex) : -1;
-  pvLastActiveIndex = prevCur;
+  const previous = keepPos
+    ? (previewSearchState.current >= 0 ? previewSearchState.current : previewSearchState.lastActiveIndex)
+    : -1;
+  previewSearchState.lastActiveIndex = previous;
   pvRefreshScopeOptions(false);
   pvClearHits();
   const q = document.getElementById('pvFindInput').value;
-  if(!pvSearchOn || !q){ pvUpdateCount(); return; }
+  if(!previewSearchState.open || !q){ pvUpdateCount(); return; }
   const roots = pvScopePreviewRoots();
   if(!roots.length){ pvUpdateCount(); return; }
   roots.forEach(root => {
     previewSourceBlocks(root).forEach(block => {
-      pvHits.push(...pvHighlightBlock(block, q));
+      previewSearchState.hits.push(...pvHighlightBlock(block, q));
     });
   });
-  if(pvHits.length){
-    pvCur = keepPos && prevCur >= 0 ? Math.min(prevCur, pvHits.length - 1) : -1;
-    if(pvCur >= 0) pvMarkCurrent(false);
+  if(previewSearchState.hits.length){
+    previewSearchState.current = keepPos && previous >= 0
+      ? Math.min(previous, previewSearchState.hits.length - 1)
+      : -1;
+    if(previewSearchState.current >= 0) pvMarkCurrent(false);
   }
   pvUpdateCount();
 }
 
 function pvMarkCurrent(scroll){
-  pvHits.forEach(sp => sp.classList.remove('pvHitCur'));
-  const cur = pvHits[pvCur];
+  previewSearchState.hits.forEach(sp => sp.classList.remove('pvHitCur'));
+  const cur = previewSearchState.hits[previewSearchState.current];
   if(!cur) return;
-  pvLastActiveIndex = pvCur;
+  previewSearchState.lastActiveIndex = previewSearchState.current;
   cur.classList.add('pvHitCur');
   // 닫힌 접기(details) 안의 일치는 조상을 열어서 보이게 함
   let el = cur.parentElement;
@@ -6239,15 +6488,15 @@ function pvMarkCurrent(scroll){
 }
 
 function pvGo(dir){
-  if(!pvHits.length) return;
-  pvCur = pvCur < 0
-    ? (dir >= 0 ? 0 : pvHits.length - 1)
-    : (pvCur + dir + pvHits.length) % pvHits.length;
+  if(!previewSearchState.hits.length) return;
+  previewSearchState.current = previewSearchState.current < 0
+    ? (dir >= 0 ? 0 : previewSearchState.hits.length - 1)
+    : (previewSearchState.current + dir + previewSearchState.hits.length) % previewSearchState.hits.length;
   pvMarkCurrent(true);
 }
 
 function openPreviewSearch(){
-  pvSearchOn = true;
+  previewSearchState.open = true;
   document.getElementById('pvSearchBox').style.display = 'flex';
   pvRefreshScopeOptions(true);
   const input = document.getElementById('pvFindInput');
@@ -6258,8 +6507,8 @@ function openPreviewSearch(){
 }
 
 function closePreviewSearch(){
-  pvSearchOn = false;
-  pvLastActiveIndex = -1;
+  previewSearchState.open = false;
+  previewSearchState.lastActiveIndex = -1;
   const box = document.getElementById('pvSearchBox');
   box.style.display = 'none';
   pvClearHits();
@@ -6274,28 +6523,28 @@ function closePreviewSearch(){
 // 원본에서 위치를 찾지 못할 수 있음 → 상태 메시지로 알리고 아무것도 바꾸지 않는다.
 function pvReplaceCurrent(){
   const q = document.getElementById('pvFindInput').value;
-  if(!q || !pvHits.length) return;
-  if(pvCur < 0){ pvGo(1); return; }
+  if(!q || !previewSearchState.hits.length) return;
+  if(previewSearchState.current < 0){ pvGo(1); return; }
   const r = document.getElementById('pvReplInput').value;
-  const hit = pvHits[pvCur];
+  const hit = previewSearchState.hits[previewSearchState.current];
   if(!hit) return;
   const src = findBlockSource(hit);
   if(!src){ pvStatusFlash('본문 밖 — 대치 불가'); return; }
   let k = 0;
-  for(let i = 0; i < pvCur; i++){
-    const s = findBlockSource(pvHits[i]);
+  for(let i = 0; i < previewSearchState.current; i++){
+    const s = findBlockSource(previewSearchState.hits[i]);
     if(s && s.ta === src.ta && s.raw === src.raw) k++;
   }
   const lines = src.ta.value.split('\n');
   const line = lines[src.raw] || '';
   const sourceRange = findSourceRange(line, q, k, true);
   if(!sourceRange){ pvStatusFlash('원본 위치 확인 실패'); return; }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   lines[src.raw] = replaceSourceRange(line, sourceRange, r);
   src.ta.value = lines.join('\n');
   src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
   showUndoToast('1곳 변경.');
-  if(pvHits.length) pvMarkCurrent(true);
+  if(previewSearchState.hits.length) pvMarkCurrent(true);
 }
 
 // 선택한 범위 안의 모든 일치 대치 (대소문자 무시 — 검색 강조와 동일 기준)
@@ -6319,7 +6568,7 @@ function pvReplaceAll(){
   let n = 0;
   perTextarea.forEach(rows => rows.forEach(atList => { n += atList.length; }));
   if(!n){ pvStatusFlash('0 / 0'); return; }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   perTextarea.forEach((rows, ta) => {
     const lines = ta.value.split('\n');
     rows.forEach((rangeList, raw) => {
@@ -6331,20 +6580,19 @@ function pvReplaceAll(){
     });
     ta.value = lines.join('\n');
   });
-  render(); updateCounter(); saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(n + '곳 변경.');
-  if(pvHits.length) pvMarkCurrent(true);
+  if(previewSearchState.hits.length) pvMarkCurrent(true);
 }
 
 // 카운터 자리에 상태를 잠깐 보여주고 원래 카운트로 복귀
-let pvStatusTimer = null;
 function pvStatusFlash(msg){
   document.getElementById('pvFindCount').textContent = msg;
-  clearTimeout(pvStatusTimer);
-  pvStatusTimer = setTimeout(pvUpdateCount, 2200);
+  clearTimeout(previewSearchState.statusTimer);
+  previewSearchState.statusTimer = setTimeout(pvUpdateCount, 2200);
 }
 
-(function(){
+function bindPreviewSearchInputEvents(){
   const input = document.getElementById('pvFindInput');
   const repl = document.getElementById('pvReplInput');
   const scope = document.getElementById('pvScopeSelect');
@@ -6367,6 +6615,9 @@ function pvStatusFlash(msg){
     if(e.key === 'Enter'){ e.preventDefault(); pvReplaceCurrent(); }
     else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); closePreviewSearch(); }
   });
+}
+
+function bindPreviewSearchControlEvents(){
   document.getElementById('pvReplBtn').addEventListener('click', pvReplaceCurrent);
   document.getElementById('pvReplAllBtn').addEventListener('click', pvReplaceAll);
   const prev = document.getElementById('pvFindPrevBtn');
@@ -6375,17 +6626,28 @@ function pvStatusFlash(msg){
   prev.addEventListener('click', () => pvGo(-1));
   next.addEventListener('click', () => pvGo(1));
   document.getElementById('pvFindCloseBtn').addEventListener('click', closePreviewSearch);
-})();
+}
 
-// 입력창 밖에서의 Esc 로도 미리보기 검색 닫기 (전체 화면이 열려 있으면 그쪽 Esc 가 우선)
-document.addEventListener('keydown', (e) => {
-  if(e.isComposing || e.keyCode === 229) return;
-  if(e.key !== 'Escape') return;
-  if(document.getElementById('fsOverlay').style.display === 'block') return;
-  if(document.getElementById('codeOverlay').style.display === 'block') return;
-  if(pvSearchOn) closePreviewSearch();
-});
+function bindPreviewSearchEscapeEvent(){
+  // 입력창 밖의 Esc도 검색을 닫되, 전체 화면·코드 화면이 열렸으면 그쪽을 우선한다.
+  document.addEventListener('keydown', event => {
+    if(event.isComposing || event.keyCode === 229 || event.key !== 'Escape') return;
+    if(document.getElementById('fsOverlay').style.display === 'block') return;
+    if(document.getElementById('codeOverlay').style.display === 'block') return;
+    if(previewSearchState.open) closePreviewSearch();
+  });
+}
 
+function bindPreviewSearchEvents(){
+  if(previewSearchState.bound) return;
+  previewSearchState.bound = true;
+  bindPreviewSearchInputEvents();
+  bindPreviewSearchControlEvents();
+  bindPreviewSearchEscapeEvent();
+}
+
+function bindBodyToolEvents(){
+  bindUIFeatureEvents('body-tools', () => {
 document.getElementById('insertFoldBtn').addEventListener('click', () => {
   // 텍스트를 드래그해 두고 누르면 그 부분이 통째로 접기에 들어가고,
   // 선택 없이 누르면 빈 접기 틀이 들어가고 안쪽 내용이 선택 상태가 돼서 바로 타이핑하면 됨
@@ -6413,28 +6675,30 @@ document.getElementById('insertQuoteBtn').addEventListener('click', () => {
 });
 
 document.getElementById('tidyBtn').addEventListener('click', () => {
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   let changed = 0;
   bodyCardTextareas().forEach(ta => {
     const before = ta.value;
-    let v = normalizeQuotes(before).replace(/`/g, "'");
-    v = normalizeStandaloneHr(v);
+    let v = MosaicParser.normalizeQuotes(before).replace(/`/g, "'");
+    v = MosaicParser.normalizeStandaloneHr(v);
     v = v.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');   // 폭 없는 문자 제거
     v = v.split('\n').map(l => l.replace(/\s+$/,'')).join('\n'); // 줄 끝 공백 제거
     v = v.replace(/\n{3,}/g, '\n\n');                     // 3줄 이상 빈 줄 -> 1줄
     v = v.trim();
     if(v !== before){ ta.value = v; changed++; }
   });
-  render(); updateCounter(); saveDraft();
+  uiUpdateEffects.committedChange();
   if(changed){
     showUndoToast(`정돈 완료 (${changed}개 입력 정리됨)`);
   } else {
-    undoSnapshot = null;
+    MosaicStorage.discardUndoSnapshot();
     const st = document.getElementById('copyStatus');
     st.textContent = '바꿀 항목 없음.';
     setTimeout(() => { st.textContent = ''; }, 2500);
   }
 });
+  });
+}
 
 // 전체 화면 검색 미러에 필요한 글꼴·줄바꿈 속성.
 const SEARCH_HL_PROPS = ['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight',
@@ -6447,20 +6711,15 @@ const SEARCH_HL_PROPS = ['fontFamily','fontSize','fontWeight','fontStyle','lette
 // 반환의 offsets: 각 일치의 텍스트 내 시작 위치(현재 항목 스크롤·선택에 사용).
 function searchHlMarkup(text, query, base, curGlobal){
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const hay = normalizeQuotes(text).toLowerCase();
-  const needle = normalizeQuotes(query).toLowerCase();
   let out = '', last = 0, n = 0;
-  const offsets = [];
-  let at = needle ? hay.indexOf(needle) : -1;
-  while(at !== -1){
+  const offsets = normalizedLiteralOffsets(text, query);
+  offsets.forEach(at => {
     const isCur = (base + n) === curGlobal;
-    offsets.push(at);
     out += esc(text.slice(last, at))
          + '<span class="searchHit' + (isCur ? ' cur' : '') + '">' + esc(text.slice(at, at + query.length)) + '</span>';
     last = at + query.length;
     n++;
-    at = hay.indexOf(needle, last);
-  }
+  });
   out += esc(text.slice(last));
   return { html: out, count: n, offsets };
 }
@@ -6500,16 +6759,6 @@ function hasBatchim(word){
 
 const JOSA_INDEX = { '은': 0, '는': 0, '이': 1, '가': 1, '을': 2, '를': 2, '과': 3, '와': 3 };
 const JOSA_FORMS = [['은','는'], ['이','가'], ['을','를'], ['과','와']];   // [받침 있음, 없음]
-
-document.querySelectorAll('#nameReplaceGroup [data-name-fill]').forEach(button => {
-  button.addEventListener('click', () => {
-    const input = document.getElementById('nameTo');
-    input.value = button.dataset.nameFill;
-    input.dispatchEvent(new Event('input', { bubbles:true }));
-    input.focus();
-    document.getElementById('nameStatus').textContent = '';
-  });
-});
 
 // text 안의 from 을 to 로 바꾸면서, 바로 뒤에 붙은 조사(은/는·이/가·을/를·과/와)를
 // 새 이름의 받침 유무에 맞춰 조사를 자연스럽게 변환한다.
@@ -6554,7 +6803,7 @@ function nameRules(){
 function saveNameRules(rules){
   document.getElementById('nameRules').value = JSON.stringify(rules);
   renderNameRuleList();
-  scheduleDraftSave();
+  uiUpdateEffects.saveLater();
 }
 function replaceNameInTextarea(ta, from, to){
   if(!from || !ta.value.includes(from)) return 0;
@@ -6590,34 +6839,43 @@ function changeExactNameFields(from, to){
       if(changed) input.value = JSON.stringify(list);
     }
   } catch(e){}
-  if(count) syncCharList();
+  if(count) MosaicStorage.syncCharList();
   return count;
 }
+
+function renderReplacementRuleItems(list, rules, label, undoRule){
+  list.replaceChildren();
+  rules.forEach(rule => {
+    const row = document.createElement('div');
+    row.className = 'keywordRuleItem';
+    const text = document.createElement('div');
+    text.className = 'keywordRuleText';
+    const from = document.createElement('b');
+    from.textContent = rule.from;
+    const to = document.createElement('b');
+    to.textContent = rule.to;
+    text.append(from, document.createTextNode(' → '), to);
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'keywordUndoBtn';
+    undo.textContent = '↺';
+    undo.setAttribute('aria-label', `${rule.from} → ${rule.to} ${label} 규칙 되돌리기`);
+    undo.addEventListener('click', () => undoRule(rule.id));
+    row.append(text, undo);
+    list.appendChild(row);
+  });
+}
+
 function renderNameRuleList(){
   const list = document.getElementById('nameRuleList');
   if(!list) return;
-  list.replaceChildren();
   const rules = nameRules();
   const atLimit = rules.length >= NAME_RULE_LIMIT;
   document.getElementById('nameReplaceBtn').disabled = atLimit;
   const status = document.getElementById('nameStatus');
   if(atLimit) status.textContent = NAME_RULE_LIMIT_MESSAGE;
   else if(status.textContent === NAME_RULE_LIMIT_MESSAGE) status.textContent = '';
-  rules.forEach(rule => {
-    const row = document.createElement('div');
-    row.className = 'keywordRuleItem';
-    const text = document.createElement('div');
-    text.className = 'keywordRuleText';
-    const from = document.createElement('b'); from.textContent = rule.from;
-    const to = document.createElement('b'); to.textContent = rule.to;
-    text.append(from, document.createTextNode(' → '), to);
-    const undo = document.createElement('button');
-    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '↺';
-    undo.setAttribute('aria-label', `${rule.from} → ${rule.to} 이름 규칙 되돌리기`);
-    undo.addEventListener('click', () => undoNameRule(rule.id));
-    row.append(text, undo);
-    list.appendChild(row);
-  });
+  renderReplacementRuleItems(list, rules, '이름', undoNameRule);
 }
 function addNameRule(){
   const fromEl = document.getElementById('nameFrom');
@@ -6642,17 +6900,17 @@ function addNameRule(){
     status.textContent = '기존 규칙과 이름이 겹칩니다. 각각 되돌릴 수 있도록 다른 이름을 사용해 주세요.';
     return;
   }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   let count = 0;
   bodyCardTextareas().forEach(ta => { count += replaceNameInTextarea(ta, from, to); });
   const fields = changeExactNameFields(from, to);
   rules.push({ id:'nr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from, to });
   saveNameRules(rules);
   fromEl.value = ''; toEl.value = ''; fromEl.focus();
-  render(); updateCounter(); saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(`이름 규칙 추가 · 기존 ${count}곳 변경.`);
   status.textContent = `본문 ${count}곳 · 이름 필드 ${fields}곳 자동 변환`;
-  if(pvSearchOn && document.getElementById('pvFindInput').value === from){
+  if(previewSearchState.open && document.getElementById('pvFindInput').value === from){
     document.getElementById('pvFindInput').value = to;
     pvApplySearch(false);
   }
@@ -6661,20 +6919,33 @@ function undoNameRule(id){
   const rules = nameRules();
   const rule = rules.find(item => item.id === id);
   if(!rule) return;
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   bodyCardTextareas().forEach(ta => { replaceNameInTextarea(ta, rule.to, rule.from); });
   changeExactNameFields(rule.to, rule.from);
   saveNameRules(rules.filter(item => item.id !== id));
-  render(); updateCounter(); saveDraft();
-  recordCompletedAction(`'${rule.from} → ${rule.to}' 이름 규칙 되돌림.`);
+  uiUpdateEffects.committedChange();
+  MosaicStorage.recordCompletedAction(`'${rule.from} → ${rule.to}' 이름 규칙 되돌림.`);
   dismissToast();
   document.getElementById('nameStatus').textContent = '';
 }
-document.getElementById('nameReplaceBtn').addEventListener('click', addNameRule);
-['nameFrom','nameTo'].forEach(id => document.getElementById(id).addEventListener('keydown', event => {
-  if(event.isComposing || event.keyCode === 229) return;
-  if(event.key === 'Enter'){ event.preventDefault(); addNameRule(); }
-}));
+function bindNameRuleEvents(){
+  bindUIFeatureEvents('name-rules', () => {
+    document.querySelectorAll('#nameReplaceGroup [data-name-fill]').forEach(button => {
+      button.addEventListener('click', () => {
+        const input = document.getElementById('nameTo');
+        input.value = button.dataset.nameFill;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.focus();
+        document.getElementById('nameStatus').textContent = '';
+      });
+    });
+    document.getElementById('nameReplaceBtn').addEventListener('click', addNameRule);
+    ['nameFrom','nameTo'].forEach(id => document.getElementById(id).addEventListener('keydown', event => {
+      if(event.isComposing || event.keyCode === 229) return;
+      if(event.key === 'Enter'){ event.preventDefault(); addNameRule(); }
+    }));
+  });
+}
 renderNameRuleList();
 
 // ---------- 키워드 치환 ----------
@@ -6702,7 +6973,7 @@ function keywordRules(){
 function saveKeywordRules(rules){
   document.getElementById('keywordRules').value = JSON.stringify(rules);
   renderKeywordRuleList();
-  scheduleDraftSave();
+  uiUpdateEffects.saveLater();
 }
 function replaceLiteralInTextarea(ta, from, to){
   if(!from || !ta.value.includes(from)) return 0;
@@ -6725,7 +6996,6 @@ function applyActiveKeywordRulesToTextarea(ta){
 function renderKeywordRuleList(){
   const list = document.getElementById('keywordRuleList');
   if(!list) return;
-  list.replaceChildren();
   const rules = keywordRules();
   const atLimit = rules.length >= KEYWORD_RULE_LIMIT;
   const addButton = document.getElementById('keywordAddBtn');
@@ -6735,21 +7005,7 @@ function renderKeywordRuleList(){
     if(atLimit) status.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
     else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) status.textContent = '';
   }
-  rules.forEach(rule => {
-    const row = document.createElement('div');
-    row.className = 'keywordRuleItem';
-    const text = document.createElement('div');
-    text.className = 'keywordRuleText';
-    const from = document.createElement('b'); from.textContent = rule.from;
-    const to = document.createElement('b'); to.textContent = rule.to;
-    text.append(from, document.createTextNode(' → '), to);
-    const undo = document.createElement('button');
-    undo.type = 'button'; undo.className = 'keywordUndoBtn'; undo.textContent = '↺';
-    undo.setAttribute('aria-label', `${rule.from} → ${rule.to} 키워드 규칙 되돌리기`);
-    undo.addEventListener('click', () => undoKeywordRule(rule.id));
-    row.append(text, undo);
-    list.appendChild(row);
-  });
+  renderReplacementRuleItems(list, rules, '키워드', undoKeywordRule);
 }
 function addKeywordRule(){
   const fromEl = document.getElementById('keywordFrom');
@@ -6771,13 +7027,13 @@ function addKeywordRule(){
     st.textContent = '기존 규칙과 문구가 겹칩니다. 각각 정확히 되돌릴 수 있도록 다른 문구를 사용해 주세요.';
     return;
   }
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   let count = 0;
   bodyCardTextareas().forEach(ta => { count += replaceLiteralInTextarea(ta, from, to); });
   rules.push({ id:'kr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from, to });
   saveKeywordRules(rules);
   fromEl.value = ''; toEl.value = ''; fromEl.focus();
-  render(); updateCounter(); saveDraft();
+  uiUpdateEffects.committedChange();
   showUndoToast(`키워드 규칙 추가 · 기존 ${count}곳 변경.`);
   st.textContent = `본문 ${count}곳 자동 치환`;
 }
@@ -6785,17 +7041,135 @@ function undoKeywordRule(id){
   const rules = keywordRules();
   const rule = rules.find(r => r.id === id);
   if(!rule) return;
-  snapshotCards();
+  MosaicStorage.snapshotCards();
   bodyCardTextareas().forEach(ta => { replaceLiteralInTextarea(ta, rule.to, rule.from); });
   saveKeywordRules(rules.filter(r => r.id !== id));
-  render(); updateCounter(); saveDraft();
-  recordCompletedAction(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
+  uiUpdateEffects.committedChange();
+  MosaicStorage.recordCompletedAction(`'${rule.from} → ${rule.to}' 규칙 되돌림.`);
   dismissToast();
   document.getElementById('keywordStatus').textContent = '';
 }
-document.getElementById('keywordAddBtn').addEventListener('click', addKeywordRule);
-['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
-  if(e.isComposing || e.keyCode === 229) return;
-  if(e.key === 'Enter'){ e.preventDefault(); addKeywordRule(); }
-}));
+function bindKeywordRuleEvents(){
+  bindUIFeatureEvents('keyword-rules', () => {
+    document.getElementById('keywordAddBtn').addEventListener('click', addKeywordRule);
+    ['keywordFrom','keywordTo'].forEach(id => document.getElementById(id).addEventListener('keydown', event => {
+      if(event.isComposing || event.keyCode === 229) return;
+      if(event.key === 'Enter'){ event.preventDefault(); addKeywordRule(); }
+    }));
+  });
+}
 renderKeywordRuleList();
+
+// ---------- UI 수명주기·외부 출입구 ----------
+// 기능별 이벤트 연결은 한 번만 수행한다. 다른 모듈은 아래 MosaicUI만 통해
+// UI를 다루며, 이 파일 안의 상태 객체와 보조 함수에는 직접 의존하지 않는다.
+const uiLifecycleState = {
+  initialized:false,
+  bindings:new Set(),
+  observers:[]
+};
+function bindUIFeatureEvents(name, bind){
+  if(uiLifecycleState.bindings.has(name)) return;
+  bind();
+  uiLifecycleState.bindings.add(name);
+}
+function initUI(){
+  if(uiLifecycleState.initialized) return;
+  bindGlobalUIEvents();
+  bindBlockToolbarEvents();
+  bindPreviewSelectionEvents();
+  bindPreviewLayoutEvents();
+  bindPositionSyncEvents();
+  bindPreviewFullscreenEvents();
+  bindPreviewToolbarLayoutEvents();
+  bindThemeChoiceEvents();
+  bindColorInputEvents();
+  bindCoverRangeLabelEvents();
+  bindProfileRangeLabelEvents();
+  bindImageBackgroundChoiceEvents();
+  bindProfileImageEvents();
+  bindRangeEditorEvents();
+  bindProfileResetEvents();
+  bindProfileEntityEvents();
+  bindProfileFieldEvents();
+  bindSubtitleSeparatorEvents();
+  bindParagraphSettingEvents();
+  bindSidebarOutputEvents();
+  bindCoverAndPresetEvents();
+  bindCardEditorDelegatedEvents();
+  bindCardToolbarLayoutEvents();
+  bindCardEditorDragEvents();
+  bindCardCreationEvents();
+  bindUndoToastEvents();
+  bindFullscreenFormatEvents();
+  bindFullscreenEditorEvents();
+  bindPreviewSearchEvents();
+  bindBodyToolEvents();
+  bindNameRuleEvents();
+  bindKeywordRuleEvents();
+  uiLifecycleState.initialized = true;
+}
+
+const MosaicUI = Object.freeze({
+  init:initUI,
+  cards:Object.freeze({
+    add:addCard,
+    clear:clearCardEditors,
+    all:getCards,
+    textareas:bodyCardTextareas,
+    snapshot:(...args) => MosaicStorage.snapshotCards(...args),
+    format:applyTextareaFormat,
+    setDefaultsForShape:setCardDefaultsForShapeChange,
+    exampleBody:EXAMPLE_BODY,
+    activeTextarea:() => cardEditorState.activeTextarea,
+    setActiveTextarea:textarea => { cardEditorState.activeTextarea = textarea || null; }
+  }),
+  preview:Object.freeze({
+    render,
+    scheduleRefresh:uiUpdateEffects.renderCountLater,
+    renderMarkup:renderPreview,
+    focusCaret:focusPreviewOnCaret,
+    revealOffsetAtTop:revealEditorOffsetAtTop,
+    positionSyncEnabled,
+    layoutFloatingButtons:layoutPreviewFloatingButtons,
+    syncToolbarLabel:syncPreviewToolbarLabel,
+    syncCommentOutset:syncPreviewCommentOutset,
+    syncOuterBreaks:syncPreviewOuterBreaks,
+    openSearch:openPreviewSearch,
+    closeSearch:closePreviewSearch,
+    setFullscreenSearchOpen:setFsSearchOpen,
+    clearFullscreenSearch:fsClearSearch,
+    hideSelectionToolbar:hideSelToolbar,
+    revision:() => previewRenderState.revision,
+    setDirectEditReady:ready => { previewEditState.ready = !!ready; }
+  }),
+  work:Object.freeze({
+    collect:collectWork,
+    collectSlot:collectSlotWork,
+    apply:applyWork,
+    applyState:applyWorkState,
+    finishRestore:finishWorkRestore
+  }),
+  feedback:Object.freeze({
+    undo:showUndoToast,
+    notice:showNoticeToast,
+    open:openToast,
+    dismiss:dismissToast
+  }),
+  controls:Object.freeze({
+    syncCover:syncCoverControlState,
+    syncCredit:syncCreditControlState,
+    syncDesignSummaries,
+    syncImageBackgroundAvailability:syncImageBackgroundToggleAvailability,
+    syncParagraphSettings:syncParagraphSettingsUI,
+    syncProfileTags:syncProfileTagEditorsFromMasters,
+    syncTypographyLabels:syncTypographyRangeLabels,
+    updateHexLabels,
+    renderNameRules:renderNameRuleList,
+    renderKeywordRules:renderKeywordRuleList,
+    selectedText:selectedControlText
+  }),
+  workspace:Object.freeze({ setInert:setWorkspaceInert })
+});
+globalThis.MosaicUI = MosaicUI;
+initUI();
