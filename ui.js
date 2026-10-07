@@ -1,4 +1,4 @@
-// 조각로그 v1.8.2 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.3 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
@@ -8,7 +8,7 @@ const uiElements = Object.freeze({
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.2 미리보기 렌더 조정기.
+// 조각로그 v1.8.3 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -127,7 +127,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.2 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.3 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches

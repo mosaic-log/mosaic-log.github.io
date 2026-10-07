@@ -1,6 +1,6 @@
-// 조각로그 v1.8.2 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.3 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.2 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.3 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -2156,10 +2156,6 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
 
   const pal = tonePalette(settings);
   const commonBoxBg = mixHex(pal.cardBg, pal.boxBg, 0.52);
-  // 사진과 일반 인물이 섞인 포트레이트에서도 사진 없는 인물은 독립된
-  // 회색 카드 면을 가진다. 투명하게 두면 접합선용 배경이 둥근 모서리 뒤까지
-  // 비쳐 추가 인원들이 네모난 한 덩어리처럼 보인다.
-  const profileCardBg = pal.boxBg;
   const W = parseInt(settings.cardWidth) || 750;
   const cardRadius = cardCornerRadiusPx(settings);
   const showcase = settings.profileStyle === 'showcase';
@@ -2184,6 +2180,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     profileCount:profiles.length,
     profileGap
   });
+  // 기본 포트레이트는 기존처럼 투명하다. 사진 배경의 단색 대체 면과
+  // 간격 0으로 묶인 면만 회색을 유지하며, 기본 스타일까지 덮지 않는다.
+  const profileCardBg = showcase && !settings.profileImageBackgroundOn && !joinedShowcaseProfiles
+    ? 'transparent' : pal.boxBg;
   const showOuterBorder = settings.cardBorderOn !== false && !borderlessTopProfile;
   const border = showOuterBorder
     ? (connectedAbove
