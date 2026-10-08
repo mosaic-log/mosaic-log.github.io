@@ -1,4 +1,4 @@
-// 조각로그 v1.8.3 HTML 복원·파일 저장·로그 보관함 모듈.
+// 조각로그 v1.8.4 HTML 복원·파일 저장·로그 보관함 모듈.
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -327,9 +327,10 @@ function sanitizeImportedWork(data){
         if(!rule || typeof rule !== 'object' || Array.isArray(rule)
           || typeof rule.from !== 'string' || typeof rule.to !== 'string'
           || !rule.from || !rule.to || rule.from.length > 80 || rule.to.length > 80) throw new Error('invalid name rule');
+        if(rule.enabled !== undefined && typeof rule.enabled !== 'boolean') throw new Error('invalid name rule state');
         const id = typeof rule.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(rule.id)
           ? rule.id : `nr_import_${index}`;
-        return { id, from:rule.from, to:rule.to };
+        return { id, from:rule.from, to:rule.to, ...(rule.enabled !== undefined ? {enabled:rule.enabled} : {}) };
       });
       fields.nameRules = JSON.stringify(cleaned);
     } catch(e){ return null; }
@@ -341,10 +342,11 @@ function sanitizeImportedWork(data){
       const cleaned = rules.map((rule, index) => {
         if(!rule || typeof rule !== 'object' || Array.isArray(rule)
           || typeof rule.from !== 'string' || typeof rule.to !== 'string'
-          || !rule.from || !rule.to || rule.from.length > 80 || rule.to.length > 80) throw new Error('invalid keyword rule');
+          || !rule.from || rule.from.length > 80 || rule.to.length > 80) throw new Error('invalid keyword rule');
+        if(rule.enabled !== undefined && typeof rule.enabled !== 'boolean') throw new Error('invalid keyword rule state');
         const id = typeof rule.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(rule.id)
           ? rule.id : `kr_import_${index}`;
-        return { id, from:rule.from, to:rule.to };
+        return { id, from:rule.from, to:rule.to, ...(rule.enabled !== undefined ? {enabled:rule.enabled} : {}) };
       });
       fields.keywordRules = JSON.stringify(cleaned);
     } catch(e){ return null; }
@@ -1591,6 +1593,10 @@ function applyStyleValues(v){
     const el = document.getElementById(id);
     if(el.type === 'checkbox'){
       el.checked = settingFlagOn(values[id]);
+    } else if(id === 'unifiedBottomSpace'){
+      // 화면 조절은 제거했지만 이전 저장본은 기존 슬라이더 범위로 복원한다.
+      const n = Number(values[id]);
+      el.value = String(Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 0);
     } else if(el.type === 'range' && (id === 'titleSize' || id === 'foldTitleSize' || id === 'cardCornerRadius' || id === 'gapHeight' || id === 'narrDialogueGap')){
       // 제목 크기는 현재 슬라이더 단위인 1px에 맞춘다.
       const n = Number(values[id]);
@@ -2111,7 +2117,7 @@ function sanitizeImportedPreset(preset){
       const color = typeof raw === 'string' ? normalizeHex(raw) : null;
       if(!color) return null;
       clean[id] = color;
-    } else if(el.type === 'range'){
+    } else if(el.type === 'range' || id === 'unifiedBottomSpace'){
       // 화면의 동적 최솟값은 현재 작업의 사진 상태에 따라 달라진다. 저장값의 유효 범위는 고정이다.
       const n = Number(raw), min = id === 'profileItemGap' ? -10 : Number(el.min), max = Number(el.max);
       const raisedMinimum = id === 'creditCardGap'
@@ -2610,7 +2616,7 @@ const ADVANCED_RESET_GROUP_FIELDS = {
   creditAppearance:['creditWidth','creditCardGap','creditBorderOn','creditTransparentOn'],
   coverSpace:['coverVerticalSpace','coverDividerLength'],
   topProfile:['profileOuterBackground','profileItemGap'],
-  cardInterior:['cardBodyTopSpace','cardBodyBottomSpace','cardInlinePadding','unifiedBottomSpace'],
+  cardInterior:['cardBodyTopSpace','cardBodyBottomSpace','cardInlinePadding'],
   footerSpacing:['footerBodyGap'],
   headingSpacing:['headingTopSpace','headingBetweenSpace','headingBottomSpace'],
   hr:['hrShape','hrOpacity','hrLength','hrVerticalSpace'],
@@ -2636,7 +2642,7 @@ function resetAdvancedControlFields(ids){
 }
 
 document.getElementById('advancedResetBtn').addEventListener('click', () => {
-  resetAdvancedControlFields(['advancedOn', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
+  resetAdvancedControlFields(['advancedOn', 'unifiedBottomSpace', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
 });
 document.querySelectorAll('#advancedDesignGroup .advancedOptionResetBtn').forEach(button => {
   button.addEventListener('click', () => {

@@ -1,4 +1,4 @@
-// 조각로그 v1.8.3 본문 문법과 안전한 인라인 HTML 변환.
+// 조각로그 v1.8.4 본문 문법과 안전한 인라인 HTML 변환.
 function escapeHTML(s){
   return String(s)
     .replace(/&/g, '&amp;')
@@ -153,8 +153,102 @@ function processBodyInline(text, emphasisColor, options){
   return processInline(text, emphasisColor, options).split(SOFT_BREAK_TOKEN).join(softBreak);
 }
 
+// 출력 전용 치환. 원문/저장 모델은 건드리지 않고, 필요할 때만 출력 글자의
+// 원문 범위를 함께 만든다. 뒤 규칙은 앞 규칙의 결과에 추가 순서대로 적용한다.
+function hasBatchim(word){
+  if(/^(?:char|user)$/i.test((word || '').trim())) return false;
+  const code = (word || '').trim().slice(-1).charCodeAt(0);
+  return code >= 0xAC00 && code <= 0xD7A3 ? (code - 0xAC00) % 28 !== 0 : null;
+}
+function nameRulePattern(from){
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const combos = hasBatchim(from) === true ? '이가|이는|이를|이와|' : '';
+  return new RegExp(escaped + '(?:(' + combos + '은|는|이|가|을|를|과|와)(?=$|[^가-힣]))?', 'g');
+}
+function nameRuleReplacement(to, josa){
+  const forms = {은:['은','는'],는:['은','는'],이:['이','가'],가:['이','가'],을:['을','를'],를:['을','를'],과:['과','와'],와:['과','와']};
+  const batchim = hasBatchim(to);
+  if(!josa || batchim === null) return to + (josa || '');
+  return to + (josa.length === 2 && batchim ? josa : forms[josa.slice(-1)][batchim ? 0 : 1]);
+}
+function outputTextProjection(value, settings, trackSource = true){
+  let text = String(value);
+  let spans = trackSource ? Array.from({length:text.length}, (_,i) => ({start:i,end:i+1})) : null;
+  const names = (settings.nameRules || []).filter(rule => rule.enabled !== false && rule.from);
+  const keywords = (settings.keywordRules || []).filter(rule => rule.enabled !== false && rule.from);
+  for(const [rules,name] of [[names,true],[keywords,false]]){
+    for(const rule of rules){
+      if(!text.includes(rule.from)) continue;
+      // 화자 이름표는 원래 인물의 식별자로 남긴다. 표시 이름은 출력 설정에서
+      // 바꾸므로 두 인물을 같은 이름으로 바꿔도 각각의 색상을 잃지 않는다.
+      const speakers = [];
+      if(name && (settings.extraChars || []).length){
+        const markers = /\[([^\[\]\n]{1,24})\]\s*(?=["“‘'])/g;
+        let marker;
+        while((marker = markers.exec(text)) !== null){
+          const key = marker[1].trim().toLowerCase();
+          if(settings.extraChars.some(char => String(char.sourceName || char.name).trim().toLowerCase() === key)){
+            speakers.push({start:marker.index + 1,end:marker.index + 1 + marker[1].length});
+          }
+        }
+      }
+      const isSpeaker = (start,end) => speakers.some(span => start < span.end && end > span.start);
+      const pattern = name ? nameRulePattern(rule.from)
+        : new RegExp(rule.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),'g');
+      if(!trackSource){
+        text = text.replace(pattern, (match,josa,offset) => name
+          ? isSpeaker(offset,offset + match.length) ? match : nameRuleReplacement(rule.to,josa)
+          : rule.to);
+        continue;
+      }
+      let nextText = '', nextSpans = [], cursor = 0, match;
+      while((match = pattern.exec(text)) !== null){
+        if(isSpeaker(match.index,match.index + match[0].length)) continue;
+        nextText += text.slice(cursor,match.index);
+        for(let i=cursor;i<match.index;i++) nextSpans.push(spans[i]);
+        const replacement = name ? nameRuleReplacement(rule.to,match[1]) : rule.to;
+        const first = spans[match.index], last = spans[match.index+match[0].length-1];
+        const range = {start:first.start,end:last.end,
+          editStart:first.editStart ?? first.start,editEnd:last.editEnd ?? last.end};
+        const nameEnd = spans[match.index + rule.from.length - 1];
+        const nameRange = {...range,end:nameEnd.end};
+        const josaStart = spans[match.index + rule.from.length];
+        const josaRange = josaStart ? {...range,start:josaStart.start} : range;
+        nextText += replacement;
+        for(let i=0;i<replacement.length;i++) nextSpans.push(name ? i < rule.to.length ? nameRange : josaRange : range);
+        cursor = match.index + match[0].length;
+      }
+      nextText += text.slice(cursor);
+      for(let i=cursor;i<spans.length;i++) nextSpans.push(spans[i]);
+      text = nextText;
+      spans = nextSpans;
+    }
+  }
+  return {text,spans};
+}
+function applyOutputTextRules(value, settings){
+  return outputTextProjection(value,settings,false).text;
+}
+function outputRuleSettings(settings){
+  if(settings.outputRulesProjected || !(settings.nameRules || []).some(rule => rule.enabled !== false)) return settings;
+  const exactName = value => {
+    let result = value;
+    (settings.nameRules || []).forEach(rule => {
+      if(rule.enabled !== false && String(result || '').trim() === rule.from) result = rule.to;
+    });
+    return result;
+  };
+  return {...settings,outputRulesProjected:true,
+    charName:exactName(settings.charName),userName:exactName(settings.userName),
+    subChar:exactName(settings.subChar),subUser:exactName(settings.subUser),
+    extraChars:(settings.extraChars || []).map(char => ({...char,sourceName:char.name,name:exactName(char.name) }))};
+}
+
 // 본문 문법 소비자는 파서의 공개 계약만 사용한다.
 const MosaicParser = Object.freeze({
+  applyOutputTextRules,
+  outputRuleSettings,
+  outputTextProjection,
   SOFT_BREAK_TOKEN,
   formatMatchContent,
   normalizeBodyHrMarkers,

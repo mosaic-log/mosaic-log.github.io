@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.3 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.4 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=d4e9efc7d5f1">
+<link rel="stylesheet" href="./styles.css?v=94c9818eb675">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.3 GitHub 저장소 열기">v1.8.3</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.4 GitHub 저장소 열기">v1.8.4</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -505,29 +505,29 @@
   <details class="group foldGroup bodyFold" id="nameReplaceGroup">
     <summary class="group-title foldHead"><span class="bodyFoldTitle">이름 바꾸기</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <p class="group-desc">규칙을 저장하면 기존·새 입력의 이름과 조사를 계속 변경</p>
+      <p class="group-desc">원문은 그대로, 미리보기·출력의 이름과 조사만 변경</p>
       <div class="nameReplaceRow">
         <div class="nameFieldGroup">
           <input type="text" id="nameFrom" maxlength="80" aria-label="현재 이름" placeholder="현재 이름">
           <span class="arrowSep">→</span>
           <input type="text" id="nameTo" maxlength="80" aria-label="새 이름" placeholder="새 이름">
+        </div>
+        <div class="nameActionGroup">
           <div class="nameQuickFill" role="group" aria-label="새 이름 빠른 입력">
             <button type="button" data-name-fill="char" aria-label="새 이름에 char 입력">char</button>
             <button type="button" data-name-fill="user" aria-label="새 이름에 user 입력">user</button>
             <button type="button" data-name-fill="○○" aria-label="새 이름에 동그라미 두 개 입력">○○</button>
           </div>
-        </div>
-        <div class="nameActionGroup">
-          <button class="uiButton" type="button" id="nameReplaceBtn">적용</button>
+          <button class="uiButton" type="button" id="nameReplaceBtn">추가</button>
         </div>
       </div>
       <input type="hidden" id="nameRules" value="[]">
       <div id="nameStatus" class="hint" aria-live="polite"></div>
-      <div id="nameRuleList" class="keywordRuleList" aria-label="활성 이름 바꾸기 규칙 목록"></div>
+      <div id="nameRuleList" class="keywordRuleList" aria-label="이름 바꾸기 규칙 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
-        <p class="hint">적용 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
-        <p class="hint">각 규칙의 되돌리기는 현재 본문과 일치하는 이름 필드를 되돌리고 규칙을 제거</p>
+        <p class="hint">추가 버튼 또는 Enter로 규칙 추가 · 본문과 이름 입력값은 그대로 보존</p>
+        <p class="hint">스위치를 끄거나 ×로 규칙을 제거하면 출력에서 원문이 다시 표시됨</p>
         <p class="hint">은/는·이/가·을/를·과/와 자동 변환 · 인물 색상 유지</p>
       </details>
     </div>
@@ -536,26 +536,33 @@
   <details class="group foldGroup bodyFold" id="keywordReplaceGroup">
     <summary class="group-title foldHead"><span class="bodyFoldTitle">키워드 치환</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-      <p class="group-desc">규칙을 저장하면 기존·새 입력에 계속 자동 적용</p>
+      <p class="group-desc">원문은 그대로, 미리보기·출력에서만 치환·삭제</p>
+      <select id="keywordAction" hidden aria-hidden="true" tabindex="-1"><option value="replace">치환</option><option value="delete">삭제</option></select>
       <div class="nameReplaceRow keywordAutoRow">
         <div class="nameFieldGroup">
           <input type="text" id="keywordFrom" maxlength="80" aria-label="찾을 키워드" placeholder="찾을 키워드">
-          <span class="arrowSep">→</span>
+          <span class="arrowSep" aria-hidden="true">→</span>
           <input type="text" id="keywordTo" maxlength="80" aria-label="바꿀 키워드" placeholder="바꿀 키워드">
         </div>
         <div class="nameActionGroup">
-          <button class="uiButton" type="button" id="keywordAddBtn">적용</button>
+          <div class="replacementActionChoices" role="group" aria-label="키워드 처리 방식">
+            <button type="button" data-keyword-action="replace" aria-pressed="true">치환</button>
+            <button type="button" data-keyword-action="delete" aria-pressed="false">삭제</button>
+          </div>
+          <button class="uiButton" type="button" id="keywordAddBtn">추가</button>
         </div>
       </div>
       <input type="hidden" id="keywordRules" value="[]">
       <div id="keywordStatus" class="hint" aria-live="polite"></div>
-      <div id="keywordRuleList" class="keywordRuleList" aria-label="활성 키워드 치환 목록"></div>
+      <div id="keywordRuleList" class="keywordRuleList" aria-label="키워드 치환 규칙 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
-        <p class="hint">적용 버튼 또는 Enter로 규칙 추가 · 기존 카드와 이후 입력 모두 적용</p>
-        <p class="hint">각 규칙의 되돌리기는 현재 본문에서 바뀐 문구를 원래 문구로 되돌리고 규칙을 제거</p>
+        <p class="hint">추가 버튼 또는 Enter로 규칙 추가 · 본문 입력·저장은 원문 유지</p>
+        <p class="hint">삭제는 빈 문자열로 처리 · 바꿀 키워드에 띄어쓰기를 입력하면 공백으로 치환</p>
+        <p class="hint">여러 규칙의 결과가 같아도 허용 · 스위치를 끄거나 ×로 출력 적용 해제</p>
         <p class="hint">모든 카드 적용 · 대소문자를 구분해 입력한 문구와 정확히 일치하는 부분만 변경</p>
         <p class="hint">이름·조사 자동 변환과 테마의 인물 이름 변경은 적용하지 않음</p>
+        <p class="hint">이름 변경 후 키워드 치환 적용 · 각 종류 안에서는 추가한 순서대로 한 번씩 적용</p>
       </details>
     </div>
   </details>
@@ -802,16 +809,17 @@
               <div class="row"><label for="cardBodyTopSpace">본문 위 여백</label><input type="range" id="cardBodyTopSpace" min="0" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyTopSpaceVal" data-range="cardBodyTopSpace" value="0" aria-label="각 카드 본문 첫 줄 위 추가 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
               <div class="row"><label for="cardBodyBottomSpace">본문 아래 여백</label><input type="range" id="cardBodyBottomSpace" min="-28" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyBottomSpaceVal" data-range="cardBodyBottomSpace" value="0" aria-label="각 카드 본문 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
               <div class="row"><label for="cardInlinePadding">좌우 안쪽 여백</label><input type="range" id="cardInlinePadding" min="0" max="66" step="1" value="22"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardInlinePaddingVal" data-range="cardInlinePadding" value="0" aria-label="카드 좌우 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row advancedLayoutOnlyRow" id="unifiedBottomSpaceRow"><label for="unifiedBottomSpace">이어보기 끝</label><input type="range" id="unifiedBottomSpace" min="0" max="60" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="unifiedBottomSpaceVal" data-range="unifiedBottomSpace" value="0" aria-label="이어보기 마지막 카드 안쪽 끝 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
+          <!-- 이전 초안·프리셋의 여백값과 검증 범위를 보존하는 복원 전용 필드. -->
+          <input type="hidden" id="unifiedBottomSpace" min="0" max="60" value="0">
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">소제목 여백</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="headingSpacingResetBtn" data-reset-group="headingSpacing" aria-label="소제목 여백 초기화" title="소제목 여백 초기화">↺</button>
               </div>
-              <div class="row"><label for="headingTopSpace">소제목 위 여백</label><input type="range" id="headingTopSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingTopSpaceVal" data-range="headingTopSpace" value="0" aria-label="소제목 위 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="headingTopSpace">소제목 위</label><input type="range" id="headingTopSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingTopSpaceVal" data-range="headingTopSpace" value="0" aria-label="소제목 위 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
               <div class="row"><label for="headingBetweenSpace">소제목 사이</label><input type="range" id="headingBetweenSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBetweenSpaceVal" data-range="headingBetweenSpace" value="0" aria-label="연속 소제목 사이 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="headingBottomSpace">소제목 아래 여백</label><input type="range" id="headingBottomSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBottomSpaceVal" data-range="headingBottomSpace" value="0" aria-label="소제목 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="headingBottomSpace">소제목 아래</label><input type="range" id="headingBottomSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBottomSpaceVal" data-range="headingBottomSpace" value="0" aria-label="소제목 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
         </div>
       </details>
@@ -1371,12 +1379,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=d36060f1ab2d" defer></script>
-<script src="./parser.js?v=61b8fe6c8f77" defer></script>
-  <script src="./renderer.js?v=e42d98bebc79" defer></script>
-<script src="./ui.js?v=677c28ec1f07" defer></script>
-<script src="./storage.js?v=af1ea5e9658e" defer></script>
-<script src="./app.js?v=7f7f3952af27" defer></script>
+<script src="./state.js?v=6c55019b0042" defer></script>
+<script src="./parser.js?v=e3d2ed3275bf" defer></script>
+  <script src="./renderer.js?v=1e39cbf698d7" defer></script>
+<script src="./ui.js?v=51ce9b751cd0" defer></script>
+<script src="./storage.js?v=1975e36cfdfd" defer></script>
+<script src="./app.js?v=52afc1603ac8" defer></script>
 
 </body>
 </html>

@@ -1,6 +1,6 @@
-// 조각로그 v1.8.3 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.4 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.3 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.4 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -658,7 +658,8 @@ function isStatusBodyLine(line){
 function findChar(settings, name){
   const list = settings.extraChars || [];
   const key = String(name).trim().toLowerCase();
-  return list.find(c => (c.name || '').trim().toLowerCase() === key) || null;
+  return list.find(c => c.sourceName && c.sourceName.trim().toLowerCase() === key)
+    || list.find(c => (c.name || '').trim().toLowerCase() === key) || null;
 }
 
 // 대사 줄 맨 앞의 화자 마커를 떼어냄: >> / << / [인물이름]
@@ -1799,26 +1800,33 @@ function expandDialogueLinesForOutput(lines, settings){
   return expanded;
 }
 
-function combineSoftBreakLines(lines){
-  const combined = [];
-  for(let i = 0; i < lines.length; i++){
-    let line = String(lines[i]);
-    while(/\[BR\]\s*$/i.test(line) && i + 1 < lines.length){
+// 출력과 미리보기 편집·이동은 같은 문단 목록을 사용한다. 빈 출력 줄을 먼저
+// 제외하되, [BR]로 실제 합쳐진 원문 줄 번호는 남겨 숨긴 원문을 덮어쓰지 않는다.
+function bodyRenderGroups(lines, settings){
+  const visible = lines.map((line, raw) => ({raw, text:String(line).trim()}))
+    .filter(entry => entry.text);
+  const groups = [];
+  for(let i = 0; i < visible.length; i++){
+    let line = visible[i].text;
+    const rawLines = [visible[i].raw];
+    while(/\[BR\]\s*$/i.test(line) && i + 1 < visible.length){
       const left = line.replace(/\[BR\]\s*$/i, '');
-      const right = String(lines[i + 1]);
+      const right = visible[i + 1].text;
       const joined = combineSoftBreakPair(left, right);
       if(joined === null) break;
       line = joined;
       i++;
+      rawLines.push(visible[i].raw);
     }
-    combined.push(line);
+    groups.push({raw:rawLines[0], rawEnd:rawLines[rawLines.length - 1], rawLines,
+      renderLines:expandDialogueLinesForOutput([line], settings)});
   }
-  return combined;
+  return groups;
 }
 
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (일부 접기 포함)
 function assembleBody(lines, settings){
-  const renderLines = expandDialogueLinesForOutput(combineSoftBreakLines(lines), settings);
+  const renderLines = bodyRenderGroups(lines, settings).flatMap(group => group.renderLines);
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
   let bodyHTML = '';
@@ -3449,6 +3457,9 @@ function syncHiddenEditorCollapse(ed, collapseBtn, hiding){
 }
 
 function buildCard(settings, sourceCards){
+  settings = MosaicParser.outputRuleSettings(settings);
+  sourceCards = sourceCards.map(card => card.type === 'comment' ? card
+    : {...card,body:MosaicParser.applyOutputTextRules(card.body,settings)});
   const pal = tonePalette(settings);
   const unifiedLayout = normalizeCardLayout(settings.cardLayout) === 'unified';
 
@@ -3689,6 +3700,7 @@ const MosaicRenderer = Object.freeze({
   MOD_KEY,
   addCreditItem,
   assembleBody,
+  bodyRenderGroups,
   buildCard,
   buildParagraph,
   combineSoftBreakPair,

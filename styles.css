@@ -894,36 +894,42 @@
   }
   .presetRow button.secondary:hover { border-color: var(--ink-faint); background: var(--bg-field); }
 
-  /* 이름 바꾸기·키워드 치환: 같은 너비의 입력 줄 아래에 실행 버튼을 둔다. */
+  /* 출력 규칙: 입력·보조 조작·목록의 위계를 나누고, 목록은 얇은 행으로 표시한다. */
   #tabBody .nameReplaceRow {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     align-items: stretch;
   }
-  #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  #tabBody .keywordRuleList { display:flex; flex-direction:column; gap:0; margin-top:10px; }
   #tabBody .keywordRuleList:empty { display:none; }
-  #tabBody .keywordRuleItem { display:flex; align-items:center; gap:8px; min-height:36px; padding:6px 8px 6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg-panel); }
-  #tabBody .keywordRuleText { flex:1; min-width:0; overflow:hidden; color:var(--ink-soft); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
-  #tabBody .keywordRuleText b { color:var(--ink); font-weight:650; }
+  #tabBody .keywordRuleItem { display:flex; align-items:center; gap:4px; min-height:38px; padding:3px 0; border:0; background:transparent; }
+  #tabBody .keywordRuleItem + .keywordRuleItem { border-top:1px solid color-mix(in srgb,var(--line) 65%,transparent); }
+  #tabBody .keywordRuleText { display:grid; grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr); align-items:center; gap:8px; flex:1; min-width:0; color:var(--help-ink-strong); font-size:11.5px; font-weight:400; }
+  #tabBody .keywordRuleText > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #tabBody .replacementRuleTo { color:var(--help-ink-strong); font-weight:400; }
+  #tabBody .replacementRuleArrow { color:color-mix(in srgb,var(--ink-faint) 80%,var(--bg-panel)); font-size:11px; font-weight:400; }
+  #tabBody .isEmptyResult { color:var(--help-ink-strong); font-weight:400; }
+  #tabBody .isRuleDisabled .keywordRuleText { opacity:0.55; }
+  #tabBody :is(#nameStatus, #keywordStatus):empty { display:none; }
   #tabBody .keywordUndoBtn {
     display: inline-flex;
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 28px;
+    width: 26px;
     height: 28px;
     padding: 0;
     border: 0;
     border-radius: 6px;
     background: transparent;
-    color: var(--ink-faint);
-    font-size: 14px;
+    color: color-mix(in srgb,var(--ink-faint) 80%,var(--bg-panel));
+    font-size: 11px;
     line-height: 1;
   }
   #tabBody .keywordUndoBtn:hover {
     border: 0;
-    background: color-mix(in srgb, #a65f59 10%, var(--bg-panel));
+    background: color-mix(in srgb, #a65f59 6%, var(--bg-panel));
     color: #a65f59;
   }
   #tabBody .nameFieldGroup {
@@ -948,10 +954,11 @@
     font-size: 12px;
     line-height: 1;
   }
-  #tabBody #nameReplaceGroup .nameFieldGroup { row-gap: 3px; }
+  #tabBody .nameFieldGroup.isDeleteMode { grid-template-columns:minmax(0,1fr); }
+  #tabBody .nameFieldGroup [hidden], #tabBody #keywordAction { display:none; }
   #tabBody .nameQuickFill {
     display: flex;
-    grid-column: 3;
+    margin-right: auto;
     flex-wrap: wrap;
     align-items: center;
     gap: 2px;
@@ -979,7 +986,7 @@
     gap: 2px;
     width: 100%;
   }
-  #tabBody .nameActionGroup button {
+  #tabBody .nameActionGroup > button {
     width: auto;
     min-width: 50px;
     height: 26px;
@@ -999,7 +1006,7 @@
   #tabBody .nameActionGroup #keywordAddBtn {
     color: var(--accent);
   }
-  #tabBody .nameActionGroup button:hover:not(:disabled) {
+  #tabBody .nameActionGroup > button:hover:not(:disabled) {
     background: color-mix(in srgb,var(--ink) 5%,transparent);
     color: var(--ink);
   }
@@ -1008,15 +1015,31 @@
     background: color-mix(in srgb,var(--accent) 10%,transparent);
     color: var(--accent);
   }
-  #tabBody .nameActionGroup button:active:not(:disabled) {
+  #tabBody .nameActionGroup > button:active:not(:disabled) {
     background: color-mix(in srgb,var(--accent) 18%,transparent);
   }
-  #tabBody .nameActionGroup button:disabled {
+  #tabBody .nameActionGroup > button:disabled {
     background: transparent;
     color: var(--ink-faint);
     opacity: .45;
     cursor: default;
   }
+  #tabBody .replacementActionChoices { display:flex; align-items:center; gap:14px; margin-right:auto; }
+  #tabBody .replacementActionChoices button {
+    position:relative;
+    height:26px;
+    padding:0 2px;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    color:var(--ink-faint);
+    font:inherit;
+    font-size:11px;
+    cursor:pointer;
+  }
+  #tabBody .replacementActionChoices button[aria-pressed="true"] { color:var(--accent); }
+  #tabBody .replacementActionChoices button[aria-pressed="true"]::after { content:""; position:absolute; right:2px; bottom:2px; left:2px; height:1px; background:currentColor; opacity:0.7; }
+  #tabBody .replacementActionChoices button:hover { color:var(--ink); }
   /* 문단 옵션은 항목별 선택 행으로 보여준다. */
   #paragraphSettingsGroup .paragraphCheckList { display:flex; flex-direction:column; gap:0; margin:0; }
   #paragraphSettingsGroup .paragraphCenterRows {
@@ -3773,8 +3796,8 @@
   #tabDesign .advancedDesignGroup .row[data-hr-control].isUnavailable { cursor: not-allowed; }
   #tabDesign .advancedDesignGroup .row[data-hr-control].isUnavailable .rangeEditor { pointer-events: none; }
   #tabDesign .advancedDesignGroup .shapeChoice button:disabled { cursor: not-allowed; }
-  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedLayoutOnlyRow, .advancedProfileTopOnlyRow, #foldAutoNumberStyleRow, #cardTitleOrnamentOpacityRow).isUnavailable { opacity: .42; filter: grayscale(1); }
-  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedLayoutOnlyRow, .advancedProfileTopOnlyRow).isUnavailable input { cursor: not-allowed; }
+  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedProfileTopOnlyRow, #foldAutoNumberStyleRow, #cardTitleOrnamentOpacityRow).isUnavailable { opacity: .42; filter: grayscale(1); }
+  #tabDesign :is(.advancedRadiusRow, .advancedDividerLengthRow, .advancedProfileTopOnlyRow).isUnavailable input { cursor: not-allowed; }
   #tabDesign #foldAutoNumberStyleRow.isUnavailable button { cursor: not-allowed; }
   #tabDesign #cardTitleOrnamentOpacityRow.isUnavailable input { cursor: not-allowed; }
   #tabDesign .advancedDesignGroup #creditAppearancePanel.isUnavailable {
@@ -4041,7 +4064,7 @@
   #profileGroup .profileSubFold[open] > .profileSubHead .profileSubActions + .profileSubArrow {
     margin-left: 0;
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -4050,7 +4073,7 @@
     min-height: 32px;
     justify-content: center;
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -4059,7 +4082,7 @@
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack {
     position: relative;
     width: 28px;
     height: 16px;
@@ -4068,7 +4091,7 @@
     background: var(--bg-field);
     transition: border-color .14s ease, background .14s ease;
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack::after {
     content: '';
     position: absolute;
     top: 2px;
@@ -4086,23 +4109,23 @@
     border-color: color-mix(in srgb, var(--accent) 20%, var(--bg-panel));
     background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel));
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     transform: translateX(12px);
   }
   :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 76%, white);
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
     outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
     outline-offset: 2px;
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch:has(input:disabled) { cursor: default; }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch:has(input:disabled) { cursor: default; }
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--line-strong) 70%, var(--bg-field));
     background: var(--bg-muted);
     opacity: .52;
   }
-  :is(#tabCover,#tabDesign) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
+  :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--ink-faint) 58%, var(--bg-field));
   }
   #tabCover .imageBackgroundToggleRow.isUnavailable {
@@ -4110,19 +4133,19 @@
     filter: grayscale(1);
   }
   #tabCover .imageBackgroundToggleRow.isUnavailable label { cursor: not-allowed; }
-  /* 프로필 하위 스위치는 트랙 대비를 낮추고 ON 손잡이만 밝게 구분한다. */
-  #profileGroup .profileSubActions .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack {
+  /* 프로필·출력 규칙 스위치는 트랙 대비를 낮추고 ON 손잡이만 밝게 구분한다. */
+  :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--line-strong) 55%, var(--bg-field));
     background: color-mix(in srgb, var(--bg-muted) 55%, var(--bg-field));
   }
-  #profileGroup .profileSubActions .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack::after {
+  :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--ink-faint) 52%, var(--bg-field));
   }
-  #profileGroup .profileSubActions .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+  :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
     border-color: color-mix(in srgb, var(--accent) 11%, var(--bg-field));
     background: color-mix(in srgb, var(--accent) 4%, var(--bg-field));
   }
-  #profileGroup .profileSubActions .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+  :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 68%, white);
   }
   :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn {
@@ -5820,8 +5843,8 @@ body #tabDesign .advancedDesignGroup .row > input[type="range"]::-moz-range-thum
 body input[type="color"]::-webkit-color-swatch { border-radius: 0 !important; }
 body input[type="color"]::-moz-color-swatch { border-radius: 0 !important; }
 /* 상태 스위치·색상 표식·카드 모양 견본은 원래 윤곽을 유지한다. */
-body :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack { border-radius: 999px !important; }
-body :is(#tabCover,#tabDesign) .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
+body :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack { border-radius: 999px !important; }
+body :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack::after { border-radius: 50% !important; }
 body .expressionThemeOptions .expressionShapeIcon { border-radius: 5px !important; }
 body .expressionThemeOptions button[data-output-shape="document"] .expressionShapeIcon { border-radius: 1px !important; }
 body .uiPaletteCurrent { border-radius: 50% !important; }

@@ -1,6 +1,6 @@
-// 조각로그 v1.8.3 상태 스키마.
+// 조각로그 v1.8.4 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.8.4';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -143,6 +143,23 @@ function collectWorkState(cards, root = document){
   };
 }
 
+// 저장 원문과 출력 규칙은 별개다. 옛 규칙의 enabled 생략은 사용 중으로 읽는다.
+function normalizeOutputRules(value, kind = 'keyword'){
+  try {
+    const rules = typeof value === 'string' ? JSON.parse(value || '[]') : value;
+    if(!Array.isArray(rules)) return [];
+    const seen = new Set();
+    return rules.filter(rule => rule && typeof rule.from === 'string' && rule.from
+      && typeof rule.to === 'string' && (kind !== 'name' || rule.to)
+      && rule.from.length <= 80 && rule.to.length <= 80).slice(0,20).map((rule,index) => {
+      let id = typeof rule.id === 'string' && rule.id ? rule.id : `${kind === 'name' ? 'nr' : 'kr'}_legacy_${index}`;
+      while(seen.has(id)) id += `_${index}`;
+      seen.add(id);
+      return {id,from:rule.from,to:rule.to,enabled:rule.enabled !== false};
+    });
+  } catch(e){ return []; }
+}
+
 // 출력 설정 읽기는 상태 스키마와 같은 책임으로 묶는다.
 
 // Output settings are read here; app.js consumes the resulting settings object.
@@ -185,6 +202,8 @@ function getSettings(){
     extraChars: parseExtraChars(),
     charName: document.getElementById('charName').value,
     userName: document.getElementById('userName').value,
+    nameRules: normalizeOutputRules(document.getElementById('nameRules').value, 'name'),
+    keywordRules: normalizeOutputRules(document.getElementById('keywordRules').value),
     footerOn: document.getElementById('footerOn').checked,
     footerAuthor: document.getElementById('footerAuthor').value,
     creditOn: document.getElementById('creditOn').checked,
@@ -321,6 +340,7 @@ const MosaicState = Object.freeze({
   normalizeCommentAlign,
   normalizeCommentWidth,
   normalizeHex,
+  normalizeOutputRules,
   normalizeProfileEntityOrder,
   normalizeProtocolRelativeUrl,
   savedProfileImageBackgroundOn,
