@@ -3023,28 +3023,46 @@
     margin-bottom: 10px;
     transform: translateX(-50%);
   }
+  #previewToolbar:not(.previewToolbarStacked) { column-gap: 8px; }
+  #previewToolbar:not(.previewToolbarStacked) .previewTools {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
   #previewToolbar.previewToolbarStacked {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 30px 30px;
+    grid-template-areas: "label view" "fold style";
     column-gap: 8px;
     row-gap: 6px;
   }
-  #previewToolbar.previewToolbarStacked .previewHeaderLeft { order: 0; }
+  #previewToolbar.previewToolbarStacked .previewHeaderLeft { display: contents; }
   #previewToolbar.previewToolbarStacked .previewTools { display: contents; }
+  #previewToolbar.previewToolbarStacked #previewLabel { grid-area: label; }
+  #previewToolbar.previewToolbarStacked .previewFoldControls { grid-area: fold; margin-left: 0; }
   #previewToolbar.previewToolbarStacked .previewViewControls {
-    order: 1;
-    margin-left: auto;
+    grid-area: view;
+    justify-self: end;
+    margin-left: 0;
   }
   #previewToolbar.previewToolbarStacked .previewStyleControls {
-    order: 2;
-    flex: 0 0 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
+    grid-area: style;
+    justify-content: safe flex-end;
   }
+  #previewToolbar.previewToolbarStacked :is(.previewViewControls, .previewStyleControls) {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #previewToolbar.previewToolbarStacked :is(.previewViewControls, .previewStyleControls)::-webkit-scrollbar { display: none; }
+  #previewToolbar.previewToolbarStacked :is(.previewViewControls, .previewStyleControls) > * { flex-shrink: 0; }
   #previewToolbar.previewToolbarStacked .previewStyleDivider { display: none; }
   .previewHeaderLeft {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 18px;
     flex: 0 0 auto;
   }
   #previewLabel {
@@ -3057,6 +3075,16 @@
     letter-spacing: 0;
     color: var(--ink-soft);
   }
+  .previewFoldControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  .previewFoldControls[hidden] { display: none; }
+  .previewFoldControls button:focus-visible { color: var(--accent); }
+  .previewFoldControls button:disabled { opacity: .55; cursor: default; }
+  .previewFoldControls button:disabled:hover { color: color-mix(in srgb, var(--ink-faint) 88%, transparent); }
   .widthToggle { display: inline-flex; }
   .widthToggle button {
     font-size: 11.5px;
@@ -3133,6 +3161,7 @@
   }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle { color:#858a91; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle:hover { color:#c5c8cc; }
+  body.previewFullscreen #previewArea.previewArcaDark .previewFoldControls button:disabled:hover { color:#858a91; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleToggle[aria-pressed="true"]::after { background:#93b6a1; }
   body.previewFullscreen #previewArea.previewArcaDark .previewStyleDivider { background:#484b50; }
   body.previewFullscreen #previewArea.previewArcaDark .previewFullscreenBtn,

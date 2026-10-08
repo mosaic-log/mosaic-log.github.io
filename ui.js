@@ -5,6 +5,9 @@
 const uiElements = Object.freeze({
   preview:document.getElementById('preview'),
   previewArea:document.getElementById('previewArea'),
+  previewFoldControls:document.getElementById('previewFoldControls'),
+  previewExpandAll:document.getElementById('previewExpandAllBtn'),
+  previewCollapseAll:document.getElementById('previewCollapseAllBtn'),
   cardEditors:document.getElementById('cardEditors')
 });
 
@@ -2869,6 +2872,40 @@ function previewDetailsForCard(cardEl){
   ];
 }
 
+function previewFoldDetails(){
+  return previewCardContexts().flatMap(ctx => previewDetailsForCard(ctx.cardEl));
+}
+
+function syncPreviewFoldControls(){
+  const details = previewFoldDetails();
+  // 본문 내부의 부분 접기만으로 버튼을 켜지 않는다. 출력되는 접기 카드가 있어야 한다.
+  const hasFolds = previewCardContexts().some(ctx => ctx.cardEl.tagName === 'DETAILS');
+  const visibilityChanged = uiElements.previewFoldControls.hidden !== !hasFolds;
+  uiElements.previewFoldControls.hidden = !hasFolds;
+  uiElements.previewExpandAll.disabled = !hasFolds || details.every(detail => detail.open);
+  uiElements.previewCollapseAll.disabled = !hasFolds || details.every(detail => !detail.open);
+  document.getElementById('previewToolbar').classList.toggle('previewToolbarHasFolds', hasFolds);
+  if(visibilityChanged) schedulePreviewToolbarSync();
+}
+
+function setPreviewFoldsOpen(open){
+  // 미리보기 DOM만 변경한다. 원문·접기 카드 설정·출력/복사 HTML은 그대로 둔다.
+  if(uiElements.previewFoldControls.hidden) return;
+  previewFoldDetails().forEach(detail => { detail.open = open; });
+  syncPreviewFoldControls();
+}
+
+function bindPreviewFoldEvents(){
+  bindUIFeatureEvents('preview-fold-controls', () => {
+    uiElements.previewExpandAll.addEventListener('click', () => setPreviewFoldsOpen(true));
+    uiElements.previewCollapseAll.addEventListener('click', () => setPreviewFoldsOpen(false));
+    // toggle은 버블링하지 않으므로 루트의 캡처 단계에서 개별 조작도 함께 동기화한다.
+    uiElements.preview.addEventListener('toggle', event => {
+      if(uiElements.preview.isConnected && event.target.tagName === 'DETAILS') syncPreviewFoldControls();
+    }, true);
+  });
+}
+
 function capturePreviewFoldState(){
   // 카드 번호와 내부 순번을 함께 사용해 다른 카드의 접힘 상태와 섞이지 않게 한다.
   const states = new Map();
@@ -2927,6 +2964,7 @@ function renderPreview(prebuiltHTML){
   syncPreviewOuterBreaks();
   restorePreviewFoldState(openStates);
   bindPreviewInteractions(preview);
+  syncPreviewFoldControls();
   finishPreviewLayout(preview);
 }
 
@@ -3903,6 +3941,23 @@ function syncDesktopPreviewWidth(){
   document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
 }
 
+function syncPreviewToolbarRows(toolbar){
+  // 현재 줄 배치와 무관하게 같은 한 줄 상태를 측정한다. 글꼴·버튼·접기 표시가
+  // 바뀌어도 고정 폭 기준 없이 판단하고, 두 줄 상태의 축소된 폭을 다시 재지 않는다.
+  const wasStacked = toolbar.classList.contains('previewToolbarStacked');
+  toolbar.classList.remove('previewToolbarStacked');
+  const style = getComputedStyle(toolbar);
+  const availableWidth = toolbar.clientWidth
+    - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+  const headerWidth = toolbar.querySelector('.previewHeaderLeft').getBoundingClientRect().width;
+  const toolsWidth = toolbar.querySelector('.previewTools').getBoundingClientRect().width;
+  const requiredWidth = Math.ceil(headerWidth + toolsWidth + (parseFloat(style.columnGap) || 0));
+  // 숨겨진 창처럼 아직 치수를 얻을 수 없는 상태에서는 기존 배치를 유지한다.
+  const stacked = availableWidth > 0 && headerWidth > 0 && toolsWidth > 0
+    ? requiredWidth > availableWidth : wasStacked;
+  toolbar.classList.toggle('previewToolbarStacked', stacked);
+}
+
 function syncPreviewToolbarLabel(){
   const toolbar = document.getElementById('previewToolbar');
   const previewArea = uiElements.previewArea;
@@ -3934,16 +3989,15 @@ function syncPreviewToolbarLabel(){
     setLabel(cycleButton, `${cardWidth}px`);
     cycleButton.setAttribute('aria-label', `본문 폭 ${cardWidth}px, 누르면 ${nextWidth}px로 변경`);
     cycleButton.title = `다음 본문 폭 ${nextWidth}px`;
-    toolbar.classList.toggle('previewToolbarStacked', toolbarWidth < 450);
+    syncPreviewToolbarRows(toolbar);
     return;
   }
 
-  // 버튼 글씨와 줄 배치를 바꾸며 다시 폭을 재면 측정 대상 자체가 달라져
-  // 경계 근처에서 한 줄/두 줄이 번갈아 나타난다. 컨테이너 폭만 기준으로 삼는다.
+  // 전체화면 폭 표기는 영역 폭으로 결정한 뒤, 해당 표기의 실제 한 줄 폭을 잰다.
   const fullLabels = toolbarWidth >= 830;
   setLabel(desktopButton, fullLabels ? desktopLabel : String(cardWidth));
   setLabel(mobileButton, fullLabels ? mobileLabel : '380');
-  toolbar.classList.toggle('previewToolbarStacked', toolbarWidth < 580);
+  syncPreviewToolbarRows(toolbar);
 }
 function schedulePreviewToolbarSync(){
   if(previewPositionState.toolbarSyncFrame !== null) return;
@@ -3959,6 +4013,8 @@ function bindPreviewToolbarLayoutEvents(){
       observer.observe(uiElements.previewArea);
       observer.observe(document.getElementById('previewWrap'));
       observer.observe(document.querySelector('#previewToolbar .previewTools'));
+      // 두 줄에서는 부모가 display:contents이므로, 글꼴·문구 변화는 버튼도 관찰한다.
+      document.querySelectorAll('#previewToolbar button, #previewLabel').forEach(element => observer.observe(element));
       uiLifecycleState.observers.push(observer);
     }
     // 전체화면에서 본문은 380px로 고정되어 있어도 도구모음은 창 폭을 따른다.
@@ -7073,6 +7129,7 @@ function initUI(){
   bindBlockToolbarEvents();
   bindPreviewSelectionEvents();
   bindPreviewLayoutEvents();
+  bindPreviewFoldEvents();
   bindPositionSyncEvents();
   bindPreviewFullscreenEvents();
   bindPreviewToolbarLayoutEvents();

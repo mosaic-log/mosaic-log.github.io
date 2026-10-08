@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=94c9818eb675">
+<link rel="stylesheet" href="./styles.css?v=4d33c9017e8a">
 </head>
 <body>
 
@@ -1200,6 +1200,10 @@
     <div id="previewToolbar">
       <span class="previewHeaderLeft">
         <span id="previewLabel">미리보기</span>
+        <span class="previewFoldControls" id="previewFoldControls" role="group" aria-label="미리보기 접기 영역 조작" hidden>
+          <button type="button" class="previewStyleToggle" id="previewExpandAllBtn" aria-controls="preview" title="미리보기 접기 영역 모두 열기" disabled>모두 열기</button>
+          <button type="button" class="previewStyleToggle" id="previewCollapseAllBtn" aria-controls="preview" title="미리보기 접기 영역 모두 접기" disabled>모두 접기</button>
+        </span>
       </span>
       <span class="previewTools">
         <span class="previewStyleControls">
@@ -1382,7 +1386,7 @@
 <script src="./state.js?v=6c55019b0042" defer></script>
 <script src="./parser.js?v=e3d2ed3275bf" defer></script>
   <script src="./renderer.js?v=1e39cbf698d7" defer></script>
-<script src="./ui.js?v=51ce9b751cd0" defer></script>
+<script src="./ui.js?v=c963bf1d80af" defer></script>
 <script src="./storage.js?v=1975e36cfdfd" defer></script>
 <script src="./app.js?v=52afc1603ac8" defer></script>
 
