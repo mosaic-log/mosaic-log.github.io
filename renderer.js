@@ -1,6 +1,6 @@
-// 조각로그 v1.8.4 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.5 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.4 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.5 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 

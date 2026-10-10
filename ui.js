@@ -1,4 +1,4 @@
-// 조각로그 v1.8.4 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.5 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
@@ -8,10 +8,14 @@ const uiElements = Object.freeze({
   previewFoldControls:document.getElementById('previewFoldControls'),
   previewExpandAll:document.getElementById('previewExpandAllBtn'),
   previewCollapseAll:document.getElementById('previewCollapseAllBtn'),
+  previewCardNavigator:document.getElementById('previewCardNavigator'),
+  previewCardNavButton:document.getElementById('previewCardNavBtn'),
+  previewCardNavPanel:document.getElementById('previewCardNavPanel'),
+  previewCardNavList:document.getElementById('previewCardNavList'),
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.4 미리보기 렌더 조정기.
+// 조각로그 v1.8.5 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -130,7 +134,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.4 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.5 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches
@@ -1357,6 +1361,51 @@ function commitPreviewDirectEdit(el, descriptor){
     default: return commitPreviewBodyEdit(el, descriptor, next);
   }
 }
+function previewRangeText(range){
+  const fragment = range.cloneContents();
+  fragment.querySelectorAll('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')
+    .forEach(node => node.remove());
+  // 아래쓰기 번역은 DOM 글자가 붙어 있어도 원문에서는 공백으로 구분된다.
+  fragment.querySelectorAll('[data-mosaic-parallel-translation-mode="stack"]')
+    .forEach(node => node.before(document.createTextNode(' ')));
+  return fragment.textContent.replace(/\u00a0/g, ' ');
+}
+
+// 문장 전체를 잡으면 Range 끝점이 부모의 자식 경계나 다음 문단의 0번 위치에
+// 걸릴 수 있다. 실제 선택된 글자로 좁히되, 다른 문단의 글자는 버리지 않고 검증한다.
+function previewTextSelectionRange(range){
+  if(range.collapsed || !range.intersectsNode(uiElements.preview)) return null;
+  const selected = [];
+  const collect = node => {
+    if(!range.intersectsNode(node)) return;
+    const start = range.startContainer === node ? range.startOffset : 0;
+    const end = range.endContainer === node ? range.endOffset : node.nodeValue.length;
+    const text = node.nodeValue.slice(start, end);
+    if(!text.trim()) return;
+    selected.push({
+      node,
+      start:start + text.length - text.trimStart().length,
+      end:end - text.length + text.trimEnd().length
+    });
+  };
+  const root = range.commonAncestorContainer;
+  if(root.nodeType === Node.TEXT_NODE) collect(root);
+  else{
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while((node = walker.nextNode())) collect(node);
+  }
+  if(!selected.length || selected.some(item => !uiElements.preview.contains(item.node))) return null;
+  const editable = selected.filter(item => !item.node.parentElement.closest(
+    '[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]'));
+  if(!editable.length) return null;
+  const normalized = range.cloneRange();
+  normalized.setStart(editable[0].node, editable[0].start);
+  const last = editable[editable.length - 1];
+  normalized.setEnd(last.node, last.end);
+  return { range:normalized, selected, text:previewRangeText(normalized).trim() };
+}
+
 function previewSelectionDetails(el, formatNode){
   let text = '';
   let before = '';
@@ -1365,17 +1414,18 @@ function previewSelectionDetails(el, formatNode){
     const pre = document.createRange();
     pre.selectNodeContents(el);
     try { pre.setEndBefore(formatNode); } catch(e){ return null; }
-    before = pre.toString();
+    before = previewRangeText(pre);
   }else{
     const sel = window.getSelection();
     if(!sel || sel.isCollapsed || !sel.rangeCount) return null;
-    const range = sel.getRangeAt(0);
-    if(!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
-    text = sel.toString();
+    const picked = previewTextSelectionRange(sel.getRangeAt(0));
+    if(!picked || picked.selected.some(item => !el.contains(item.node))) return null;
+    const range = picked.range;
+    text = picked.text;
     const pre = range.cloneRange();
     pre.selectNodeContents(el);
     pre.setEnd(range.startContainer, range.startOffset);
-    before = pre.toString();
+    before = previewRangeText(pre);
   }
   text = text.replace(/\u00a0/g, ' ').trim();
   if(!text) return null;
@@ -2046,15 +2096,23 @@ function caretOffsetTop(ta, index){
 
 function revealEditorOffsetAtTop(target, start, ed){
   requestAnimationFrame(() => {
+    if(!target.isConnected || (ed && !ed.isConnected)) return;
     const { top } = caretOffsetTop(target, start);
     const cs = getComputedStyle(target);
     const padTop = parseFloat(cs.paddingTop) || 0;
     const borderTop = parseFloat(cs.borderTopWidth) || 0;
-    target.scrollTop = Math.max(0, top - padTop - borderTop);
+    if(ed && target.classList.contains('isAutoExpanded')){
+      // 전체 높이 입력창에는 내부 스크롤이 없다. 선택 줄의 실제 화면 좌표로
+      // 사이드바만 이동해 카드 시작점이 아닌 해당 문장을 고정 도구 아래에 놓는다.
+      target.scrollTop = 0;
+      scrollCardIntoSidebar(ed, target.getBoundingClientRect().top + top);
+    } else {
+      target.scrollTop = Math.max(0, top - padTop - borderTop);
+      if(ed) scrollCardIntoSidebar(ed);
+    }
     if(ed){
-      scrollCardIntoSidebar(ed);
       ed.style.boxShadow = '0 0 0 2px var(--accent)';
-      setTimeout(() => { ed.style.boxShadow = ''; }, 900);
+      setTimeout(() => { if(ed.isConnected) ed.style.boxShadow = ''; }, 900);
     }
   });
 }
@@ -2128,31 +2186,24 @@ function revealInEditor(ta, raw, text, occurrence, sourceBounds, segmented = fal
 
 function bindPreviewSelectionEvents(){
   bindUIFeatureEvents('preview-selection', () => {
-uiElements.preview.addEventListener('mouseup', () => {
+document.addEventListener('mouseup', event => {
+  if(event.target.closest && event.target.closest('#selToolbar, #blockToolbar')) return;
   // 블록 드래그 이동 중에는 무시
   if(previewEditState.drag) return;
-  const directEditor = document.activeElement && document.activeElement.closest
-    ? document.activeElement.closest('[data-preview-direct-edit="true"]')
-    : null;
-  const directDescriptor = directEditor ? previewDirectEditDescriptors.get(directEditor) : null;
-  // 표지 글자는 직접 편집만 허용하고, B/I/가운데 정렬 도구는 본문 원문에만 표시한다.
-  if(directEditor && directEditor.dataset.previewEditType !== 'body'){
-    hideSelToolbar();
-    return;
-  }
+  // 문장 끝의 바깥 여백에서 놓아도 처리한다. 대상은 포커스가 아닌 실제 선택 글자다.
   setTimeout(() => {
     const sel = window.getSelection();
     if(!sel || sel.isCollapsed || !sel.rangeCount){ hideSelToolbar(); return; }
-    const text = sel.toString().replace(/\u00a0/g, ' ').trim();
-    if(!text){ hideSelToolbar(); return; }
-    const range = sel.getRangeAt(0);
-    const endEl = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
-    if(endEl && endEl.closest('[data-mosaic-speaker-label="true"]')){ hideSelToolbar(); return; }
+    const picked = previewTextSelectionRange(sel.getRangeAt(0));
+    if(!picked || !picked.text){ hideSelToolbar(); return; }
+    const { range, text } = picked;
+    const directEditor = range.startContainer.parentElement.closest('[data-preview-direct-edit="true"]');
+    const directDescriptor = directEditor ? previewDirectEditDescriptors.get(directEditor) : null;
     // 직접 편집 본문은 렌더 순서를 다시 추정하지 않고, 편집 요소에 저장한 정확한 카드·원문 줄을 사용한다.
     const src = directDescriptor && directDescriptor.type === 'body'
       ? { ta:directDescriptor.ta, raw:directDescriptor.raw, block:directEditor }
       : findBlockSource(range.startContainer);
-    if(!src || !src.block.contains(range.endContainer)){ hideSelToolbar(); return; }
+    if(!src || picked.selected.some(item => !src.block.contains(item.node))){ hideSelToolbar(); return; }
     // 블록 안에서 선택 앞쪽 글자 수를 세어, 같은 글자가 여러 번 나올 때 몇 번째인지 판별
     let occurrenceRoot = src.block;
     if(src.block.querySelector(':scope > [data-mosaic-speaker-label="true"]')){
@@ -2163,13 +2214,13 @@ uiElements.preview.addEventListener('mouseup', () => {
     const pre = range.cloneRange();
     pre.selectNodeContents(occurrenceRoot);
     pre.setEnd(range.startContainer, range.startOffset);
-    const occurrence = pre.toString().split(text).length - 1;
+    const occurrence = previewRangeText(pre).split(text).length - 1;
 
     // 이미 걸려 있는 서식 감지 (선택 지점을 감싸는 <strong>/<em> 찾기)
     const active = {};
     Object.keys(FMT_TAG).forEach(fmt => {
       const el = activeFormatEl(range.startContainer, FMT_TAG[fmt], src.block);
-      active[fmt] = el ? el.textContent : null;
+      active[fmt] = el && el.contains(range.endContainer) ? el.textContent : null;
     });
     const sourceDescriptor = directDescriptor && directDescriptor.type === 'body'
       ? directDescriptor
@@ -2181,6 +2232,11 @@ uiElements.preview.addEventListener('mouseup', () => {
     const centerLine = src.ta.value.split('\n')[centerRaw] || '';
     active.center = CENTER_RE.test(centerLine) ? 'on' : null;
 
+    // 문단 바깥에서 선택을 시작하면 입력칸 포커스가 남을 수 있다. 유효한 본문
+    // 선택만 포커스를 해제해 sidebarFieldActive의 도구막대 숨김 규칙을 걷어낸다.
+    const focused = document.activeElement;
+    if(focused && focused.closest && focused.closest('#sidebar')) focused.blur();
+    document.body.classList.remove('sidebarFieldActive');
     previewEditState.selection = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
     if(positionSyncEnabled()) revealInEditor(
       src.ta,
@@ -2877,15 +2933,122 @@ function previewFoldDetails(){
 }
 
 function syncPreviewFoldControls(){
-  const details = previewFoldDetails();
+  const contexts = previewCardContexts();
+  const foldCards = contexts.filter(ctx => ctx.cardEl.tagName === 'DETAILS');
+  const details = contexts.flatMap(ctx => previewDetailsForCard(ctx.cardEl));
   // 본문 내부의 부분 접기만으로 버튼을 켜지 않는다. 출력되는 접기 카드가 있어야 한다.
-  const hasFolds = previewCardContexts().some(ctx => ctx.cardEl.tagName === 'DETAILS');
+  const hasFolds = foldCards.length > 0;
   const visibilityChanged = uiElements.previewFoldControls.hidden !== !hasFolds;
   uiElements.previewFoldControls.hidden = !hasFolds;
   uiElements.previewExpandAll.disabled = !hasFolds || details.every(detail => detail.open);
   uiElements.previewCollapseAll.disabled = !hasFolds || details.every(detail => !detail.open);
   document.getElementById('previewToolbar').classList.toggle('previewToolbarHasFolds', hasFolds);
+  syncEditorPreviewFoldButtons(foldCards);
+  syncPreviewCardNavigator(foldCards);
   if(visibilityChanged) schedulePreviewToolbarSync();
+}
+
+// 접기 종류 설정과 입력창 접기는 그대로 두고, 출력되는 카드의 현재 열림만 조작한다.
+function syncEditorPreviewFoldButtons(foldCards){
+  const cardsByEditor = new Map(foldCards.map(ctx => [ctx.ed, ctx.cardEl]));
+  uiElements.cardEditors.querySelectorAll('.cardPreviewFoldBtn').forEach(button => {
+    const card = cardsByEditor.get(button.closest('.cardEditor'));
+    button.hidden = !card;
+    button.disabled = !card;
+    button.textContent = card?.open ? '접기' : '열기';
+    button.setAttribute('aria-expanded', String(!!card?.open));
+    const description = `이 카드 미리보기 ${card?.open ? '접기' : '펼치기'}`;
+    button.setAttribute('aria-label', description);
+    button.title = description;
+  });
+}
+
+function renderedPreviewFoldForEditor(editor){
+  // 입력 직후 같은 프레임에 눌러도 최신 카드 순서·내용을 대상으로 한다.
+  if(previewRenderState.frame) uiUpdateEffects.renderNow();
+  return previewCardContexts().find(ctx => ctx.ed === editor && ctx.cardEl.tagName === 'DETAILS');
+}
+
+function toggleEditorPreviewFold(editor){
+  const ctx = renderedPreviewFoldForEditor(editor);
+  if(!ctx) return;
+  ctx.cardEl.open = !ctx.cardEl.open;
+  syncPreviewFoldControls();
+  refreshPreviewFloatingButtonLayout();
+  if(ctx.cardEl.open && positionSyncEnabled()){
+    scrollPreviewIfNeeded(ctx.cardEl.querySelector(':scope > summary'), true);
+  }
+}
+
+function closePreviewCardNavigator(restoreFocus = false){
+  const wasOpen = !uiElements.previewCardNavPanel.hidden;
+  uiElements.previewCardNavPanel.hidden = true;
+  uiElements.previewCardNavButton.setAttribute('aria-expanded', 'false');
+  if(wasOpen && restoreFocus && !uiElements.previewCardNavigator.hidden){
+    uiElements.previewCardNavButton.focus({preventScroll:true});
+  }
+}
+
+function syncPreviewCardNavigator(foldCards){
+  const root = uiElements.previewCardNavigator;
+  root.hidden = foldCards.length === 0;
+  if(root.hidden) closePreviewCardNavigator();
+  const list = uiElements.previewCardNavList;
+  const previous = new Map(Array.from(list.children).map(item => [item.firstElementChild._mosaicFoldEditor, item]));
+  const editors = Array.from(uiElements.cardEditors.children).filter(editor => editor.dataset.blockType === 'card');
+  foldCards.forEach((ctx, index) => {
+    let item = previous.get(ctx.ed);
+    previous.delete(ctx.ed);
+    if(!item){
+      item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button._mosaicFoldEditor = ctx.ed;
+      button.append(document.createElement('span'), document.createElement('span'));
+      button.firstElementChild.className = 'previewCardNavTitle';
+      button.lastElementChild.className = 'previewCardNavState';
+      item.appendChild(button);
+    }
+    const button = item.firstElementChild;
+    const number = editors.indexOf(ctx.ed) + 1;
+    const sourceTitle = ctx.ed.querySelector('.foldTitleInput').value.trim();
+    const title = sourceTitle
+      ? previewEditableText(ctx.cardEl.querySelector(':scope > summary')) || `접기 카드 ${number}`
+      : `접기 카드 ${number}`;
+    button.dataset.previewCardIndex = String(ctx.sourceIndex);
+    button.firstElementChild.textContent = title;
+    button.lastElementChild.textContent = ctx.cardEl.open ? '펼침' : '접힘';
+    button.title = `카드 ${number} · ${title}`;
+    button.setAttribute('aria-label', `${title} · 카드 ${number}로 이동`);
+    button.dataset.open = String(ctx.cardEl.open);
+    // 제목 입력·개별 toggle 중에도 기존 목록 항목의 포커스와 클릭 대상을 보존한다.
+    if(list.children[index] !== item) list.insertBefore(item, list.children[index] || null);
+  });
+  previous.forEach(item => {
+    const hadFocus = item.contains(document.activeElement);
+    item.remove();
+    if(hadFocus && !root.hidden) uiElements.previewCardNavButton.focus({preventScroll:true});
+  });
+}
+
+function jumpToPreviewFoldCard(editor){
+  const ctx = renderedPreviewFoldForEditor(editor);
+  if(!ctx) return;
+  ctx.cardEl.open = true; // 다른 카드와 본문 안의 부분 접기 상태는 바꾸지 않는다.
+  syncPreviewFoldControls();
+  closePreviewCardNavigator();
+  refreshPreviewFloatingButtonLayout();
+  const target = ctx.cardEl.querySelector(':scope > summary');
+  if(!target) return;
+  target.focus({preventScroll:true});
+  // 명시적으로 고른 이동은 자동 위치 연동 OFF에서도 동작한다.
+  if(isStackedLayout() && !document.body.classList.contains('previewFullscreen')){
+    target.scrollIntoView({block:'start', behavior:'smooth'});
+  } else {
+    const area = uiElements.previewArea;
+    const top = target.getBoundingClientRect().top - area.getBoundingClientRect().top + area.scrollTop - 40;
+    area.scrollTo({top:Math.max(0, Math.min(Math.max(0, area.scrollHeight - area.clientHeight), top)), behavior:'smooth'});
+  }
 }
 
 function setPreviewFoldsOpen(open){
@@ -2893,34 +3056,91 @@ function setPreviewFoldsOpen(open){
   if(uiElements.previewFoldControls.hidden) return;
   previewFoldDetails().forEach(detail => { detail.open = open; });
   syncPreviewFoldControls();
+  refreshPreviewFloatingButtonLayout();
 }
 
 function bindPreviewFoldEvents(){
   bindUIFeatureEvents('preview-fold-controls', () => {
     uiElements.previewExpandAll.addEventListener('click', () => setPreviewFoldsOpen(true));
     uiElements.previewCollapseAll.addEventListener('click', () => setPreviewFoldsOpen(false));
+    const root = uiElements.previewCardNavigator;
+    const button = uiElements.previewCardNavButton;
+    const openList = () => {
+      if(previewRenderState.frame) uiUpdateEffects.renderNow();
+      syncPreviewFoldControls();
+      if(root.hidden) return;
+      closeCardActionMenu();
+      uiElements.previewCardNavPanel.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+    };
+    button.addEventListener('click', () => {
+      if(uiElements.previewCardNavPanel.hidden) openList();
+      else closePreviewCardNavigator();
+    });
+    button.addEventListener('keydown', event => {
+      if(!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+      event.preventDefault();
+      openList();
+      const items = uiElements.previewCardNavList.querySelectorAll('button');
+      (event.key === 'ArrowUp' ? items[items.length - 1] : items[0])?.focus();
+    });
+    uiElements.previewCardNavList.addEventListener('click', event => {
+      const item = event.target.closest('button');
+      if(item) jumpToPreviewFoldCard(item._mosaicFoldEditor);
+    });
+    uiElements.previewCardNavList.addEventListener('keydown', event => {
+      if(!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      const items = Array.from(uiElements.previewCardNavList.querySelectorAll('button'));
+      const index = items.indexOf(event.target.closest('button'));
+      if(index < 0) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+        : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next].focus();
+    });
+    root.addEventListener('focusout', event => {
+      if(event.relatedTarget && !root.contains(event.relatedTarget)) closePreviewCardNavigator();
+    });
+    document.addEventListener('pointerdown', event => {
+      if(!root.contains(event.target)) closePreviewCardNavigator();
+    });
+    document.addEventListener('keydown', event => {
+      if(event.key !== 'Escape' || uiElements.previewCardNavPanel.hidden) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closePreviewCardNavigator(true);
+    }, true);
     // toggle은 버블링하지 않으므로 루트의 캡처 단계에서 개별 조작도 함께 동기화한다.
     uiElements.preview.addEventListener('toggle', event => {
-      if(uiElements.preview.isConnected && event.target.tagName === 'DETAILS') syncPreviewFoldControls();
+      if(event.target.isConnected && uiElements.preview.contains(event.target) && event.target.tagName === 'DETAILS'){
+        syncPreviewFoldControls();
+        refreshPreviewFloatingButtonLayout();
+      }
     }, true);
   });
 }
 
 function capturePreviewFoldState(){
-  // 카드 번호와 내부 순번을 함께 사용해 다른 카드의 접힘 상태와 섞이지 않게 한다.
+  // 입력 카드의 DOM 정체성으로 보관해 순서 변경·삭제 후 다른 카드에 상태가 옮겨가지 않는다.
   const states = new Map();
-  previewCardContexts().forEach(ctx => {
-    previewDetailsForCard(ctx.cardEl).forEach((detail, index) => {
-      states.set(`${ctx.sourceIndex}:${index}`, detail.open);
-    });
+  uiElements.preview.querySelectorAll(':scope > [data-mosaic-card-index]').forEach(card => {
+    if(card._mosaicFoldEditor?.isConnected){
+      states.set(card._mosaicFoldEditor, {
+        cardOpen:card.tagName === 'DETAILS' && card.open,
+        inner:Array.from(card.querySelectorAll('details')).map(detail => detail.open)
+      });
+    }
   });
   return states;
 }
 
 function restorePreviewFoldState(states){
   previewCardContexts().forEach(ctx => {
-    previewDetailsForCard(ctx.cardEl).forEach((detail, index) => {
-      if(states.get(`${ctx.sourceIndex}:${index}`) === true) detail.open = true;
+    ctx.cardEl._mosaicFoldEditor = ctx.ed;
+    const state = states.get(ctx.ed);
+    if(ctx.cardEl.tagName === 'DETAILS' && state?.cardOpen) ctx.cardEl.open = true;
+    ctx.cardEl.querySelectorAll('details').forEach((detail, index) => {
+      if(state?.inner[index] === true) detail.open = true;
     });
   });
 }
@@ -4905,8 +5125,38 @@ const EXAMPLE_BODY = `<<"이리야."
 const cardEditorState = {
   activeTextarea:null, // 마지막으로 포커스된 카드 입력창 (툴바 삽입 대상)
   toolbarHeaderObserver:null,
-  delegatedEventsBound:false
+  delegatedEventsBound:false,
+  actionMenuEditor:null,
+  actionMenuSerial:0
 };
+
+// 보조 조작은 카드 안에서 펼친다. 편집/출력 상태와 분리하고 한 곳만 열어 둔다.
+function closeCardActionMenu(restoreFocus = false){
+  const editor = cardEditorState.actionMenuEditor;
+  if(!editor) return;
+  cardEditorState.actionMenuEditor = null;
+  const panel = editor.querySelector('.cardActionMenu');
+  const trigger = editor.querySelector('.cardMenuBtn');
+  const focusInside = panel?.contains(document.activeElement);
+  if(panel) panel.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+  if(restoreFocus && focusInside && trigger?.isConnected) trigger.focus({preventScroll:true});
+}
+
+function openCardActionMenu(editor){
+  closeCardActionMenu();
+  closePreviewCardNavigator();
+  const panel = editor.querySelector('.cardActionMenu');
+  if(!panel) return;
+  cardEditorState.actionMenuEditor = editor;
+  panel.hidden = false;
+  editor.querySelector('.cardMenuBtn').setAttribute('aria-expanded', 'true');
+}
+
+function cardActionMenuButtons(editor){
+  return Array.from(editor.querySelectorAll('.cardActionMenu button'))
+    .filter(button => !button.disabled && !button.hidden && button.style.display !== 'none');
+}
 
 function bodyCardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
@@ -4925,6 +5175,22 @@ function bindCardEditorDelegatedEvents(){
   root.addEventListener('click', event => {
     const editor = event.target.closest('.cardEditor:not(.commentEditor)');
     if(!editor) return;
+    const menuTrigger = event.target.closest('.cardMenuBtn');
+    if(menuTrigger){
+      if(cardEditorState.actionMenuEditor === editor) closeCardActionMenu();
+      else openCardActionMenu(editor);
+      return;
+    }
+    // 실제 버튼의 기존 동작이 먼저 실행된다. 복제/삭제가 옮긴 포커스는 건드리지 않는다.
+    const menuAction = event.target.closest('.cardActionMenu button');
+    if(menuAction){
+      if(menuAction.matches('.itemMoveBtn, .autoExpandBtn')){
+        // 반복 조작은 열어 둔다. DOM 순서 이동 중 잃은 버튼 포커스도 복구한다.
+        if(cardEditorState.actionMenuEditor === editor && menuAction.isConnected){
+          menuAction.focus({preventScroll:true});
+        }
+      } else closeCardActionMenu(true);
+    } else closeCardActionMenu();
     const textarea = editor.querySelector('textarea');
     const formatButton = event.target.closest('.fmtBtn[data-card-format]');
     if(formatButton && textarea){
@@ -4938,6 +5204,7 @@ function bindCardEditorDelegatedEvents(){
     const actionButton = event.target.closest('[data-card-action]');
     if(!actionButton || !textarea) return;
     if(actionButton.dataset.cardAction === 'show-preview') scrollPreviewToCardEditor(editor);
+    if(actionButton.dataset.cardAction === 'toggle-preview-fold') toggleEditorPreviewFold(editor);
     if(actionButton.dataset.cardAction === 'fullscreen'){
       const number = editor.querySelector('.cardNum');
       openFullscreen(textarea, number?.textContent || '본문', editor);
@@ -4945,9 +5212,31 @@ function bindCardEditorDelegatedEvents(){
   });
 
   root.addEventListener('keydown', event => {
+    const editor = event.target.closest('.cardEditor:not(.commentEditor)');
+    if(editor && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)){
+      const trigger = event.target.closest('.cardMenuBtn');
+      const inPanel = event.target.closest('.cardActionMenu');
+      if(trigger && ['ArrowDown', 'ArrowUp'].includes(event.key)){
+        event.preventDefault();
+        openCardActionMenu(editor);
+        const buttons = cardActionMenuButtons(editor);
+        (event.key === 'ArrowUp' ? buttons.at(-1) : buttons[0])?.focus();
+        return;
+      }
+      if(inPanel){
+        const buttons = cardActionMenuButtons(editor);
+        const index = buttons.indexOf(event.target.closest('button'));
+        if(index >= 0){
+          event.preventDefault();
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+            : (index + (['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
+          buttons[next].focus();
+        }
+        return;
+      }
+    }
     const positionLink = event.target.closest('[data-card-action="show-preview"]');
     if(!positionLink || (event.key !== 'Enter' && event.key !== ' ')) return;
-    const editor = positionLink.closest('.cardEditor:not(.commentEditor)');
     if(!editor) return;
     event.preventDefault();
     scrollPreviewToCardEditor(editor);
@@ -4977,6 +5266,21 @@ function bindCardEditorDelegatedEvents(){
     focusPreviewOn(() => previewCardStartForEditor(editor));
     afterEditorLiveInput();
   });
+  const outsideMenu = target => {
+    const editor = cardEditorState.actionMenuEditor;
+    return editor && !editor.querySelector('.cardActionMenu').contains(target)
+      && !editor.querySelector('.cardMenuBtn').contains(target);
+  };
+  document.addEventListener('pointerdown', event => { if(outsideMenu(event.target)) closeCardActionMenu(); });
+  document.addEventListener('focusin', event => { if(outsideMenu(event.target)) closeCardActionMenu(); });
+  document.addEventListener('keydown', event => {
+    if(event.key !== 'Escape' || !cardEditorState.actionMenuEditor) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const trigger = cardEditorState.actionMenuEditor.querySelector('.cardMenuBtn');
+    closeCardActionMenu();
+    trigger?.focus({preventScroll:true});
+  }, true);
 }
 const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
 function syncBodyOnlyToolbarAvailability(event){
@@ -5053,6 +5357,7 @@ function handleCommentSoftBreakKeydown(e){
 // 제거된 카드가 메모리에 남거나 뒤늦은 크기 콜백이 실행되지 않게 한다.
 function disposeCardEditor(ed){
   if(!ed) return;
+  if(cardEditorState.actionMenuEditor === ed) closeCardActionMenu();
   const observer = ed._widthObserver;
   if(observer && typeof observer.disconnect === 'function') observer.disconnect();
   delete ed._widthObserver;
@@ -5109,8 +5414,7 @@ function renumberCards(){
   editors.forEach(ed => {
     const isComment = ed.dataset.blockType === 'comment';
     const index = isComment ? ++commentNumber : ++cardNumber;
-    const folded = ed.querySelector('.cardFoldChk') && ed.querySelector('.cardFoldChk').checked;
-    const status = ed.dataset.outputVisible === 'false' ? ' · 숨김' : (folded ? ' · 접힘' : '');
+    const status = ed.dataset.outputVisible === 'false' ? ' · 숨김' : '';
     ed.querySelector('.cardNum').textContent = (isComment ? '코멘트 ' : '카드 ') + index + status;
     const ta = ed.querySelector('textarea');
     if(ta) ta.setAttribute('aria-label', `${isComment ? '코멘트' : '카드'} ${index} 본문`);
@@ -5236,6 +5540,7 @@ function startCardEditorDrag(event){
     return;
   }
   // 브라우저가 직전 dragend를 누락했어도 표시선과 흐림 상태를 남기지 않는다.
+  closeCardActionMenu();
   cleanupCardEditorDrag();
   cardEditorDragState.editor = editor;
   cardEditorDragState.marker = document.createElement('div');
@@ -5494,12 +5799,11 @@ function createCardEditor(value){
   };
 
   const {
-    ed, head, collapseBtn, visibilityBtn, upBtn, downBtn, autoExpandBtn
+    ed, head, right, collapseBtn, visibilityBtn, upBtn, downBtn, autoExpandBtn, fsBtn
   } = createEditorShell('card', data.visible);
   const duplicateBtn = document.createElement('button');
   duplicateBtn.type = 'button';
   duplicateBtn.className = 'duplicateCardBtn uiButton';
-  duplicateBtn.textContent = '⧉';
   duplicateBtn.title = '이 카드를 바로 아래에 복제';
   duplicateBtn.setAttribute('aria-label', '카드 복제');
   const foldLabel = document.createElement('label');
@@ -5508,9 +5812,40 @@ function createCardEditor(value){
   foldChk.type = 'checkbox';
   foldChk.className = 'cardFoldChk';
   foldChk.checked = MosaicState.settingFlagOn(data.folded);
-  foldLabel.appendChild(document.createTextNode('접기'));
+  foldLabel.appendChild(document.createTextNode('접기 카드'));
   foldLabel.appendChild(foldChk);
   const del = createEditorDeleteButton('card');
+
+  const actionMenu = document.createElement('div');
+  actionMenu.className = 'cardActionMenu';
+  actionMenu.id = `cardActionMenu-${++cardEditorState.actionMenuSerial}`;
+  actionMenu.hidden = true;
+  actionMenu.setAttribute('role', 'group');
+  actionMenu.setAttribute('aria-label', '카드 보조 조작');
+  // 아이콘만 한 줄로 배치한다. 기존 title·aria-label은 안내와 접근성을 위해 유지한다.
+  [[upBtn, '↑'], [downBtn, '↓'], [autoExpandBtn, ''],
+   [fsBtn, '⛶'], [duplicateBtn, '⧉'], [del, '']].forEach(([button, glyph]) => {
+    const icon = document.createElement('span');
+    icon.className = 'cardActionIcon';
+    icon.setAttribute('aria-hidden', 'true');
+    if(button === autoExpandBtn) icon.appendChild(button.querySelector('svg'));
+    else if(button === del) icon.classList.add('cardDeleteIcon');
+    else icon.textContent = glyph;
+    button.replaceChildren(icon);
+  });
+  const moveGroup = upBtn.parentElement;
+  moveGroup.setAttribute('role', 'group');
+  moveGroup.setAttribute('aria-label', '카드 순서 이동');
+  actionMenu.append(moveGroup, autoExpandBtn, fsBtn, duplicateBtn, del);
+  const menuButton = document.createElement('button');
+  menuButton.type = 'button';
+  menuButton.className = 'miniCtl cardMenuBtn';
+  menuButton.textContent = '⋯';
+  menuButton.title = '카드 보조 조작';
+  menuButton.setAttribute('aria-label', '카드 보조 조작');
+  menuButton.setAttribute('aria-expanded', 'false');
+  menuButton.setAttribute('aria-controls', actionMenu.id);
+  right.replaceChildren(menuButton);
 
   // 카드 제목: 접기 여부와 관계없이 항상 표시하며, 접기 카드에서는 summary 제목으로 사용한다.
   const foldTitleInput = document.createElement('input');
@@ -5520,6 +5855,16 @@ function createCardEditor(value){
   foldTitleInput.placeholder = '카드 제목';
   foldTitleInput.setAttribute('aria-label', '카드 제목');
   foldTitleInput.value = data.foldTitle || '';
+
+  const previewFoldButton = document.createElement('button');
+  previewFoldButton.type = 'button';
+  previewFoldButton.className = 'cardPreviewFoldBtn';
+  previewFoldButton.dataset.cardAction = 'toggle-preview-fold';
+  previewFoldButton.textContent = '열기';
+  previewFoldButton.setAttribute('aria-expanded', 'false');
+  previewFoldButton.setAttribute('aria-controls', 'preview');
+  previewFoldButton.hidden = true;
+  right.prepend(previewFoldButton);
 
   const ta = document.createElement('textarea');
   ta.value = data.body || '';
@@ -5660,8 +6005,6 @@ function createCardEditor(value){
   foldGroup.className = 'cardFoldGroup';
   foldGroup.appendChild(foldTitleInput);   // 제목이 왼쪽
   foldGroup.appendChild(foldLabel);        // 체크박스가 오른쪽
-  foldGroup.appendChild(duplicateBtn);      // 보조 동작은 카드 헤더 밖에 배치
-  foldGroup.appendChild(del);              // 위험 동작은 도구줄 끝에 조용히 배치
 
   // 입력창을 접었을 때 서식 버튼 자리에 본문 첫 줄을 보여줌
   const peek = document.createElement('div');
@@ -5673,6 +6016,7 @@ function createCardEditor(value){
   fmt.appendChild(foldGroup);
 
   ed.appendChild(head);
+  ed.appendChild(actionMenu);
   ed.appendChild(fmt);
   ed.appendChild(ta);
   if(ed.dataset.outputVisible === 'false') MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, true);
@@ -6848,9 +7192,10 @@ function searchHlMarkup(text, query, base, curGlobal){
   return { html: out, count: n, offsets };
 }
 
-// 카드 편집기를 사이드바 뷰 안으로만 스크롤 (미리보기·페이지는 밀지 않음)
-function scrollCardIntoSidebar(ed){
-  if(isStackedLayout()) return;
+// 카드 시작점 또는 펼친 본문의 특정 줄을 사이드바 안에서만 스크롤한다.
+// anchorTop은 선택 줄의 화면 y 좌표이며 미리보기·페이지는 밀지 않는다.
+function scrollCardIntoSidebar(ed, anchorTop = null){
+  if(!ed || !ed.isConnected || isStackedLayout()) return;
   const sidebar = document.getElementById('sidebar');
   const sidebarTop = document.getElementById('sidebarTop');
   const edRect = ed.getBoundingClientRect();
@@ -6865,8 +7210,10 @@ function scrollCardIntoSidebar(ed){
     ? bodyToolbar.getBoundingClientRect().bottom
     : headerBottom;
   const desiredTop = Math.max(sbRect.top + margin, headerBottom + headerGap, toolbarBottom + margin);
-  // 카드가 사이드바보다 길어도 헤더와 입력창의 시작점이 고정 헤더 아래로 오게 한다.
-  if(edRect.top < desiredTop || edRect.bottom > sbRect.bottom - margin){
+  // 줄 좌표가 없으면 기존처럼 카드 헤더·입력창 시작점을 보여준다.
+  if(Number.isFinite(anchorTop)){
+    sidebar.scrollTop += anchorTop - desiredTop;
+  } else if(edRect.top < desiredTop || edRect.bottom > sbRect.bottom - margin){
     sidebar.scrollTop += edRect.top - desiredTop;
   }
 }

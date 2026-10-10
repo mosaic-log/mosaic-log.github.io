@@ -1,4 +1,4 @@
-// 조각로그 v1.8.4 본문 문법과 안전한 인라인 HTML 변환.
+// 조각로그 v1.8.5 본문 문법과 안전한 인라인 HTML 변환.
 function escapeHTML(s){
   return String(s)
     .replace(/&/g, '&amp;')

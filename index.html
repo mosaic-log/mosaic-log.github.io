@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.4 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.5 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=4d33c9017e8a">
+<link rel="stylesheet" href="./styles.css?v=ee1e81ed0afb">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.4 GitHub 저장소 열기">v1.8.4</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.5 GitHub 저장소 열기">v1.8.5</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -1258,6 +1258,13 @@
     </div>
     <div id="preview" spellcheck="false" autocorrect="off" autocapitalize="off" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></div>
   </div>
+  <div class="previewCardNavigator" id="previewCardNavigator" hidden>
+    <button type="button" id="previewCardNavBtn" aria-label="접기 카드로 이동" aria-expanded="false" aria-controls="previewCardNavPanel" title="접기 카드로 이동"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M7 5h10M7 10h10M7 15h10M3 5h.5M3 10h.5M3 15h.5"/></svg><span class="previewCardNavHint" aria-hidden="true">카드 이동</span></button>
+    <div class="previewCardNavPanel" id="previewCardNavPanel" role="region" aria-label="접기 카드 이동 목록" hidden>
+      <span class="previewCardNavHeading">접기 카드로 이동</span>
+      <ul id="previewCardNavList"></ul>
+    </div>
+  </div>
   <label class="previewSyncFloat" id="previewSyncFloat" title="위치 연동 켜짐">
     <input type="checkbox" id="positionSyncOn" checked aria-label="위치 연동 켜짐">
     <span class="previewSyncIcon" aria-hidden="true">↕</span>
@@ -1383,12 +1390,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=6c55019b0042" defer></script>
-<script src="./parser.js?v=e3d2ed3275bf" defer></script>
-  <script src="./renderer.js?v=1e39cbf698d7" defer></script>
-<script src="./ui.js?v=c963bf1d80af" defer></script>
-<script src="./storage.js?v=1975e36cfdfd" defer></script>
-<script src="./app.js?v=52afc1603ac8" defer></script>
+<script src="./state.js?v=c3a99388a2ad" defer></script>
+<script src="./parser.js?v=1029acc4e567" defer></script>
+  <script src="./renderer.js?v=13f841777970" defer></script>
+<script src="./ui.js?v=c14fea5ad0d8" defer></script>
+<script src="./storage.js?v=2bb55225fcf6" defer></script>
+<script src="./app.js?v=d26812272438" defer></script>
 
 </body>
 </html>

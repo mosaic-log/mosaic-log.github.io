@@ -1664,7 +1664,8 @@
     padding: 0;
   }
   .cardEditorHead .autoExpandBtn[aria-pressed="false"] { color: var(--help-ink); }
-  .cardEditorHead .autoExpandIcon {
+  .cardEditorHead .autoExpandIcon,
+  .cardActionMenu .autoExpandIcon {
     width: 16px;
     height: 16px;
     fill: none;
@@ -1852,6 +1853,7 @@
     letter-spacing: 0.3px;
     color: var(--ink-soft);
     text-transform: uppercase;
+    white-space: nowrap;
   }
   .cardEditorHead .cardNum[data-position-link="true"] { cursor: pointer; }
   .cardEditorHead .cardNum[data-position-link="true"]:focus-visible {
@@ -1866,6 +1868,67 @@
     flex: none;
   }
   .cardEditorHead .fsBtn { font-size: 12px; }
+  .cardEditorHead .cardPreviewFoldBtn {
+    flex: none;
+    min-height: 28px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--help-ink);
+    font-size: 10.5px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .cardEditorHead .cardPreviewFoldBtn[hidden] { display: none; }
+  .cardEditorHead .cardPreviewFoldBtn:hover { color: var(--accent); background: var(--bg-muted); }
+  .cardEditorHead .cardPreviewFoldBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cardEditorHead .cardMenuBtn { font-size: 19px; }
+  .cardEditor:not(.commentEditor) .cardEditorHead .cardMenuBtn[aria-expanded="true"] { color: var(--accent); background: var(--bg-muted); }
+  .cardActionMenu {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-panel);
+  }
+  .cardActionMenu[hidden] { display: none; }
+  .cardActionMenu .arrowGroup { flex: none; gap: 0; }
+  .cardActionMenu button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 11px;
+    line-height: 1;
+  }
+  /* 미리보기 펼치기 추가 전 헤더 버튼의 28px 영역과 아이콘별 크기를 유지한다. */
+  .cardActionMenu .fsBtn { font-size: 12px; }
+  .cardActionIcon { display: grid; place-items: center; position: relative; width: 16px; height: 16px; font-size: inherit; font-weight: 400; line-height: 1; }
+  .cardActionMenu button:hover, .cardActionMenu button:focus-visible, .cardActionMenu button[aria-pressed="true"] {
+    color: var(--accent);
+    background: var(--bg-muted);
+  }
+  .cardActionMenu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cardActionMenu .delCardBtn {
+    margin-left: 4px;
+    border-left: 1px solid var(--line);
+    border-radius: 0 5px 5px 0;
+  }
+  .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active) { color: #a7473f; background: #fff4f3; }
   .foldChk {
     display: flex;
     align-items: center;
@@ -1951,6 +2014,92 @@
     right:auto;
     left:20px;
   }
+  /* 카드별 버튼을 늘어놓지 않고 위치 연동 위의 한 입구에서 접기 카드를 찾는다. */
+  .previewCardNavigator {
+    position: fixed;
+    right: 20px;
+    bottom: 70px;
+    z-index: 46;
+    color: var(--ink-soft);
+    font-family: inherit;
+  }
+  .previewCardNavigator[hidden], .previewCardNavPanel[hidden] { display: none; }
+  #previewCardNavBtn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+    box-shadow: 0 5px 18px rgba(35,32,28,.13);
+    backdrop-filter: blur(8px);
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  #previewCardNavBtn:hover, #previewCardNavBtn[aria-expanded="true"] { color: var(--accent); border-color: var(--line-strong); }
+  #previewCardNavBtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+  .previewCardNavHint {
+    position: absolute;
+    right: calc(100% + 8px);
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--bg-panel);
+    color: var(--ink-soft);
+    opacity: 0;
+    pointer-events: none;
+  }
+  #previewCardNavBtn:hover .previewCardNavHint, #previewCardNavBtn:focus-visible .previewCardNavHint { opacity: 1; }
+  #previewCardNavBtn:focus-visible, #previewCardNavList button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .previewCardNavPanel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: 280px;
+    max-width: calc(100vw - 24px);
+    max-height: min(360px, calc(100vh - 130px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--bg-panel);
+    box-shadow: 0 8px 28px rgba(35,32,28,.16);
+  }
+  .previewCardNavHeading { display: block; padding: 7px 8px; color: var(--help-ink); font-size: 10px; font-weight: 500; }
+  #previewCardNavList { list-style: none; margin: 0; padding: 0; }
+  #previewCardNavList button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 36px;
+    padding: 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 500;
+    text-align: left;
+  }
+  #previewCardNavList button:hover, #previewCardNavList button:focus-visible { background: var(--bg-muted); color: var(--accent); }
+  .previewCardNavTitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .previewCardNavState { flex: none; color: var(--help-ink); font-size: 10px; font-weight: 400; }
+  #previewCardNavList button[data-open="true"] .previewCardNavState { color: var(--accent); }
+  body.layoutMirrored .previewCardNavigator { right: auto; left: 20px; }
+  body.layoutMirrored .previewCardNavPanel { right: auto; left: 0; }
+  body.layoutMirrored .previewCardNavHint { right: auto; left: calc(100% + 8px); }
+  body.previewFullscreen .previewCardNavigator { right: 20px; left: auto; bottom: 20px; }
+  body.previewFullscreen .previewCardNavPanel { right: 0; left: auto; }
+  body.previewFullscreen .previewCardNavHint { right: calc(100% + 8px); left: auto; }
+  #preview > details > summary { scroll-margin-top: 40px; }
   #fsHl .searchHit {
     display: inline;
     margin: 0;
@@ -2040,12 +2189,11 @@
     background:#fff4f3;
     color:#a7473f;
   }
-  .cardFoldGroup .delCardBtn,
   .commentEditor .cardEditorHead .delCardBtn { position: relative; }
-  .cardFoldGroup .delCardBtn::before,
-  .cardFoldGroup .delCardBtn::after,
   .commentEditor .cardEditorHead .delCardBtn::before,
-  .commentEditor .cardEditorHead .delCardBtn::after {
+  .commentEditor .cardEditorHead .delCardBtn::after,
+  .cardDeleteIcon::before,
+  .cardDeleteIcon::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -2055,10 +2203,10 @@
     background: currentColor;
     pointer-events: none;
   }
-  .cardFoldGroup .delCardBtn::before,
-  .commentEditor .cardEditorHead .delCardBtn::before { transform: translate(-50%, -50%) rotate(45deg); }
-  .cardFoldGroup .delCardBtn::after,
-  .commentEditor .cardEditorHead .delCardBtn::after { transform: translate(-50%, -50%) rotate(-45deg); }
+  .commentEditor .cardEditorHead .delCardBtn::before,
+  .cardDeleteIcon::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .commentEditor .cardEditorHead .delCardBtn::after,
+  .cardDeleteIcon::after { transform: translate(-50%, -50%) rotate(-45deg); }
   .commentEditor textarea {
     height:96px;
     min-height:96px;
@@ -2303,7 +2451,7 @@
 
   /* 회색 줄의 접기 제목 입력 */
   .cardFoldGroup .foldTitleInput {
-    flex: 0 1 150px;
+    flex: 1 1 0;
     min-width: 0;
     height: 28px;
     min-height: 28px;
@@ -2320,23 +2468,6 @@
   .cardToolRow.isTitleEditing .cardFoldGroup { flex: 1 1 0; min-width: 0; }
   .cardToolRow.isTitleEditing .foldTitleInput { flex: 1 1 0; min-width: 0; }
   .cardFoldGroup .foldChk { margin-left: auto; white-space: nowrap; }
-  .cardFoldGroup .delCardBtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--help-ink);
-    font-size: 17px;
-    line-height: 1;
-  }
-  .cardFoldGroup .delCardBtn:hover { border-color: transparent; background: #fff4f3; color: #a7473f; }
-  .cardFoldGroup .duplicateCardBtn + .delCardBtn { margin-left: -6px; }
 
   /* 카드 이동 버튼은 하나의 분할 버튼처럼 보이게 묶음 */
   .arrowGroup {
@@ -2352,28 +2483,12 @@
   .cardEditor:not(.commentEditor) .cardEditorHead .miniCtl:hover {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
-  .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn[aria-pressed="true"] {
-    background: #f4f8f5;
-  }
   .cardEditor:not(.commentEditor) .cardEditorHead .visibilityCtl.isHidden {
     background: var(--bg-muted);
   }
   .cardEditor:not(.commentEditor) .cardEditorHead .headLeft,
   .cardEditor:not(.commentEditor) .cardEditorHead .headRight { gap: 2px; }
   .cardEditor:not(.commentEditor) .cardEditorHead .cardNum { margin-left: 5px; }
-  .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn {
-    min-width: 28px;
-    margin-left: 12px;
-    padding: 0;
-  }
-  .cardEditor:not(.commentEditor) .cardEditorHead .fsBtn { margin-left: -2px; }
-  .cardEditor:not(.commentEditor) .arrowGroup { gap: 0; }
-  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl,
-  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl:first-child,
-  .cardEditor:not(.commentEditor) .arrowGroup .miniCtl:last-child {
-    margin-left: 0;
-    border-radius: 6px;
-  }
   .commentEditor .cardEditorHead .headLeft,
   .commentEditor .cardEditorHead .headRight { gap: 2px; }
   .commentEditor .cardEditorHead .cardNum { margin-left: 5px; }
@@ -4924,6 +5039,9 @@
     #sidebarResizer { display: none; }
     .layoutMirrorBtn { display:none; }
     body.layoutMirrored .previewSyncFloat { left:auto; right:12px; }
+    .previewCardNavigator, body.layoutMirrored .previewCardNavigator { left: auto; right: 12px; }
+    .previewCardNavPanel, body.layoutMirrored .previewCardNavPanel { left: auto; right: 0; }
+    .previewCardNavHint, body.layoutMirrored .previewCardNavHint { left: auto; right: calc(100% + 8px); }
     #undoToast {
       left: 50%;
       bottom: 14px;
@@ -4952,13 +5070,15 @@
     .cardEditor textarea { min-height: 210px; padding: 12px; font-size: 13px; }
     .cardToolRow { flex-wrap: wrap; }
     .cardFoldGroup { flex: 1 1 230px; justify-content: flex-end; }
-    .cardFoldGroup .foldTitleInput { flex: 1 1 110px; }
+    .cardFoldGroup .foldTitleInput { flex: 1 1 0; }
     #previewToolbar { align-items: flex-start; gap: 6px; }
     .previewTools { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
     .previewStyleControls { gap: 10px; }
     .previewStyleDivider { display:none; }
     .previewThemeToggle button { min-width: 42px; padding-left: 7px; padding-right: 7px; }
     .previewSyncFloat { right:12px; bottom:12px; }
+    .previewCardNavigator { bottom: 62px; }
+    body.previewFullscreen .previewCardNavigator { right: 12px; bottom: 12px; }
     body.previewFullscreen #previewArea { padding:16px 16px 40px; }
     body.previewFullscreen #previewToolbar { width:calc(100vw - 32px); }
     .widthToggle button { padding: 0 9px; font-size: 11px; }
@@ -5152,29 +5272,6 @@
   .preflightIssue:hover { color: var(--ink); }
   .preflightIssue[data-severity="error"] { box-shadow: inset 2px 0 #a55349; }
   .preflightIssue[data-severity="warn"] { box-shadow: inset 2px 0 #b39b61; }
-
-  .cardFoldGroup .duplicateCardBtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    position: relative;
-    width: 28px;
-    height: 28px;
-    margin-left: 8px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--ink-faint);
-    font-size: 14px;
-    line-height: 1;
-  }
-  .cardFoldGroup .duplicateCardBtn:hover {
-    border-color: transparent;
-    background: var(--bg-field);
-    color: var(--ink-soft);
-  }
 
   body.labFocus #sidebarTop,
   body.labFocus #tabCover,
@@ -5973,8 +6070,7 @@ body .uiPaletteCurrent { border-radius: 50% !important; }
 :root.uiNight #tabTheme .presetCard { background:var(--bg-panel); }
 :root.uiNight #bodyInputGroup > .foldBody > .editorToolbar button:hover,
 :root.uiNight #fsToolbar button:hover { background:var(--bg-muted); }
-:root.uiNight .cardEditor:not(.commentEditor) .cardEditorHead .autoExpandBtn[aria-pressed="true"] { background:var(--bg-muted); }
-:root.uiNight .cardFoldGroup .delCardBtn:hover,
+:root.uiNight .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active),
 :root.uiNight .btnDanger:hover,
 :root.uiNight #draftConflictBtn:hover { background:#442d2d; }
 :root.uiNight #copyBtn,
