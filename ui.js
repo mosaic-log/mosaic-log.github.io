@@ -6520,6 +6520,8 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   ta = ta || document.querySelector('#cardEditors .cardEditor:not(.commentEditor) textarea');
   if(!ta) return;
   cardEditorState.activeTextarea = ta;
+  const viewports = [ta, ta.__mirror, ta.closest('#sidebar, #fsOverlay')]
+    .filter(Boolean).map(element => ({element, top:element.scrollTop, left:element.scrollLeft}));
   const start = ta.selectionStart;
   const end = ta.selectionEnd;
   const before = ta.value.slice(0, start);
@@ -6535,17 +6537,25 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   const inserted = needNlBefore + prefix + middle + suffix + needNlAfter;
   ta.value = before + inserted + after;
 
-  // 커서 위치: 선택이 있었으면 블록 뒤로, 없었으면 placeholder를 선택 상태로
-  if(selected){
+  // 선택/placeholder가 없는 구분 요소도 삽입 직후로 커서를 복원한다.
+  // value를 바꾼 뒤 그대로 focus하면 브라우저가 본문 끝의 커서를 따라 스크롤한다.
+  if(selected || !placeholder){
     const pos = before.length + inserted.length;
     ta.setSelectionRange(pos, pos);
-  } else if(placeholder){
+  } else {
     const selStart = before.length + needNlBefore.length + prefix.length;
     ta.setSelectionRange(selStart, selStart + placeholder.length);
   }
   syncMirror(ta);   // 전체 화면 편집 중이면 실제 카드 입력창에도 선택 위치까지 반영
-  ta.focus();
+  try { ta.focus({preventScroll:true}); }
+  catch(error){ ta.focus(); }
   uiUpdateEffects.committedChange();
+  // 값·선택·포커스 변경과 렌더가 끝난 뒤 입력창/거울/편집 패널의 읽던 위치를 유지한다.
+  viewports.forEach(({element, top, left}) => {
+    if(!element.isConnected) return;
+    element.scrollTop = top;
+    element.scrollLeft = left;
+  });
   showUndoToast(label || '본문 요소 삽입.');
 }
 
