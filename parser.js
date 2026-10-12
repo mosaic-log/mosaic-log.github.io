@@ -1,4 +1,4 @@
-// 조각로그 v1.8.5 본문 문법과 안전한 인라인 HTML 변환.
+// 조각로그 v1.8.6 본문 문법과 안전한 인라인 HTML 변환.
 function escapeHTML(s){
   return String(s)
     .replace(/&/g, '&amp;')
@@ -156,8 +156,12 @@ function processBodyInline(text, emphasisColor, options){
 // 출력 전용 치환. 원문/저장 모델은 건드리지 않고, 필요할 때만 출력 글자의
 // 원문 범위를 함께 만든다. 뒤 규칙은 앞 규칙의 결과에 추가 순서대로 적용한다.
 function hasBatchim(word){
-  if(/^(?:char|user)$/i.test((word || '').trim())) return false;
-  const code = (word || '').trim().slice(-1).charCodeAt(0);
+  const normalized = (word || '').trim();
+  if(/^(?:char|user)$/i.test(normalized)) return false;
+  // 단일 알파벳의 한글 이름만 판정한다. L/M/N/R은 엘/엠/엔/알 기준이며
+  // Avatar 같은 단어·약어의 끝 글자에는 이 발음 규칙을 적용하지 않는다.
+  if(/^[a-z]$/i.test(normalized)) return /^[lmnr]$/i.test(normalized);
+  const code = normalized.slice(-1).charCodeAt(0);
   return code >= 0xAC00 && code <= 0xD7A3 ? (code - 0xAC00) % 28 !== 0 : null;
 }
 function nameRulePattern(from){

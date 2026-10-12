@@ -1,10 +1,13 @@
-// 조각로그 v1.8.5 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.6 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
 const uiElements = Object.freeze({
   preview:document.getElementById('preview'),
   previewArea:document.getElementById('previewArea'),
+  previewToolbar:document.getElementById('previewToolbar'),
+  previewToolbarAnchor:document.getElementById('previewToolbarAnchor'),
+  previewToolbarHandle:document.getElementById('previewToolbarHandle'),
   previewFoldControls:document.getElementById('previewFoldControls'),
   previewExpandAll:document.getElementById('previewExpandAllBtn'),
   previewCollapseAll:document.getElementById('previewCollapseAllBtn'),
@@ -15,7 +18,7 @@ const uiElements = Object.freeze({
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.5 미리보기 렌더 조정기.
+// 조각로그 v1.8.6 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -32,6 +35,15 @@ const previewPositionState = {
   pendingFallbackScrollTop:null,
   fullscreenScrollTop:0,
   toolbarSyncFrame:null
+};
+
+// 임시 도구모음은 출력·저장 상태와 분리한다. 기존 DOM을 그대로 띄우며,
+// 원래 자리의 높이만 남겨 읽던 본문과 스크롤 위치를 유지한다.
+const previewToolbarRevealState = {
+  frame:null, entryFrame:null, closeTimer:null, hideTimer:null,
+  available:false, open:false, closing:false, pinned:false,
+  overHandle:false, overToolbar:false,
+  naturalHeight:0, margin:0, padding:0, fitWidth:null, fit:null
 };
 
 function schedulePreviewFocusAfterRender(){
@@ -134,7 +146,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.5 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.6 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches
@@ -2987,6 +2999,7 @@ function closePreviewCardNavigator(restoreFocus = false){
   if(wasOpen && restoreFocus && !uiElements.previewCardNavigator.hidden){
     uiElements.previewCardNavButton.focus({preventScroll:true});
   }
+  if(wasOpen) schedulePreviewToolbarHide();
 }
 
 function syncPreviewCardNavigator(foldCards){
@@ -3499,6 +3512,7 @@ syncPositionSyncFloatingUi();
 const previewFullscreenBtn = document.getElementById('previewFullscreenBtn');
 function setPreviewFullscreen(on){
   const previewArea = uiElements.previewArea;
+  if(on) resetPreviewToolbarReveal();
   if(on){
     MosaicApp.setPreviewArcaTheme(document.documentElement.classList.contains('uiNight') ? 'dark' : 'light');
     previewPositionState.fullscreenScrollTop = previewArea.scrollTop;
@@ -3524,7 +3538,10 @@ function setPreviewFullscreen(on){
     syncPreviewCommentOutset();
     layoutPreviewFloatingButtons();
   });
-  if(!on) requestAnimationFrame(() => { previewArea.scrollTop = previewPositionState.fullscreenScrollTop; });
+  if(!on) requestAnimationFrame(() => {
+    previewArea.scrollTop = previewPositionState.fullscreenScrollTop;
+    schedulePreviewToolbarRevealSync();
+  });
 }
 function bindPreviewFullscreenEvents(){
   bindUIFeatureEvents('preview-fullscreen', () => {
@@ -4176,9 +4193,19 @@ function syncPreviewToolbarRows(toolbar){
   const stacked = availableWidth > 0 && headerWidth > 0 && toolsWidth > 0
     ? requiredWidth > availableWidth : wasStacked;
   toolbar.classList.toggle('previewToolbarStacked', stacked);
+  return {requiredWidth, measurable:availableWidth > 0 && headerWidth > 0 && toolsWidth > 0};
 }
 
-function syncPreviewToolbarLabel(){
+function syncPreviewToolbarLabel({immediate = false} = {}){
+  if(immediate){
+    // 좌우반전은 크기가 같아도 좌표가 바뀐다. 다음 프레임을 기다리지 않고
+    // 새 배치를 측정하며, 이미 예약된 같은 갱신은 여기서 소비한다.
+    if(previewPositionState.toolbarSyncFrame !== null) cancelAnimationFrame(previewPositionState.toolbarSyncFrame);
+    previewPositionState.toolbarSyncFrame = null;
+    if(previewToolbarRevealState.frame !== null) cancelAnimationFrame(previewToolbarRevealState.frame);
+    previewToolbarRevealState.frame = null;
+  }
+  previewToolbarRevealState.fitWidth = null;
   const toolbar = document.getElementById('previewToolbar');
   const previewArea = uiElements.previewArea;
   const areaStyle = getComputedStyle(previewArea);
@@ -4209,15 +4236,15 @@ function syncPreviewToolbarLabel(){
     setLabel(cycleButton, `${cardWidth}px`);
     cycleButton.setAttribute('aria-label', `본문 폭 ${cardWidth}px, 누르면 ${nextWidth}px로 변경`);
     cycleButton.title = `다음 본문 폭 ${nextWidth}px`;
-    syncPreviewToolbarRows(toolbar);
-    return;
+  } else {
+    // 전체화면 폭 표기는 영역 폭으로 결정한 뒤, 해당 표기의 실제 한 줄 폭을 잰다.
+    const fullLabels = toolbarWidth >= 830;
+    setLabel(desktopButton, fullLabels ? desktopLabel : String(cardWidth));
+    setLabel(mobileButton, fullLabels ? mobileLabel : '380');
   }
-
-  // 전체화면 폭 표기는 영역 폭으로 결정한 뒤, 해당 표기의 실제 한 줄 폭을 잰다.
-  const fullLabels = toolbarWidth >= 830;
-  setLabel(desktopButton, fullLabels ? desktopLabel : String(cardWidth));
-  setLabel(mobileButton, fullLabels ? mobileLabel : '380');
   syncPreviewToolbarRows(toolbar);
+  if(immediate) syncPreviewToolbarReveal();
+  else schedulePreviewToolbarRevealSync();
 }
 function schedulePreviewToolbarSync(){
   if(previewPositionState.toolbarSyncFrame !== null) return;
@@ -4240,6 +4267,233 @@ function bindPreviewToolbarLayoutEvents(){
     // 전체화면에서 본문은 380px로 고정되어 있어도 도구모음은 창 폭을 따른다.
     // 관찰 중인 본문·도구 폭이 그대로인 채 창만 넓어지는 경우도 다시 계산한다.
     window.addEventListener('resize', schedulePreviewToolbarSync);
+  });
+}
+
+// ---------- 스크롤로 가려진 미리보기 도구모음 ----------
+function clearPreviewToolbarTimer(key){
+  const state = previewToolbarRevealState;
+  if(state[key] !== null) clearTimeout(state[key]);
+  state[key] = null;
+}
+function finishPreviewToolbarHide(){
+  const state = previewToolbarRevealState;
+  const toolbar = uiElements.previewToolbar;
+  clearPreviewToolbarTimer('hideTimer');
+  if(state.entryFrame !== null) cancelAnimationFrame(state.entryFrame);
+  state.entryFrame = null;
+  state.closing = false;
+  const wasFloating = toolbar.classList.contains('previewToolbarRevealed');
+  toolbar.classList.remove('previewToolbarRevealed', 'previewToolbarEntering', 'previewToolbarClosing');
+  if(wasFloating) syncPreviewToolbarRows(toolbar);
+  uiElements.previewToolbarAnchor.style.removeProperty('height');
+}
+function closePreviewToolbarReveal(restoreFocus = false, immediate = false){
+  const state = previewToolbarRevealState;
+  const wasOpen = state.open;
+  clearPreviewToolbarTimer('closeTimer');
+  if(state.entryFrame !== null) cancelAnimationFrame(state.entryFrame);
+  state.entryFrame = null;
+  state.open = state.pinned = state.overToolbar = false;
+  const handle = uiElements.previewToolbarHandle;
+  handle.setAttribute('aria-expanded', 'false');
+  handle.setAttribute('aria-label', '미리보기 도구 열기');
+  if(immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    finishPreviewToolbarHide();
+  } else if(wasOpen && !state.closing){
+    // 페이드가 끝날 때까지 고정 위치·빈 자리를 유지한다. 다시 열면 취소한다.
+    state.closing = true;
+    uiElements.previewToolbar.classList.remove('previewToolbarEntering');
+    uiElements.previewToolbar.classList.add('previewToolbarClosing');
+    state.hideTimer = setTimeout(() => {
+      state.hideTimer = null;
+      if(state.closing) finishPreviewToolbarHide();
+    }, 180); // transitionend가 오지 않는 숨겨진 창에서도 복귀를 보장한다.
+  }
+  if(restoreFocus && !handle.hidden) handle.focus({preventScroll:true});
+}
+function resetPreviewToolbarReveal(){
+  closePreviewToolbarReveal(false, true);
+  previewToolbarRevealState.available = previewToolbarRevealState.overHandle = false;
+  uiElements.previewToolbarHandle.hidden = true;
+}
+function syncPreviewToolbarReveal(){
+  const state = previewToolbarRevealState;
+  const {previewArea:area, previewToolbar:toolbar, previewToolbarAnchor:anchor,
+    previewToolbarHandle:handle} = uiElements;
+  if(document.body.classList.contains('previewFullscreen') || area.inert){
+    resetPreviewToolbarReveal();
+    return;
+  }
+  const viewport = window.visualViewport;
+  const viewTop = viewport?.offsetTop || 0, viewLeft = viewport?.offsetLeft || 0;
+  const viewBottom = viewTop + (viewport?.height || window.innerHeight);
+  const viewRight = viewLeft + (viewport?.width || window.innerWidth);
+  const areaRect = area.getBoundingClientRect();
+  const top = Math.max(viewTop, areaRect.top + area.clientTop);
+  const bottom = Math.min(viewBottom, areaRect.bottom);
+  const toolbarRect = toolbar.getBoundingClientRect();
+  const floating = state.open || state.closing;
+  const originBottom = floating
+    ? anchor.getBoundingClientRect().top + state.naturalHeight : toolbarRect.bottom;
+  const areaStyle = getComputedStyle(area);
+  const left = Math.max(viewLeft, areaRect.left + area.clientLeft + (parseFloat(areaStyle.paddingLeft) || 0));
+  const right = Math.min(viewRight, areaRect.left + area.clientLeft + area.clientWidth
+    - (parseFloat(areaStyle.paddingRight) || 0));
+  const width = Math.min(900, right - left);
+  // 일부만 가려진 툴바나 화면 밖의 미리보기에는 손잡이를 띄우지 않는다.
+  state.available = width > 0 && toolbarRect.height > 0 && bottom - top >= 80
+    && Number.isFinite(originBottom) && originBottom <= top;
+  if(!state.available){
+    resetPreviewToolbarReveal();
+    return;
+  }
+  const center = (left + right) / 2;
+  handle.hidden = false;
+  handle.style.left = `${center}px`;
+  handle.style.top = `${top}px`;
+  // 손잡이와 툴바의 클릭 영역을 맞붙여 포인터 이동 중 닫히지 않게 한다.
+  const handleHeight = handle.getBoundingClientRect().height || 24;
+  toolbar.style.setProperty('--preview-reveal-top', `${top + handleHeight - 2}px`);
+  toolbar.style.setProperty('--preview-reveal-left', `${center}px`);
+  toolbar.style.setProperty('--preview-reveal-width', `${width}px`);
+  if(floating){
+    // 스크롤마다 줄 배치를 다시 뜯지 않는다. 폭·버튼 문구가 바뀔 때만 잰다.
+    if(state.fitWidth !== width){
+      state.fit = syncPreviewToolbarRows(toolbar);
+      state.fitWidth = width;
+    }
+    const popupStacked = toolbar.classList.contains('previewToolbarStacked');
+    const flowWidth = parseFloat(toolbar.style.getPropertyValue('--preview-toolbar-width')) || width;
+    const flowStacked = state.fit.measurable ? state.fit.requiredWidth > flowWidth : popupStacked;
+    // 확대된 화면에서는 임시 툴바만 더 좁을 수 있다. 빈 자리는 임시 툴바가
+    // 아닌 원래 툴바의 줄 배치 높이로 유지해 본문이 밀리지 않게 한다.
+    if(flowStacked !== popupStacked) toolbar.classList.toggle('previewToolbarStacked', flowStacked);
+    const style = getComputedStyle(toolbar);
+    state.naturalHeight = toolbar.getBoundingClientRect().height - (parseFloat(style.paddingTop) || 0)
+      - (parseFloat(style.paddingBottom) || 0) + state.padding;
+    if(flowStacked !== popupStacked) toolbar.classList.toggle('previewToolbarStacked', popupStacked);
+    const flowMargin = parseFloat(style.getPropertyValue('--preview-toolbar-flow-margin'));
+    if(Number.isFinite(flowMargin)) state.margin = flowMargin;
+    anchor.style.height = `${Math.max(0, state.naturalHeight + state.margin)}px`;
+  }
+}
+function schedulePreviewToolbarRevealSync(){
+  const state = previewToolbarRevealState;
+  if(state.frame !== null) return;
+  state.frame = requestAnimationFrame(() => {
+    state.frame = null;
+    syncPreviewToolbarReveal();
+  });
+}
+function openPreviewToolbarReveal(pin = false, focus = false){
+  syncPreviewToolbarReveal();
+  const state = previewToolbarRevealState, toolbar = uiElements.previewToolbar;
+  if(!state.available) return;
+  clearPreviewToolbarTimer('closeTimer');
+  clearPreviewToolbarTimer('hideTimer');
+  if(state.closing){
+    state.closing = false;
+    toolbar.classList.remove('previewToolbarClosing');
+    state.open = true;
+  }
+  if(!state.open){
+    const style = getComputedStyle(toolbar);
+    state.naturalHeight = toolbar.getBoundingClientRect().height;
+    state.margin = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+    state.padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    uiElements.previewToolbarAnchor.style.height = `${state.naturalHeight + state.margin}px`;
+    toolbar.classList.add('previewToolbarRevealed', 'previewToolbarEntering');
+    state.open = true;
+    state.fitWidth = null;
+    syncPreviewToolbarReveal();
+    state.entryFrame = requestAnimationFrame(() => {
+      state.entryFrame = null;
+      if(state.open) toolbar.classList.remove('previewToolbarEntering');
+    });
+  }
+  state.pinned = state.pinned || pin;
+  uiElements.previewToolbarHandle.setAttribute('aria-expanded', 'true');
+  uiElements.previewToolbarHandle.setAttribute('aria-label', '미리보기 도구 닫기');
+  if(focus) toolbar.querySelector('button:not(:disabled)')?.focus({preventScroll:true});
+}
+function previewToolbarHasInteraction(){
+  const state = previewToolbarRevealState, active = document.activeElement;
+  return state.pinned || state.overHandle || state.overToolbar
+    || uiElements.previewToolbar.contains(active) || active === uiElements.previewToolbarHandle
+    || (!uiElements.previewCardNavigator.hidden && !uiElements.previewCardNavPanel.hidden);
+}
+function schedulePreviewToolbarHide(){
+  clearPreviewToolbarTimer('closeTimer');
+  if(!previewToolbarRevealState.open) return;
+  previewToolbarRevealState.closeTimer = setTimeout(() => {
+    previewToolbarRevealState.closeTimer = null;
+    if(!previewToolbarHasInteraction()) closePreviewToolbarReveal();
+  }, 280);
+}
+function bindPreviewToolbarRevealEvents(){
+  bindUIFeatureEvents('preview-toolbar-reveal', () => {
+    const state = previewToolbarRevealState;
+    const {previewToolbar:toolbar, previewToolbarHandle:handle, previewArea:area} = uiElements;
+    handle.addEventListener('pointerenter', event => {
+      if(event.pointerType === 'touch') return;
+      state.overHandle = true;
+      clearPreviewToolbarTimer('closeTimer');
+      if(!state.open) openPreviewToolbarReveal();
+    });
+    handle.addEventListener('pointerleave', () => {
+      state.overHandle = false;
+      schedulePreviewToolbarHide();
+    });
+    handle.addEventListener('click', event => {
+      if(state.open) closePreviewToolbarReveal();
+      else openPreviewToolbarReveal(true, event.detail === 0);
+    });
+    handle.addEventListener('keydown', event => {
+      if(event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      openPreviewToolbarReveal(true, true);
+    });
+    toolbar.addEventListener('pointerenter', event => {
+      if(event.pointerType === 'touch') return;
+      state.overToolbar = true;
+      clearPreviewToolbarTimer('closeTimer');
+    });
+    toolbar.addEventListener('pointerleave', () => {
+      state.overToolbar = false;
+      schedulePreviewToolbarHide();
+    });
+    toolbar.addEventListener('transitionend', event => {
+      if(event.target === toolbar && event.propertyName === 'opacity' && state.closing){
+        finishPreviewToolbarHide();
+      }
+    });
+    document.addEventListener('focusin', event => {
+      if(toolbar.contains(event.target) || event.target === handle){
+        clearPreviewToolbarTimer('closeTimer');
+        if(state.closing && toolbar.contains(event.target)) openPreviewToolbarReveal(true);
+      } else {
+        state.pinned = false;
+        schedulePreviewToolbarHide();
+      }
+    });
+    document.addEventListener('pointerdown', event => {
+      if(toolbar.contains(event.target) || handle.contains(event.target)
+        || uiElements.previewCardNavigator.contains(event.target)) return;
+      closePreviewToolbarReveal();
+    });
+    document.addEventListener('keydown', event => {
+      if(event.key !== 'Escape' || !state.open) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closePreviewToolbarReveal(true);
+    }, true);
+    area.addEventListener('scroll', schedulePreviewToolbarRevealSync, {passive:true});
+    window.addEventListener('scroll', schedulePreviewToolbarRevealSync, {passive:true});
+    window.addEventListener('resize', schedulePreviewToolbarRevealSync);
+    window.visualViewport?.addEventListener('resize', schedulePreviewToolbarRevealSync);
+    window.visualViewport?.addEventListener('scroll', schedulePreviewToolbarRevealSync);
+    schedulePreviewToolbarRevealSync();
   });
 }
 
@@ -5158,6 +5412,25 @@ function cardActionMenuButtons(editor){
     .filter(button => !button.disabled && !button.hidden && button.style.display !== 'none');
 }
 
+function syncCardBodyCenterButton(editor){
+  const button = editor.querySelector('.cardBodyCenterBtn');
+  if(!button) return;
+  const centered = editor.dataset.bodyCenter === 'true';
+  const label = centered ? '카드 본문 전체 중앙 정렬 해제' : '카드 본문 전체 중앙 정렬';
+  button.setAttribute('aria-pressed', String(centered));
+  button.setAttribute('aria-label', label);
+  button.title = label;
+}
+
+function toggleCardBodyCenter(editor){
+  MosaicStorage.snapshotCards();
+  const centered = editor.dataset.bodyCenter !== 'true';
+  editor.dataset.bodyCenter = String(centered);
+  syncCardBodyCenterButton(editor);
+  afterEditorControlChange();
+  showUndoToast(centered ? '카드 본문 전체 중앙 정렬.' : '카드 본문 기존 정렬 복원.');
+}
+
 function bodyCardTextareas(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor:not(.commentEditor) textarea'));
 }
@@ -5184,7 +5457,7 @@ function bindCardEditorDelegatedEvents(){
     // 실제 버튼의 기존 동작이 먼저 실행된다. 복제/삭제가 옮긴 포커스는 건드리지 않는다.
     const menuAction = event.target.closest('.cardActionMenu button');
     if(menuAction){
-      if(menuAction.matches('.itemMoveBtn, .autoExpandBtn')){
+      if(menuAction.matches('.itemMoveBtn, .autoExpandBtn, .cardBodyCenterBtn')){
         // 반복 조작은 열어 둔다. DOM 순서 이동 중 잃은 버튼 포커스도 복구한다.
         if(cardEditorState.actionMenuEditor === editor && menuAction.isConnected){
           menuAction.focus({preventScroll:true});
@@ -5205,6 +5478,7 @@ function bindCardEditorDelegatedEvents(){
     if(!actionButton || !textarea) return;
     if(actionButton.dataset.cardAction === 'show-preview') scrollPreviewToCardEditor(editor);
     if(actionButton.dataset.cardAction === 'toggle-preview-fold') toggleEditorPreviewFold(editor);
+    if(actionButton.dataset.cardAction === 'toggle-body-center') toggleCardBodyCenter(editor);
     if(actionButton.dataset.cardAction === 'fullscreen'){
       const number = editor.querySelector('.cardNum');
       openFullscreen(textarea, number?.textContent || '본문', editor);
@@ -5402,6 +5676,7 @@ function getCards(){
       foldTitle:title ? title.value : '',
       cardTitle:title ? title.value : '',
       visible,
+      ...(ed.dataset.bodyCenter === 'true' ? {bodyCenter:true} : {}),
     };
   });
 }
@@ -5789,7 +6064,7 @@ function deleteEditor(editor, textarea, message){
 }
 
 function createCardEditor(value){
-  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle, visible} 객체
+  // value: 문자열(본문만) 또는 {body, folded, foldTitle/cardTitle, visible, bodyCenter} 객체
   const source = (typeof value === 'object' && value !== null) ? value : { body: value || '', folded: false, foldTitle: '' };
   const data = {
     ...source,
@@ -5801,6 +6076,7 @@ function createCardEditor(value){
   const {
     ed, head, right, collapseBtn, visibilityBtn, upBtn, downBtn, autoExpandBtn, fsBtn
   } = createEditorShell('card', data.visible);
+  ed.dataset.bodyCenter = String(MosaicState.settingFlagOn(data.bodyCenter));
   const duplicateBtn = document.createElement('button');
   duplicateBtn.type = 'button';
   duplicateBtn.className = 'duplicateCardBtn uiButton';
@@ -5812,8 +6088,11 @@ function createCardEditor(value){
   foldChk.type = 'checkbox';
   foldChk.className = 'cardFoldChk';
   foldChk.checked = MosaicState.settingFlagOn(data.folded);
+  const foldCheckMark = document.createElement('span');
+  foldCheckMark.className = 'cardFoldCheck';
+  foldCheckMark.setAttribute('aria-hidden', 'true');
   foldLabel.appendChild(document.createTextNode('접기 카드'));
-  foldLabel.appendChild(foldChk);
+  foldLabel.append(foldChk, foldCheckMark);
   const del = createEditorDeleteButton('card');
 
   const actionMenu = document.createElement('div');
@@ -5822,6 +6101,11 @@ function createCardEditor(value){
   actionMenu.hidden = true;
   actionMenu.setAttribute('role', 'group');
   actionMenu.setAttribute('aria-label', '카드 보조 조작');
+  const centerButton = document.createElement('button');
+  centerButton.type = 'button';
+  centerButton.className = 'cardBodyCenterBtn uiButton';
+  centerButton.dataset.cardAction = 'toggle-body-center';
+  centerButton.innerHTML = '<span class="cardActionIcon" aria-hidden="true"><svg class="cardBodyCenterIcon" viewBox="0 0 14 14" fill="none" focusable="false"><path d="M1 3h12 M4 7h6 M1 11h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>';
   // 아이콘만 한 줄로 배치한다. 기존 title·aria-label은 안내와 접근성을 위해 유지한다.
   [[upBtn, '↑'], [downBtn, '↓'], [autoExpandBtn, ''],
    [fsBtn, '⛶'], [duplicateBtn, '⧉'], [del, '']].forEach(([button, glyph]) => {
@@ -5836,7 +6120,7 @@ function createCardEditor(value){
   const moveGroup = upBtn.parentElement;
   moveGroup.setAttribute('role', 'group');
   moveGroup.setAttribute('aria-label', '카드 순서 이동');
-  actionMenu.append(moveGroup, autoExpandBtn, fsBtn, duplicateBtn, del);
+  actionMenu.append(moveGroup, centerButton, autoExpandBtn, fsBtn, duplicateBtn, del);
   const menuButton = document.createElement('button');
   menuButton.type = 'button';
   menuButton.className = 'miniCtl cardMenuBtn';
@@ -5890,7 +6174,8 @@ function createCardEditor(value){
       body: ta.value,
       folded: foldChk.checked,
       cardTitle: foldTitleInput.value,
-      visible: ed.dataset.outputVisible !== 'false'
+      visible: ed.dataset.outputVisible !== 'false',
+      bodyCenter: ed.dataset.bodyCenter === 'true'
     });
     ed.after(clone);
     renumberCards();
@@ -6017,6 +6302,7 @@ function createCardEditor(value){
 
   ed.appendChild(head);
   ed.appendChild(actionMenu);
+  syncCardBodyCenterButton(ed);
   ed.appendChild(fmt);
   ed.appendChild(ta);
   if(ed.dataset.outputVisible === 'false') MosaicRenderer.syncHiddenEditorCollapse(ed, collapseBtn, true);
@@ -7477,6 +7763,7 @@ function initUI(){
   bindPreviewSelectionEvents();
   bindPreviewLayoutEvents();
   bindPreviewFoldEvents();
+  bindPreviewToolbarRevealEvents();
   bindPositionSyncEvents();
   bindPreviewFullscreenEvents();
   bindPreviewToolbarLayoutEvents();

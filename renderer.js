@@ -1,6 +1,6 @@
-// 조각로그 v1.8.5 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.6 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.5 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.6 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -816,7 +816,7 @@ function buildParagraph(rawLine, settings, opts){
   }
 
   // 가운데 정렬 접두어를 다른 본문 문법보다 먼저 해석해 [C] # 제목처럼 함께 쓸 수 있게 함.
-  let forceCenter = false;
+  let forceCenter = settings.cardBodyCenter === true;
   if(/^\[C\]\s*/i.test(line)){
     forceCenter = true;
     line = line.replace(/^\[C\]\s*/i, '');
@@ -985,9 +985,9 @@ function buildParagraph(rawLine, settings, opts){
       const nameHtml = processInline(name, settings.emphasisColor);
       speakerNameHtml = nameHtml;
       const labelColor = parallelTranslationTextColor(settings, color);
-      const messengerUserLabelAlign = settings.dlgStyle === 'messenger' && who === 'user'
+      const messengerUserLabelAlign = settings.dlgStyle === 'messenger' && who === 'user' && !settings.cardBodyCenter
         ? ' display:block !important; width:100% !important; text-align:right !important;' : '';
-      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
+      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; ${settings.cardBodyCenter ? 'text-align:center; ' : ''}color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
       embeddedLabel = `<span data-mosaic-speaker-label="true" style="display:block; margin:0 0 5px 0; color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px;${messengerUserLabelAlign}">${nameHtml}</span>`;
       mtEff = 0;
     }
@@ -1028,7 +1028,8 @@ function buildParagraph(rawLine, settings, opts){
     if(settings.dlgStyle === 'messenger'){
       const userSide = speaker === 'user';
       const bubbleBg = accentTint(settings.bgColor, color);
-      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mt}px ${userSide ? '0' : 'auto'} ${mb}px ${userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:left; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+      const centered = settings.cardBodyCenter === true;
+      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mt}px ${centered || !userSide ? 'auto' : '0'} ${mb}px ${centered || userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:${centered ? 'center' : 'left'}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
     }
 
     // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
@@ -3321,7 +3322,10 @@ function specialThemeOutput(html, mode, settings){
       el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
     template.content.querySelectorAll('summary').forEach(el => {
-      el.style.setProperty('text-align', 'left');
+      const card = el.closest('[data-mosaic-card-index]');
+      const centeredBodyTitle = card?.getAttribute('data-mosaic-body-center') === 'true'
+        && el.parentElement !== card;
+      el.style.setProperty('text-align', centeredBodyTitle ? 'center' : 'left');
       const showDivider = !settingFlagOn(settings.foldDividerMinimal);
       const dividerLength = cardDividerLengthPercent(settings);
       el.style.setProperty('border-bottom', showDivider && dividerLength === 100 ? `1px solid ${palette.divider}` : 'none', 'important');
@@ -3471,6 +3475,7 @@ function buildCard(settings, sourceCards){
       type: c.type === 'comment' ? 'comment' : 'card',
       lines: c.body.split('\n').map(l => l.trim()).filter(l => l !== ''),
       folded: settingFlagOn(c.folded),
+      bodyCenter: settingFlagOn(c.bodyCenter),
       foldTitle: (c.cardTitle !== undefined ? c.cardTitle : (c.foldTitle || '')).trim(),
       visible: c.visible !== false,
     }))
@@ -3563,7 +3568,9 @@ function buildCard(settings, sourceCards){
     // 전역 옵션 하나로 모든 접기 카드와 본문 내부 접기의 제목 아래 구분선을 함께 제어한다.
     const bodySettings = Object.assign({}, settings, {
       foldBodyMinimal: foldDividerMinimal,
-      unifiedFoldQuoteContrast: unifiedLayout && card.folded
+      unifiedFoldQuoteContrast: unifiedLayout && card.folded,
+      cardBodyCenter: card.bodyCenter === true,
+      bodyFoldTitleCenter: card.bodyCenter === true || settings.bodyFoldTitleCenter
     });
     const bodyHTML = assembleBody(card.lines, bodySettings);
     const footer = isLast ? buildFooter(settings) : '';
@@ -3597,6 +3604,8 @@ function buildCard(settings, sourceCards){
       borderCss = coverDividerTopCss(settings, pal.divider);
     }
     const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
+    // 테마 후처리에서 본문 안쪽 제목만 정렬한다. 이 편집 메타데이터는 출력 시 제거한다.
+    const bodyCenterAttr = card.bodyCenter ? ' data-mosaic-body-center="true"' : '';
 
     if(card.folded){
       // 접기 카드: 카드 틀 전체가 details. 헤더는 배경 없는 깔끔한 제목 줄 하나.
@@ -3623,7 +3632,7 @@ function buildCard(settings, sourceCards){
         : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
       const foldBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
-      return `<details data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
+      return `<details data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </details>`;
@@ -3640,13 +3649,13 @@ ${bodyHTML}${footer}  </div>
         : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
       const cardBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
-      return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
+      return `<div data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}">
   <div data-mosaic-card-title="true" style="display:flex; align-items:center; justify-content:center; column-gap:14px; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
   <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;
     }
-    return `<div data-mosaic-card-index="${card.sourceIndex}" style="${shellStyle}">
+    return `<div data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}">
   <div style="box-sizing:border-box; padding:${plainBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;

@@ -1,4 +1,4 @@
-// 조각로그 v1.8.5 애플리케이션 조율·초기화 모듈.
+// 조각로그 v1.8.6 애플리케이션 조율·초기화 모듈.
 
 // ---------- 본문 입력창 서식 단축키 ----------
 // 카드 입력창·전체 화면 입력창에 커서가 있을 때만 동작
@@ -181,6 +181,7 @@ function syncLayoutMirrorUi(){
 function setLayoutMirrored(on, save){
   document.body.classList.toggle('layoutMirrored', !!on);
   syncLayoutMirrorUi();
+  MosaicUI.preview.syncToolbarLabel({immediate:true});
   if(save){
     try { localStorage.setItem(LAYOUT_MIRROR_KEY, on ? 'on' : 'off'); }
     catch(e){ /* 저장소를 쓸 수 없어도 현재 화면 배치는 유지 */ }

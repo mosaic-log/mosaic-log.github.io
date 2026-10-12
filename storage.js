@@ -1,4 +1,4 @@
-// 조각로그 v1.8.5 HTML 복원·파일 저장·로그 보관함 모듈.
+// 조각로그 v1.8.6 HTML 복원·파일 저장·로그 보관함 모듈.
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -223,6 +223,7 @@ function sanitizeImportedWork(data){
       if(card.foldTitle !== undefined && typeof card.foldTitle !== 'string') return null;
       if(card.foldMinimal !== undefined && typeof card.foldMinimal !== 'boolean') return null;
       if(card.visible !== undefined && typeof card.visible !== 'boolean') return null;
+      if(card.bodyCenter !== undefined && typeof card.bodyCenter !== 'boolean') return null;
     }
     const body = typeof card === 'string' ? card : card && card.body;
     const foldTitle = typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : '';
@@ -238,7 +239,8 @@ function sanitizeImportedWork(data){
           folded: typeof card === 'object' && !!card.folded,
           foldTitle,
           foldMinimal: typeof card === 'object' && !!card.foldMinimal,
-          visible
+          visible,
+          ...(typeof card === 'object' && card.bodyCenter === true ? {bodyCenter:true} : {})
         });
   }
   const source = data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields) ? data.fields : {};
@@ -1070,7 +1072,7 @@ function prepareDraftRestore(d){
     for(const key of ['foldTitle','cardTitle']){
       if(card[key] !== undefined && typeof card[key] !== 'string') return null;
     }
-    for(const key of ['folded','foldMinimal','visible']){
+    for(const key of ['folded','foldMinimal','visible','bodyCenter']){
       if(card[key] !== undefined && !['boolean','string','number'].includes(typeof card[key])) return null;
     }
   }

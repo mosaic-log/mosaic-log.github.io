@@ -1813,6 +1813,9 @@
   /* ---------- 카드별 입력 ---------- */
   #cardEditors { display: flex; flex-direction: column; gap: 14px; padding-top: 2px; }
   .cardEditor {
+    /* 헤더의 −·○부터 구분선까지: 버튼 28px 두 개 + 간격/제목 앞 여백 9px. */
+    --card-control-rail: 65px;
+    --card-control-gutter: 10px;
     position: relative;
     border: 1px solid var(--line-strong);
     border-radius: 9px;
@@ -1889,7 +1892,7 @@
   .cardActionMenu {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: nowrap;
     gap: 4px;
     padding: 6px 8px;
@@ -1897,7 +1900,16 @@
     background: var(--bg-panel);
   }
   .cardActionMenu[hidden] { display: none; }
-  .cardActionMenu .arrowGroup { flex: none; gap: 0; }
+  .cardActionMenu .arrowGroup {
+    position: relative;
+    flex: 0 0 var(--card-control-rail);
+    width: var(--card-control-rail);
+    justify-content: flex-start;
+    gap: 0;
+    margin-right: auto;
+  }
+  .cardActionMenu .cardBodyCenterBtn { margin-left: calc(var(--card-control-gutter) - 4px); }
+  .cardBodyCenterIcon { width: 12px; height: 12px; }
   .cardActionMenu button {
     display: flex;
     align-items: center;
@@ -1918,6 +1930,8 @@
   /* 미리보기 펼치기 추가 전 헤더 버튼의 28px 영역과 아이콘별 크기를 유지한다. */
   .cardActionMenu .fsBtn { font-size: 12px; }
   .cardActionIcon { display: grid; place-items: center; position: relative; width: 16px; height: 16px; font-size: inherit; font-weight: 400; line-height: 1; }
+  /* 복제 기호만 보정해 일반 버튼의 글자 크기 잠금과 28px 조작 영역은 유지한다. */
+  .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size: 13px; }
   .cardActionMenu button:hover, .cardActionMenu button:focus-visible, .cardActionMenu button[aria-pressed="true"] {
     color: var(--accent);
     background: var(--bg-muted);
@@ -1930,17 +1944,66 @@
   }
   .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active) { color: #a7473f; background: #fff4f3; }
   .foldChk {
+    --fold-check-fill: var(--accent);
+    position: relative;
     display: flex;
     align-items: center;
+    min-height: 28px;
     gap: 5px;
     font-size: 11px;
-    color: var(--ink-faint);
+    color: var(--help-ink-strong);
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
     flex: none;
   }
-  .foldChk input { accent-color: var(--accent); cursor: pointer; width: 13px; height: 13px; margin: 0; }
+  /* 실제 checkbox가 라벨 전체를 덮는다. 클릭·키보드·접기 상태 처리는 그대로 사용한다. */
+  .foldChk .cardFoldChk {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .cardFoldCheck {
+    position: relative;
+    flex: 0 0 12px;
+    width: 12px;
+    height: 12px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    pointer-events: none;
+  }
+  .cardFoldCheck::after {
+    content: '';
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 6px;
+    border: solid #fff;
+    border-width: 0 1.2px 1.2px 0;
+    transform: translate(-50%, -60%) rotate(45deg);
+  }
+  .foldChk .cardFoldChk:checked + .cardFoldCheck { background: var(--fold-check-fill); border-color: var(--fold-check-fill); }
+  .foldChk .cardFoldChk:checked + .cardFoldCheck::after { display: block; }
+  .foldChk .cardFoldChk:focus-visible + .cardFoldCheck { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .foldChk .cardFoldChk:disabled + .cardFoldCheck { opacity: 0.5; }
+  :root.uiNight .foldChk {
+    /* 밝은 야간 강조색에서도 흰 체크가 묻히지 않도록 같은 색조의 바탕을 눌러 준다. */
+    --fold-check-fill: color-mix(in srgb, var(--accent) 55%, var(--bg-panel));
+    color: var(--help-ink);
+  }
+  @media (forced-colors: active) {
+    .cardFoldCheck { forced-color-adjust: none; background: Canvas; border-color: ButtonText; }
+    .foldChk .cardFoldChk:checked + .cardFoldCheck { background: Highlight; border-color: Highlight; }
+    .foldChk .cardFoldChk:checked + .cardFoldCheck::after { border-color: HighlightText; }
+    .foldChk .cardFoldChk:focus-visible + .cardFoldCheck { outline-color: Highlight; }
+  }
   /* 헤더 아래 회색 줄 (서식 도구가 놓이는 자리) */
   .cardFoldRow {
     min-height: 38px;
@@ -2407,7 +2470,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 15px;
+    gap: var(--card-control-gutter);
   }
   /* 입력창을 접었을 때 보이는 본문 첫 줄 */
   .cardPeek {
@@ -2425,7 +2488,7 @@
   .cardEditor.isCollapsed { background: #f7f6f4; }
   .cardEditor.isCollapsed .cardToolRow { flex-wrap: wrap; gap: 6px; border-bottom: none; }
   .cardEditor.isCollapsed .cardPeek { flex: 1 0 100%; order: 1; }
-  .cardFmtBar { display: inline-flex; gap: 0; flex: none; }
+  .cardFmtBar { display: inline-flex; gap: 0; flex: 0 0 var(--card-control-rail); width: var(--card-control-rail); }
   .cardFoldGroup {
     display: flex;
     align-items: center;
@@ -2510,7 +2573,8 @@
     padding-left: 10px;
   }
   .cardEditorHead .cardNum::before,
-  .cardEditorHead .autoExpandBtn::before {
+  .cardEditorHead .autoExpandBtn::before,
+  .cardActionMenu .arrowGroup::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -2523,6 +2587,7 @@
   .cardEditorHead .cardNum::before { left: 0; }
   .cardEditorHead .autoExpandBtn { position: relative; }
   .cardEditorHead .autoExpandBtn::before { left: -7px; }
+  .cardActionMenu .arrowGroup::after { left: 100%; }
   .foldChk { width: auto; justify-content: flex-end; }
 
   /* 접기 카드 상태 표시 */
@@ -3127,6 +3192,7 @@
     min-width: 0;
   }
   #previewToolbar {
+    --preview-toolbar-flow-margin: 10px;
     position: relative;
     left: 50%;
     display: flex;
@@ -3139,6 +3205,77 @@
     transform: translateX(-50%);
   }
   #previewToolbar:not(.previewToolbarStacked) { column-gap: 8px; }
+  #previewToolbarAnchor { height: 0; }
+  .previewToolbarHandle {
+    position: fixed;
+    z-index: 61;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--line-strong);
+    transform: translateX(-50%);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .previewToolbarHandle[hidden] { display: none; }
+  .previewToolbarHandle:active:not(:disabled) { transform: translateX(-50%); }
+  .previewToolbarHandleLine {
+    width: 32px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: color .12s ease;
+  }
+  .previewToolbarHandle:hover,
+  .previewToolbarHandle:focus-visible,
+  .previewToolbarHandle[aria-expanded="true"] { color: var(--accent); }
+  .previewToolbarHandle:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -4px;
+    border-radius: 5px;
+  }
+  #previewToolbar.previewToolbarRevealed {
+    position: fixed;
+    top: var(--preview-reveal-top);
+    left: var(--preview-reveal-left);
+    z-index: 60;
+    width: var(--preview-reveal-width);
+    margin-bottom: 0;
+    padding: 6px 20px;
+    background: var(--bg-app);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .025);
+    opacity: 1;
+    transform: translate(-50%, 0);
+    transition: opacity .16s ease, transform .16s ease;
+  }
+  /* 떠 있는 도구모음만 가볍게 반응한다. 버튼 크기·활성 밑줄·포커스 윤곽은 유지한다. */
+  #previewToolbar.previewToolbarRevealed button:not(:disabled):is(:hover, :focus-visible) {
+    color: var(--accent);
+  }
+  #previewToolbar.previewToolbarRevealed :is(.widthToggle button, .previewFullscreenBtn, .layoutMirrorBtn):not(:disabled):is(:hover, :focus-visible) {
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg-app));
+  }
+  #previewToolbar.previewToolbarRevealed:is(.previewToolbarEntering, .previewToolbarClosing) {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  #previewToolbar.previewToolbarRevealed.previewToolbarEntering { transition: none; }
+  #previewToolbar.previewToolbarRevealed.previewToolbarClosing { pointer-events: none; }
+  @media (max-width: 560px) {
+    #previewToolbar.previewToolbarRevealed { padding-left: 12px; padding-right: 12px; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    .previewToolbarHandle { height: 44px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #previewToolbar.previewToolbarRevealed { transition: none; }
+    .previewToolbarHandleLine { transition: none; }
+  }
   #previewToolbar:not(.previewToolbarStacked) .previewTools {
     flex: 0 0 auto;
     flex-wrap: nowrap;
@@ -5034,7 +5171,7 @@
     .editorToolbar .tbGroup { flex: none; }
     #previewArea,
     body.layoutMirrored #previewArea { padding: 22px 48px 52px 12px; }
-    #previewToolbar { margin-bottom: 8px; }
+    #previewToolbar { --preview-toolbar-flow-margin: 8px; margin-bottom: 8px; }
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
     .layoutMirrorBtn { display:none; }
@@ -5052,6 +5189,8 @@
   }
 
   @media (max-width: 560px) {
+    /* 작은 화면의 헤더 버튼 36px 두 개에도 같은 구분선 기준을 적용한다. */
+    .cardEditor { --card-control-rail: 81px; }
     #sidebar { padding: 0 12px 24px; }
     #sidebarTop { margin: 0 -12px; padding: 13px 12px 0; }
     #sidebar h1 { font-size: 21px; }
