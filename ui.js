@@ -1,4 +1,4 @@
-// 조각로그 v1.8.6 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.7 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
@@ -18,7 +18,7 @@ const uiElements = Object.freeze({
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.6 미리보기 렌더 조정기.
+// 조각로그 v1.8.7 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -146,7 +146,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.6 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.7 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches
@@ -510,6 +510,11 @@ function hideBlockToolbar(){
   previewEditState.block = null;
 }
 
+function previewBlockContextCurrent(ctx){
+  return ctx && (ctx.sourceValue === undefined || (ctx.block.isConnected
+    && ctx.ta.isConnected && ctx.ta.value === ctx.sourceValue));
+}
+
 function showBlockToolbar(ctx){
   hideSelToolbar();
   // 구분선·이미지의 mousedown은 기본 포커스 이동을 막는다. 왼쪽 입력창 포커스가
@@ -517,11 +522,12 @@ function showBlockToolbar(ctx){
   const active = document.activeElement;
   if(active && active.closest && active.closest('#sidebar')) active.blur();
   document.body.classList.remove('sidebarFieldActive');
+  if(!previewBlockContextCurrent(ctx)){ hideBlockToolbar(); return; }
   previewEditState.block = ctx;
   const bar = document.getElementById('blockToolbar');
   const isImage = ctx.type === 'img';
   const isHeading = ctx.type === 'heading';
-  bar.setAttribute('aria-label', isHeading ? '마크다운 소제목 단계 변경' : (isImage ? '본문 이미지 편집' : '문단 구분 요소 편집'));
+  bar.setAttribute('aria-label', isHeading ? '마크다운 소제목 단계 변경' : (isImage ? `${ctx.comment ? '코멘트' : '본문'} 이미지 편집` : '문단 구분 요소 편집'));
   bar.querySelectorAll('[data-separator-type]').forEach(button => {
     const isSeparator = !isImage && !isHeading;
     const isCurrent = isSeparator && button.dataset.separatorType === ctx.type;
@@ -615,15 +621,23 @@ function buildBodyImageLine(parsed, width, caption){
   return `${parsed.leading}[IMG ${parsed.src}${sizeMarker}${captionMarker}]${parsed.trailing}`;
 }
 
-function editBodyImageText(text, raw, action){
+function clearCommentImageLine(lines, raw){
+  lines[raw] = '';
+  // 사진 줄에서 원래 끊겼던 연결 표시만 걷어내, 새 빈 줄이 여분의 <br>가 되지 않게 한다.
+  if(raw > 0) lines[raw - 1] = lines[raw - 1].replace(/\[BR\](\s*)$/i, '$1');
+}
+
+function editBodyImageText(text, raw, action, comment = false){
   const lines = text.split('\n');
   if(lines[raw] === undefined) return null;
   const parsed = MosaicRenderer.parseBodyImageLine(lines[raw]);
   if(!parsed) return null;
 
   if(action === 'delete'){
-    lines.splice(raw, 1);
-    return { text:lines.join('\n'), message:'본문 이미지 삭제.' };
+    // 코멘트는 사진 위 [BR]이 아래의 다른 문단과 합쳐지지 않도록 빈 줄을 남긴다.
+    if(comment) clearCommentImageLine(lines, raw);
+    else lines.splice(raw, 1);
+    return { text:lines.join('\n'), message:`${comment ? '코멘트' : '본문'} 이미지 삭제.` };
   }
 
   if(action === 'ratio'){
@@ -651,13 +665,15 @@ function editBodyImageText(text, raw, action){
 
 function finishBlockToolbarAction(action){
   if(!previewEditState.block) return;
-  const { ta, raw, type } = previewEditState.block;
+  const ctx = previewEditState.block;
+  if(!previewBlockContextCurrent(ctx)){ hideBlockToolbar(); return; }
+  const { ta, raw, type, comment } = ctx;
   const result = type === 'heading'
     ? editHeadingLevelText(ta.value, raw, action)
     : (type === 'img'
-        ? editBodyImageText(ta.value, raw, action)
+        ? editBodyImageText(ta.value, raw, action, comment)
         : editSeparatorText(ta.value, raw, type, action));
-  if(!result){ hideBlockToolbar(); return; }
+  if(!result || !previewBlockContextCurrent(ctx)){ hideBlockToolbar(); return; }
   MosaicStorage.snapshotCards();
   ta.value = result.text;
   hideBlockToolbar();
@@ -2013,7 +2029,7 @@ function decoratePreviewDirectEditors(){
   // 도구는 연결하지 않으며, 편집 속성은 복사 HTML이 아닌 미리보기 DOM에만 붙는다.
   previewCommentContexts().forEach(ctx => {
     const paragraphs = Array.from(ctx.commentEl.querySelectorAll(':scope > p'));
-    const entries = commentDisplayEntries(ctx.ta);
+    const entries = commentDisplayEntries(ctx.ta).filter(entry => !entry.image);
     paragraphs.forEach((paragraph, index) => {
       const entry = entries[index];
       if(!entry) return;
@@ -2411,17 +2427,19 @@ function topLevelSourceEntries(text, settings){
 }
 
 // 원본 텍스트에서 srcRaw 줄을 떼어내 destRaw 줄 앞에 끼워넣음 (destRaw=null이면 맨 끝)
-function moveLineInText(text, srcRaw, destRaw){
+function moveLineInText(text, srcRaw, destRaw, preserveSourceGap = false){
   let lines = text.split('\n');
   const moved = lines[srcRaw];
   if(moved === undefined) return text;
-  lines.splice(srcRaw, 1);
+  // 코멘트 사진의 빈 자리는 문단 경계다. [BR] 앞뒤 글자를 새로 합치지 않는다.
+  if(preserveSourceGap) clearCommentImageLine(lines, srcRaw);
+  else lines.splice(srcRaw, 1);
   let dest = destRaw;
   if(dest === null || dest === undefined){
     if(lines.length && lines[lines.length - 1].trim() !== '') lines.push('');
     lines.push(moved);
   } else {
-    if(dest > srcRaw) dest -= 1;   // 앞쪽을 뺐으니 목적지가 한 칸 당겨짐
+    if(dest > srcRaw && !preserveSourceGap) dest -= 1;   // 앞쪽을 뺐으니 목적지가 한 칸 당겨짐
     dest = Math.max(0, Math.min(lines.length, dest));
     const insert = [];
     if(dest > 0 && lines[dest - 1].trim() !== '') insert.push('');
@@ -3209,13 +3227,27 @@ function syncPreviewOuterBreaks(){
 }
 
 // 한 번 클릭하면 편집 메뉴를 열고, 일정 거리 이상 움직이면 기존 드래그 이동을 시작한다.
-function bindSeparatorInteraction(target, dragCtx, menuCtx){
+function bindSeparatorInteraction(target, dragCtx, menuCtx, refreshContext = null){
   const MOVE_PX = 7;
   let suppressClick = false;
+  const refresh = () => {
+    if(!refreshContext) return true;
+    const contexts = refreshContext();
+    if(!contexts) return false;
+    ({dragCtx, menuCtx} = contexts);
+    return true;
+  };
 
   target.addEventListener('mousedown', e => {
     if(e.button !== 0) return;
     e.preventDefault();
+    if(refreshContext){
+      // 코멘트 글을 쓰다 사진을 조작해도 blur 저장을 먼저 마친 뒤 최신 줄에 연결한다.
+      const active = document.activeElement;
+      if(active && active.matches('[data-preview-direct-edit="true"]')) active.blur();
+      if(previewRenderState.frame) uiUpdateEffects.renderNow();
+      if(!refresh()) return;
+    }
     const sx = e.clientX, sy = e.clientY;
     const cleanup = () => {
       document.removeEventListener('mousemove', onMove);
@@ -3225,8 +3257,8 @@ function bindSeparatorInteraction(target, dragCtx, menuCtx){
       if(Math.hypot(ev.clientX - sx, ev.clientY - sy) < MOVE_PX) return;
       cleanup();
       if(dragCtx){
+        if(startBlockDrag(dragCtx) === false) return;
         suppressClick = true;
-        startBlockDrag(dragCtx);
         // 드래그를 시작시킨 첫 이동도 목적지 계산에 포함한다. 다음 mousemove 없이
         // 바로 놓는 빠른 조작에서는 이 좌표를 버리면 moved가 끝내 false로 남는다.
         onBlockDragMove(ev);
@@ -3239,6 +3271,7 @@ function bindSeparatorInteraction(target, dragCtx, menuCtx){
   target.addEventListener('click', e => {
     e.preventDefault();
     if(suppressClick){ suppressClick = false; return; }
+    if(!refresh()) return;
     showBlockToolbar(menuCtx);
   });
   target.addEventListener('contextmenu', e => e.preventDefault());
@@ -3273,6 +3306,48 @@ function bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx){
   bindSeparatorInteraction(block, dragCtx, menuCtx);
 }
 
+function bindImageBlockInteraction(block, dragCtx, menuCtx, refreshContext = null){
+  if(!block || block.dataset.mosaicImageEditBound === 'true') return;
+  block.dataset.mosaicImageEditBound = 'true';
+  block.style.cursor = dragCtx ? 'grab' : 'pointer';
+  block.title = dragCtx ? '클릭해서 삭제/비율/캡션 · 드래그로 이미지 이동' : '클릭해서 이미지 삭제/비율/캡션 편집';
+  bindSeparatorInteraction(block, dragCtx, menuCtx, refreshContext);
+}
+
+// 이미지의 전체 순서·원문이 그대로일 때만 최신 코멘트의 줄 번호와 문단 경계를 갱신한다.
+// 글을 직접 수정해 줄 수가 바뀌어도 이미지 주소가 같은 다른 코멘트로 연결하지 않는다.
+function commentImageInteractionContexts(seed){
+  const ctx = previewCommentContexts().find(context => context.ta === seed.ta);
+  if(!ctx) return null;
+  const entries = commentDisplayEntries(ctx.ta), blocks = Array.from(ctx.commentEl.children);
+  if(entries.length !== blocks.length) return null;
+  const lines = ctx.ta.value.split('\n');
+  const images = entries.filter(entry => entry.image);
+  if(JSON.stringify(images.map(entry => lines[entry.raw])) !== seed.imageSequence) return null;
+  const entry = images[seed.imageIndex];
+  if(!entry) return null;
+  const index = entries.indexOf(entry), block = blocks[index];
+  if(!block.matches('[data-mosaic-comment-image]') || !block.querySelector('img')) return null;
+  const sourceValue = ctx.ta.value;
+  return {
+    menuCtx:{block,ta:ctx.ta,raw:entry.raw,type:'img',comment:true,sourceValue},
+    dragCtx:{block,blocks,map:entries.map(item => ({startRaw:item.raw})),ta:ctx.ta,
+      srcIndex:index,label:'코멘트 이미지',type:'img',comment:true,sourceValue}
+  };
+}
+
+function enableCommentImageInteractions(){
+  previewCommentContexts().forEach(ctx => {
+    const entries = commentDisplayEntries(ctx.ta), lines = ctx.ta.value.split('\n');
+    const imageSequence = JSON.stringify(entries.filter(entry => entry.image).map(entry => lines[entry.raw]));
+    entries.filter(entry => entry.image).forEach((entry, imageIndex) => {
+      const refresh = () => commentImageInteractionContexts({ta:ctx.ta,imageIndex,imageSequence});
+      const contexts = refresh();
+      if(contexts) bindImageBlockInteraction(contexts.menuCtx.block, contexts.dragCtx, contexts.menuCtx, refresh);
+    });
+  });
+}
+
 // 최상위 이미지·문단 구분 요소는 드래그 이동도 지원한다.
 // 접기 안쪽 이미지는 구조를 깨지 않도록 이동은 막고 클릭 편집만 연결한다.
 function enableBlockDrag(preview){
@@ -3285,6 +3360,7 @@ function enableBlockDrag(preview){
   // 미리보기 최상위 자식 중 '카드'만 골라냄 (썸네일 p, 이미지 밴드, 표제 밴드 제외)
   const indexedCardEls = Array.from(preview.querySelectorAll(':scope > [data-mosaic-card-index]'));
   const cardEls = indexedCardEls.length ? indexedCardEls : Array.from(preview.children).filter(el => {
+    if(el.hasAttribute('data-mosaic-comment-index')) return false;
     if(el.tagName === 'DETAILS') return true;
     if(el.tagName !== 'DIV') return false;
     if(el.style.backgroundImage) return false;
@@ -3317,11 +3393,7 @@ function enableBlockDrag(preview){
       if(sourceImages.length !== previewImages.length) return;
       previewImages.forEach((img, index) => {
         const block = img.parentElement;
-        if(!block || block.dataset.mosaicImageEditBound === 'true') return;
-        block.dataset.mosaicImageEditBound = 'true';
-        block.style.cursor = 'pointer';
-        block.title = '클릭해서 이미지 삭제/비율/캡션 편집';
-        bindSeparatorInteraction(block, null, {
+        bindImageBlockInteraction(block, null, {
           block,
           ta,
           raw: sourceImages[index].raw,
@@ -3388,18 +3460,17 @@ function enableBlockDrag(preview){
       if(isHr || isHr2 || isHr3 || isHr4){
         bindSeparatorBlockInteraction(block, type, dragCtx, menuCtx);
       } else {
-        block.dataset.mosaicImageEditBound = 'true';
-        block.style.cursor = 'grab';
-        block.title = '클릭해서 삭제/비율/캡션 · 드래그로 이미지 이동';
-        bindSeparatorInteraction(block, dragCtx, menuCtx);
+        bindImageBlockInteraction(block, dragCtx, menuCtx);
       }
     });
     bindRemainingBodyImages();
     bindRemainingBodySeparators();
   });
+  enableCommentImageInteractions();
 }
 
 function startBlockDrag(ctx){
+  if(!previewBlockContextCurrent(ctx)) return false;
   const { block, blocks } = ctx;
   block.style.opacity = '0.45';
   block.style.cursor = 'grabbing';
@@ -3437,12 +3508,14 @@ function onBlockDragEnd(){
   document.removeEventListener('mousemove', onBlockDragMove);
   document.removeEventListener('mouseup', onBlockDragEnd);
   if(!previewEditState.drag) return;
-  const { block, marker, map, ta, srcIndex, destIndex, moved, label, type } = previewEditState.drag;
+  const ctx = previewEditState.drag;
+  const { block, marker, map, ta, srcIndex, destIndex, moved, label, type, comment } = ctx;
   block.style.opacity = '';
   block.style.cursor = 'grab';
   if(marker.parentNode) marker.remove();
   previewEditState.drag = null;
 
+  if(!previewBlockContextCurrent(ctx)) return;
   if(!moved || destIndex === null) return;
   if(destIndex === srcIndex || destIndex === srcIndex + 1) return; // 제자리
 
@@ -3453,7 +3526,7 @@ function onBlockDragEnd(){
     ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, MosaicState.getSettings())
     : null;
   const nextText = splitMove === null
-    ? moveLineInText(ta.value, srcRaw, destRaw)
+    ? moveLineInText(ta.value, srcRaw, destRaw, comment)
     : splitMove;
   if(nextText === ta.value) return;
   MosaicStorage.snapshotCards();
@@ -5556,18 +5629,21 @@ function bindCardEditorDelegatedEvents(){
     trigger?.focus({preventScroll:true});
   }, true);
 }
-const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertImgBtn','insertQuoteBtn','insertFoldBtn'];
+const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','separatorInsertSelect','insertQuoteBtn','insertFoldBtn'];
 function syncBodyOnlyToolbarAvailability(event){
   const focused = event && event.target && event.target.matches('#cardEditors textarea')
     ? event.target
     : cardEditorState.activeTextarea;
   const commentActive = !!(focused && focused.closest && focused.closest('.commentEditor'));
   const toolbar = document.getElementById('bodyEditorToolbar');
-  if(toolbar) toolbar.setAttribute('aria-disabled', String(commentActive));
+  // 이미지는 코멘트에서도 쓸 수 있으므로 도구모음 전체를 비활성으로 표시하지 않는다.
+  if(toolbar) toolbar.setAttribute('aria-disabled', 'false');
   BODY_ONLY_TOOL_IDS.forEach(id => {
     const button = document.getElementById(id);
     if(button) button.disabled = commentActive;
   });
+  const imageButton = document.getElementById('insertImgBtn');
+  if(imageButton) imageButton.disabled = false;
 }
 
 // 일반 본문·대사·인용문 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
@@ -6515,8 +6591,10 @@ function bindUndoToastEvents(){
 function insertIntoBody(prefix, suffix, placeholder, label){
   // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
   let ta = cardEditorState.activeTextarea;
-  // 코멘트에 포커스가 있을 때 본문 전용 버튼이 인접 카드까지 몰래 수정하지 않게 한다.
-  if(ta && ta.closest('.commentEditor')) return;
+  const imageInsertion = !suffix && !placeholder && !!MosaicRenderer.parseBodyImageLine(prefix);
+  // 코멘트에는 이미지 삽입만 허용하고 나머지 본문 전용 문법은 계속 차단한다.
+  const sourceTextarea = ta && (ta.__mirror || ta);
+  if(sourceTextarea && sourceTextarea.closest('.commentEditor') && !imageInsertion) return;
   ta = ta || document.querySelector('#cardEditors .cardEditor:not(.commentEditor) textarea');
   if(!ta) return;
   cardEditorState.activeTextarea = ta;
@@ -6527,7 +6605,8 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   const before = ta.value.slice(0, start);
   const after = ta.value.slice(end);
   const selected = ta.value.slice(start, end);
-  const middle = selected || placeholder || '';
+  // 이미지는 독립된 한 줄이어야 한다. 선택한 글자는 지우지 않고 이미지 다음 문단에 둔다.
+  const middle = selected ? (imageInsertion ? '\n\n' : '') + selected : placeholder || '';
   MosaicStorage.snapshotCards();
 
   // 앞뒤로 빈 줄이 없으면 자동으로 넣어서 문단 규칙(엔터 구분)이 안 깨지게 함

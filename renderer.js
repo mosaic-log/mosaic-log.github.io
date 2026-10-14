@@ -1,6 +1,6 @@
-// 조각로그 v1.8.6 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.7 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.6 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.7 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -2800,9 +2800,8 @@ function buildCredit(settings){
   return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${settingFlagOn(settings.creditBorderOn) ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor}; font-family:${font}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${rows}</div>\n`;
 }
 
-// 코멘트는 본문 문법을 해석하지 않되, Shift+Enter가 남긴 줄 끝 [BR]만
-// 같은 문단 안의 줄바꿈으로 처리한다. 각 조각은 이후 반드시 escapeTextHTML을
-// 거치므로 다른 카드 문법이나 HTML이 이 경로로 실행되지 않는다.
+// 코멘트에서는 독립된 [IMG] 줄과 Shift+Enter의 줄 끝 [BR]만 해석한다.
+// 나머지 글자와 이미지 캡션은 escapeTextHTML을 거쳐 다른 본문 문법/HTML을 실행하지 않는다.
 function commentParagraphEntries(value){
   const lines = String(value || '').split('\n');
   const entries = [];
@@ -2810,13 +2809,21 @@ function commentParagraphEntries(value){
     let rawEnd = raw;
     let current = String(lines[rawEnd]).trim();
     if(!current) continue;
+    const image = parseBodyImageLine(current);
+    if(image){
+      entries.push({raw, rawEnd, parts:[current], image});
+      continue;
+    }
     const parts = [];
     while(/\[BR\]\s*$/i.test(current) && rawEnd + 1 < lines.length){
       parts.push(current.replace(/\[BR\]\s*$/i, '').trim());
+      const next = String(lines[rawEnd + 1]).trim();
+      // [BR] 연결도 독립된 이미지 줄을 삼키지 않는다.
+      if(parseBodyImageLine(next)){ current = null; break; }
       rawEnd++;
-      current = String(lines[rawEnd]).trim();
+      current = next;
     }
-    parts.push(current);
+    if(current !== null) parts.push(current);
     entries.push({ raw, rawEnd, parts });
     raw = rawEnd;
   }
@@ -2825,8 +2832,16 @@ function commentParagraphEntries(value){
 
 function buildCommentBlock(comment, settings){
   const paragraphStyle = settings.commentAlign === 'center' ? ' style="text-align:center;"' : '';
-  const paragraphs = commentParagraphEntries(comment.body)
-    .map(entry => `<p${paragraphStyle}>${entry.parts.map(escapeTextHTML).join('<br>')}</p>`);
+  const entries = commentParagraphEntries(comment.body);
+  const paragraphs = entries.map((entry, index) => {
+    if(!entry.image) return `<p${paragraphStyle}>${entry.parts.map(escapeTextHTML).join('<br>')}</p>`;
+    const {src, width, caption} = entry.image;
+    const imageSrc = src.startsWith('//') ? 'https:' + src : src;
+    const align = settings.commentAlign === 'center' ? 'center' : 'left';
+    const sideMargin = align === 'center' ? 'auto' : '0';
+    const captionHTML = caption ? `<p style="width:${width}%; max-width:100%; margin:7px ${sideMargin} 0; text-align:${align}; font-size:11.5px; line-height:1.5;">${escapeTextHTML(caption)}</p>` : '';
+    return `<div data-mosaic-comment-image="true" style="margin:${index === 0 ? 0 : 16}px 0 ${index === entries.length - 1 ? 0 : 16}px; line-height:0; font-size:0; text-align:${align};"><img src="${escapeAttr(imageSrc)}" alt="${escapeAttr(caption)}" class="fr-fic fr-dib" style="width:${width}%; max-width:100%; height:auto; display:block; margin:0 ${sideMargin};">${captionHTML}</div>`;
+  });
   if(!paragraphs.length) return '';
   // 카드 디자인과 섞이지 않도록 배경·외곽선은 두지 않는다. 기본·가운데는
   // 아카라이브 게시글 폭 전체를, 카드 폭만 현재 설정의 max-width를 사용한다.
@@ -3448,6 +3463,37 @@ function finalizeCoverProfileBoundaries(html, settings){
       if(child.style.position === 'absolute' && child.style.bottom === '0px'
         && (child.style.height === '1px' || child.style.height === '0.5px')) child.remove();
     });
+  });
+  // 프로필과 마찬가지로 실제 색면에도 모서리를 둔다. 게시판이 바깥 overflow를
+  // 없애도 덮개가 네모나게 돌출하지 않도록, 간격·이어보기·테마 처리 뒤 확정한다.
+  finalSections.forEach(title => {
+    if(!title.hasAttribute('data-mosaic-title') || !title.hasAttribute('data-mosaic-image-background')) return;
+    const overlay = title.querySelector(':scope > [data-mosaic-photo-overlay="true"]');
+    if(!overlay) return;
+    // 각진 테마는 이미 모든 면을 0으로 잠근다. 그 선언과 우선순위는 그대로 둔다.
+    if(outputThemeShape(settings.outputTheme) === 'document') return;
+    const style = title.style;
+    // 표제의 반경은 설정에서 생성한 px 값이다. 하단 간격은 개별 모서리 선언으로,
+    // 각진 테마는 우선순위가 높은 축약형으로 바뀌므로 둘의 최종 우선순위를 따른다.
+    const [topLeft, topRight = topLeft, bottomRight = topLeft, bottomLeft = topRight] = (style.borderRadius || '0').split(/\s+/);
+    const fallback = [topLeft, topRight, bottomRight, bottomLeft];
+    const corners = [['top-left','left','top'], ['top-right','right','top'], ['bottom-right','right','bottom'], ['bottom-left','left','bottom']];
+    const borderWidth = edge => style.getPropertyValue(`border-${edge}-style`) === 'none'
+      ? 0 : parseFloat(style.getPropertyValue(`border-${edge}-width`)) || 0;
+    const horizontal = [], vertical = [];
+    corners.forEach(([corner, side, edge], index) => {
+      const property = `border-${corner}-radius`;
+      const explicit = style.getPropertyValue(property);
+      const explicitWins = explicit && (style.getPropertyPriority('border-radius') !== 'important'
+        || style.getPropertyPriority(property) === 'important');
+      const radius = Math.max(0, parseFloat(explicitWins ? explicit : fallback[index]) || 0);
+      // 덮개는 외곽선 안쪽에 있으므로 가로·세로의 선 두께만큼 반경을 줄인다.
+      horizontal.push(Math.max(0, radius - borderWidth(side)) + 'px');
+      vertical.push(Math.max(0, radius - borderWidth(edge)) + 'px');
+    });
+    const radius = horizontal.join(' ') + (horizontal.some((value, index) => value !== vertical[index])
+      ? ' / ' + vertical.join(' ') : '');
+    overlay.style.setProperty('border-radius', radius, overlay.style.getPropertyPriority('border-radius'));
   });
   return template.innerHTML;
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.6 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.7 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -19,7 +19,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.6 GitHub 저장소 열기">v1.8.6</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.7 GitHub 저장소 열기">v1.8.7</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -394,7 +394,7 @@
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
-        <button class="uiToolbarButton" type="button" id="insertImgBtn" title="본문 중간 이미지 삽입">이미지</button>
+        <button class="uiToolbarButton" type="button" id="insertImgBtn" title="본문·코멘트에 이미지 삽입">이미지</button>
         <button class="uiToolbarButton" type="button" id="insertQuoteBtn" title="인용/편지/시스템 메시지 블록">인용</button>
         <button class="uiToolbarButton" type="button" id="insertFoldBtn" title="선택 부분을 접기로 감싸기">접기</button>
       </span>
@@ -408,8 +408,8 @@
     <details class="helpFold">
       <summary>카드·드래그 도움말</summary>
       <p class="hint"><b>드래그 이동:</b> 이미지·구분선·장면 전환·호흡·여백 위치 변경</p>
-      <p class="hint"><b>한 번 클릭:</b> 본문 이미지 삭제·비율·캡션 · 구분 요소 변경·삭제</p>
-      <p class="hint"><b>코멘트:</b> 카드 사이에 아카라이브 기본 문단을 삽입 · 본문 문법·찾기·치환 미적용</p>
+      <p class="hint"><b>한 번 클릭:</b> 본문·코멘트 이미지 삭제·비율·캡션 · 구분 요소 변경·삭제</p>
+      <p class="hint"><b>코멘트:</b> 카드 사이에 아카라이브 기본 문단과 이미지를 삽입 · 사진은 코멘트 안에서 드래그 이동 · 다른 본문 문법·찾기·치환 미적용</p>
     </details>
     <details class="syntaxHelp">
       <summary>입력 문법 도움말</summary>
@@ -436,7 +436,7 @@
         <p class="hint"><b>접기 카드 미니멀:</b> 제목·본문 사이 선 대신 여백</p>
         <p class="hint"><b>일부 접기:</b> <code>[접기 제목]</code> … <code>[/접기]</code> · 제목 생략 가능 · 미종료 시 카드 끝까지</p>
         <p class="hint"><b>접기 제목 크기:</b> <code>[접기 ## 제목]</code> … <code>[/접기]</code> · #부터 ####까지 사용 가능</p>
-        <p class="hint"><b>본문 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
+        <p class="hint"><b>본문·코멘트 이미지:</b> <code>[IMG 주소]</code> · 축소 <code>[IMG 주소 @60]</code> · 캡션 <code>| 캡션</code> · 한 번 클릭 → 삭제·비율·캡션</p>
       </div>
       <div class="syntaxHelpSection">
         <div class="syntaxHelpSectionTitle">편집 도구</div>
@@ -1394,12 +1394,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=c606a5a04b74" defer></script>
-<script src="./parser.js?v=18287a30e61e" defer></script>
-  <script src="./renderer.js?v=248a8105fe50" defer></script>
-<script src="./ui.js?v=3f748ac8ff68" defer></script>
-<script src="./storage.js?v=156aa87d3b22" defer></script>
-<script src="./app.js?v=e1e5b64741fe" defer></script>
+<script src="./state.js?v=1b5a4243107c" defer></script>
+<script src="./parser.js?v=680ec5ac9638" defer></script>
+  <script src="./renderer.js?v=4889a8df3510" defer></script>
+<script src="./ui.js?v=45687971d4f3" defer></script>
+<script src="./storage.js?v=bd9351385ac2" defer></script>
+<script src="./app.js?v=00088da85d3c" defer></script>
 
 </body>
 </html>
