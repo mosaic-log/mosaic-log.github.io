@@ -1,6 +1,6 @@
-// 조각로그 v1.8.7 상태 스키마.
+// 조각로그 v1.8.8 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.8.7';
+const APP_VERSION = '1.8.8';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -78,12 +78,12 @@ const extraProfileFields = slot => {
   return ['Role','Image','Scale','X','Y','Name','Desc','Tags'].map(field => prefix + field);
 };
 
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','profilePlacement','profileTextPosition','profileStyle','profileOrder','profileEntityOrder','profileExtraCount','profileCharRole','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserRole','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags',...EXTRA_PROFILE_SLOTS.flatMap(extraProfileFields),'profileRelationship','profileSituation','nameRules','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','titleTextPosition','profilePlacement','profileTextPosition','profileStyle','profileOrder','profileEntityOrder','profileExtraCount','profileCharRole','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserRole','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags',...EXTRA_PROFILE_SLOTS.flatMap(extraProfileFields),'profileRelationship','profileSituation','nameRules','keywordRules'];
 
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
-  logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'',
+  logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'', titleTextPosition:'center',
   profilePlacement:'below', profileTextPosition:'center', profileStyle:'compact', profileOrder:'bot-user', profileEntityOrder:'["bot","user"]', profileExtraCount:'0', profileCharRole:'BOT', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserRole:'USER', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
   ...Object.fromEntries(EXTRA_PROFILE_SLOTS.flatMap(slot => {
     const prefix = extraProfilePrefix(slot);
@@ -212,6 +212,7 @@ function getSettings(){
     logTitleOn: document.getElementById('logTitleOn').checked,
     titleMinimal: document.getElementById('titleMinimal').checked,
     titleImageBackgroundOn: document.getElementById('titleImageBackgroundOn').checked,
+    titleTextPosition: document.getElementById('titleTextPosition').value,
     logNumber: document.getElementById('logNumber').value,
     logTitle: document.getElementById('logTitle').value,
     subChar: document.getElementById('subChar').value,

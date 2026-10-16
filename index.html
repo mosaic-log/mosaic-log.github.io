@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.7 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.8 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=455cb04c5309">
+<link rel="stylesheet" href="./styles.css?v=5d720f172b85">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.7 GitHub 저장소 열기">v1.8.7</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.8 GitHub 저장소 열기">v1.8.8</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -85,6 +85,19 @@
       <span class="segmentedChoice" data-background-control="titleImageBackgroundOn" role="group" aria-labelledby="titleImageBackgroundLabel">
         <button class="uiButton" type="button" data-value="default" aria-pressed="true">기본</button>
         <button class="uiButton" type="button" data-value="image" aria-pressed="false">대표 이미지</button>
+      </span>
+    </div>
+    <div class="row segmentedChoiceRow" id="titleTextPositionRow" hidden>
+      <label id="titleTextPositionLabel">라벨 위치</label>
+      <select id="titleTextPosition" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
+        <option value="top">상단</option>
+        <option value="center" selected>중앙</option>
+        <option value="bottom">하단</option>
+      </select>
+      <span class="segmentedChoice" data-control="titleTextPosition" role="group" aria-labelledby="titleTextPositionLabel">
+        <button class="uiButton" type="button" data-value="top" aria-pressed="false">상단</button>
+        <button class="uiButton" type="button" data-value="center" aria-pressed="true">중앙</button>
+        <button class="uiButton" type="button" data-value="bottom" aria-pressed="false">하단</button>
       </span>
     </div>
     <div class="row titleFieldRow">
@@ -1394,12 +1407,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=1b5a4243107c" defer></script>
-<script src="./parser.js?v=680ec5ac9638" defer></script>
-  <script src="./renderer.js?v=4889a8df3510" defer></script>
-<script src="./ui.js?v=45687971d4f3" defer></script>
-<script src="./storage.js?v=f8231ab62903" defer></script>
-<script src="./app.js?v=00088da85d3c" defer></script>
+<script src="./state.js?v=54dc91e5fe96" defer></script>
+<script src="./parser.js?v=800c79684f04" defer></script>
+  <script src="./renderer.js?v=ea80e3c1ea1c" defer></script>
+<script src="./ui.js?v=cc707e5e4fcd" defer></script>
+<script src="./storage.js?v=12ce4845b112" defer></script>
+<script src="./app.js?v=afc888867ba2" defer></script>
 
 </body>
 </html>

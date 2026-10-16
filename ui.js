@@ -1,4 +1,4 @@
-// 조각로그 v1.8.7 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.8 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
@@ -18,7 +18,7 @@ const uiElements = Object.freeze({
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.7 미리보기 렌더 조정기.
+// 조각로그 v1.8.8 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -146,7 +146,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.7 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.8 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches
@@ -4081,9 +4081,8 @@ function syncImageBackgroundChoice(id){
     button.setAttribute('aria-pressed', String(input.checked === (button.dataset.value === 'image')));
     button.disabled = input.disabled;
   });
-  if(id === 'profileImageBackgroundOn'){
-    document.getElementById('profileTextPositionRow').hidden = !input.checked;
-  }
+  const positionRow = id === 'profileImageBackgroundOn' ? 'profileTextPositionRow' : 'titleTextPositionRow';
+  document.getElementById(positionRow).hidden = !input.checked;
 }
 
 function bindImageBackgroundChoiceEvents(){
@@ -5046,6 +5045,7 @@ const PREVIEW_FOCUS_MAP = {
   logSubtitle:() => previewParts().title,
   logTitleOn: () => previewParts().title,
   titleMinimal:() => previewParts().title,
+  titleTextPosition:() => previewParts().title,
   imgOn:      () => previewParts().image,
   imgUrl:     () => previewParts().image,
   imgHeight:  () => previewParts().image,
@@ -6121,6 +6121,7 @@ function moveEditorBySibling(editor, direction, message){
   else editor.parentNode.insertBefore(sibling, editor);
   renumberCards();
   afterEditorControlChange();
+  scrollCardIntoSidebar(editor, null, {alignStart:true});
   showUndoToast(message);
 }
 
@@ -7568,20 +7569,44 @@ function searchHlMarkup(text, query, base, curGlobal){
 }
 
 // 카드 시작점 또는 펼친 본문의 특정 줄을 사이드바 안에서만 스크롤한다.
-// anchorTop은 선택 줄의 화면 y 좌표이며 미리보기·페이지는 밀지 않는다.
-function scrollCardIntoSidebar(ed, anchorTop = null){
-  if(!ed || !ed.isConnected || isStackedLayout()) return;
+// 순서 버튼의 alignStart는 화면 안에 있어도 상단에 맞춘다. 세로 배치에서만
+// 페이지가 입력 패널의 스크롤을 담당하며, 기존 미리보기 위치 연동은 건드리지 않는다.
+function scrollCardIntoSidebar(ed, anchorTop = null, {alignStart = false} = {}){
+  if(!ed || !ed.isConnected) return;
+  const stacked = isStackedLayout();
+  if(stacked && !alignStart) return;
   const sidebar = document.getElementById('sidebar');
   const sidebarTop = document.getElementById('sidebarTop');
   const edRect = ed.getBoundingClientRect();
   const sbRect = sidebar.getBoundingClientRect();
   const margin = 12;
+  const bodyToolbar = document.getElementById('bodyEditorToolbar');
+  const toolbarVisible = bodyToolbar && bodyToolbar.offsetParent !== null;
+  if(alignStart){
+    // 이동 전의 실제 toolbar.bottom은 아직 sticky 위치가 아닐 수 있다.
+    // 최종 고정 위치로 계산해 한 번의 스크롤로 카드 머리를 도구 바로 아래에 둔다.
+    const headerHeight = sidebarTop ? sidebarTop.getBoundingClientRect().height : 0;
+    syncBodyToolbarStickyOffset();
+    const toolbarTop = toolbarVisible ? parseFloat(getComputedStyle(bodyToolbar).top) : 0;
+    const toolbarBottom = toolbarVisible
+      ? (Number.isFinite(toolbarTop) ? toolbarTop : Math.max(0, headerHeight - 2))
+        + bodyToolbar.getBoundingClientRect().height
+      : 0;
+    const viewportTop = stacked ? 0 : sbRect.top + sidebar.clientTop;
+    const desiredTop = viewportTop + Math.max(headerHeight, toolbarBottom) + margin;
+    const scroller = stacked ? (document.scrollingElement || document.documentElement) : sidebar;
+    const currentTop = stacked ? window.scrollY : sidebar.scrollTop;
+    const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const nextTop = Math.max(0, Math.min(maxTop, currentTop + edRect.top - desiredTop));
+    if(stacked) window.scrollTo({top:nextTop, behavior:'instant'});
+    else sidebar.scrollTop = nextTop;
+    return;
+  }
   const headerGap = 28;  // 고정 탭 아래에 카드 헤더가 숨지 않도록 주는 여유
   // #sidebarTop은 sticky라 카드가 그 아래로 숨을 수 있다. 실제 보이는 시작점은
   // 사이드바 맨 위가 아니라 고정 헤더의 아랫선이다.
   const headerBottom = sidebarTop ? sidebarTop.getBoundingClientRect().bottom : sbRect.top;
-  const bodyToolbar = document.getElementById('bodyEditorToolbar');
-  const toolbarBottom = bodyToolbar && bodyToolbar.offsetParent !== null
+  const toolbarBottom = toolbarVisible
     ? bodyToolbar.getBoundingClientRect().bottom
     : headerBottom;
   const desiredTop = Math.max(sbRect.top + margin, headerBottom + headerGap, toolbarBottom + margin);

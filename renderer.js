@@ -1,6 +1,6 @@
-// 조각로그 v1.8.7 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.8 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.7 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.8 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -1969,8 +1969,10 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
     : '';
   const imageHeightValue = Number(settings.imgHeight);
   const imageHeight = Number.isFinite(imageHeightValue) ? Math.min(600, Math.max(100, imageHeightValue)) : 300;
+  const textVerticalAlign = settings.titleTextPosition === 'top' ? 'top'
+    : settings.titleTextPosition === 'bottom' ? 'bottom' : 'middle';
   const titleContent = imageBackground
-    ? `<div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${padTop}px ${inlinePadding} ${padBottom}px; background-color:rgba(0,0,0,.56);"><div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;">${inner}</div></div></div>`
+    ? `<div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${padTop}px ${inlinePadding} ${padBottom}px; background-color:rgba(0,0,0,.56);"><div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center;">${inner}</div></div></div>`
     : inner;
   const titlePadding = imageBackground ? '0' : `${padTop}px ${inlinePadding} ${padBottom}px`;
   return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} ${seamlessBottom} padding:${titlePadding}; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
@@ -2876,11 +2878,11 @@ function resolveIntroBoundaryLayout({
   profileBoundary,
   bottomMargin,
   coverCardGap,
-  cardGap,
   standaloneTopProfile
 }){
+  // 0도 명시적인 간격이다. 독립 프로필의 모서리 보존과 여백 계산을 분리한다.
   const adjustedMargin = profileBoundary
-    ? (standaloneTopProfile && coverCardGap === 0 ? cardGap : coverCardGap)
+    ? coverCardGap
     : Math.max(0, bottomMargin + coverCardGap);
   return {
     adjustedMargin,
@@ -2900,7 +2902,6 @@ function addCoverCardGapAfterIntro(html, settings, standaloneTopProfile = false)
     profileBoundary,
     bottomMargin,
     coverCardGap:extra,
-    cardGap:cardGapPx(settings),
     standaloneTopProfile
   });
   if(adjustedMargin === bottomMargin && !flattenProfile) return html;
@@ -2980,7 +2981,9 @@ function applyUnifiedCardLayout(html, settings){
   const imageTitleTouchesBody = firstBodyIndex > 0
     && sections[firstBodyIndex - 1] === introBoundary
     && introBoundary.hasAttribute('data-mosaic-image-background')
-    && coverCardGapPx(settings) === 0;
+    // 이어보기 사진 표제는 양수 간격도 본문 안쪽 패딩이다. 실제 바깥 틈은 없다.
+    // 사진 프로필의 기존 간격·접기 배치는 별도 하단 경계 정책을 그대로 따른다.
+    && (introBoundary.hasAttribute('data-mosaic-title') || coverCardGapPx(settings) === 0);
   const showIntroBoundary = hasUnifiedTitle && !settingFlagOn(settings.titleMinimal)
     && !imageTitleTouchesBody;
   sections.forEach((section, index) => {
@@ -3169,6 +3172,15 @@ function clearCoverEdge(element, edge){
   if(overlay) removeCoverEdgeBackgroundLine(overlay, edge);
 }
 
+function hasCoverEdgeLine(element, edge){
+  if(!element) return false;
+  const style = element.style;
+  return (style.getPropertyValue(`border-${edge}-style`) !== 'none'
+      && (parseFloat(style.getPropertyValue(`border-${edge}-width`)) || 0) > 0)
+    || (style.backgroundImage.includes('linear-gradient') && style.backgroundPosition.includes(edge)
+      && /(?:^|\s)(?:0?\.5|1|2)px(?:\s*,|$)/.test(style.backgroundSize));
+}
+
 // 이웃한 두 영역의 사진 접합 규칙은 여기서 한 번 결정한다.
 function resolveCoverProfileBoundary(first, second, settings){
   const isProfile = section => section.hasAttribute('data-mosaic-profile');
@@ -3183,15 +3195,22 @@ function resolveCoverProfileBoundary(first, second, settings){
     ? normalizeCardLayout(settings.cardLayout) === 'unified' || profileTitleGapPx(settings) === -20
     : photoFirst && !first.hasAttribute('data-mosaic-title'));
   const nextIsBody = second.hasAttribute('data-mosaic-card-index') || second.hasAttribute('data-mosaic-comment-index');
-  const gap = Math.max(0, Number.parseFloat(first.style.marginBottom) || 0)
-    + Math.max(0, Number.parseFloat(second.style.marginTop) || 0)
-    + (nextIsBody ? coverCardGapPx(settings) : 0);
+  const marginGap = Math.max(0, Number.parseFloat(first.style.marginBottom) || 0)
+    + Math.max(0, Number.parseFloat(second.style.marginTop) || 0);
+  // 이어보기의 본문 안쪽 패딩은 사진 아래의 바깥 틈이 아니다. 프로필 끝까지
+  // 사진인 면이 실제로 붙으면 선만 지우고, 사진끼리의 접합선은 그대로 둔다.
+  const removePhotoProfileSeam = first.hasAttribute('data-mosaic-photo-profile')
+    && (nextIsBody || second.hasAttribute('data-mosaic-title') || isProfile(second))
+    && !isPhotoCover(second) && !second.hasAttribute('data-mosaic-photo-profile') && marginGap === 0
+    && (hasCoverEdgeLine(first, 'bottom') || hasCoverEdgeLine(second, 'top')
+      || hasCoverEdgeLine(second.querySelector(':scope > summary, :scope > [data-mosaic-card-title="true"]'), 'top'));
   return {
     photo:joinPhoto ? (profileFirst ? second : first) : null,
     photoEdge:profileFirst ? 'top' : 'bottom',
+    removePhotoProfileSeam,
     removeImageSeam:shouldRemoveImageTitleBodySeam({
       imageBackedTitle:first.hasAttribute('data-mosaic-title') && first.hasAttribute('data-mosaic-image-background'),
-      nextExists:true, gap
+      nextExists:true, gap:marginGap
     })
   };
 }
@@ -3370,7 +3389,8 @@ function specialThemeOutput(html, mode, settings){
       const imageTitleTouchesBody = firstBodyIndex === titleIndex + 1
         && title.hasAttribute('data-mosaic-image-background')
         && sections[firstBodyIndex].hasAttribute('data-mosaic-card-index')
-        && coverCardGapPx(settings) === 0;
+        && (Math.max(0, Number.parseFloat(title.style.marginBottom) || 0)
+          + Math.max(0, Number.parseFloat(sections[firstBodyIndex].style.marginTop) || 0)) === 0;
       if(firstBodyIndex > titleIndex && !imageTitleTouchesBody){
         const firstBody = sections[firstBodyIndex];
         const attachedProfile = sections.slice(titleIndex + 1, firstBodyIndex)
@@ -3398,7 +3418,7 @@ function specialThemeOutput(html, mode, settings){
 }
 
 // 테마 처리 뒤 한 단계에서 사진·프로필 접합선을 확정한다.
-// 사진 표지의 아래는 선 없이 잇고, 나머지 사진 접합선은 기존 인라인 border를 유지한다.
+// 사진 표지와 끝까지 사진인 프로필 아래는 선 없이 잇되, 사진끼리의 접합선은 유지한다.
 function finalizeCoverProfileBoundaries(html, settings){
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
@@ -3450,15 +3470,15 @@ function finalizeCoverProfileBoundaries(html, settings){
   const finalSections = Array.from(template.content.children).filter(section =>
     !section.hidden && section.getAttribute('aria-hidden') !== 'true'
   );
-  boundaries.forEach(({ removeImageSeam }, index) => {
-    if(!removeImageSeam) return;
-    const title = finalSections[index], body = finalSections[index + 1];
-    clearCoverEdge(title, 'bottom');
-    title.style.setProperty('background-clip', 'border-box', 'important');
-    clearCoverEdge(body, 'top');
-    const heading = body.querySelector(':scope > summary, :scope > [data-mosaic-card-title="true"]');
+  boundaries.forEach(({ removeImageSeam, removePhotoProfileSeam }, index) => {
+    if(!removeImageSeam && !removePhotoProfileSeam) return;
+    const upper = finalSections[index], lower = finalSections[index + 1];
+    clearCoverEdge(upper, 'bottom');
+    if(removeImageSeam) upper.style.setProperty('background-clip', 'border-box', 'important');
+    clearCoverEdge(lower, 'top');
+    const heading = lower.querySelector(':scope > summary, :scope > [data-mosaic-card-title="true"]');
     if(heading) clearCoverEdge(heading, 'top');
-    Array.from(title.children).forEach(child => {
+    Array.from(upper.children).forEach(child => {
       if(child.getAttribute('aria-hidden') !== 'true') return;
       if(child.style.position === 'absolute' && child.style.bottom === '0px'
         && (child.style.height === '1px' || child.style.height === '0.5px')) child.remove();
@@ -3591,7 +3611,7 @@ function buildCard(settings, sourceCards){
   const cardGap = cardGapPx(settings);
   const coverCardGap = coverCardGapPx(settings);
   const imageTitleTouchesBody = hasTitle && !hasAttachedProfile
-    && titleImageBackgroundEnabled(settings) && coverCardGap === 0
+    && titleImageBackgroundEnabled(settings) && (unifiedLayout || coverCardGap === 0)
     && cardList.length > 0 && cardList[0].sourceIndex === firstBodySourceIndex;
   if(imageTitleTouchesBody){
     // 후처리용 data 속성이 제거된 아카라이브 복사본에서도 하단 경계가
@@ -3724,8 +3744,8 @@ ${bodyHTML}${footer}  </div>
   const introFlow = topProfileBlock + imgBlock + titleBand + attachedProfileBlock;
   const directFirstCard = cardList.length && cardList[0].sourceIndex === firstBodySourceIndex;
   // 표제·대표 이미지 없이 최상단 프로필만 앞에 놓인 경우에는 그 프로필이
-  // 본문 도입부에 붙은 조각이 아니라 독립 카드다. 이어보기 OFF에서는 기본 카드
-  // 간격을 보장하고, 간격을 0으로 줄여도 독립 카드의 하단선·둥근 모서리는 남긴다.
+  // 본문 도입부에 붙은 조각이 아니라 독립 카드다. 간격은 표제 ↔ 본문 설정을
+  // 그대로 따르되, 0이어도 독립 카드의 하단선·둥근 모서리는 남긴다.
   const standaloneTopProfileBeforeBody = !unifiedLayout && profileAtTop
     && Boolean(topProfileBlock) && !hasImg && !hasTitle;
   const spacedIntroFlow = !unifiedLayout && directFirstCard

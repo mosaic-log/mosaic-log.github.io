@@ -1,4 +1,4 @@
-// 조각로그 v1.8.7 HTML 복원·파일 저장·로그 보관함 모듈.
+// 조각로그 v1.8.8 HTML 복원·파일 저장·로그 보관함 모듈.
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -250,7 +250,7 @@ function sanitizeImportedWork(data){
     if(typeof source[id] !== 'string' && typeof source[id] !== 'number') return null;
     const value = String(source[id]);
     if(id === 'profilePlacement' && !['below','top'].includes(value)) return null;
-    if(id === 'profileTextPosition' && !['top','center','bottom'].includes(value)) return null;
+    if(['profileTextPosition','titleTextPosition'].includes(id) && !['top','center','bottom'].includes(value)) return null;
     if(id === 'creditPlacement' && !['top','bottom'].includes(value)) return null;
     if(id === 'profileStyle' && !['compact','portrait','showcase'].includes(value)) return null;
     if(id === 'profileOrder' && !['bot-user','user-bot'].includes(value)) return null;
@@ -841,18 +841,20 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   ['nameStatus','keywordStatus','copyStatus','presetStatus','importStatus']
     .forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ''; });
 
-  try { localStorage.removeItem(DRAFT_KEY); } catch(e){ /* 저장소 사용 불가 시 무시 */ }
+  // 초안을 먼저 지우면 원본 비교가 충돌하고 다른 탭의 최신 초안도 잃는다.
+  // 빈 작업도 아래의 공통 저장 경로를 통과시켜 실패·충돌 시 기존 원본을 보존한다.
   renderPresetList();
   renderComboList();
   updateSavePresetBtn();
   MosaicUI.preview.render();
   updateCounter();
-  saveDraft();
+  const saved = saveDraft();
   MosaicUI.feedback.undo('현재 작업 전체 초기화.');
 
   const status = document.getElementById('slotImportStatus');
-  status.style.color = '';
-  status.textContent = '현재 작업을 모두 비웠습니다.';
+  status.style.color = saved ? '' : '#c0392b';
+  status.textContent = saved ? '현재 작업을 모두 비웠습니다.'
+    : '현재 작업은 비웠지만 초안을 저장하지 못했습니다. 상단 저장 상태를 확인해 주세요.';
   setTimeout(() => { status.textContent = ''; }, 3000);
   const activeTextarea = MosaicUI.cards.activeTextarea();
   if(activeTextarea) activeTextarea.focus();
@@ -905,6 +907,26 @@ function draftSaveConflictReason(currentRaw, lastReadRaw, baseUpdatedAt){
   if(currentRaw !== lastReadRaw) return 'changed';
   if(draftUpdatedAtFromRaw(currentRaw) > baseUpdatedAt) return 'newer';
   return '';
+}
+
+// 예전 기본 예시가 자동 저장된 브라우저에서는 새 기본 화면이 영원히 가려졌다.
+// 실제 작성 초안은 보존하고, 제목과 본문이 폐기된 예시와 일치하는 경우만 새 기본값으로 교체한다.
+function isRetiredDefaultDraft(d){
+  if(!d || d.logTitle !== '5.5초의 침묵') return false;
+  let bodies = [];
+  if(Array.isArray(d.cards)){
+    bodies = d.cards.map(card => typeof card === 'string' ? card : (card && card.body) || '');
+  }else if(Array.isArray(d.cardBodies)){
+    bodies = d.cardBodies;
+  }else if(typeof d.bodyInput === 'string'){
+    bodies = [d.bodyInput];
+  }
+  if(bodies.length !== 1) return false;
+  const body = String(bodies[0]);
+  return body.includes('나는 살짝 웃으며 대답했다.')
+    && body.includes('고마워요. 다음에 또 올게요.')
+    && body.includes('그럼 약속인가.')
+    && body.includes('...진짜?');
 }
 
 function deferDraftSave(){
@@ -996,8 +1018,10 @@ function prepareDraftRestore(d){
     if(typeof d[id] !== 'string' && typeof d[id] !== 'number') return null;
     fields[id] = String(d[id]);
   }
-  if(fields.profileTextPosition === undefined) fields.profileTextPosition = 'center';
-  if(!['top','center','bottom'].includes(fields.profileTextPosition)) return null;
+  for(const id of ['profileTextPosition','titleTextPosition']){
+    if(fields[id] === undefined) fields[id] = 'center';
+    if(!['top','center','bottom'].includes(fields[id])) return null;
+  }
   const draftExtraCount = Math.max(0, Math.min(3, Number(fields.profileExtraCount) || 0));
   if(fields.profileEntityOrder !== undefined){
     try {
@@ -1099,7 +1123,11 @@ function restoreDraft(){
     const raw = localStorage.getItem(DRAFT_KEY);
     if(raw === null){ draftReadRaw = null; return; }
     const d = JSON.parse(raw);
-    // 예시와 비슷한 초안도 사용자 작업이다. 내용으로 판별해 삭제하지 않는다.
+    if(isRetiredDefaultDraft(d)){
+      localStorage.removeItem(DRAFT_KEY);
+      draftReadRaw = null;
+      return;
+    }
     const plan = prepareDraftRestore(d);
     if(!plan) throw new Error('invalid draft');
     const before = captureDraftUiState();
@@ -1233,7 +1261,7 @@ document.getElementById('cardLayoutUnifiedOn').addEventListener('change', event 
   commitStyleHistory(true);
 });
 
-const SEGMENTED_CHOICE_SELECT_IDS = ['profilePlacement', 'profileTextPosition', 'profileStyle', 'profileOuterBackground', 'creditPlacement', 'hrShape', 'hr2Shape', 'hr3Shape', 'foldAutoNumberStyle'];
+const SEGMENTED_CHOICE_SELECT_IDS = ['profilePlacement', 'profileTextPosition', 'titleTextPosition', 'profileStyle', 'profileOuterBackground', 'creditPlacement', 'hrShape', 'hr2Shape', 'hr3Shape', 'foldAutoNumberStyle'];
 
 function syncMinimalChoiceControls(){
   document.querySelectorAll('[data-minimal-control]').forEach(group => {
@@ -1281,9 +1309,12 @@ document.querySelectorAll('.segmentedChoice[data-control]').forEach(group => {
     button.addEventListener('click', () => {
       const select = document.getElementById(selectId);
       if(!select || select.disabled || select.value === button.dataset.value) return;
+      const workLabel = selectId === 'titleTextPosition' ? '표제 라벨 위치 변경' : null;
+      if(workLabel) MosaicUI.cards.snapshot();
       select.value = button.dataset.value;
       select.dispatchEvent(new Event('input', { bubbles:true }));
       syncSegmentedChoiceControl(selectId);
+      if(workLabel) recordCompletedAction(workLabel);
     });
   });
 });
@@ -1774,13 +1805,12 @@ function actionStateEqual(a, b){
     && JSON.stringify(a.work) === JSON.stringify(b.work);
 }
 
-function pushActionState(state, label, transition = 'action'){
+function pushActionState(state, label){
   const snap = cloneHistoryValue(state);
   if(label) snap.label = label;
-  snap.transition = transition;
   if(actionIndex >= 0 && actionStateEqual(snap, actionHistory[actionIndex])){
-    // 작업 전 기준점은 기존 작업명·종류를 덮어쓰지 않는다.
-    if(transition !== 'boundary') actionHistory[actionIndex].label = snap.label;
+    // 같은 상태라도 가장 최근 작업명은 유지해 툴팁이 정확하게 보이게 함.
+    actionHistory[actionIndex].label = snap.label;
     updateHistoryButtons();
     return false;
   }
@@ -1796,12 +1826,10 @@ function updateHistoryButtons(){
   const u = document.getElementById('undoStyleBtn');
   const r = document.getElementById('redoStyleBtn');
   if(!u || !r) return;
-  const undoMove = historyMove(-1);
-  const redoMove = historyMove(1);
-  u.disabled = !undoMove;
-  r.disabled = !redoMove;
-  const undoLabel = undoMove ? actionHistory[undoMove.from].label : '';
-  const redoLabel = redoMove ? actionHistory[redoMove.target].label : '';
+  u.disabled = actionIndex <= 0;
+  r.disabled = actionIndex >= actionHistory.length - 1;
+  const undoLabel = actionIndex > 0 ? actionHistory[actionIndex].label : '';
+  const redoLabel = actionIndex < actionHistory.length - 1 ? actionHistory[actionIndex + 1].label : '';
   u.title = undoLabel ? `${undoLabel} 되돌리기 (${MOD_KEY}+Alt+Z)` : `되돌릴 작업 없음 (${MOD_KEY}+Alt+Z)`;
   r.title = redoLabel ? `${redoLabel} 되살리기 (${MOD_KEY}+Alt+Shift+Z)` : `되살릴 작업 없음 (${MOD_KEY}+Alt+Shift+Z)`;
 }
@@ -1809,7 +1837,7 @@ function updateHistoryButtons(){
 // 큰 작업은 snapshotCards()가 잡은 직전 상태와 완료 상태를 한 쌍으로 기록.
 function recordCompletedAction(label){
   if(!undoSnapshot) return;
-  pushActionState(undoSnapshot, `${label} 전`, 'boundary');
+  pushActionState(undoSnapshot, `${label} 전`);
   undoSnapshot = null;
   pushActionState(captureActionState(label), label);
 }
@@ -1819,7 +1847,6 @@ function recordCompletedAction(label){
 function commitStyleHistory(immediate){
   clearTimeout(styleCommitTimer);
   const doCommit = () => {
-    styleCommitTimer = null;
     const after = captureActionState('디자인 변경');
     if(actionIndex < 0){ pushActionState(after, '초기 상태'); return; }
     const current = actionHistory[actionIndex];
@@ -1830,47 +1857,25 @@ function commitStyleHistory(immediate){
       work: cloneHistoryValue(after.work),
       style: cloneHistoryValue(current.style)
     };
-    pushActionState(before, '디자인 변경 전', 'boundary');
-    pushActionState(after, '디자인 변경', 'style');
+    pushActionState(before, '디자인 변경 전');
+    pushActionState(after, '디자인 변경');
   };
   if(immediate){ doCommit(); }
   else { styleCommitTimer = setTimeout(doCommit, 350); }
 }
 
-// 작업 전 스냅샷은 복원 지점이며 별도 사용자 작업이 아니다.
-function historyMove(delta){
-  let from = actionIndex;
-  if(delta < 0){
-    while(from > 0 && actionHistory[from].transition === 'boundary') from--;
-  }
-  let target = from + delta;
-  if(delta > 0){
-    while(target < actionHistory.length - 1 && actionHistory[target].transition === 'boundary') target++;
-  }
-  if(target < 0 || target >= actionHistory.length) return null;
-  return { from, target, transition:actionHistory[delta < 0 ? from : target].transition };
-}
-
 function goActionHistory(delta){
-  // 예약 중인 디자인도 먼저 확정해 빠른 되돌리기와 타이머가 경합하지 않게 한다.
-  if(styleCommitTimer){
-    clearTimeout(styleCommitTimer);
-    styleCommitTimer = null;
-    commitStyleHistory(true);
-  }
-  const move = historyMove(delta);
-  if(!move) return;
-  const state = actionHistory[move.target];
-  let work = cloneHistoryValue(state.work);
-  if(move.transition === 'style'){
-    // 디자인 기록 이후의 본문·표제·프로필 입력은 현재 값을 유지한다.
-    work = cloneHistoryValue(MosaicUI.work.collect());
-  }
+  const target = actionIndex + delta;
+  if(target < 0 || target >= actionHistory.length) return;
+  actionIndex = target;
+  const state = actionHistory[actionIndex];
   undoSnapshot = null;
   imageHistorySession = null;
   MosaicUI.feedback.dismiss();
-  MosaicUI.work.applyState({ ...work, style:cloneHistoryValue(state.style) });
-  actionIndex = move.target;
+  MosaicUI.work.applyState({
+    ...cloneHistoryValue(state.work),
+    style: cloneHistoryValue(state.style)
+  });
   currentPresetName = null;
   currentComboName = null;
   renderPresetList();
@@ -1952,7 +1957,7 @@ document.addEventListener('input', event => {
     actionHistory[actionIndex] = cloneHistoryValue(after);
     actionHistory[actionIndex].label = label;
   } else {
-    pushActionState(imageHistorySession.before, `${label} 전`, 'boundary');
+    pushActionState(imageHistorySession.before, `${label} 전`);
     pushActionState(after, label);
     imageHistorySession.afterIndex = actionIndex;
   }

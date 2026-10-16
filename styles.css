@@ -3905,6 +3905,7 @@
     [data-control="profilePlacement"]
   ) > button:first-child { grid-column: 2; }
   #tabCover #profileTextPositionRow[hidden] { display: none; }
+  #tabCover #titleTextPositionRow[hidden] { display: none; }
   #tabCover .settingsForm .segmentedChoice button {
     position: relative;
     width: auto;
