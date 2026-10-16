@@ -1,6 +1,6 @@
-// 조각로그 v1.8.8 렌더링·HTML 출력 모듈.
+// 조각로그 v1.8.9 렌더링·HTML 출력 모듈.
 
-// 조각로그 v1.8.8 HTML 출력과 복원 메타데이터 코덱.
+// 조각로그 v1.8.9 HTML 출력과 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 const RESTORE_META_SUFFIX = '-->';
 
@@ -3529,7 +3529,8 @@ function syncHiddenEditorCollapse(ed, collapseBtn, hiding){
 function buildCard(settings, sourceCards){
   settings = MosaicParser.outputRuleSettings(settings);
   sourceCards = sourceCards.map(card => card.type === 'comment' ? card
-    : {...card,body:MosaicParser.applyOutputTextRules(card.body,settings)});
+    : {...card,body:MosaicParser.applyOutputTextRules(card.body,{...settings,
+      outputRuleExclusions:card.outputRuleExclusions || [],outputRuleSourceOffset:0})});
   const pal = tonePalette(settings);
   const unifiedLayout = normalizeCardLayout(settings.cardLayout) === 'unified';
 

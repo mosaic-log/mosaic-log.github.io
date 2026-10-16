@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.8 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.8.9 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=5d720f172b85">
+<link rel="stylesheet" href="./styles.css?v=4e88dfd88a0b">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.8 GitHub 저장소 열기">v1.8.8</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.9 GitHub 저장소 열기">v1.8.9</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -1386,7 +1386,11 @@
   <button type="button" data-fmt="bold" title="굵게 (**...**)"><b>B</b></button>
   <button type="button" data-fmt="emphasis" title="강조 (*...*)"><i>I</i></button>
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
+  <button type="button" data-rule-action="exclude" hidden>이 부분 치환 제외</button>
+  <button type="button" data-rule-action="apply" hidden>다시 적용</button>
 </div>
+
+<div id="outputRulePopover" role="dialog" aria-label="이 부분 치환 설정" hidden></div>
 
 <div id="blockToolbar" role="toolbar" aria-label="본문 요소 편집">
   <button type="button" class="separatorChoice" data-block-action="separator-hr" data-separator-type="hr" aria-label="얇은 구분선으로 변경" title="[HR] 얇은 구분선">−</button>
@@ -1407,12 +1411,12 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=54dc91e5fe96" defer></script>
-<script src="./parser.js?v=800c79684f04" defer></script>
-  <script src="./renderer.js?v=ea80e3c1ea1c" defer></script>
-<script src="./ui.js?v=cc707e5e4fcd" defer></script>
-<script src="./storage.js?v=12ce4845b112" defer></script>
-<script src="./app.js?v=afc888867ba2" defer></script>
+<script src="./state.js?v=08028dab0a41" defer></script>
+<script src="./parser.js?v=b80b038b0824" defer></script>
+  <script src="./renderer.js?v=b33d301cd97d" defer></script>
+<script src="./ui.js?v=3f38fc6f6fd1" defer></script>
+<script src="./storage.js?v=0a2aa4a0f184" defer></script>
+<script src="./app.js?v=9b3cacd8e767" defer></script>
 
 </body>
 </html>

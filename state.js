@@ -1,6 +1,6 @@
-// 조각로그 v1.8.8 상태 스키마.
+// 조각로그 v1.8.9 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.8.8';
+const APP_VERSION = '1.8.9';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -158,6 +158,66 @@ function normalizeOutputRules(value, kind = 'keyword'){
       return {id,from:rule.from,to:rule.to,enabled:rule.enabled !== false};
     });
   } catch(e){ return []; }
+}
+
+// 예외는 규칙과 원문 위치를 함께 확인한다. 동일 문구의 다른 출현에는 옮기지 않는다.
+function normalizeOutputRuleExclusions(value, body){
+  if(!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.slice(0,1000).filter(item => {
+    if(!item || !['name','keyword'].includes(item.kind)
+      || typeof item.ruleId !== 'string' || !item.ruleId || item.ruleId.length > 160
+      || typeof item.from !== 'string' || !item.from || item.from.length > 80
+      || typeof item.to !== 'string' || item.to.length > 80
+      || !Number.isInteger(item.start) || !Number.isInteger(item.end)
+      || item.start < 0 || item.end <= item.start || item.end > body.length
+      || typeof item.text !== 'string' || body.slice(item.start,item.end) !== item.text) return false;
+    const key = JSON.stringify([item.kind,item.ruleId,item.from,item.to,item.start,item.end]);
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(({kind,ruleId,from,to,start,end,text}) => ({kind,ruleId,from,to,start,end,text}));
+}
+
+function rebaseOutputRuleExclusions(value, before, after){
+  const items = normalizeOutputRuleExclusions(value,before);
+  if(before === after) return items;
+  if(!items.length) return [];
+  // B/I/C처럼 글자 자체를 바꾸지 않는 서식 편집은 원문 글자 인덱스로 옮긴다.
+  const formattingProjection = body => {
+    const hidden = new Set();
+    const mask = (start,end) => {for(let i=start;i<end;i++) hidden.add(i);};
+    for(const [pattern,width] of [[/\*\*\*([^*\n]+?)\*\*\*/g,3],[/\*\*([^*\n]+?)\*\*/g,2],[/__(.+?)__/g,2],[/(?<!\*)\*([^*\n]+?)\*(?!\*)/g,1]]){
+      let match; while((match = pattern.exec(body)) !== null){ mask(match.index,match.index+width); mask(match.index+match[0].length-width,match.index+match[0].length); }
+    }
+    let match; const center = /^(?:>(?!>)\s*)?\[C\]\s*/gim;
+    while((match = center.exec(body)) !== null){ const at = match.index+match[0].indexOf('[C]'); mask(at,match.index+match[0].length); }
+    let text = ''; const map = [];
+    for(let i=0;i<body.length;i++) if(!hidden.has(i)){text += body[i];map.push(i);}
+    return {text,map};
+  };
+  const oldFormat = formattingProjection(before), newFormat = formattingProjection(after);
+  if(oldFormat.text === newFormat.text){
+    return normalizeOutputRuleExclusions(items.flatMap(item => {
+      const at = oldFormat.map.indexOf(item.start), end = oldFormat.map.indexOf(item.end-1);
+      if(at < 0 || end < at) return [];
+      const moved = {...item,start:newFormat.map[at],end:newFormat.map[end]+1};
+      return after.slice(moved.start,moved.end) === item.text ? [moved] : [];
+    }),after);
+  }
+  let prefix = 0, suffix = 0;
+  while(prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) prefix++;
+  let fullSuffix = 0;
+  while(fullSuffix < before.length && fullSuffix < after.length
+    && before[before.length-1-fullSuffix] === after[after.length-1-fullSuffix]) fullSuffix++;
+  while(suffix < before.length-prefix && suffix < after.length-prefix
+    && before[before.length-1-suffix] === after[after.length-1-suffix]) suffix++;
+  const delta = after.length-before.length;
+  const ambiguousStart = Math.min(before.length,after.length)-fullSuffix;
+  const ambiguousEnd = prefix+Math.max(0,before.length-after.length);
+  const ambiguous = prefix+fullSuffix > Math.min(before.length,after.length);
+  return normalizeOutputRuleExclusions(items.flatMap(item => ambiguous && item.start < ambiguousEnd && item.end > ambiguousStart ? [] : item.end <= prefix ? [item]
+    : item.start >= before.length-suffix ? [{...item,start:item.start+delta,end:item.end+delta}] : []),after);
 }
 
 // 출력 설정 읽기는 상태 스키마와 같은 책임으로 묶는다.
@@ -342,6 +402,8 @@ const MosaicState = Object.freeze({
   normalizeCommentWidth,
   normalizeHex,
   normalizeOutputRules,
+  normalizeOutputRuleExclusions,
+  rebaseOutputRuleExclusions,
   normalizeProfileEntityOrder,
   normalizeProtocolRelativeUrl,
   savedProfileImageBackgroundOn,

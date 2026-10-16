@@ -1,4 +1,4 @@
-// 조각로그 v1.8.8 미리보기·편집 UI 모듈.
+// 조각로그 v1.8.9 미리보기·편집 UI 모듈.
 
 // 수명 내내 교체되지 않는 기능 루트만 잡아둔다. 렌더 때 새로 생기는 카드와
 // 미리보기 자식은 캐시하지 않아 삭제된 DOM을 붙잡는 일을 피한다.
@@ -18,7 +18,7 @@ const uiElements = Object.freeze({
   cardEditors:document.getElementById('cardEditors')
 });
 
-// 조각로그 v1.8.8 미리보기 렌더 조정기.
+// 조각로그 v1.8.9 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
   const html = MosaicRenderer.generateHTML(false, previewHTML);
@@ -146,7 +146,7 @@ const uiUpdateEffects = Object.freeze({
   }
 });
 
-// 조각로그 v1.8.8 전역 작업 화면 상태와 오류 표시.
+// 조각로그 v1.8.9 전역 작업 화면 상태와 오류 표시.
 function syncSidebarFieldActive(){
   const active = document.activeElement;
   const isSidebarField = !!(active && active.matches
@@ -204,6 +204,271 @@ const FMT_RE = {
 };
 const CENTER_RE = /^(>\s?)?\[C\]\s*/i;   // 줄 맨 앞 또는 인용 뒤의 [C]
 const previewDirectEditDescriptors = new WeakMap();
+const outputRulePreviewState = {spans:new WeakMap(),blocks:new WeakMap(),markers:[],selection:[],menu:null};
+
+function hideOutputRulePopover(){
+  const menu = document.getElementById('outputRulePopover');
+  if(menu){ menu.hidden = true; menu.replaceChildren(); }
+  outputRulePreviewState.menu = null;
+}
+function outputRuleOccurrenceKey(item){
+  return JSON.stringify([item.kind,item.ruleId,item.from,item.to,item.start,item.end,item.text]);
+}
+function changeOutputRuleOccurrences(targets, exclude){
+  const valid = targets.filter(target => target.ta.isConnected && target.ta.value === target.body
+    && target.revision === previewRenderState.revision
+    && !target.block?.dataset.previewEditChanged);
+  const settings = MosaicState.getSettings();
+  const current = valid.filter(target => (settings[target.item.kind === 'name' ? 'nameRules' : 'keywordRules'] || [])
+    .some(rule => rule.enabled !== false && rule.id === target.item.ruleId
+      && rule.from === target.item.from && rule.to === target.item.to));
+  if(!current.length){ hideOutputRulePopover(); hideSelToolbar(); return; }
+  const perCard = new Map();
+  current.forEach(target => {
+    if(!perCard.has(target.ta)) perCard.set(target.ta,editorOutputRuleExclusions(target.ta).slice());
+    let items = perCard.get(target.ta);
+    const key = outputRuleOccurrenceKey(target.item);
+    items = items.filter(item => outputRuleOccurrenceKey(item) !== key);
+    if(exclude){
+      const {kind,ruleId,from,to,start,end,text} = target.item;
+      items.push({kind,ruleId,from,to,start,end,text});
+    }
+    perCard.set(target.ta,items);
+  });
+  if(Array.from(perCard.values()).some(items => items.length > 1000)){
+    hideOutputRulePopover(); hideSelToolbar();
+    showNoticeToast('카드당 치환 예외는 최대 1,000개까지 저장할 수 있습니다.');
+    return;
+  }
+  MosaicStorage.snapshotCards();
+  perCard.forEach((items,ta) => outputRuleEditorState.set(ta,{body:ta.value,
+    items:MosaicState.normalizeOutputRuleExclusions(items,ta.value)}));
+  hideOutputRulePopover(); hideSelToolbar();
+  previewEditState.committing = true;
+  try { uiUpdateEffects.committedChange(); }
+  finally { previewEditState.committing = false; }
+  showUndoToast(exclude ? '선택한 부분만 치환 제외.' : '선택한 부분에 규칙 다시 적용.');
+}
+function showOutputRulePopover(targets, rect){
+  const menu = document.getElementById('outputRulePopover');
+  hideOutputRulePopover();
+  if(!menu || !targets.length || targets.some(target => target.block?.dataset.previewEditChanged)) return;
+  hideSelToolbar(); hideBlockToolbar();
+  outputRulePreviewState.menu = targets;
+  targets.forEach(target => {
+    const row = document.createElement('div'); row.className = 'outputRuleChoice';
+    const text = document.createElement('span');
+    text.textContent = target.item.deleted ? target.item.text
+      : `${target.item.from} → ${target.item.to || '삭제'}`;
+    const button = document.createElement('button'); button.type = 'button';
+    button.textContent = target.item.excluded ? '다시 적용' : target.item.deleted ? '이 부분 삭제 제외' : '이 부분 치환 제외';
+    button.addEventListener('click', () => changeOutputRuleOccurrences([target],!target.item.excluded));
+    row.append(text,button); menu.append(row);
+  });
+  menu.hidden = false;
+  menu.style.left = Math.max(8,Math.min(window.innerWidth-menu.offsetWidth-8,rect.left))+'px';
+  menu.style.top = Math.max(8,Math.min(window.innerHeight-menu.offsetHeight-8,rect.bottom+6))+'px';
+}
+
+// 출력 DOM에만 얹는 글자 연결이다. 원본 HTML·복사·저장에는 이 표식을 넣지 않는다.
+function outputRuleBlockCharacters(block){
+  let text = ''; const points = [];
+  const visit = node => {
+    if(node.nodeType === 3){
+      for(let i=0;i<node.data.length;i++){ text += node.data[i]; points.push({node,offset:i}); }
+    }else if(node.nodeType === 1){
+      if(node.matches('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"]')) return;
+      if(node.matches('[data-mosaic-parallel-translation-mode="stack"]')){ text += ' '; points.push(null); }
+      if(node.tagName === 'BR'){ text += '\n'; points.push(null); }
+      else node.childNodes.forEach(visit);
+    }
+  };
+  visit(block);
+  const start = text.length-text.trimStart().length, end = text.trimEnd().length;
+  return {text:MosaicParser.normalizeQuotes(text.slice(start,end).replace(/\u00a0/g,' ')),points:points.slice(start,end)};
+}
+function layoutOutputRuleMarkers(){
+  const root = document.getElementById('previewWrap');
+  if(!root) return;
+  const base = root.getBoundingClientRect();
+  outputRulePreviewState.markers.forEach(({button,block,after}) => {
+    let hidden = !block.isConnected;
+    for(let parent = block; parent; parent = parent.parentElement){
+      if(parent.tagName === 'DETAILS' && !parent.open && !parent.querySelector(':scope > summary')?.contains(block)) hidden = true;
+    }
+    button.hidden = hidden || !block.getClientRects().length;
+    const rect = block.getBoundingClientRect();
+    button.style.top = `${(after ? rect.bottom : rect.top)-base.top+root.scrollTop}px`;
+    button.style.left = `${Math.max(0,rect.left-base.left+root.scrollLeft-25)}px`;
+  });
+}
+function decorateOutputRuleOccurrences(){
+  document.querySelectorAll('#preview .previewRuleText').forEach(span => span.replaceWith(...span.childNodes));
+  outputRulePreviewState.markers.forEach(({button}) => button.remove());
+  outputRulePreviewState.markers = [];
+  outputRulePreviewState.spans = new WeakMap(); outputRulePreviewState.blocks = new WeakMap();
+  const settings = MosaicState.getSettings();
+  if(![...(settings.nameRules || []),...(settings.keywordRules || [])].some(rule => rule.enabled !== false)) return;
+  const revision = previewRenderState.revision;
+  const preview = uiElements.preview;
+  const deletionGroups = new Map();
+  const contexts = previewCardContexts();
+  const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
+  document.querySelectorAll('#cardEditors .cardEditor:not([data-block-type="comment"]) textarea').forEach(ta => {
+    if(ta.closest('.cardEditor').dataset.outputVisible === 'false') return;
+    const body = ta.value, lines = body.split('\n'), offsets = []; let offset = 0;
+    lines.forEach(line => { offsets.push(offset); offset += line.length+1; });
+    const currentSettings = {...settings,outputRuleExclusions:editorOutputRuleExclusions(ta),trackOutputRuleOccurrences:true};
+    const projections = lines.map((line,raw) => MosaicParser.outputTextProjection(line,{...currentSettings,outputRuleSourceOffset:offsets[raw]}));
+    const items = projections.flatMap(projection => projection.occurrences);
+    if(!items.length) return;
+    const blocks = Array.from(preview.querySelectorAll('[data-preview-edit-type="body"]'))
+      .filter(block => previewDirectEditDescriptors.get(block)?.ta === ta);
+    const targets = items.map(item => ({ta,body,revision,item,block:null}));
+    const ordered = targets.filter(target => !target.item.deleted).sort((a,b) => a.item.start-b.item.start);
+    const maxEnds = []; ordered.forEach((target,index) => maxEnds.push(Math.max(index ? maxEnds[index-1] : 0,target.item.end)));
+    const overlapping = range => {
+      let low = 0, high = ordered.length;
+      while(low < high){ const mid = (low+high) >>> 1; if(ordered[mid].item.start < range.end) low = mid+1; else high = mid; }
+      const result = [];
+      for(let i=low-1;i>=0 && maxEnds[i] > range.start;i--) if(ordered[i].item.end > range.start) result.push(ordered[i]);
+      return result.reverse();
+    };
+    blocks.forEach(block => {
+      const descriptor = previewDirectEditDescriptors.get(block);
+      const rawLines = descriptor.rawLines || [descriptor.raw];
+      let text = '', ranges = [];
+      rawLines.forEach((raw,index) => {
+        const projection = projections[raw]; if(!projection) return;
+        const output = projection.text.replace(/\[BR\]\s*$/i,'');
+        const display = sourceDisplayProjectionMap(output,MosaicParser.outputRuleSettings(settings));
+        const start = display.text.length-display.text.trimStart().length, end = display.text.trimEnd().length;
+        if(index){ text += '\n'; ranges.push(null); }
+        text += display.text.slice(start,end);
+        display.map.slice(start,end).forEach(at => ranges.push(projection.spans[at]
+          ? {start:offsets[raw]+projection.spans[at].start,end:offsets[raw]+projection.spans[at].end} : null));
+      });
+      const chars = outputRuleBlockCharacters(block);
+      let at = text.indexOf(chars.text);
+      if(descriptor.segmented && descriptor.sourceBounds){
+        while(at >= 0 && ranges[at] && ranges[at].start < offsets[descriptor.raw]+descriptor.sourceBounds.start) at = text.indexOf(chars.text,at+1);
+      }
+      if(!chars.text || at < 0 || chars.text !== previewEditableText(block,true)) return;
+      ranges = ranges.slice(at,at+chars.text.length);
+      const perNode = new Map(), blockTargets = new Set();
+      chars.points.forEach((point,index) => {
+        const range = ranges[index]; if(!point || !range) return;
+        const matched = overlapping(range);
+        if(!matched.length) return;
+        matched.forEach(target => { target.block = block; blockTargets.add(target); });
+        if(!perNode.has(point.node)) perNode.set(point.node,[]);
+        perNode.get(point.node).push({offset:point.offset,targets:matched});
+      });
+      outputRulePreviewState.blocks.set(block,Array.from(blockTargets));
+      perNode.forEach((chars,node) => {
+        const runs = [];
+        chars.forEach(char => {
+          const previous = runs[runs.length-1];
+          if(previous && previous.end === char.offset && previous.targets.length === char.targets.length
+            && previous.targets.every((target,i) => target === char.targets[i])) previous.end++;
+          else runs.push({start:char.offset,end:char.offset+1,targets:char.targets});
+        });
+        let tail = node.data.length; const fragment = document.createDocumentFragment();
+        runs.reverse().forEach(run => {
+          fragment.prepend(document.createTextNode(node.data.slice(run.end,tail)));
+          const span = document.createElement('span'); span.className = 'previewRuleText';
+          span.dataset.ruleExcluded = String(run.targets.every(target => target.item.excluded));
+          span.textContent = node.data.slice(run.start,run.end);
+          outputRulePreviewState.spans.set(span,run.targets); fragment.prepend(span); tail = run.start;
+        });
+        fragment.prepend(document.createTextNode(node.data.slice(0,tail))); node.replaceWith(fragment);
+      });
+    });
+    targets.filter(target => target.item.deleted).forEach(target => {
+      const raw = offsets.findLastIndex(start => start <= target.item.start);
+      let block = blocks.find(block => { const d = previewDirectEditDescriptors.get(block); return d.raw <= raw && d.rawEnd >= raw; })
+        || blocks.find(block => previewDirectEditDescriptors.get(block).raw > raw);
+      let after = false;
+      if(!block && blocks.length){ block = blocks[blocks.length-1]; after = true; }
+      if(!block){
+        const sourceIndex = editors.indexOf(ta.closest('.cardEditor'));
+        block = contexts.find(ctx => ctx.sourceIndex >= sourceIndex)?.cardEl;
+        if(!block && contexts.length){ block = contexts[contexts.length-1].cardEl; after = true; }
+        block ||= preview;
+      }
+      target.block = block;
+      if(!deletionGroups.has(block)) deletionGroups.set(block,new Map());
+      const positions = deletionGroups.get(block);
+      if(!positions.has(after)) positions.set(after,[]);
+      positions.get(after).push(target);
+    });
+  });
+  deletionGroups.forEach((positions,block) => positions.forEach((group,after) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'previewRuleDeletion';
+      button.textContent = '⋯'; button.setAttribute('aria-label',`삭제된 문구 ${group.length}개 보기`);
+      button.title = '삭제된 문구 보기';
+      button.addEventListener('mousedown',event => event.preventDefault());
+      button.addEventListener('click',event => {
+        showOutputRulePopover(group,button.getBoundingClientRect());
+        if(event.detail === 0) document.querySelector('#outputRulePopover button')?.focus();
+      });
+      // 갱신 때 소멸하는 블록에만 이벤트를 묶는다. 영구 preview 루트는 별도로 처리한다.
+      if(block !== preview){
+        block.addEventListener('pointerenter',() => button.classList.add('isVisible'));
+        block.addEventListener('pointerleave',() => button.classList.remove('isVisible'));
+        block.addEventListener('focusin',() => button.classList.add('isVisible'));
+        block.addEventListener('focusout',() => button.classList.remove('isVisible'));
+      }else button.classList.add('isVisible');
+      document.getElementById('previewWrap').append(button);
+      outputRulePreviewState.markers.push({button,block,after});
+  }));
+  layoutOutputRuleMarkers();
+}
+
+function syncSelectionOutputRuleActions(range, block){
+  const targets = new Set();
+  if(!block.dataset.previewEditChanged) block.querySelectorAll('.previewRuleText').forEach(span => {
+    // intersectsNode만 쓰면 선택 경계에 닿은 옆 단어까지 포함하므로 실제 글자 교집합을 검사한다.
+    const spanRange = document.createRange(); spanRange.selectNodeContents(span);
+    if(range.compareBoundaryPoints(Range.END_TO_START,spanRange) < 0
+      && range.compareBoundaryPoints(Range.START_TO_END,spanRange) > 0){
+      (outputRulePreviewState.spans.get(span) || []).forEach(target => targets.add(target));
+    }
+  });
+  outputRulePreviewState.selection = Array.from(targets);
+  document.querySelectorAll('#selToolbar [data-rule-action]').forEach(button => {
+    button.hidden = !outputRulePreviewState.selection.some(target => target.item.excluded === (button.dataset.ruleAction === 'apply'));
+  });
+}
+function bindOutputRuleInteractions(){
+  bindUIFeatureEvents('output-rule-occurrences',() => {
+    const menu = document.getElementById('outputRulePopover');
+    menu.addEventListener('mousedown',event => event.preventDefault());
+    uiElements.preview.addEventListener('click',event => {
+      const selection = window.getSelection();
+      if(selection && !selection.isCollapsed) return;
+      const span = event.target.closest('.previewRuleText');
+      if(span) showOutputRulePopover(outputRulePreviewState.spans.get(span) || [],span.getBoundingClientRect());
+    });
+    document.addEventListener('mousedown',event => {
+      if(!event.target.closest('#outputRulePopover, #selToolbar, .previewRuleDeletion')) hideOutputRulePopover();
+    });
+    ['beforeinput','input','compositionstart'].forEach(type => uiElements.preview.addEventListener(type,() => {
+      hideOutputRulePopover(); hideSelToolbar();
+    },true));
+    document.addEventListener('keydown',event => { if(event.key === 'Escape') hideOutputRulePopover(); });
+    document.addEventListener('scroll',event => {
+      if(event.target === document || event.target === document.documentElement
+        || event.target === document.body || uiElements.previewArea.contains(event.target)) hideOutputRulePopover();
+    },true);
+    window.addEventListener('resize',hideOutputRulePopover);
+    document.querySelectorAll('#selToolbar [data-rule-action]').forEach(button => {
+      button.addEventListener('mousedown',event => event.preventDefault());
+      button.addEventListener('click',() => changeOutputRuleOccurrences(outputRulePreviewState.selection
+        .filter(target => target.item.excluded === (button.dataset.ruleAction === 'apply')),button.dataset.ruleAction === 'exclude'));
+    });
+  });
+}
 
 function maskInlineFormatMarkers(value, mask){
   const normalized = String(value);
@@ -407,8 +672,25 @@ function sourceDisplayProjectionMap(line, settings = MosaicState.getSettings()){
 }
 
 // 치환으로 길이가 바뀌거나 글자가 사라져도 출력 선택·편집을 원문 범위에 연결한다.
-function outputSourceDisplayProjectionMap(line){
-  const settings = MosaicState.getSettings();
+const outputRuleEditorState = new WeakMap();
+function editorOutputRuleExclusions(ta){
+  if(!ta) return [];
+  const state = outputRuleEditorState.get(ta);
+  if(!state) return [];
+  if(state.body !== ta.value){
+    state.items = MosaicState.rebaseOutputRuleExclusions(state.items,state.body,ta.value);
+    state.body = ta.value;
+  }
+  return state.items;
+}
+function outputRuleLineSettings(ta, raw = 0, segmentOffset = 0, settings = MosaicState.getSettings()){
+  const exclusions = editorOutputRuleExclusions(ta);
+  if(!exclusions.length) return settings;
+  const lines = ta.value.split('\n');
+  const offset = lines.slice(0,raw).reduce((sum,line) => sum+line.length+1,0)+segmentOffset;
+  return {...settings,outputRuleExclusions:exclusions,outputRuleSourceOffset:offset};
+}
+function outputSourceDisplayProjectionMap(line, settings = MosaicState.getSettings()){
   const output = MosaicParser.outputTextProjection(line, settings);
   const display = sourceDisplayProjectionMap(output.text, MosaicParser.outputRuleSettings(settings));
   const spans = display.map.map(index => output.spans[index] || {start:line.length,end:line.length});
@@ -416,14 +698,14 @@ function outputSourceDisplayProjectionMap(line){
     editMap:spans.map(span => span.editStart ?? span.start),editEnds:spans.map(span => span.editEnd ?? span.end)};
 }
 
-function findSourceRange(line, text, occurrence, caseInsensitive){
-  const ranges = findAllSourceRanges(line, text, caseInsensitive);
+function findSourceRange(line, text, occurrence, caseInsensitive, settings){
+  const ranges = findAllSourceRanges(line, text, caseInsensitive, settings);
   return ranges[Math.max(0, occurrence || 0)] || null;
 }
 
-function findAllSourceRanges(line, text, caseInsensitive){
+function findAllSourceRanges(line, text, caseInsensitive, settings){
   if(!text) return [];
-  const display = outputSourceDisplayProjectionMap(line);
+  const display = outputSourceDisplayProjectionMap(line, settings);
   const normalizedText = MosaicParser.normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
   if(!normalizedText) return [];
   const hay = caseInsensitive ? display.text.toLowerCase() : display.text;
@@ -475,11 +757,18 @@ function prepareSourceRangeReplacement(line, sourceRange){
   return { line:clean, range:{ start:cleanStart, end:cleanEnd } };
 }
 
-function replaceSourceRange(line, sourceRange, replacement){
+function replaceSourceRange(line, sourceRange, replacement, settings = MosaicState.getSettings()){
   const prepared = prepareSourceRangeReplacement(line, sourceRange);
   // 출력 이름과 조사를 함께 묶어 편집하되, 검색한 이름 바깥의 조사·원문은 보존한다.
-  if(MosaicParser.applyOutputTextRules(prepared.line, MosaicState.getSettings()) !== prepared.line){
-    const output = outputSourceDisplayProjectionMap(prepared.line);
+  // 서식 마커 제거로 원문 좌표가 달라진 경우 예외도 같은 편집으로 재배치한다.
+  if(settings.outputRuleExclusions?.length && prepared.line !== line){
+    const base = settings.outputRuleSourceOffset || 0;
+    const local = settings.outputRuleExclusions.map(item => ({...item,start:item.start-base,end:item.end-base}));
+    settings = {...settings,outputRuleSourceOffset:0,
+      outputRuleExclusions:MosaicState.rebaseOutputRuleExclusions(local,line,prepared.line)};
+  }
+  if(MosaicParser.applyOutputTextRules(prepared.line, settings) !== prepared.line){
+    const output = outputSourceDisplayProjectionMap(prepared.line, settings);
     const first = output.map.findIndex((start,index) => start >= prepared.range.start && output.ends[index] <= prepared.range.end);
     let last = first;
     while(last + 1 < output.map.length && output.map[last + 1] >= prepared.range.start && output.ends[last + 1] <= prepared.range.end) last++;
@@ -502,6 +791,7 @@ function hideSelToolbar(){
   bar.style.display = 'none';
   bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   previewEditState.selection = null;
+  outputRulePreviewState.selection = [];
 }
 
 function hideBlockToolbar(){
@@ -767,7 +1057,7 @@ function sourceDisplayEntries(ta){
   const rawSettings = MosaicState.getSettings();
   const settings = MosaicParser.outputRuleSettings(rawSettings);
   const sourceLines = ta.value.split('\n');
-  const outputLines = sourceLines.map(line => MosaicParser.applyOutputTextRules(line, rawSettings));
+  const outputLines = sourceLines.map((line,raw) => MosaicParser.applyOutputTextRules(line, outputRuleLineSettings(ta,raw,0,rawSettings)));
   MosaicRenderer.bodyRenderGroups(outputLines, settings).forEach(group => {
     const {raw, rawEnd, rawLines, renderLines} = group;
     const originalLine = sourceLines[raw];
@@ -804,7 +1094,7 @@ function sourceDisplayEntries(ta){
     renderLines.forEach(renderLine => {
       const projection = sourceDisplayProjectionMap(renderLine, settings).text.trim();
       if(!projection) return;
-      const ranges = findAllSourceRanges(originalLine, projection, false);
+      const ranges = findAllSourceRanges(originalLine, projection, false, outputRuleLineSettings(ta,raw,0,rawSettings));
       let occurrence = ranges.findIndex(range => range.start >= sourceCursor);
       if(occurrence < 0) occurrence = 0;
       const sourceBounds = ranges[occurrence] || null;
@@ -927,7 +1217,7 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preser
     .replace(/\*\*\*\*/g, '');
 }
 
-function replacePreviewBodyLine(rawLine, nextVisible){
+function replacePreviewBodyLine(rawLine, nextVisible, settings){
   const raw = String(rawLine);
   let core = raw.trim();
   const centerMatch = core.match(/^\[C\]\s*/i);
@@ -939,10 +1229,10 @@ function replacePreviewBodyLine(rawLine, nextVisible){
     if(!clean) return '';
     // 상태창은 화면에서만 | 공백이 정리된다. 보이는 글자가 그대로라면 원문의
     // __...__ / *...* 등 혼합 문법을 건드리지 않는다.
-    if(clean === outputSourceDisplayProjectionMap(raw).text.trim()) return raw;
-    return replaceVisibleUsingProjection(raw, clean, outputSourceDisplayProjectionMap(raw));
+    if(clean === outputSourceDisplayProjectionMap(raw,settings).text.trim()) return raw;
+    return replaceVisibleUsingProjection(raw, clean, outputSourceDisplayProjectionMap(raw,settings));
   }
-  return replaceVisibleUsingProjection(raw, nextVisible, outputSourceDisplayProjectionMap(raw));
+  return replaceVisibleUsingProjection(raw, nextVisible, outputSourceDisplayProjectionMap(raw,settings));
 }
 
 function previewEditableText(el, preserveLineBreaks){
@@ -970,14 +1260,14 @@ function descriptorSourceRange(descriptor, line, text, occurrence){
   const bounds = descriptor && descriptor.sourceBounds;
   if(bounds && Number.isInteger(bounds.start) && Number.isInteger(bounds.end)){
     const segment = line.slice(bounds.start, bounds.end);
-    const local = findSourceRange(segment, text, occurrence, false);
+    const local = findSourceRange(segment, text, occurrence, false, outputRuleLineSettings(descriptor.ta,descriptor.raw,bounds.start));
     if(local) return { start:bounds.start + local.start, end:bounds.start + local.end };
     // 자동 분리된 대사는 반드시 자기 원문 조각 안에서만 수정한다.
     // 조각 검색에 실패했을 때 줄 전체로 되돌아가면 같은 문장이 인접 조각에서
     // 발견되어 엉뚱한 대사에 서식이나 편집 내용이 적용될 수 있다.
     if(descriptor && descriptor.segmented) return null;
   }
-  return findSourceRange(line, text, occurrence, false);
+  return findSourceRange(line, text, occurrence, false, outputRuleLineSettings(descriptor.ta,descriptor.raw));
 }
 
 // [BR] 문단은 여러 원문 줄이 미리보기의 한 블록으로 합쳐진다. 선택한 글자가
@@ -993,7 +1283,7 @@ function descriptorSelectionSource(descriptor, text, occurrence){
     for(const raw of rawLines){
       const line = lines[raw];
       if(line === undefined) continue;
-      const ranges = findAllSourceRanges(line, text, false);
+      const ranges = findAllSourceRanges(line, text, false, outputRuleLineSettings(descriptor.ta,raw));
       if(remaining < ranges.length){
         return { raw, range:ranges[remaining], occurrence:remaining, sourceBounds:null, segmented:false };
       }
@@ -1326,7 +1616,7 @@ function commitPreviewBodyEdit(el, descriptor, next){
     const updatedParts = nextParts.map((part, index) => {
       // 기존 각 줄의 [C]·화자·색상·강조 문법은 가능한 한 그대로 유지하고,
       // 새로 생긴 줄만 보이는 글자를 원문으로 사용한다.
-      if(oldParts[index] !== undefined) return replacePreviewBodyLine(oldParts[index], part);
+      if(oldParts[index] !== undefined) return replacePreviewBodyLine(oldParts[index], part, outputRuleLineSettings(ta,rawLines[index]));
       return part;
     }).map((part, index) => part + (index < nextParts.length - 1 ? '[BR]' : ''));
     const replacementLines = [];
@@ -1359,10 +1649,10 @@ function commitPreviewBodyEdit(el, descriptor, next){
     const start = descriptor.sourceBounds.start;
     const end = descriptor.sourceBounds.end;
     const segment = rawLine.slice(start, end);
-    const nextSegment = replaceVisibleUsingProjection(segment, next, outputSourceDisplayProjectionMap(segment));
+    const nextSegment = replaceVisibleUsingProjection(segment, next, outputSourceDisplayProjectionMap(segment, outputRuleLineSettings(ta,descriptor.raw,start)));
     updated = rawLine.slice(0, start) + nextSegment + rawLine.slice(end);
   }else{
-    updated = replacePreviewBodyLine(rawLine, next);
+    updated = replacePreviewBodyLine(rawLine, next, outputRuleLineSettings(ta,descriptor.raw));
   }
   if(updated === lines[descriptor.raw]) return;
   previewEditState.committing = true;
@@ -2215,7 +2505,7 @@ function revealInEditor(ta, raw, text, occurrence, sourceBounds, segmented = fal
 function bindPreviewSelectionEvents(){
   bindUIFeatureEvents('preview-selection', () => {
 document.addEventListener('mouseup', event => {
-  if(event.target.closest && event.target.closest('#selToolbar, #blockToolbar')) return;
+  if(event.target.closest && event.target.closest('#selToolbar, #blockToolbar, #outputRulePopover, .previewRuleDeletion')) return;
   // 블록 드래그 이동 중에는 무시
   if(previewEditState.drag) return;
   // 문장 끝의 바깥 여백에서 놓아도 처리한다. 대상은 포커스가 아닌 실제 선택 글자다.
@@ -2275,6 +2565,7 @@ document.addEventListener('mouseup', event => {
       resolved.segmented
     );
     const bar = document.getElementById('selToolbar');
+    syncSelectionOutputRuleActions(range,src.block);
     bar.querySelectorAll('button').forEach(b => {
       b.classList.toggle('active', !!active[b.dataset.fmt]);
     });
@@ -2289,12 +2580,12 @@ document.addEventListener('mouseup', event => {
 });
 
 document.addEventListener('mousedown', (e) => {
-  if(e.target.closest && (e.target.closest('#selToolbar') || e.target.closest('#blockToolbar'))) return;
+  if(e.target.closest && e.target.closest('#selToolbar, #blockToolbar, #outputRulePopover')) return;
   hideSelToolbar();
   hideBlockToolbar();
 });
 
-document.querySelectorAll('#selToolbar button').forEach(btn => {
+document.querySelectorAll('#selToolbar button[data-fmt]').forEach(btn => {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
     if(!previewEditState.selection) return;
@@ -2348,10 +2639,12 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
       const targetPlain = active[fmt];
       const re = new RegExp(FMT_RE[fmt].source, 'g');
       let m, found = null;
-      const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false);
+      const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false, outputRuleLineSettings(ta,raw));
       while((m = re.exec(line)) !== null){
         const containsSelection = sourceRange && sourceRange.start >= m.index && sourceRange.end <= m.index + m[0].length;
-        if(containsSelection && comparableFormattedText(MosaicParser.applyOutputTextRules(MosaicParser.formatMatchContent(fmt, m), MosaicState.getSettings())) === comparableFormattedText(targetPlain)){
+        const content = MosaicParser.formatMatchContent(fmt,m);
+        const contentOffset = m.index+m[0].indexOf(content);
+        if(containsSelection && comparableFormattedText(MosaicParser.applyOutputTextRules(content, outputRuleLineSettings(ta,raw,contentOffset))) === comparableFormattedText(targetPlain)){
           found = m;
           break;
         }
@@ -2362,7 +2655,7 @@ document.querySelectorAll('#selToolbar button').forEach(btn => {
     }
 
     // 원본 줄에서 같은 글자의 occurrence번째 위치를 찾음 (마커가 섞여 있으면 실패할 수 있음)
-    const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false);
+    const sourceRange = capturedRange || findSourceRange(line, text, occurrence, false, outputRuleLineSettings(ta,raw));
     if(!sourceRange) return fail('선택한 글자의 원문 위치를 확인하지 못함.');
     const selectedSource = line.slice(sourceRange.start, sourceRange.end);
 
@@ -2407,7 +2700,12 @@ function topLevelMap(entries){
 // 내려가 드래그가 비활성화됐다.
 function topLevelSourceEntries(text, settings){
   const outputSettings = MosaicParser.outputRuleSettings(settings);
-  const outputLines = String(text || '').split('\n').map(line => MosaicParser.applyOutputTextRules(line, settings));
+  let offset = 0;
+  const outputLines = String(text || '').split('\n').map(line => {
+    const output = MosaicParser.applyOutputTextRules(line,{...settings,outputRuleSourceOffset:offset});
+    offset += line.length+1;
+    return output;
+  });
   const entries = [];
   MosaicRenderer.bodyRenderGroups(outputLines, outputSettings).forEach(entry => {
     const outputParts = entry.renderLines
@@ -2592,6 +2890,7 @@ function layoutPreviewFloatingButtons(){
       left:control.left
     });
   });
+  layoutOutputRuleMarkers();
 }
 
 // 검색창처럼 미리보기 위쪽 형제가 나타나거나 사라지면 대상 카드의 실제 좌표가
@@ -3181,6 +3480,8 @@ function bindPreviewInteractions(preview){
   enableBlockDrag(preview);
   if(previewSearchState.open) pvApplySearch(true);   // 검색 중이면 강조 다시 칠함 (미리보기 DOM 전용)
   decoratePreviewDirectEditors();
+  decorateOutputRuleOccurrences();
+  bindOutputRuleInteractions();
   decoratePreviewCoverImageNavigation();
   decoratePreviewProfileEditors();
   decoratePreviewCreditEditors();
@@ -3203,6 +3504,7 @@ function finishPreviewLayout(preview){
 // 미리보기 갱신 순서: 이전 UI 정리 → 상태 보관 → HTML 교체 → 상태 복원 → 기능 연결.
 function renderPreview(prebuiltHTML){
   const preview = uiElements.preview;
+  hideOutputRulePopover(); hideSelToolbar();
   // 외곽 버튼은 HTML 교체 후에도 남으므로 이전 대상을 참조하는 버튼부터 제거한다.
   document.querySelectorAll('#previewWrap > .previewFloatingControl').forEach(button => button.remove());
   preview.classList.add('previewRefreshing');
@@ -3376,7 +3678,7 @@ function enableBlockDrag(preview){
     const settings = MosaicState.getSettings();
     // MosaicRenderer.assembleBody의 [BR] 결합과 대사 분할을 모두 반영해 이미지·구분선의
     // 드래그 대상 수가 실제 미리보기 최상위 블록 수와 항상 같게 한다.
-    const entries = topLevelSourceEntries(ta.value, settings);
+    const entries = topLevelSourceEntries(ta.value, {...settings,outputRuleExclusions:editorOutputRuleExclusions(ta)});
     const map = topLevelMap(entries);
 
     // 카드 본문 컨테이너: details면 summary 다음, div면 첫 자식
@@ -5753,6 +6055,8 @@ function getCards(){
       cardTitle:title ? title.value : '',
       visible,
       ...(ed.dataset.bodyCenter === 'true' ? {bodyCenter:true} : {}),
+      ...(editorOutputRuleExclusions(ed.querySelector('textarea')).length
+        ? {outputRuleExclusions:editorOutputRuleExclusions(ed.querySelector('textarea')).map(item => ({...item}))} : {}),
     };
   });
 }
@@ -6229,6 +6533,8 @@ function createCardEditor(value){
 
   const ta = document.createElement('textarea');
   ta.value = data.body || '';
+  outputRuleEditorState.set(ta,{body:ta.value,items:MosaicState.rebaseOutputRuleExclusions(
+    source.outputRuleExclusions || [],source.body || '',ta.value)});
   ta.placeholder = '이 카드의 본문을 입력...';
   const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 200);
 
@@ -6252,7 +6558,8 @@ function createCardEditor(value){
       folded: foldChk.checked,
       cardTitle: foldTitleInput.value,
       visible: ed.dataset.outputVisible !== 'false',
-      bodyCenter: ed.dataset.bodyCenter === 'true'
+      bodyCenter: ed.dataset.bodyCenter === 'true',
+      outputRuleExclusions:editorOutputRuleExclusions(ta)
     });
     ed.after(clone);
     renumberCards();
@@ -7381,10 +7688,11 @@ function pvReplaceCurrent(){
   }
   const lines = src.ta.value.split('\n');
   const line = lines[src.raw] || '';
-  const sourceRange = findSourceRange(line, q, k, true);
+  const settings = outputRuleLineSettings(src.ta,src.raw);
+  const sourceRange = findSourceRange(line, q, k, true, settings);
   if(!sourceRange){ pvStatusFlash('원본 위치 확인 실패'); return; }
   MosaicStorage.snapshotCards();
-  lines[src.raw] = replaceSourceRange(line, sourceRange, r);
+  lines[src.raw] = replaceSourceRange(line, sourceRange, r, settings);
   src.ta.value = lines.join('\n');
   src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
   showUndoToast('1곳 변경.');
@@ -7403,7 +7711,7 @@ function pvReplaceAll(){
   pvScopeTextareas().forEach(ta => {
     const rows = new Map();
     ta.value.split('\n').forEach((line, raw) => {
-      const matches = findAllSourceRanges(line, q, true);
+      const matches = findAllSourceRanges(line, q, true, outputRuleLineSettings(ta,raw));
       if(matches.length) rows.set(raw, matches);
     });
     if(rows.size) perTextarea.set(ta, rows);
@@ -7418,7 +7726,7 @@ function pvReplaceAll(){
     rows.forEach((rangeList, raw) => {
       let line = lines[raw] || '';
       rangeList.sort((a, b) => b.start - a.start).forEach(range => {
-        line = replaceSourceRange(line, range, r);
+        line = replaceSourceRange(line, range, r, outputRuleLineSettings(ta,raw));
       });
       lines[raw] = line;
     });

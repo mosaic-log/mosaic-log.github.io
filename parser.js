@@ -1,4 +1,4 @@
-// 조각로그 v1.8.8 본문 문법과 안전한 인라인 HTML 변환.
+// 조각로그 v1.8.9 본문 문법과 안전한 인라인 HTML 변환.
 function escapeHTML(s){
   return String(s)
     .replace(/&/g, '&amp;')
@@ -177,9 +177,14 @@ function nameRuleReplacement(to, josa){
 }
 function outputTextProjection(value, settings, trackSource = true){
   let text = String(value);
-  let spans = trackSource ? Array.from({length:text.length}, (_,i) => ({start:i,end:i+1})) : null;
-  const names = (settings.nameRules || []).filter(rule => rule.enabled !== false && rule.from);
-  const keywords = (settings.keywordRules || []).filter(rule => rule.enabled !== false && rule.from);
+  const source = text, offset = settings.outputRuleSourceOffset || 0;
+  const exclusions = settings.outputRuleExclusions || [];
+  const collect = settings.trackOutputRuleOccurrences === true;
+  const occurrences = [];
+  const needsSpans = trackSource || collect || exclusions.length > 0;
+  let spans = needsSpans ? Array.from({length:text.length}, (_,i) => ({start:i,end:i+1})) : null;
+  const names = (settings.nameRules || []).map((rule,i) => ({...rule,id:rule.id || `nr_legacy_${i}`})).filter(rule => rule.enabled !== false && rule.from);
+  const keywords = (settings.keywordRules || []).map((rule,i) => ({...rule,id:rule.id || `kr_legacy_${i}`})).filter(rule => rule.enabled !== false && rule.from);
   for(const [rules,name] of [[names,true],[keywords,false]]){
     for(const rule of rules){
       if(!text.includes(rule.from)) continue;
@@ -199,7 +204,7 @@ function outputTextProjection(value, settings, trackSource = true){
       const isSpeaker = (start,end) => speakers.some(span => start < span.end && end > span.start);
       const pattern = name ? nameRulePattern(rule.from)
         : new RegExp(rule.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),'g');
-      if(!trackSource){
+      if(!needsSpans){
         text = text.replace(pattern, (match,josa,offset) => name
           ? isSpeaker(offset,offset + match.length) ? match : nameRuleReplacement(rule.to,josa)
           : rule.to);
@@ -210,7 +215,6 @@ function outputTextProjection(value, settings, trackSource = true){
         if(isSpeaker(match.index,match.index + match[0].length)) continue;
         nextText += text.slice(cursor,match.index);
         for(let i=cursor;i<match.index;i++) nextSpans.push(spans[i]);
-        const replacement = name ? nameRuleReplacement(rule.to,match[1]) : rule.to;
         const first = spans[match.index], last = spans[match.index+match[0].length-1];
         const range = {start:first.start,end:last.end,
           editStart:first.editStart ?? first.start,editEnd:last.editEnd ?? last.end};
@@ -218,8 +222,21 @@ function outputTextProjection(value, settings, trackSource = true){
         const nameRange = {...range,end:nameEnd.end};
         const josaStart = spans[match.index + rule.from.length];
         const josaRange = josaStart ? {...range,start:josaStart.start} : range;
+        const kind = name ? 'name' : 'keyword';
+        // 이름의 예외는 이름 자체에 묶는다. 조사나 바깥 서식이 바뀌어도 같은 이름이다.
+        const occurrenceRange = name ? nameRange : range;
+        const sourceText = source.slice(occurrenceRange.start,occurrenceRange.end);
+        const excluded = exclusions.some(item => item.kind === kind && item.ruleId === rule.id
+          && item.from === rule.from && item.to === rule.to && item.start === offset+occurrenceRange.start
+          && item.end === offset+occurrenceRange.end && item.text === sourceText);
+        const replacement = excluded ? match[0] : name ? nameRuleReplacement(rule.to,match[1]) : rule.to;
+        if(collect && (excluded || replacement !== match[0])) occurrences.push({
+          kind,ruleId:rule.id,from:rule.from,to:rule.to,start:offset+occurrenceRange.start,end:offset+occurrenceRange.end,
+          text:sourceText,matched:match[0],replacement,excluded,deleted:!excluded && replacement === ''
+        });
         nextText += replacement;
-        for(let i=0;i<replacement.length;i++) nextSpans.push(name ? i < rule.to.length ? nameRange : josaRange : range);
+        for(let i=0;i<replacement.length;i++) nextSpans.push(excluded ? spans[match.index+i]
+          : name ? i < rule.to.length ? nameRange : josaRange : range);
         cursor = match.index + match[0].length;
       }
       nextText += text.slice(cursor);
@@ -228,7 +245,7 @@ function outputTextProjection(value, settings, trackSource = true){
       spans = nextSpans;
     }
   }
-  return {text,spans};
+  return {text,spans:trackSource || collect ? spans : null,...(collect ? {occurrences} : {})};
 }
 function applyOutputTextRules(value, settings){
   return outputTextProjection(value,settings,false).text;

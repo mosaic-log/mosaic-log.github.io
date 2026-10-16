@@ -1,4 +1,4 @@
-// 조각로그 v1.8.8 HTML 복원·파일 저장·로그 보관함 모듈.
+// 조각로그 v1.8.9 HTML 복원·파일 저장·로그 보관함 모듈.
 
 // ---------- 출력 HTML에서 작업 복원 ----------
 document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
@@ -228,6 +228,8 @@ function sanitizeImportedWork(data){
     const body = typeof card === 'string' ? card : card && card.body;
     const foldTitle = typeof card === 'object' && typeof card.foldTitle === 'string' ? card.foldTitle : '';
     if(typeof body !== 'string' || body.length > MAX_CARD_CHARS || foldTitle.length > MAX_FOLD_TITLE_CHARS) return null;
+    if(card.outputRuleExclusions !== undefined && (!Array.isArray(card.outputRuleExclusions)
+      || type === 'comment' || MosaicState.normalizeOutputRuleExclusions(card.outputRuleExclusions,body).length !== card.outputRuleExclusions.length)) return null;
     totalBodyChars += body.length;
     if(totalBodyChars > MAX_TOTAL_BODY_CHARS) return null;
     const visible = typeof card !== 'object' || card.visible !== false;
@@ -240,7 +242,8 @@ function sanitizeImportedWork(data){
           foldTitle,
           foldMinimal: typeof card === 'object' && !!card.foldMinimal,
           visible,
-          ...(typeof card === 'object' && card.bodyCenter === true ? {bodyCenter:true} : {})
+          ...(typeof card === 'object' && card.bodyCenter === true ? {bodyCenter:true} : {}),
+          ...(card.outputRuleExclusions?.length ? {outputRuleExclusions:MosaicState.normalizeOutputRuleExclusions(card.outputRuleExclusions,body)} : {})
         });
   }
   const source = data.fields && typeof data.fields === 'object' && !Array.isArray(data.fields) ? data.fields : {};
@@ -1073,6 +1076,8 @@ function prepareDraftRestore(d){
     if(!card || typeof card !== 'object' || Array.isArray(card)) return null;
     if(card.body !== undefined && typeof card.body !== 'string') return null;
     if(card.type !== undefined && !['card','comment'].includes(card.type)) return null;
+    if(card.outputRuleExclusions !== undefined && (!Array.isArray(card.outputRuleExclusions)
+      || card.type === 'comment' || MosaicState.normalizeOutputRuleExclusions(card.outputRuleExclusions,card.body || '').length !== card.outputRuleExclusions.length)) return null;
     for(const key of ['foldTitle','cardTitle']){
       if(card[key] !== undefined && typeof card[key] !== 'string') return null;
     }
