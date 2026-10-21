@@ -56,10 +56,6 @@
 
 파일별 책임과 수정 예시는 [직접 개조 안내](MODDING.md), 유지보수 원칙은 [AGENTS.md](AGENTS.md)를 참고합니다.
 
-## GitHub Pages에 올리기
-
-압축을 푼 파일들을 저장소 최상위에 같은 이름으로 업로드합니다. `index.html`, `styles.css`, JS 11개, `Top_image.png`와 문서를 함께 올리면 됩니다. `index.html`의 스크립트 순서와 `?v=...` 캐시 값을 유지합니다.
-
 ## 오류 제보·제안
 
 [Issues](https://github.com/mosaic-log/mosaic-log.github.io/issues)에 사용 버전, 브라우저, 관련 설정, 재현 순서를 함께 남겨 주세요. 문제가 생기는 짧은 예시 본문이나 화면이 있으면 확인에 도움이 됩니다.
