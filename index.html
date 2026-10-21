@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.8.9 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.9.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=4e88dfd88a0b">
+<link rel="stylesheet" href="./styles.css?v=6f22bf0115f6">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.8.9 GitHub 저장소 열기">v1.8.9</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.0 GitHub 저장소 열기">v1.9.0</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -381,9 +381,10 @@
   <details class="group foldGroup bodyFold bodyEditorFold" id="bodyInputGroup" open>
     <summary class="group-title foldHead"><span class="bodyFoldTitle">본문 입력</span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
-    <div class="bodyEditorOptions">
+    <div class="bodyEditorOptions" role="group" aria-label="본문 보기">
       <p class="group-desc bodyEditorDesc">카드 단위 작성·편집</p>
       <span class="labInlineTools">
+        <button class="uiButton" type="button" id="briefViewBtn" aria-pressed="false" aria-controls="cardEditors" title="입력 카드와 코멘트를 모두 최소화 (출력에는 영향 없음)">최소화</button>
         <button class="uiButton" type="button" id="docNavBtn" aria-expanded="false" aria-controls="docNavPanel">목차</button>
         <button class="uiButton" type="button" id="focusModeBtn" aria-pressed="false">집중 모드</button>
       </span>
@@ -395,21 +396,11 @@
       </span>
       <span class="tbSep"></span>
       <span class="tbGroup">
-        <span class="separatorInsertSplit">
-          <button class="uiToolbarButton" type="button" id="insertHrBtn" title="얇은 구분선 [HR] 삽입">구분선</button>
-          <select id="separatorInsertSelect" class="separatorInsertSelect" aria-label="다른 구분 요소 삽입" title="장면 전환·호흡·여백 선택">
-            <option value="" selected disabled>다른 구분 요소</option>
-            <option value="hr2">장면 전환</option>
-            <option value="hr3">호흡</option>
-            <option value="hr4">여백 [HR4]</option>
-          </select>
-        </span>
-      </span>
-      <span class="tbSep"></span>
-      <span class="tbGroup">
+        <button class="uiToolbarButton" type="button" id="insertHrBtn" title="얇은 구분선 [HR] 삽입">구분선</button>
         <button class="uiToolbarButton" type="button" id="insertImgBtn" title="본문·코멘트에 이미지 삽입">이미지</button>
+        <button class="uiToolbarButton" type="button" id="insertCommentBtn" title="선택한 글을 메모로 적용 · 선택 없으면 현재 줄 아래에 삽입">메모</button>
         <button class="uiToolbarButton" type="button" id="insertQuoteBtn" title="인용/편지/시스템 메시지 블록">인용</button>
-        <button class="uiToolbarButton" type="button" id="insertFoldBtn" title="선택 부분을 접기로 감싸기">접기</button>
+        <button class="uiToolbarButton" type="button" id="insertFoldBtn" title="본문 일부를 접었다 펼치는 영역으로 묶기">부분접기</button>
       </span>
     </div>
     <div id="cardEditors"></div>
@@ -440,6 +431,7 @@
         <p class="hint"><b>가운데 정렬:</b> 줄 맨 앞 <code>[C] </code> · 소제목·인용·접기 제목과 조합 가능</p>
         <p class="hint"><b>소제목:</b> 맨 앞 <code>#</code> 개수로 크기 결정 · <code>#</code> 최대 → <code>####</code> 최소</p>
         <p class="hint"><b>인용 블록:</b> 줄 맨 앞 <code>&gt; </code> · 편지·문자·시스템 메시지용 · <code>&gt;&gt;</code>와 구분</p>
+        <p class="hint"><b>본문 메모:</b> 줄 맨 앞 <code>:내용</code> 또는 <code>: 내용</code> · <code>Shift+Enter</code> 또는 줄 끝 <code>[BR]</code>로 메모 안 줄바꿈 · 일반 Enter 다음 줄은 본문</p>
         <p class="hint"><b>상태창:</b> 줄 전체를 <code>[ 내용 | 내용 ]</code>으로 입력 · 바깥 대괄호는 숨기고 연한 보조색 배경으로 출력</p>
         <p class="hint"><b>문단 구분:</b> <code>---</code> → <code>[HR]</code> 선 · <code>[HR2]</code> ✦ · <code>[HR3]</code> 호흡(· · ·) · <code>[HR4]</code> 여백</p>
       </div>
@@ -481,6 +473,7 @@
             <div class="paragraphCenterOptions">
               <label class="paragraphCenterChoice"><input type="checkbox" id="narrCenter"><span>나레이션</span></label>
               <label class="paragraphCenterChoice"><input type="checkbox" id="dialogueCenter"><span>대사</span></label>
+              <label class="paragraphCenterChoice" id="memoAlignRow"><input type="checkbox" id="memoCenter"><span>메모</span></label>
               <label class="paragraphCenterChoice" id="quoteAlignRow"><input type="checkbox" id="quoteCenter"><span>인용</span></label>
             </div>
           </div>
@@ -500,7 +493,7 @@
               <button class="uiButton" type="button" id="commentWidthDefault" aria-pressed="true">기본</button>
               <button class="uiButton" type="button" id="commentWidthCard" aria-pressed="false">카드 폭</button>
             </div>
-            <input class="paragraphHiddenInput" type="hidden" id="commentWidth" value="default">
+            <input class="paragraphHiddenInput" type="hidden" id="commentWidth">
           </div>
           <div class="paragraphCenterLine" id="commentAlignRow">
             <span class="paragraphCenterCategory">코멘트 정렬</span>
@@ -508,7 +501,7 @@
               <button class="uiButton" type="button" id="commentAlignLeft" aria-pressed="true">기본</button>
               <button class="uiButton" type="button" id="commentAlignCenter" aria-pressed="false">가운데</button>
             </div>
-            <input class="paragraphHiddenInput" type="hidden" id="commentAlign" value="left">
+            <input class="paragraphHiddenInput" type="hidden" id="commentAlign">
           </div>
         </div>
       </div>
@@ -608,40 +601,40 @@
     <div class="typeSectionLabel designSectionLabel">본문</div>
     <div class="row typographyBodyRow">
       <label for="narrSize">나레이션 크기</label>
-      <input type="range" id="narrSize" value="14" step="0.5" min="9" max="24">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrSizeVal" data-range="narrSize" value="14" aria-label="나레이션 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <input type="range" id="narrSize" step="0.5" min="9" max="24">
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrSizeVal" data-range="narrSize" aria-label="나레이션 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row typographyBodyRow typographyBodyGroupEnd">
       <label for="narrLine">나레이션 줄간격</label>
-      <input type="range" id="narrLine" value="1.7" step="0.05" min="1" max="3">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrLineVal" data-range="narrLine" value="1.7" aria-label="나레이션 줄간격 직접 입력"></span>
+      <input type="range" id="narrLine" step="0.05" min="1" max="3">
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrLineVal" data-range="narrLine" aria-label="나레이션 줄간격 직접 입력"></span>
     </div>
     <div class="row typographyBodyRow">
       <label for="dlgSize">대사 크기</label>
-      <input type="range" id="dlgSize" value="14" step="0.5" min="9" max="24">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgSizeVal" data-range="dlgSize" value="14" aria-label="대사 크기 직접 입력"><span class="rangeUnit">px</span></span>
+      <input type="range" id="dlgSize" step="0.5" min="9" max="24">
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgSizeVal" data-range="dlgSize" aria-label="대사 크기 직접 입력"><span class="rangeUnit">px</span></span>
     </div>
     <div class="row typographyBodyRow typographyBodyGroupEnd">
       <label for="dlgLine">대사 줄간격</label>
-      <input type="range" id="dlgLine" value="1.7" step="0.05" min="1" max="3">
-      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgLineVal" data-range="dlgLine" value="1.7" aria-label="대사 줄간격 직접 입력"></span>
+      <input type="range" id="dlgLine" step="0.05" min="1" max="3">
+      <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="dlgLineVal" data-range="dlgLine" aria-label="대사 줄간격 직접 입력"></span>
     </div>
     <details class="typographySubsection" id="typographySpacingSection">
       <summary class="typographySubsectionSummary">간격</summary>
       <div class="typographySubsectionBody">
         <div class="row">
           <label for="narrDialogueGap">나레이션 ↔ 대사</label>
-          <input type="range" id="narrDialogueGap" value="20" step="2" min="10" max="40">
-          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrDialogueGapVal" data-range="narrDialogueGap" value="20" aria-label="나레이션과 대사 사이 간격 직접 입력"><span class="rangeUnit">px</span></span>
+          <input type="range" id="narrDialogueGap" step="2" min="10" max="40">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="narrDialogueGapVal" data-range="narrDialogueGap" aria-label="나레이션과 대사 사이 간격 직접 입력"><span class="rangeUnit">px</span></span>
         </div>
         <div class="row">
           <label for="paragraphGap">단락 간격</label>
-          <input type="range" id="paragraphGap" value="20" step="2" min="8" max="40">
-          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" value="20" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
+          <input type="range" id="paragraphGap" step="2" min="8" max="40">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="paragraphGapVal" data-range="paragraphGap" aria-label="단락 간격 직접 입력"><span class="rangeUnit">px</span></span>
         </div>
         <div class="row">
           <label for="softBreakSpacing" title="Shift+Enter · [BR] 간격">줄바꿈 간격</label>
-          <input type="range" id="softBreakSpacing" value="0" step="1" min="0" max="2" aria-valuetext="기본" title="Shift+Enter · [BR] 간격">
+          <input type="range" id="softBreakSpacing" step="1" min="0" max="2" aria-valuetext="기본" title="Shift+Enter · [BR] 간격">
           <span class="rangeEditor" id="softBreakSpacingStage"><output class="rangeval" id="softBreakSpacingVal" for="softBreakSpacing">기본</output></span>
         </div>
       </div>
@@ -651,15 +644,15 @@
       <div class="typographySubsectionBody">
         <div class="row titleStyleRow">
           <label for="titleSize">표제 제목</label>
-          <input type="range" id="titleSize" value="21" step="1" min="16" max="36">
-          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" value="21" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
-          <label class="titleRowBold"><input type="checkbox" id="titleBold" checked><span>굵게</span></label>
+          <input type="range" id="titleSize" step="1" min="16" max="36">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="titleSizeVal" data-range="titleSize" aria-label="표제 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+          <label class="titleRowBold"><input type="checkbox" id="titleBold"><span>굵게</span></label>
         </div>
         <div class="row titleStyleRow">
           <label for="foldTitleSize">카드 제목</label>
-          <input type="range" id="foldTitleSize" value="16" step="1" min="11" max="24">
-          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" value="16" aria-label="카드 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
-          <label class="titleRowBold"><input type="checkbox" id="foldTitleBold" checked><span>굵게</span></label>
+          <input type="range" id="foldTitleSize" step="1" min="11" max="24">
+          <span class="rangeEditor"><input type="text" inputmode="decimal" class="rangeval" id="foldTitleSizeVal" data-range="foldTitleSize" aria-label="카드 제목 크기 직접 입력"><span class="rangeUnit">px</span></span>
+          <label class="titleRowBold"><input type="checkbox" id="foldTitleBold"><span>굵게</span></label>
         </div>
       </div>
     </details>
@@ -677,32 +670,20 @@
       <label for="dlgStyle">표현 방식</label>
       <select id="dlgStyle">
         <optgroup label="문장 속 대사도 적용">
-          <option value="softlight" selected>글자 강조</option>
+          <option value="softlight">글자 강조</option>
           <option value="highlight">배경 강조</option>
         </optgroup>
         <optgroup label="출력에서 대사를 분리해 적용">
           <option value="badge">이름표</option>
           <option value="gradient">그라데이션</option>
-          <option value="box">인용박스</option>
-          <option value="messenger">메신저</option>
+          <option value="quote-bg">인용배경</option>
+          <option value="box">인용선</option>
+          <option value="messenger2">메신저</option>
         </optgroup>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="대사 표현 방식 이전·다음">
         <button class="uiStepperButton" type="button" id="dlgStylePrev" aria-label="이전 대사 표현" title="이전 대사 표현">‹</button>
         <button class="uiStepperButton" type="button" id="dlgStyleNext" aria-label="다음 대사 표현" title="다음 대사 표현">›</button>
-      </span>
-    </div>
-    <div class="row selectCycleRow" id="parallelTranslationLayoutRow">
-      <label for="parallelTranslationLayout">원문 병행</label>
-      <select id="parallelTranslationLayout">
-        <option value="auto" selected>자동 배치</option>
-        <option value="inline">이어쓰기</option>
-        <option value="stack">아래쓰기</option>
-        <option value="off">미적용</option>
-      </select>
-      <span class="selectCycleStepper" role="group" aria-label="원문 병행 이전·다음">
-        <button class="uiStepperButton" type="button" id="parallelLayoutPrev" aria-label="이전 원문 병행 설정" title="이전 원문 병행 설정">‹</button>
-        <button class="uiStepperButton" type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
       </span>
     </div>
     <div id="speakerNames">
@@ -720,6 +701,59 @@
     </div>
   </details>
 
+  <details class="group foldGroup designFold halfControls settingsForm typographyGroup parallelTranslationGroup" id="parallelTranslationGroup">
+    <summary class="group-title foldHead">
+      <span class="designSummaryTitle">원문 병행</span>
+      <span class="designFoldMeta" id="parallelTranslationSummary"></span>
+      <span class="foldArrow" aria-hidden="true"></span>
+    </summary>
+    <div class="foldBody">
+      <div class="row selectCycleRow" id="parallelTranslationLayoutRow">
+        <label for="parallelTranslationLayout">배치</label>
+        <select id="parallelTranslationLayout">
+          <option value="auto">자동 배치</option>
+          <option value="inline">이어쓰기</option>
+          <option value="stack">아래쓰기</option>
+        </select>
+        <span class="selectCycleStepper" role="group" aria-label="원문 병행 이전·다음">
+          <button class="uiStepperButton" type="button" id="parallelLayoutPrev" aria-label="이전 원문 병행 설정" title="이전 원문 병행 설정">‹</button>
+          <button class="uiStepperButton" type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
+        </span>
+      </div>
+      <div class="layoutToggleRow parallelScopeRow">
+        <div class="layoutToggleLabel" id="parallelScopeLabel">적용</div>
+        <div class="layoutToggleChoices parallelScopeChoices" role="group" aria-labelledby="parallelScopeLabel">
+          <label class="layoutToggleChoice parallelScopeChoice" for="parallelDialogueOn" title="대사·속마음 원문 병행"><input type="checkbox" id="parallelDialogueOn" aria-label="대사 원문 병행"><span>대사</span></label>
+          <label class="layoutToggleChoice parallelScopeChoice" for="parallelNarrationOn" title="나레이션 끝 괄호를 원문 병행으로 표시"><input type="checkbox" id="parallelNarrationOn" aria-label="나레이션 원문 병행"><span>나레이션</span></label>
+        </div>
+      </div>
+      <div id="parallelTranslationOptions">
+        <div class="row segmentedChoiceRow">
+          <label id="parallelTranslationOrderLabel">순서</label>
+          <select id="parallelTranslationOrder" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
+            <option value="original">원문 우선</option>
+            <option value="translation">번역 우선</option>
+          </select>
+          <span class="segmentedChoice" data-control="parallelTranslationOrder" role="group" aria-labelledby="parallelTranslationOrderLabel">
+            <button class="uiButton" type="button" data-value="original" aria-pressed="true">원문 우선</button>
+            <button class="uiButton" type="button" data-value="translation" aria-pressed="false">번역 우선</button>
+          </span>
+        </div>
+        <div class="row segmentedChoiceRow">
+          <label id="parallelTranslationBracketsLabel">괄호</label>
+          <select id="parallelTranslationBrackets" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
+            <option value="show">괄호 표시</option>
+            <option value="hide">괄호 숨김</option>
+          </select>
+          <span class="segmentedChoice" data-control="parallelTranslationBrackets" role="group" aria-labelledby="parallelTranslationBracketsLabel">
+            <button class="uiButton" type="button" data-value="show" aria-pressed="true">괄호 표시</button>
+            <button class="uiButton" type="button" data-value="hide" aria-pressed="false">괄호 숨김</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </details>
+
   <details class="group foldGroup designFold halfControls settingsForm" id="layoutDesignGroup">
     <summary class="group-title foldHead">
       <span class="designSummaryTitle">레이아웃</span>
@@ -731,7 +765,7 @@
       <label for="spacingMode">내용 간격</label>
       <select id="spacingMode">
         <option value="compact">촘촘</option>
-        <option value="normal" selected>기본</option>
+        <option value="normal">기본</option>
         <option value="relaxed">넉넉</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="내용 간격 이전·다음">
@@ -744,7 +778,7 @@
       <select id="cardWidth">
         <option value="620">좁게 (620px)</option>
         <option value="680">보통 (680px)</option>
-        <option value="750" selected>넓게 (750px)</option>
+        <option value="750">넓게 (750px)</option>
         <option value="900">최대 (900px)</option>
       </select>
       <span class="selectCycleStepper" role="group" aria-label="본문 폭 이전·다음">
@@ -753,22 +787,22 @@
       </span>
     </div>
     <select id="cardLayout" hidden aria-hidden="true" tabindex="-1">
-      <option value="separate" selected>개별 카드</option>
+      <option value="separate">개별 카드</option>
       <option value="unified">카드 이어보기</option>
     </select>
 
     <div class="layoutToggleRow" role="group" aria-labelledby="layoutCardOptionsLabel">
       <span class="layoutToggleLabel" id="layoutCardOptionsLabel">카드 구성</span>
       <div class="layoutToggleChoices">
-        <label class="layoutToggleChoice" title="카드 외곽선 표시 전환"><input type="checkbox" id="cardBorderOn" checked><span>외곽선</span></label>
+        <label class="layoutToggleChoice" title="카드 외곽선 표시 전환"><input type="checkbox" id="cardBorderOn"><span>외곽선</span></label>
         <label class="layoutToggleChoice" title="여러 카드를 하나의 배경 안에 이어서 표시"><input type="checkbox" id="cardLayoutUnifiedOn"><span>이어보기</span></label>
       </div>
     </div>
     <div class="foldCardOptionSection layoutToggleRow" role="group" aria-labelledby="layoutFoldOptionsLabel">
       <span class="layoutToggleLabel" id="layoutFoldOptionsLabel">카드 제목</span>
       <div class="layoutToggleChoices">
-        <label class="layoutToggleChoice" title="카드 제목에 ✦ 장식을 표시"><input type="checkbox" id="foldTitleDecorationOn" checked><span>제목 장식</span></label>
-        <label class="layoutToggleChoice" title="카드 제목과 내부 접기의 제목 아래에 구분선을 표시"><input type="checkbox" id="foldDividerOn" checked><span>구분선</span></label>
+        <label class="layoutToggleChoice" title="카드 제목에 ✦ 장식을 표시"><input type="checkbox" id="foldTitleDecorationOn"><span>제목 장식</span></label>
+        <label class="layoutToggleChoice" title="카드 제목과 내부 접기의 제목 아래에 구분선을 표시"><input type="checkbox" id="foldDividerOn"><span>구분선</span></label>
         <label class="layoutToggleChoice" title="빈 접기 카드에 위에서부터 1, 2, 3 표시"><input type="checkbox" id="foldTitleAutoNumber"><span>자동 번호</span></label>
       </div>
     </div>
@@ -779,7 +813,7 @@
   <details class="group foldGroup designFold halfControls settingsForm advancedDesignGroup" id="advancedDesignGroup">
     <summary class="group-title foldHead">
       <span class="designSummaryTitle">세부 조정</span>
-      <span class="coverFoldActions"><button type="button" class="profileResetIconBtn" id="advancedResetBtn" aria-label="세부 조정 초기화" title="세부 조정 초기화">↺</button><label class="coverVisibilitySwitch" title="세부 조정 적용 전환"><input type="checkbox" id="advancedOn" checked aria-label="세부 조정 적용"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span>
+      <span class="coverFoldActions"><button type="button" class="profileResetIconBtn" id="advancedResetBtn" aria-label="세부 조정 초기화" title="세부 조정 초기화">↺</button><label class="coverVisibilitySwitch" title="세부 조정 적용 전환"><input type="checkbox" id="advancedOn" aria-label="세부 조정 적용"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span>
       <span class="foldArrow" aria-hidden="true"></span>
     </summary>
     <div class="foldBody">
@@ -791,16 +825,16 @@
                 <div class="typeSectionLabel designSectionLabel">최상단 프로필</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="topProfileDetailResetBtn" data-reset-group="topProfile" aria-label="최상단 프로필 조정 초기화" title="최상단 프로필 조정 초기화">↺</button>
               </div>
-              <div class="row shapeChoiceRow"><span class="shapeChoiceLabel" id="profileOuterBackgroundLabel">바깥 배경</span><select id="profileOuterBackground" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true"><option value="filled" selected>기본</option><option value="transparent">투명</option></select><span class="segmentedChoice shapeChoice" data-control="profileOuterBackground" role="group" aria-labelledby="profileOuterBackgroundLabel"><button class="uiButton" type="button" data-value="filled" aria-pressed="true">기본</button><button class="uiButton" type="button" data-value="transparent" aria-pressed="false">투명</button></span></div>
-              <div class="row" id="profileItemGapRow"><label for="profileItemGap">프로필 사이</label><input type="range" id="profileItemGap" min="-10" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileItemGapVal" data-range="profileItemGap" value="10" aria-label="프로필 사이 실제 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row shapeChoiceRow"><span class="shapeChoiceLabel" id="profileOuterBackgroundLabel">바깥 배경</span><select id="profileOuterBackground" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true"><option value="filled">기본</option><option value="transparent">투명</option></select><span class="segmentedChoice shapeChoice" data-control="profileOuterBackground" role="group" aria-labelledby="profileOuterBackgroundLabel"><button class="uiButton" type="button" data-value="filled" aria-pressed="true">기본</button><button class="uiButton" type="button" data-value="transparent" aria-pressed="false">투명</button></span></div>
+              <div class="row" id="profileItemGapRow"><label for="profileItemGap">프로필 사이</label><input type="range" id="profileItemGap" min="-10" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileItemGapVal" data-range="profileItemGap" aria-label="프로필 사이 실제 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">표지</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="coverSpaceResetBtn" data-reset-group="coverSpace" aria-label="표지 초기화" title="표지 초기화">↺</button>
               </div>
-              <div class="row"><label for="coverVerticalSpace">위아래 여백</label><input type="range" id="coverVerticalSpace" min="0" max="60" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverVerticalSpaceVal" data-range="coverVerticalSpace" value="0" aria-label="표지 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row advancedDividerLengthRow" id="coverDividerLengthRow"><label for="coverDividerLength">표지선 길이</label><input type="range" id="coverDividerLength" min="20" max="100" step="5" value="100"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverDividerLengthVal" data-range="coverDividerLength" value="100" aria-label="표지 아래 구분선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row"><label for="coverVerticalSpace">위아래 여백</label><input type="range" id="coverVerticalSpace" min="0" max="60" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverVerticalSpaceVal" data-range="coverVerticalSpace" aria-label="표지 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row advancedDividerLengthRow" id="coverDividerLengthRow"><label for="coverDividerLength">표지선 길이</label><input type="range" id="coverDividerLength" min="20" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverDividerLengthVal" data-range="coverDividerLength" aria-label="표지 아래 구분선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
           </div>
         </div>
       </details>
@@ -812,27 +846,27 @@
                 <div class="typeSectionLabel designSectionLabel">꼬리말</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="footerSpacingResetBtn" data-reset-group="footerSpacing" aria-label="꼬리말 간격 초기화" title="꼬리말 간격 초기화">↺</button>
               </div>
-              <div class="row" id="footerBodyGapRow"><label for="footerBodyGap">본문 ↔ 꼬리말</label><input type="range" id="footerBodyGap" min="-60" max="80" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="footerBodyGapVal" data-range="footerBodyGap" value="0" aria-label="본문과 꼬리말 사이 간격 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" id="footerBodyGapRow"><label for="footerBodyGap">본문 ↔ 꼬리말</label><input type="range" id="footerBodyGap" min="-60" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="footerBodyGapVal" data-range="footerBodyGap" aria-label="본문과 꼬리말 사이 간격 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">본문 여백</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="cardInteriorResetBtn" data-reset-group="cardInterior" aria-label="본문 여백 초기화" title="본문 여백 초기화">↺</button>
               </div>
-              <div class="row"><label for="cardBodyTopSpace">본문 위 여백</label><input type="range" id="cardBodyTopSpace" min="0" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyTopSpaceVal" data-range="cardBodyTopSpace" value="0" aria-label="각 카드 본문 첫 줄 위 추가 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="cardBodyBottomSpace">본문 아래 여백</label><input type="range" id="cardBodyBottomSpace" min="-28" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyBottomSpaceVal" data-range="cardBodyBottomSpace" value="0" aria-label="각 카드 본문 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="cardInlinePadding">좌우 안쪽 여백</label><input type="range" id="cardInlinePadding" min="0" max="66" step="1" value="22"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardInlinePaddingVal" data-range="cardInlinePadding" value="0" aria-label="카드 좌우 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="cardBodyTopSpace">본문 위 여백</label><input type="range" id="cardBodyTopSpace" min="0" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyTopSpaceVal" data-range="cardBodyTopSpace" aria-label="각 카드 본문 첫 줄 위 추가 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="cardBodyBottomSpace">본문 아래 여백</label><input type="range" id="cardBodyBottomSpace" min="-28" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardBodyBottomSpaceVal" data-range="cardBodyBottomSpace" aria-label="각 카드 본문 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="cardInlinePadding">좌우 안쪽 여백</label><input type="range" id="cardInlinePadding" min="0" max="66" step="1"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardInlinePaddingVal" data-range="cardInlinePadding" aria-label="카드 좌우 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <!-- 이전 초안·프리셋의 여백값과 검증 범위를 보존하는 복원 전용 필드. -->
-          <input type="hidden" id="unifiedBottomSpace" min="0" max="60" value="0">
+          <input type="hidden" id="unifiedBottomSpace" min="0" max="60">
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">소제목 여백</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="headingSpacingResetBtn" data-reset-group="headingSpacing" aria-label="소제목 여백 초기화" title="소제목 여백 초기화">↺</button>
               </div>
-              <div class="row"><label for="headingTopSpace">소제목 위</label><input type="range" id="headingTopSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingTopSpaceVal" data-range="headingTopSpace" value="0" aria-label="소제목 위 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="headingBetweenSpace">소제목 사이</label><input type="range" id="headingBetweenSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBetweenSpaceVal" data-range="headingBetweenSpace" value="0" aria-label="연속 소제목 사이 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="headingBottomSpace">소제목 아래</label><input type="range" id="headingBottomSpace" min="-20" max="40" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBottomSpaceVal" data-range="headingBottomSpace" value="0" aria-label="소제목 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="headingTopSpace">소제목 위</label><input type="range" id="headingTopSpace" min="-20" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingTopSpaceVal" data-range="headingTopSpace" aria-label="소제목 위 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="headingBetweenSpace">소제목 사이</label><input type="range" id="headingBetweenSpace" min="-20" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBetweenSpaceVal" data-range="headingBetweenSpace" aria-label="연속 소제목 사이 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="headingBottomSpace">소제목 아래</label><input type="range" id="headingBottomSpace" min="-20" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="headingBottomSpaceVal" data-range="headingBottomSpace" aria-label="소제목 아래 여백 조절값 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
         </div>
       </details>
@@ -853,9 +887,9 @@
                   <button class="uiButton" type="button" data-value="star" aria-label="중앙 별" title="중앙 별" aria-pressed="false"><span class="shapePreview shapePreviewStarLine" aria-hidden="true"><span>✦</span></span></button>
                 </span>
               </div>
-              <div class="row" data-hr-control="hr"><label for="hrLength">길이</label><input type="range" id="hrLength" min="20" max="100" step="5" value="100"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrLengthVal" data-range="hrLength" value="100" aria-label="[HR] 구분선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row" data-hr-control="hr"><label for="hrOpacity">불투명도</label><input type="range" id="hrOpacity" min="0" max="100" step="5" value="50"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrOpacityVal" data-range="hrOpacity" value="50" aria-label="구분선 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row" data-hr-control="hr"><label for="hrVerticalSpace">위아래 여백</label><input type="range" id="hrVerticalSpace" min="0" max="80" step="2" value="26"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrVerticalSpaceVal" data-range="hrVerticalSpace" value="26" aria-label="[HR] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" data-hr-control="hr"><label for="hrLength">길이</label><input type="range" id="hrLength" min="20" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrLengthVal" data-range="hrLength" aria-label="[HR] 구분선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row" data-hr-control="hr"><label for="hrOpacity">불투명도</label><input type="range" id="hrOpacity" min="0" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrOpacityVal" data-range="hrOpacity" aria-label="구분선 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row" data-hr-control="hr"><label for="hrVerticalSpace">위아래 여백</label><input type="range" id="hrVerticalSpace" min="0" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hrVerticalSpaceVal" data-range="hrVerticalSpace" aria-label="[HR] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
@@ -871,8 +905,8 @@
                   <button class="uiButton" type="button" data-value="triple-star" aria-label="별 세 개" title="별 세 개" aria-pressed="false"><span class="shapePreview shapePreviewTripleStars" aria-hidden="true">✦ ✦ ✦</span></button>
                 </span>
               </div>
-              <div class="row" data-hr-control="hr2"><label for="hr2Opacity">불투명도</label><input type="range" id="hr2Opacity" min="0" max="100" step="5" value="50"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr2OpacityVal" data-range="hr2Opacity" value="50" aria-label="장면 전환 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row" data-hr-control="hr2"><label for="hr2VerticalSpace">위아래 여백</label><input type="range" id="hr2VerticalSpace" min="0" max="80" step="2" value="48"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr2VerticalSpaceVal" data-range="hr2VerticalSpace" value="48" aria-label="[HR2] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" data-hr-control="hr2"><label for="hr2Opacity">불투명도</label><input type="range" id="hr2Opacity" min="0" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr2OpacityVal" data-range="hr2Opacity" aria-label="장면 전환 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row" data-hr-control="hr2"><label for="hr2VerticalSpace">위아래 여백</label><input type="range" id="hr2VerticalSpace" min="0" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr2VerticalSpaceVal" data-range="hr2VerticalSpace" aria-label="[HR2] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
@@ -888,15 +922,15 @@
                   <button class="uiButton" type="button" data-value="line" aria-label="짧은 선" title="짧은 선" aria-pressed="false"><span class="shapePreview shapePreviewShortLine" aria-hidden="true"></span></button>
                 </span>
               </div>
-              <div class="row" data-hr-control="hr3"><label for="hr3Opacity">불투명도</label><input type="range" id="hr3Opacity" min="0" max="100" step="5" value="50"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr3OpacityVal" data-range="hr3Opacity" value="50" aria-label="호흡 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row" data-hr-control="hr3"><label for="hr3VerticalSpace">위아래 여백</label><input type="range" id="hr3VerticalSpace" min="0" max="80" step="2" value="36"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr3VerticalSpaceVal" data-range="hr3VerticalSpace" value="36" aria-label="[HR3] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" data-hr-control="hr3"><label for="hr3Opacity">불투명도</label><input type="range" id="hr3Opacity" min="0" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr3OpacityVal" data-range="hr3Opacity" aria-label="호흡 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row" data-hr-control="hr3"><label for="hr3VerticalSpace">위아래 여백</label><input type="range" id="hr3VerticalSpace" min="0" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="hr3VerticalSpaceVal" data-range="hr3VerticalSpace" aria-label="[HR3] 위아래 여백 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel" data-hr-control="hr4">[HR4] 여백</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="hr4ResetBtn" data-reset-group="hr4" data-hr-control="hr4" aria-label="[HR4] 여백 초기화" title="[HR4] 여백 초기화">↺</button>
               </div>
-              <div class="row" data-hr-control="hr4"><label for="gapHeight">여백 높이</label><input type="range" id="gapHeight" min="20" max="100" step="4" value="48"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="gapHeightVal" data-range="gapHeight" value="48" aria-label="[HR4] 여백 높이 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" data-hr-control="hr4"><label for="gapHeight">여백 높이</label><input type="range" id="gapHeight" min="20" max="100" step="4"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="gapHeightVal" data-range="gapHeight" aria-label="[HR4] 여백 높이 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
         </div>
       </details>
@@ -908,26 +942,26 @@
                 <div class="typeSectionLabel designSectionLabel">카드 외곽</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="cardExteriorResetBtn" data-reset-group="cardOutline" aria-label="카드 외곽 초기화" title="카드 외곽 초기화">↺</button>
               </div>
-              <div class="row advancedRadiusRow" id="cardCornerRadiusRow"><label for="cardCornerRadius">모서리 곡률</label><input type="range" id="cardCornerRadius" min="0" max="16" step="2" value="16"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardCornerRadiusVal" data-range="cardCornerRadius" value="16" aria-label="둥근 카드 모서리 곡률 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row advancedRadiusRow" id="cardCornerRadiusRow"><label for="cardCornerRadius">모서리 곡률</label><input type="range" id="cardCornerRadius" min="0" max="16" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardCornerRadiusVal" data-range="cardCornerRadius" aria-label="둥근 카드 모서리 곡률 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">카드 제목</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="cardTitleResetBtn" data-reset-group="cardTitle" aria-label="카드 제목 초기화" title="카드 제목 초기화">↺</button>
               </div>
-              <div class="row"><label for="cardTitlePadding">제목 높이</label><input type="range" id="cardTitlePadding" min="12" max="40" step="2" value="26"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardTitlePaddingVal" data-range="cardTitlePadding" value="26" aria-label="카드 제목 높이 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row advancedDividerLengthRow" id="cardDividerLengthRow"><label for="cardDividerLength">제목선 길이</label><input type="range" id="cardDividerLength" min="20" max="100" step="5" value="100"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardDividerLengthVal" data-range="cardDividerLength" value="100" aria-label="카드 제목선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row" id="cardTitleOrnamentOpacityRow"><label for="cardTitleOrnamentOpacity">장식 불투명도</label><input type="range" id="cardTitleOrnamentOpacity" min="0" max="100" step="5" value="50"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardTitleOrnamentOpacityVal" data-range="cardTitleOrnamentOpacity" value="50" aria-label="카드 제목 장식 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
-              <div class="row shapeChoiceRow" id="foldAutoNumberStyleRow"><span class="shapeChoiceLabel" id="foldAutoNumberStyleLabel">자동 번호</span><select id="foldAutoNumberStyle" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true"><option value="arabic" selected>아라비아 숫자</option><option value="roman">로마 숫자</option></select><span class="segmentedChoice shapeChoice" data-control="foldAutoNumberStyle" role="group" aria-labelledby="foldAutoNumberStyleLabel"><button class="uiButton" type="button" data-value="arabic" aria-label="아라비아 숫자" title="아라비아 숫자" aria-pressed="true">1·2·3</button><button class="uiButton" type="button" data-value="roman" aria-label="로마 숫자" title="로마 숫자" aria-pressed="false">I·II·III</button></span></div>
+              <div class="row"><label for="cardTitlePadding">제목 높이</label><input type="range" id="cardTitlePadding" min="12" max="40" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardTitlePaddingVal" data-range="cardTitlePadding" aria-label="카드 제목 높이 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row advancedDividerLengthRow" id="cardDividerLengthRow"><label for="cardDividerLength">제목선 길이</label><input type="range" id="cardDividerLength" min="20" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardDividerLengthVal" data-range="cardDividerLength" aria-label="카드 제목선 길이 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row" id="cardTitleOrnamentOpacityRow"><label for="cardTitleOrnamentOpacity">장식 불투명도</label><input type="range" id="cardTitleOrnamentOpacity" min="0" max="100" step="5"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardTitleOrnamentOpacityVal" data-range="cardTitleOrnamentOpacity" aria-label="카드 제목 장식 불투명도 직접 입력"><span class="rangeUnit">%</span></span></div>
+              <div class="row shapeChoiceRow" id="foldAutoNumberStyleRow"><span class="shapeChoiceLabel" id="foldAutoNumberStyleLabel">자동 번호</span><select id="foldAutoNumberStyle" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true"><option value="arabic">아라비아 숫자</option><option value="roman">로마 숫자</option></select><span class="segmentedChoice shapeChoice" data-control="foldAutoNumberStyle" role="group" aria-labelledby="foldAutoNumberStyleLabel"><button class="uiButton" type="button" data-value="arabic" aria-label="아라비아 숫자" title="아라비아 숫자" aria-pressed="true">1·2·3</button><button class="uiButton" type="button" data-value="roman" aria-label="로마 숫자" title="로마 숫자" aria-pressed="false">I·II·III</button></span></div>
           </div>
           <div class="advancedOptionPanel">
               <div class="advancedOptionHeading">
                 <div class="typeSectionLabel designSectionLabel">카드 간격</div>
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="cardSpacingResetBtn" data-reset-group="cardSpacing" aria-label="카드 간격 초기화" title="카드 간격 초기화">↺</button>
               </div>
-              <div class="row advancedProfileTopOnlyRow" id="profileTitleGapRow"><label for="profileTitleGap">프로필 ↔ 표제</label><input type="range" id="profileTitleGap" min="-20" max="80" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileTitleGapVal" data-range="profileTitleGap" value="0" aria-label="최상단 프로필과 표제 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="coverCardGap">표제 ↔ 본문</label><input type="range" id="coverCardGap" min="0" max="80" step="2" value="0"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverCardGapVal" data-range="coverCardGap" value="0" aria-label="표제·프로필 카드와 첫 본문 카드 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row"><label for="cardGap">카드 ↔ 카드</label><input type="range" id="cardGap" min="0" max="40" step="1" value="20"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardGapVal" data-range="cardGap" value="20" aria-label="카드와 카드 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row advancedProfileTopOnlyRow" id="profileTitleGapRow"><label for="profileTitleGap">프로필 ↔ 표제</label><input type="range" id="profileTitleGap" min="-20" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="profileTitleGapVal" data-range="profileTitleGap" aria-label="최상단 프로필과 표제 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="coverCardGap">표제 ↔ 본문</label><input type="range" id="coverCardGap" min="0" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="coverCardGapVal" data-range="coverCardGap" aria-label="표제·프로필 카드와 첫 본문 카드 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row"><label for="cardGap">카드 ↔ 카드</label><input type="range" id="cardGap" min="0" max="40" step="1"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="cardGapVal" data-range="cardGap" aria-label="카드와 카드 사이 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
         </div>
       </details>
@@ -940,8 +974,8 @@
                 <button type="button" class="profileResetIconBtn advancedOptionResetBtn" id="creditAppearanceResetBtn" data-reset-group="creditAppearance" aria-label="크레딧 표현·간격 초기화" title="크레딧 표현·간격 초기화">↺</button>
               </div>
               <div class="row creditAppearanceOptionsRow"><span class="layoutToggleLabel" id="creditAppearanceOptionsLabel">표현</span><div class="layoutToggleChoices" role="group" aria-labelledby="creditAppearanceOptionsLabel"><label class="layoutToggleChoice" title="크레딧 카드 외곽선 표시"><input type="checkbox" id="creditBorderOn"><span>외곽선</span></label><label class="layoutToggleChoice" title="크레딧 카드 배경을 투명하게 표시"><input type="checkbox" id="creditTransparentOn"><span>투명 배경</span></label></div></div>
-              <div class="row" id="creditWidthRow"><label for="creditWidth">크레딧 폭</label><input type="range" id="creditWidth" min="200" max="900" step="10" value="380"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="creditWidthVal" data-range="creditWidth" value="380" aria-label="크레딧 폭 직접 입력"><span class="rangeUnit">px</span></span></div>
-              <div class="row" id="creditCardGapRow"><label for="creditCardGap">크레딧 ↔ 카드</label><input type="range" id="creditCardGap" min="18" max="80" step="2" value="40"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="creditCardGapVal" data-range="creditCardGap" value="40" aria-label="크레딧과 카드 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" id="creditWidthRow"><label for="creditWidth">크레딧 폭</label><input type="range" id="creditWidth" min="200" max="900" step="10"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="creditWidthVal" data-range="creditWidth" aria-label="크레딧 폭 직접 입력"><span class="rangeUnit">px</span></span></div>
+              <div class="row" id="creditCardGapRow"><label for="creditCardGap">크레딧 ↔ 카드</label><input type="range" id="creditCardGap" min="18" max="80" step="2"><span class="rangeEditor"><input type="text" inputmode="numeric" class="rangeval" id="creditCardGapVal" data-range="creditCardGap" aria-label="크레딧과 카드 간격 직접 입력"><span class="rangeUnit">px</span></span></div>
           </div>
         </div>
       </details>
@@ -1035,36 +1069,36 @@
     <div class="row">
       <label for="bgColorHex">카드 배경</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="bgColorHex" value="#ffffff" maxlength="7">
-        <input type="color" id="bgColor" aria-label="카드 배경 색상 선택" value="#ffffff">
+        <input type="text" class="hexLabel" id="bgColorHex" maxlength="7">
+        <input type="color" id="bgColor" aria-label="카드 배경 색상 선택">
       </div>
     </div>
     <div class="row">
       <label for="narrColorHex">나레이션</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="narrColorHex" value="#666666" maxlength="7">
-        <input type="color" id="narrColor" aria-label="나레이션 색상 선택" value="#555555">
+        <input type="text" class="hexLabel" id="narrColorHex" maxlength="7">
+        <input type="color" id="narrColor" aria-label="나레이션 색상 선택">
       </div>
     </div>
     <div class="row">
         <label for="emphasisColorHex">*강조*</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="emphasisColorHex" value="#747474" maxlength="7">
-        <input type="color" id="emphasisColor" aria-label="강조 색상 선택" value="#747474">
+        <input type="text" class="hexLabel" id="emphasisColorHex" maxlength="7">
+        <input type="color" id="emphasisColor" aria-label="강조 색상 선택">
       </div>
     </div>
     <div class="row">
       <label for="charColorHex">{{char}} 대사</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="charColorHex" value="#1a2a52" maxlength="7">
-        <input type="color" id="charColor" aria-label="캐릭터 대사 색상 선택" value="#222222">
+        <input type="text" class="hexLabel" id="charColorHex" maxlength="7">
+        <input type="color" id="charColor" aria-label="캐릭터 대사 색상 선택">
       </div>
     </div>
     <div class="row">
       <label for="userColorHex">{{user}} 대사</label>
       <div class="colorField">
-        <input type="text" class="hexLabel" id="userColorHex" value="#7a4a2a" maxlength="7">
-        <input type="color" id="userColor" aria-label="유저 대사 색상 선택" value="#707070">
+        <input type="text" class="hexLabel" id="userColorHex" maxlength="7">
+        <input type="color" id="userColor" aria-label="유저 대사 색상 선택">
       </div>
     </div>
     </div>
@@ -1127,12 +1161,23 @@
       <div class="archiveMetaActions"><button class="uiButton" type="button" id="slotSelectBtn" aria-pressed="false">선택</button><button class="uiButton" type="button" id="slotExpandBtn" hidden>전체 보기</button></div>
     </div>
     <div id="slotList"></div>
+    <div class="archiveSelectionTools" id="slotSelectionTools" role="group" aria-label="보관함 일괄 선택" hidden>
+      <button type="button" class="uiButton" id="slotSelectTenBtn">10개 선택</button>
+      <button type="button" class="uiButton" id="slotSelectAllBtn">전체 선택</button>
+      <button type="button" class="uiButton" id="slotClearSelectionBtn">선택 해제</button>
+    </div>
     <div class="presetRow archiveFileRow" id="slotSelectionBar" hidden>
       <button type="button" class="secondary btnSecondary uiButton" id="exportSelectedSlotsBtn" style="flex:1;" disabled>선택 내보내기 (0)</button>
       <button type="button" class="btnDanger uiButton" id="deleteSelectedSlotsBtn" disabled>선택 삭제 (0)</button>
     </div>
-    <div class="presetRow archiveFileRow">
-      <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" style="flex:1;">전체 내보내기</button>
+    <div class="presetRow archiveFileRow archiveBackupRow">
+      <div class="archiveExportDropdown" id="slotExportDropdown">
+        <button type="button" class="secondary btnSecondary uiButton" id="slotExportMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="slotExportMenu">내보내기</button>
+        <div class="archiveExportMenu" id="slotExportMenu" role="menu" aria-labelledby="slotExportMenuBtn" hidden>
+          <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" role="menuitem" style="flex:1;">전체 내보내기</button>
+          <button type="button" class="secondary btnSecondary uiButton" id="exportSplitSlotsBtn" role="menuitem" title="보관함 전체를 10개씩 JSON 파일로 나누어 내보내기">분할 내보내기</button>
+        </div>
+      </div>
       <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">파일 가져오기</button>
       <input type="file" id="importSlotsFile" accept=".json,.txt,application/json,text/plain" style="display:none;">
     </div>
@@ -1148,7 +1193,10 @@
         <li><strong>새 로그</strong><span>본문·표제·이미지만 초기화</span></li>
         <li><strong>현재 작업 전체 초기화</strong><span>작업 내용 초기화, 디자인·테마 기본값 복원<br>보관함·내 프리셋은 유지</span></li>
         <li><strong>선택 → 선택 내보내기</strong><span>체크한 항목만 백업 · 검색·정렬 후에도 선택 유지</span></li>
+        <li><strong>10개 선택 · 전체 선택</strong><span>현재 검색·정렬 결과에서 추가 선택 · 선택 해제로 모두 해제</span></li>
+        <li><strong>보관함 용량</strong><span>저장 문자열 크기로 계산한 대략적인 사용량 · 초안·프리셋 제외</span></li>
         <li><strong>전체 내보내기</strong><span>보관함 전체 백업</span></li>
+        <li><strong>분할 내보내기</strong><span>보관함 전체를 10개씩 JSON 파일로 나누어 백업</span></li>
       </ul>
     </details>
   </div>
@@ -1326,15 +1374,10 @@
       <span class="tbSep"></span>
       <span class="tbGroup">
         <button type="button" data-fs="hr" title="얇은 구분선">구분선</button>
-        <button type="button" data-fs="hr2" title="장면 전환 장식">장면 전환</button>
-        <button type="button" data-fs="hr3" title="부드러운 호흡 구분">호흡</button>
-        <button type="button" data-fs="hr4" title="[HR4] 여백">여백</button>
-      </span>
-      <span class="tbSep"></span>
-      <span class="tbGroup">
         <button type="button" data-fs="img" title="본문 중간 이미지 삽입">이미지</button>
+        <button type="button" data-fs="comment" title="선택한 글을 메모로 적용 · 선택 없으면 현재 줄 아래에 삽입">메모</button>
         <button type="button" data-fs="quote" title="인용/편지/시스템 메시지 블록">인용</button>
-        <button type="button" data-fs="fold" title="선택 부분을 접기로 감싸기">접기</button>
+        <button type="button" data-fs="fold" title="본문 일부를 접었다 펼치는 영역으로 묶기">부분접기</button>
       </span>
       <span class="tbGroup fsSearchTools">
         <button type="button" id="fsSearchToggle" title="검색·대치 열기 (Ctrl+F)" aria-label="검색·대치 열기" aria-expanded="false" aria-controls="fsSearchBar">검색</button>
@@ -1370,6 +1413,7 @@
         <span><code># 소제목</code></span>
         <span><code>[접기 ## 제목]…[/접기]</code></span>
         <span><code>&gt; 인용</code></span>
+        <span><code>: 메모</code></span>
         <span><code>[C]</code> 가운데</span>
         <span><code>[HR]</code> 구분선</span>
         <span><code>[HR2]</code> 장면 전환</span>
@@ -1388,6 +1432,8 @@
   <button type="button" data-fmt="center" title="가운데 정렬 ([C])">C</button>
   <button type="button" data-rule-action="exclude" hidden>이 부분 치환 제외</button>
   <button type="button" data-rule-action="apply" hidden>다시 적용</button>
+  <button type="button" data-parallel-action="exclude" hidden>이 부분 병행 제외</button>
+  <button type="button" data-parallel-action="apply" hidden>병행 다시 적용</button>
 </div>
 
 <div id="outputRulePopover" role="dialog" aria-label="이 부분 치환 설정" hidden></div>
@@ -1411,12 +1457,17 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=08028dab0a41" defer></script>
-<script src="./parser.js?v=b80b038b0824" defer></script>
-  <script src="./renderer.js?v=b33d301cd97d" defer></script>
-<script src="./ui.js?v=3f38fc6f6fd1" defer></script>
-<script src="./storage.js?v=0a2aa4a0f184" defer></script>
-<script src="./app.js?v=9b3cacd8e767" defer></script>
+<script src="./state.js?v=32ce17ba0917" defer></script>
+<script src="./parser.js?v=3119cba372e1" defer></script>
+<script src="./renderer.js?v=e6865052c206" defer></script>
+<script src="./ui-source.js?v=4fa8c97e6359" defer></script>
+<script src="./ui-editor.js?v=96cae7a86756" defer></script>
+<script src="./ui-preview-edit.js?v=85fbbb20fa0b" defer></script>
+<script src="./ui-preview-view.js?v=583b7abf02bf" defer></script>
+<script src="./ui-library.js?v=8cfbc879e3c4" defer></script>
+<script src="./ui.js?v=b00f42d52f33" defer></script>
+<script src="./storage.js?v=dd286eec87f4" defer></script>
+<script src="./app.js?v=98cd86ddaf89" defer></script>
 
 </body>
 </html>

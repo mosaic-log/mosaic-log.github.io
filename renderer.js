@@ -1,8 +1,9 @@
-// 조각로그 v1.8.9 렌더링·HTML 출력 모듈.
+// 조각로그 v1.9.0 · 출력 HTML 생성 (입력 컨트롤·저장소 비의존)
+// 개조 길잡이: 문단 buildParagraph · 프로필 buildProfileBlock · 전체 출력 buildCard.
+// Dependencies: MosaicState, MosaicParser
+globalThis.MosaicRenderer = (() => {
+'use strict';
 
-// 조각로그 v1.8.9 HTML 출력과 복원 메타데이터 코덱.
-const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
-const RESTORE_META_SUFFIX = '-->';
 
 // 아카라이브가 게시글 안쪽 요소에 직접 지정하는 타이포그래피보다 출력 설정이
 // 우선하도록, 렌더러가 만든 일반 인라인 선언을 직렬화 직전에 한 번만 잠근다.
@@ -170,49 +171,6 @@ function lockOutputTypographyForArca(html){
   return template.innerHTML;
 }
 
-function encodeRestoreState(data){
-  const bytes = new TextEncoder().encode(JSON.stringify({ app:'mosaic-log', version:1, data }));
-  let binary = '';
-  const chunkSize = 0x8000;
-  for(let i = 0; i < bytes.length; i += chunkSize){
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-function decodeRestoreState(html){
-  const start = html.indexOf(RESTORE_META_PREFIX);
-  if(start < 0) return null;
-  const payloadStart = start + RESTORE_META_PREFIX.length;
-  const end = html.indexOf(RESTORE_META_SUFFIX, payloadStart);
-  if(end < 0) throw new Error('복원 데이터가 끝까지 저장되지 않았습니다.');
-  const encoded = html.slice(payloadStart, end).trim();
-  if(!encoded || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('복원 데이터 형식이 올바르지 않습니다.');
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const envelope = JSON.parse(new TextDecoder().decode(bytes));
-  if(!envelope || envelope.app !== 'mosaic-log' || envelope.version !== 1 || !envelope.data){
-    throw new Error('지원하지 않는 조각로그 복원 데이터입니다.');
-  }
-  return envelope.data;
-}
-
-function generateHTML(includeRestoreState = false, prebuiltOutput){
-  const rawOutput = prebuiltOutput === undefined
-    ? buildCard(getSettings(), MosaicUI.cards.all())
-    : prebuiltOutput;
-  const output = stripEditorOutputMetadata(rawOutput);
-  if(!includeRestoreState) return output;
-  const restoreMeta = RESTORE_META_PREFIX + encodeRestoreState(MosaicUI.work.collectSlot()) + RESTORE_META_SUFFIX + '\n';
-  return restoreMeta + output;
-}
-
-// 맥이면 ⌘, 그 외에는 Ctrl 로 표기 (동작은 둘 다 인식)
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
-
-
 function fontStack(key){
   const stacks = {
     notoSerif: "'Noto Serif KR','Nanum Myeongjo',AppleMyungjo,Batang,serif",
@@ -222,24 +180,17 @@ function fontStack(key){
   return stacks[key] || stacks.pretendard;
 }
 
-// 웹폰트는 선택되는 순간 한글 글리프까지 명시적으로 불러온 뒤 미리보기를 다시 그린다.
-// file://로 열었을 때 첫 렌더가 대체 글꼴로 굳어 보이는 현상을 방지한다.
-async function loadSelectedWebFont(selectId){
-  if(!document.fonts || !document.fonts.load) return;
-  const key = document.getElementById(selectId).value;
-  try {
-    await document.fonts.load(`16px ${fontStack(key)}`, '가나다라마바사 대사와 나레이션');
-    MosaicUI.preview.renderMarkup();
-  } catch(e){ /* 로컬 글꼴이나 네트워크 미연결 시 기존 대체 글꼴 유지 */ }
-}
-
-function resolvedParallelTranslationMode(settings){
-  if(!settings.parallelTranslationSoft) return 'plain';
+// 배치 기준은 적용 스위치와 분리한다. 대사를 꺼도 나레이션은 같은 자동 배치를 쓴다.
+function parallelTranslationPlacement(settings){
   const selected = settings.parallelTranslationLayout || 'auto';
   // 불러온 이전 자료나 내부 호출에서 두 값이 어긋나도 `미적용`을 우선한다.
   if(selected === 'off') return 'plain';
   if(selected === 'inline' || selected === 'stack') return selected;
   return ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+}
+
+function resolvedParallelTranslationMode(settings){
+  return settings.parallelTranslationSoft ? parallelTranslationPlacement(settings) : 'plain';
 }
 
 // 카드·대사 표현 방식·문단 종류와 무관하게 번역 크기를 같은 기준으로 계산한다.
@@ -251,38 +202,119 @@ function parallelTranslationSize(settings, thoughtParallel){
 }
 
 // 병행 번역 HTML은 순수 대사와 서술 혼합 문단이 모두 이 함수만 사용한다.
-// 작은따옴표 속마음은 사용자가 아래쓰기를 골라도 반드시 이어쓴다.
-function parallelTranslationHTML(segment, settings, color, requestedMode){
-  const thoughtParallel = segment.original.startsWith("'");
-  const mode = thoughtParallel ? 'inline' : requestedMode;
-  const size = parallelTranslationSize(settings, thoughtParallel);
+// 속마음은 자동 배치의 기존 이어쓰기를 유지하되, 명시적 아래쓰기는 함께 따른다.
+function parallelTranslationHTML(segment, settings, color, requestedMode, inset = 0){
+  if(segment.excluded) return segment.betweenOriginalAndGroup+MosaicParser.processInline(segment.translationGroup,settings.emphasisColor,{literalSingleQuotes:true});
+  const narrationParallel = segment.kind === 'narration';
+  const thoughtParallel = !narrationParallel && segment.original.startsWith("'");
+  // 속마음 자동 배치는 유지하고, 나레이션은 적용 스위치와 무관하게 대사 배치를 따른다.
+  const mode = thoughtParallel
+    ? settings.parallelTranslationLayout === 'stack' ? 'stack' : 'inline'
+    : narrationParallel ? parallelTranslationPlacement(settings) : requestedMode;
+  const size = parallelTranslationSize(settings, thoughtParallel || narrationParallel);
   // 번역 괄호 안의 작은따옴표는 속마음 문법이 아니라 번역 표기의 일부다.
   // 글자로 보존해야 바깥 병행 번역의 보조색·축소 크기를 그대로 유지한다.
-  const content = processInline(segment.translationGroup, settings.emphasisColor, { literalSingleQuotes:true });
+  const display = MosaicParser.parallelDisplayParts(segment,settings);
+  const group = display.hide ? display.secondary.slice(1,-1).trim() : display.secondary;
+  const content = MosaicParser.processInline(group, settings.emphasisColor, { literalSingleQuotes:true });
   const thoughtColor = /^#[0-9A-Fa-f]{6}$/.test(settings.emphasisColor || '') ? settings.emphasisColor : '#747474';
-  const textColor = parallelTranslationTextColor(settings, thoughtParallel ? thoughtColor : color);
+  const textColor = parallelTranslationTextColor(settings, narrationParallel ? settings.narrColor : thoughtParallel ? thoughtColor : color);
   const thoughtAttribute = thoughtParallel ? ' data-mosaic-thought="true"' : '';
   if(mode === 'inline'){
-    return `${segment.betweenOriginalAndGroup}<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="inline" style="color:${textColor}; -webkit-text-fill-color:${textColor}; font-size:${size}px; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
+    return `${display.between}<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="inline" style="color:${textColor}; -webkit-text-fill-color:${textColor}; font-size:${size}px; font-weight:400; line-height:inherit; letter-spacing:-0.1px;">${content}</span>`;
   }
-  return `<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:0; color:${textColor}; -webkit-text-fill-color:${textColor}; font-size:${size}px; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
+  const padding = inset ? `0 ${inset}px` : '0';
+  return `<span data-mosaic-parallel-translation="true"${thoughtAttribute} data-mosaic-parallel-translation-mode="stack" style="display:block; margin:4px 0 0 0; padding:${padding};${inset ? ' box-sizing:border-box;' : ''} color:${textColor}; -webkit-text-fill-color:${textColor}; font-size:${size}px; font-weight:400; line-height:${thoughtParallel || narrationParallel ? settings.narrLine : settings.dlgLine}; letter-spacing:-0.1px;">${content}</span>`;
+}
+
+// 아래 배치의 쌍만 독립된 인라인 묶음으로 둔다. 번역도 묶음의 시작점에서
+// 줄바꿈하며, 너비는 원문 글자 수로 고정하지 않고 카드 폭 안에서 자연스럽게 정한다.
+function stackedParallelPairHTML(primary, secondary, options = {}){
+  const layout = options.ownRow ? `display:block; width:fit-content; margin:0 ${options.centered ? 'auto' : '0'} ${options.proseGap ? 8 : 0}px; ` : 'display:inline-block; ';
+  return `<span data-mosaic-parallel-stack="true" style="${layout}box-sizing:border-box; min-width:0; max-width:100%; vertical-align:top; text-align:left; text-indent:0; white-space:normal; overflow-wrap:anywhere;">${primary}${secondary}</span>`;
+}
+
+// 같은 실제 줄의 서술만 판정한다. 서식 구분자나 다음 대사의 화자 마커만 있으면
+// 불필요한 줄·여백을 만들지 않으며, 미등록 이름은 표시되는 글자로 남긴다.
+function parallelStackHasProse(value, settings){
+  const visible = String(value).replace(/__|\*/g,'')
+    .replace(/(?:>>|<<|\[([^\[\]\n]{1,24})\])\s*$/, (mark,name)=>!name || findChar(settings,name) ? '' : mark);
+  return /[\p{L}\p{N}\p{Extended_Pictographic}]/u.test(visible);
+}
+
+// 일반 인라인 대사와 아래 배치 묶음에서 색·크기·패딩이 어긋나지 않게 공유한다.
+function inlineDialogueHTML(content, settings, color){
+  const soft = settings.dlgStyle === 'softlight';
+  const bg = soft ? tonePalette(settings).boxBg : accentTint(settings.bgColor, color);
+  const txtColor = soft ? color : textColorFor(bg);
+  return `<span data-mosaic-dialogue="true" style="background-color:${bg}; color:${txtColor}; -webkit-text-fill-color:${txtColor}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; padding:1px 6px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${content}</span>`;
 }
 
 // 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 원문의 서식을 적용한다.
 // 완성된 강조 HTML에 나중에 번역 span을 복원해 속성 따옴표가 대사로 오인되는 것을 방지한다.
-function prepareMixedParallelTranslations(line, settings, color, thoughtsOnly = false){
-  if(!settings.parallelTranslationSoft) return { line:String(line), tokens:[] };
+function prepareMixedParallelTranslations(line, settings, color, options = {}){
+  if(!settings.parallelTranslationSoft && !(options.narration && MosaicParser.parallelKindEnabled('narration',settings))) return { line:String(line), tokens:[] };
   const mode = resolvedParallelTranslationMode(settings);
   const source = String(line);
-  const segments = parallelDialogueSegments(source).filter(segment => !thoughtsOnly || segment.original.startsWith("'"));
+  const segments = MosaicParser.parallelSegments(source,settings).filter(segment =>
+    MosaicParser.parallelKindEnabled(segment.kind,settings) && (segment.kind !== 'narration' || options.narration)
+    && (!options.thoughtsOnly || segment.original.startsWith("'"))
+  ).map(segment=>options.narration ? MosaicParser.resolveParallelSegment(segment,settings) : segment);
   if(!segments.length) return { line:source, tokens:[] };
   const tokens = [];
+  let primaryMarker='\uE102';
+  while(source.includes(primaryMarker)) primaryMarker+='\uE102';
+  let translationMarker='\uE100';
+  while(source.includes(translationMarker)) translationMarker+='\uE100';
   let prepared = '';
   let cursor = 0;
-  segments.forEach(segment => {
-    prepared += source.slice(cursor, segment.start) + segment.original;
-    const token = `\uE100${tokens.length}\uE101`;
-    tokens.push({ token, html:parallelTranslationHTML(segment, settings, color, mode) });
+  segments.forEach((segment,index) => {
+    const display = MosaicParser.parallelDisplayParts(segment,settings);
+    // 문단 기본색 대신 이 대사 바로 앞의 화자를 쓴다. 인용·속마음의 색상 정책은 유지한다.
+    const speakerMark = (options.inlineSpeakers || options.narration) && segment.kind==='dialogue'
+      ? MosaicParser.escapeTextHTML(source.slice(cursor, segment.start)).match(/(&gt;&gt;|&lt;&lt;|\[([^\[\]\n]{1,24})\])\s*$/)
+      : null;
+    const pairColor = speakerMark
+      ? inlineDialogueSpeakerColor(settings, speakerMark[1], speakerMark[2], color) || color
+      : color;
+    const alignedStack = settings.parallelTranslationLayout === 'stack' && !segment.excluded;
+    if(alignedStack){
+      let prefix = source.slice(cursor,segment.start);
+      const recognizedSpeaker = speakerMark
+        && inlineDialogueSpeakerColor(settings,speakerMark[1],speakerMark[2],color) !== null;
+      if(recognizedSpeaker) prefix = prefix.replace(/(?:>>|<<|\[[^\[\]\n]{1,24}\])\s*$/,'');
+      const highlighted = options.inlineSpeakers && segment.original.startsWith('"')
+        && (!speakerMark || recognizedSpeaker);
+      let primary = MosaicParser.processBodyInline(display.primary,settings.emphasisColor,{softBreakSpacing:settings.softBreakSpacing});
+      if(highlighted) primary = inlineDialogueHTML(primary,settings,pairColor);
+      const secondary = parallelTranslationHTML(segment,settings,pairColor,mode,highlighted ? 6 : 0);
+      // 원문에는 없는 시각적 줄바꿈이다. 편집·선택·위치 투영에서는 생성 요소로 무시한다.
+      const after = source.slice(segment.end).replace(/^(?:[ \t]*(?:\*{1,3}|__))+[ \t]*/,'');
+      const bodyDialogue = options.narration === true && segment.kind === 'dialogue';
+      const rowBoundary = /[\uE200\r\n]|\[BR\]/i;
+      const beforeRow = prefix.split(rowBoundary).pop();
+      const following = source.slice(segment.end,segments[index+1]?.start ?? source.length).split(rowBoundary)[0];
+      const proseBefore = bodyDialogue && parallelStackHasProse(beforeRow,settings);
+      const proseAfter = bodyDialogue && parallelStackHasProse(following,settings);
+      const ownRow = proseBefore || proseAfter;
+      // 별도 행은 CSS 블록 배치로 앞뒤 줄을 나누므로 생성 BR을 다시 붙이지 않는다.
+      const nextLine = !ownRow && after.trim() && !/^[ \t]*[\uE200\r\n]/.test(after)
+        ? '<br data-mosaic-generated="true">' : '';
+      const token = `${translationMarker}${tokens.length}\uE101`;
+      tokens.push({token,html:stackedParallelPairHTML(primary,secondary,{ownRow,proseGap:proseAfter,centered:options.stackCenter})+nextLine});
+      prepared += prefix+token;
+      cursor = segment.end;
+      return;
+    }
+    prepared += source.slice(cursor, segment.start);
+    if(display.reverse || display.hide || segment.original.slice(1,-1).includes('"')){
+      // 주 문구 안의 따옴표·서식이 다시 대사 파서로 들어가지 않도록 보호한다.
+      const primaryToken=primaryMarker+tokens.length+'\uE103';
+      prepared += display.quote+primaryToken+display.quote;
+      tokens.push({token:primaryToken,html:MosaicParser.processBodyInline(display.quote ? display.primary.slice(1,-1) : display.primary,settings.emphasisColor,{softBreakSpacing:settings.softBreakSpacing})});
+    }else prepared += segment.original;
+    const token = `${translationMarker}${tokens.length}\uE101`;
+    tokens.push({ token, html:parallelTranslationHTML(segment, settings, pairColor, mode) });
     prepared += token;
     cursor = segment.end;
   });
@@ -295,7 +327,7 @@ function restoreMixedParallelTranslations(content, tokens){
 }
 
 function safeHexColor(value, fallback){
-  const normalized = typeof value === 'string' ? normalizeHex(value) : null;
+  const normalized = typeof value === 'string' ? MosaicState.normalizeHex(value) : null;
   return normalized || fallback || '#555555';
 }
 
@@ -372,7 +404,7 @@ function tonePalette(settings){
   const isLight = textColorFor(bg) !== '#ffffff'; // 밝은 배경이면 어두운 구조색
   const to = isLight ? '#000000' : '#ffffff';
   const structuralAccent = typeof settings.emphasisColor === 'string'
-    ? normalizeHex(settings.emphasisColor)
+    ? MosaicState.normalizeHex(settings.emphasisColor)
     : null;
   // 흰 카드에서는 외곽선이 보이되 너무 도드라지지 않게 하고, 색이나 명도가 들어간
   // 카드에서는 검정이 과하게 섞여 탁해지지 않도록 배경 존재감에 따라 대비를 낮춘다.
@@ -428,7 +460,6 @@ function tonePalette(settings){
   };
 }
 
-
 // 내용 간격 배율 (문단 간격/대사 여백/구분선 여백을 세트로 조절)
 function spacingMult(settings){
   if(settings.spacingMode === 'compact') return 0.7;
@@ -441,102 +472,76 @@ function paragraphGapPx(settings){
   const gap = Number(settings.paragraphGap);
   return Number.isFinite(gap) ? Math.min(40, Math.max(8, gap)) : 20;
 }
+
 function narrDialogueGapPx(settings){
   const gap = Number(settings.narrDialogueGap);
   return Number.isFinite(gap) ? Math.min(40, Math.max(10, gap)) : Math.max(10, paragraphGapPx(settings));
 }
 
-function normalizeCardLayout(value){
-  return value === 'unified' ? 'unified' : 'separate';
-}
-
-// 저장·프리셋 호환성을 위해 기존 cardLayout 문자열 값은 유지하고,
-// 화면에서는 켜고 끄는 의미가 더 분명한 단일 체크박스로 보여준다.
-function syncCardLayoutCheckbox(){
-  const select = document.getElementById('cardLayout');
-  const checkbox = document.getElementById('cardLayoutUnifiedOn');
-  if(!select || !checkbox) return;
-  checkbox.checked = normalizeCardLayout(select.value) === 'unified';
-}
-
 // 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
 const CARD_INLINE_PADDING = 'clamp(16px,4vw,22px)';
-function advancedPercent(value, fallback = 50){
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : fallback;
-}
+
 function advancedOpaqueOpacity(value){
-  return Math.min(1, advancedPercent(value) / 50);
+  return Math.min(1, MosaicState.advancedPercent(value) / 50);
 }
+
 function advancedDecorationColor(baseColor, palette, value){
-  return mixHex(baseColor, palette.heading[3], Math.max(0, (advancedPercent(value) - 50) / 50));
+  return mixHex(baseColor, palette.heading[3], Math.max(0, (MosaicState.advancedPercent(value) - 50) / 50));
 }
+
 function hrLengthPercent(settings){
   const number = Number(settings.hrLength);
   return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
 }
+
 function hrVerticalSpacePx(value, fallback){
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.min(80, number)) : fallback;
 }
+
 function gapHeightPx(settings){
   const number = Number(settings.gapHeight);
   return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 48;
 }
-function normalizeHrShape(value){
-  if(value === 'dotted') return 'star';
-  return ['solid','dashed','star'].includes(value) ? value : 'solid';
-}
-function normalizeHr2Shape(value){
-  if(value === 'circle') return 'triple-star';
-  return ['star','diamond','triple-star'].includes(value) ? value : 'star';
-}
-function normalizeHr3Shape(value){
-  return ['dots','one','line'].includes(value) ? value : 'dots';
-}
+
 function advancedTransparentOpacity(value, baseline){
-  const percent = advancedPercent(value);
+  const percent = MosaicState.advancedPercent(value);
   return percent <= 50 ? baseline * percent / 50 : baseline + (1 - baseline) * (percent - 50) / 50;
 }
+
 function cardInlinePaddingCss(settings){
   const number = Number(settings.cardInlinePadding);
   const padding = Number.isFinite(number) ? Math.max(0, Math.min(66, number)) : 22;
   return padding === 22 ? CARD_INLINE_PADDING : `${padding}px`;
 }
+
 function cardBodyTopSpacePx(settings){
   const number = Number(settings.cardBodyTopSpace);
   return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 0;
 }
+
 function cardBodyTopPaddingCss(minPx, fluidVw, maxPx, settings){
   const extra = cardBodyTopSpacePx(settings);
   return extra
     ? `clamp(${minPx + extra}px,calc(${fluidVw}vw + ${extra}px),${maxPx + extra}px)`
     : `clamp(${minPx}px,${fluidVw}vw,${maxPx}px)`;
 }
+
 function cardBodyBottomSpacePx(settings){
   const number = Number(settings.cardBodyBottomSpace);
   return Number.isFinite(number) ? Math.max(-28, Math.min(40, number)) : 0;
 }
+
 function headingSpacePx(value){
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(-20, Math.min(40, number)) : 0;
 }
+
 function profileItemGapDeltaPx(settings){
   const number = Number(settings.profileItemGap);
   return Number.isFinite(number) ? Math.max(-10, Math.min(40, number)) : 0;
 }
-function profileItemGapBasePx(){
-  if(document.getElementById('profileStyle').value !== 'showcase') return 10;
-  const photoBackgroundOn = document.getElementById('profileImageBackgroundOn').checked;
-  const prefixes = ['profileChar','profileUser',
-    ...EXTRA_PROFILE_SLOTS.filter(slot => slot <= extraProfileCount() + 2).map(extraProfilePrefix)];
-  const visible = prefixes.filter(prefix => document.getElementById(`${prefix}On`).checked
-    && (document.getElementById(`${prefix}Image`).value.trim()
-      || ['Name','Desc','Tags'].some(field => document.getElementById(`${prefix}${field}`).value.trim())));
-  const everyPhoto = visible.length > 0 && photoBackgroundOn && visible.every(prefix =>
-    document.getElementById(`${prefix}Image`).value.trim());
-  return everyPhoto ? 0 : 2;
-}
+
 function cardBodyBottomPaddingCss(settings, hasFooter){
   const extra = hasFooter ? 0 : cardBodyBottomSpacePx(settings);
   const minPadding = Math.max(0, 24 + extra);
@@ -545,48 +550,59 @@ function cardBodyBottomPaddingCss(settings, hasFooter){
     ? `clamp(${minPadding}px,calc(5vw ${extra < 0 ? '-' : '+'} ${Math.abs(extra)}px),${maxPadding}px)`
     : 'clamp(24px,5vw,30px)';
 }
+
 function cardGapPx(settings){
   const number = Number(settings.cardGap);
   return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 20;
 }
+
 function coverCardGapPx(settings){
   const number = Number(settings.coverCardGap);
   return Number.isFinite(number) ? Math.max(0, Math.min(80, number)) : 0;
 }
+
 function profileTitleGapPx(settings){
   const number = Number(settings.profileTitleGap);
   return Number.isFinite(number) ? Math.max(-20, Math.min(80, number)) : 0;
 }
+
 function unifiedBottomSpacePx(settings){
   const number = Number(settings.unifiedBottomSpace);
   return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
 }
+
 function coverVerticalSpacePx(settings){
   const number = Number(settings.coverVerticalSpace);
   return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
 }
+
 function titleBottomPaddingPx(titleMinimal, imageBackground, spacingMultiplier, extraVerticalSpace){
   const base = titleMinimal && !imageBackground ? 12 : 20;
   return Math.round(base * spacingMultiplier) + extraVerticalSpace;
 }
+
 function cardTitlePaddingPx(settings){
   const number = Number(settings.cardTitlePadding);
   return Number.isFinite(number) ? Math.max(12, Math.min(40, number)) : 26;
 }
+
 function cardDividerLengthPercent(settings){
   const number = Number(settings.cardDividerLength);
   return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
 }
+
 function coverDividerLengthPercent(settings){
   const number = Number(settings.coverDividerLength);
   return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
 }
+
 function coverDividerTopCss(settings, color){
   const length = coverDividerLengthPercent(settings);
   return length === 100
     ? `border-top:1px solid ${color};`
     : `background-image:linear-gradient(to right, ${color}, ${color}); background-repeat:no-repeat; background-position:center top; background-size:${length}% 1px;`;
 }
+
 function appendCoverDividerLine(boundary, edge, settings, color){
   const length = coverDividerLengthPercent(settings);
   const start = (100 - length) / 2;
@@ -607,29 +623,10 @@ function appendCoverDividerLine(boundary, edge, settings, color){
   style.setProperty('background-position', existingImage ? `center ${edge}, ${existingPosition}` : `center ${edge}`);
   style.setProperty('background-size', existingImage ? `100% 1px, ${existingSize}` : '100% 1px');
 }
+
 function cardCornerRadiusPx(settings){
   const number = Number(settings.cardCornerRadius);
   return Number.isFinite(number) ? Math.max(0, Math.min(16, number)) : 16;
-}
-
-function normalizeSoftBreakSpacing(value){
-  const raw = String(value === undefined || value === null ? '' : value);
-  if(['normal','relaxed','wide'].includes(raw)) return raw;
-  return ['normal','relaxed','wide'][Math.min(2, Math.max(0, Number.parseInt(raw, 10) || 0))];
-}
-
-function softBreakSpacingControlValue(value){
-  return String(['normal','relaxed','wide'].indexOf(normalizeSoftBreakSpacing(value)));
-}
-
-function syncSoftBreakSpacingControl(){
-  const range = document.getElementById('softBreakSpacing');
-  const output = document.getElementById('softBreakSpacingVal');
-  if(!range || !output) return;
-  const mode = normalizeSoftBreakSpacing(range.value);
-  const labels = { normal:'기본', relaxed:'여유', wide:'넓게' };
-  output.textContent = labels[mode];
-  range.setAttribute('aria-valuetext', labels[mode]);
 }
 
 // 한 줄 전체가 대괄호로 감싸지고 내부에 |가 있으면 상태창으로 인식한다.
@@ -675,6 +672,17 @@ function stripSpeaker(line, settings){
   return { speaker: null, line };
 }
 
+// 인라인 대사와 병행 보조문은 같은 화자 판정을 공유한다. 미등록 이름은 문법으로 소비하지 않는다.
+function inlineDialogueSpeakerColor(settings, mark, personName, fallback){
+  if(mark === '&lt;&lt;') return settings.userColor;
+  if(mark === '&gt;&gt;') return settings.charColor;
+  if(personName){
+    const person = findChar(settings, personName);
+    return person ? person.color : null;
+  }
+  return fallback;
+}
+
 // 호출부에서 공백·정렬 접두어를 처리한 소제목의 단계와 제목을 읽는다.
 // 출력과 탐색기가 동일한 1~4단계 문법을 사용하되 제목 원문은 그대로 둔다.
 function parseBodyHeading(line){
@@ -686,13 +694,14 @@ function parseBodyHeading(line){
 // 인용 내부의 줄에도 본문과 동일한 #~#### 소제목 문법을 적용한다.
 function renderQuoteContent(text, settings){
   const renderInline = value => {
-    const prepared = prepareMixedParallelTranslations(value, settings, settings.emphasisColor, true);
+    const extended = settings.parallelTranslationOrder === 'translation' || settings.parallelTranslationBrackets === 'hide';
+    const prepared = prepareMixedParallelTranslations(value, {...settings,hideDialogueQuotes:false}, settings.emphasisColor, {thoughtsOnly:!extended});
     return restoreMixedParallelTranslations(
-      processBodyInline(prepared.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing }),
+      MosaicParser.processBodyInline(prepared.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing }),
       prepared.tokens
     );
   };
-  const lines = String(text).split(SOFT_BREAK_TOKEN);
+  const lines = String(text).split(MosaicParser.SOFT_BREAK_TOKEN);
   if(!lines.some(line => parseBodyHeading(line.trim()))){
     return renderInline(text);
   }
@@ -700,7 +709,7 @@ function renderQuoteContent(text, settings){
   let plain = [];
   const flush = () => {
     if(plain.length){
-      parts.push(renderInline(plain.join(SOFT_BREAK_TOKEN)));
+      parts.push(renderInline(plain.join(MosaicParser.SOFT_BREAK_TOKEN)));
       plain = [];
     }
   };
@@ -759,12 +768,28 @@ function parseBodyImageLine(line){
 
 // 출력은 기존과 같이 스마트 따옴표를 정규화하되 편집 원문은 변경하지 않는다.
 function parseOutputBodyImage(line){
-  return parseBodyImageLine(normalizeQuotes(String(line)));
+  return parseBodyImageLine(MosaicParser.normalizeQuotes(String(line)));
 }
 
 function buildParagraph(rawLine, settings, opts){
   opts = opts || {};
-  let line = normalizeStandaloneHr(normalizeQuotes(rawLine.trim()));
+  const comment = MosaicParser.parseBodyCommentLine(rawLine);
+  if(comment){
+    if(!comment.content.trim()) return '';
+    const pal = tonePalette(settings), sm = spacingMult(settings);
+    const gap = Math.round(paragraphGapPx(settings) * sm);
+    // 인용과 같은 간격을 쓴다. 앞 문단 종류·카드 끝·구분선 인접 보정도 동일하게 맞춘다.
+    const top = opts.extraTop ? Math.round(36*sm) : opts.isFirst ? 0 : (opts.prevIsNarration ? gap + Math.round(6*sm) : gap);
+    const bottom = opts.isLast ? 0 : opts.extraBottom ? Math.round(36*sm) : gap + Math.round(8*sm);
+    // 메모만 일반 내부선보다 진하게 구분한다. 카드 외곽선·인용·사진 경계색은 그대로 둔다.
+    const borderColor = mixHex(pal.divider, pal.caption, 0.4);
+    const centered = settings.memoCenter === true || settings.cardBodyCenter === true || /^\s*\[C\]/i.test(rawLine);
+    const size = Math.max(10, (parseFloat(settings.narrSize) || 14) - 1);
+    const content = MosaicParser.processBodyInline(comment.content.trim(), settings.emphasisColor,
+      {softBreakSpacing:settings.softBreakSpacing,literalText:true});
+    return `    <p data-mosaic-inline-comment="true" style="box-sizing:border-box; margin:${top}px 0 ${bottom}px; padding:12px 16px; border:1.5px solid ${borderColor}; border-radius:8px; background-color:transparent; color:${pal.caption}; font-size:${size}px; font-weight:400; font-style:normal; line-height:${settings.narrLine}; text-align:${centered ? 'center' : 'left'}; text-indent:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
+  }
+  let line = MosaicParser.normalizeStandaloneHr(MosaicParser.normalizeQuotes(rawLine.trim()));
   if(!line) return '';
 
   const pal = tonePalette(settings);
@@ -776,7 +801,7 @@ function buildParagraph(rawLine, settings, opts){
   if(upper === '[HR]'){
     // 아카라이브가 <hr>의 인라인 스타일은 지워버리지만 div 스타일은 유지하는 게 확인됐으므로
     // 구분선을 div로 생성하고 모양별 장식도 인라인 스타일로 출력한다.
-    const shape = normalizeHrShape(settings.hrShape);
+    const shape = MosaicState.normalizeHrShape(settings.hrShape);
     const color = advancedDecorationColor(pal.contentDivider, pal, settings.hrOpacity);
     const lineStyle = {
       solid: `height:1px; background-color:${color};`,
@@ -792,7 +817,7 @@ function buildParagraph(rawLine, settings, opts){
   if(upper === '[HR2]'){
     // 장면 전환 장식은 선택한 기호를 중앙에 놓고, 테마·보조색에 맞춘 전용 색상을 쓴다.
     // 아카라이브 모바일 앱에서 장식만 자동 축소되지 않도록 크기를 요소에 직접 고정한다.
-    const shape = normalizeHr2Shape(settings.hr2Shape);
+    const shape = MosaicState.normalizeHr2Shape(settings.hr2Shape);
     const ornament = { star:'✦', diamond:'◆', 'triple-star':'✦ ✦ ✦' }[shape];
     const ornamentSize = shape === 'triple-star' ? 10 : 12;
     const ornamentSpacing = shape === 'triple-star' ? 'padding-left:1px; letter-spacing:1px;' : '';
@@ -803,7 +828,7 @@ function buildParagraph(rawLine, settings, opts){
   if(upper === '[HR3]'){
     // 별 장식보다 조용한 호흡 구분. 모바일 게시판의 텍스트 색상·자동 확대가
     // 점 장식을 덮지 못하도록 실제 색과 채움색, 크기를 요소 자체에 고정한다.
-    const shape = normalizeHr3Shape(settings.hr3Shape);
+    const shape = MosaicState.normalizeHr3Shape(settings.hr3Shape);
     const ornament = { dots:'· · ·', one:'·', line:'━' }[shape];
     const spacing = shape === 'dots' ? 'padding-left:8px; letter-spacing:8px;' : 'padding-left:0; letter-spacing:0;';
     const color = advancedDecorationColor(pal.breathOrnament, pal, settings.hr3Opacity);
@@ -840,7 +865,7 @@ function buildParagraph(rawLine, settings, opts){
     const statusText = softBodyTextColor(settings, safeHexColor(settings.narrColor, pal.caption));
     const statusBg = statusAccentBackground(settings);
     const statusAlign = 'center';
-    return `    <div data-mosaic-status="true" style="box-sizing:border-box; margin:${statusMt}px 0 ${statusMb}px 0; padding:11px 16px; background-color:${statusBg}; border-radius:8px; text-align:${statusAlign}; color:${statusText}; font-size:${statusSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${processInline(statusDisplayContent, settings.emphasisColor)}</div>\n`;
+    return `    <div data-mosaic-status="true" style="box-sizing:border-box; margin:${statusMt}px 0 ${statusMb}px 0; padding:11px 16px; background-color:${statusBg}; border-radius:8px; text-align:${statusAlign}; color:${statusText}; font-size:${statusSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${MosaicParser.processInline(statusDisplayContent, settings.emphasisColor)}</div>\n`;
   }
 
   // 본문 중간 이미지: [IMG 주소], [IMG 주소 @60], [IMG 주소 @60 | 캡션]
@@ -851,8 +876,8 @@ function buildParagraph(rawLine, settings, opts){
     if(src.startsWith('//')) src = 'https:' + src;
     const imageWidth = imgMatch.width;
     const captionText = imgMatch.caption;
-    const caption = captionText ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${processInline(captionText, settings.emphasisColor)}</p>` : '';
-    const alt = captionText ? stripMarkers(captionText) : '';
+    const caption = captionText ? `<p style="margin:7px 0 0 0; text-align:center; font-size:11.5px; line-height:1.5; color:${pal.caption}; letter-spacing:-0.1px; font-family:${fontStack(settings.narrFont)};">${MosaicParser.processInline(captionText, settings.emphasisColor)}</p>` : '';
+    const alt = captionText ? MosaicParser.stripMarkers(captionText) : '';
     // 카드의 첫 요소면 위 마진을 없애되, 구분선과 맞닿은 쪽은 일반 문단과 같은
     // HR_GAP을 적용한다. 이미지의 고정 22px과 구분선 마진이 서로 축약되면서
     // 이미지 옆 간격만 좁아지던 회귀를 막는다.
@@ -861,14 +886,14 @@ function buildParagraph(rawLine, settings, opts){
     const separatorGap = Math.round(36 * sm);
     const imgMt = opts.extraTop ? separatorGap : (opts.isFirst ? 0 : imageGap);
     const imgMb = opts.extraBottom ? separatorGap : imageGap;
-    return `    <div style="margin:${imgMt}px 0 ${imgMb}px 0; line-height:0; font-size:0; text-align:center;"><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" class="fr-fic fr-dib" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
+    return `    <div style="margin:${imgMt}px 0 ${imgMb}px 0; line-height:0; font-size:0; text-align:center;"><img src="${MosaicParser.escapeAttr(src)}" alt="${MosaicParser.escapeAttr(alt)}" class="fr-fic fr-dib" style="width:${imageWidth}%; max-width:100%; height:auto; display:block; border-radius:10px; margin:0 auto;">${caption}</div>\n`;
   }
 
   // 마크다운 소제목: #, ##, ###, #### (그 이상은 인식 안 함)
   const headingMatch = parseBodyHeading(line);
   if(headingMatch){
     const level = headingMatch.level;
-    const text = processInline(headingMatch.title.trim(), settings.emphasisColor);
+    const text = MosaicParser.processInline(headingMatch.title.trim(), settings.emphasisColor);
     const spec = headingSpec(level);
     const HEADING = { size: spec.size, weight: spec.weight };
     const headingSpacing = paragraphGapPx(settings) / 20;
@@ -927,9 +952,13 @@ function buildParagraph(rawLine, settings, opts){
   // 큰따옴표 대사는 원문 병행의 자동 배치·이어쓰기·아래쓰기 설정을 따른다.
   // *...* 강조는 문장 안과 독립 문장 모두 같은 기울임·강조색으로 처리됨.
   const parallelTranslationMode = resolvedParallelTranslationMode(settings);
-  const parallelDialogue = settings.parallelTranslationSoft ? parallelDialogueParts(line) : null;
+  const detectedParallel = settings.parallelTranslationSoft ? MosaicParser.parallelDialogueParts(line) : null;
+  // 속마음은 아래 혼합 문단 경로에서 한 번만 예외를 소비한다. 여기서 먼저
+  // 소비하면 뒤의 실제 렌더가 해당 쌍의 병행 제외 상태를 찾지 못한다.
+  const parallelDialogue = detectedParallel?.original.startsWith('"')
+    ? MosaicParser.resolveParallelSegment({...detectedParallel,kind:'dialogue'},settings) : null;
   const isDialogueParallel = parallelDialogue && parallelDialogue.original.startsWith('"');
-  const isDialogue = /^"[^"]*"$/.test(line) || Boolean(isDialogueParallel);
+  const isDialogue = (line.startsWith('"') && MosaicParser.quotedTextRanges(line).some(quote=>quote.closed && quote.quote==='"' && quote.start===0 && quote.end===line.length)) || Boolean(isDialogueParallel);
 
   // 보이는 문단 구분 요소 바로 앞/뒤는 여백을 더 띄워 단락 구분을 직관적으로 보여줌
   const HR_GAP = Math.round(36 * sm);
@@ -948,11 +977,16 @@ function buildParagraph(rawLine, settings, opts){
     } else {
       color = settings.charColor;
     }
-    const dialogueSource = parallelDialogue
-      ? parallelDialogue.original
+    const quotedDialogueSource = parallelDialogue
+      ? MosaicParser.parallelDisplayParts(parallelDialogue,settings).primary
       : line;
+    // 말풍선은 이미 대사 영역이므로 바깥 큰따옴표만 출력에서 생략한다.
+    // 입력 구분자는 유지해 직접 편집·다른 표현으로의 전환 때 대사 판정이 풀리지 않는다.
+    const dialogueSource=MosaicState.isMessengerDialogueStyle(settings.dlgStyle) ? quotedDialogueSource.slice(1,-1) : quotedDialogueSource;
+    const alignedStack = settings.parallelTranslationLayout === 'stack' && parallelDialogue && !parallelDialogue.excluded;
+    const parallelInset = alignedStack && ['softlight','highlight'].includes(settings.dlgStyle) ? 8 : 0;
     const parallelTranslationHtml = parallelDialogue
-      ? parallelTranslationHTML(parallelDialogue, settings, color, parallelTranslationMode)
+      ? parallelTranslationHTML(parallelDialogue, settings, color, parallelTranslationMode, parallelInset)
       : '';
     // 연속 대사(주고받는 대화) 구간은 간격을 자동으로 좁혀 대화의 리듬을 살림
     let mb;
@@ -965,6 +999,8 @@ function buildParagraph(rawLine, settings, opts){
     } else {
       mb = baseParagraphGap;
     }
+    // 같은 화자의 연속 간격은 유지하고 char↔user로 넘어가는 자리만 조금 넓힌다.
+    if(opts.charUserBoundary) mb += Math.round(8 * sm);
 
     // 화자 이름표: 마커가 없는 대사는 {{char}}가 기본 화자이므로 이름표도 char로 표시.
     // 등록된 인물은 그 인물의 이름이 그대로 이름표에 나옴.
@@ -982,13 +1018,13 @@ function buildParagraph(rawLine, settings, opts){
         : (who === 'user'
             ? ((settings.userName || '').trim() || '{{user}}')
             : ((settings.charName || '').trim() || '{{char}}'));
-      const nameHtml = processInline(name, settings.emphasisColor);
+      const nameHtml = MosaicParser.processInline(name, settings.emphasisColor);
       speakerNameHtml = nameHtml;
       const labelColor = parallelTranslationTextColor(settings, color);
-      const messengerUserLabelAlign = settings.dlgStyle === 'messenger' && who === 'user' && !settings.cardBodyCenter
-        ? ' display:block !important; width:100% !important; text-align:right !important;' : '';
-      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; ${settings.cardBodyCenter ? 'text-align:center; ' : ''}color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
-      embeddedLabel = `<span data-mosaic-speaker-label="true" style="display:block; margin:0 0 5px 0; color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px;${messengerUserLabelAlign}">${nameHtml}</span>`;
+      const labelAlign = settings.cardBodyCenter ? 'text-align:center; '
+        : MosaicState.isMessengerDialogueStyle(settings.dlgStyle) ? `text-align:${who === 'user' ? 'right' : 'left'}; ` : '';
+      label = `      <p data-mosaic-speaker-label="true" style="margin:${mt}px 0 5px 0; ${labelAlign}color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px; font-family:${fontStack(settings.dlgFont)};">${nameHtml}</p>\n`;
+      embeddedLabel = `<span data-mosaic-speaker-label="true" style="display:block; margin:0 0 5px 0; color:${labelColor}; -webkit-text-fill-color:${labelColor}; font-size:10.5px; font-weight:600; line-height:1.35; letter-spacing:0.4px;">${nameHtml}</span>`;
       mtEff = 0;
     }
 
@@ -1002,13 +1038,16 @@ function buildParagraph(rawLine, settings, opts){
       const soft = settings.dlgStyle === 'softlight';
       const bgColor = soft ? pal.boxBg : accentTint(settings.bgColor, color);
       const txtColor = soft ? color : textColorFor(bgColor);
-      return wrapDialogue(`      <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};"><span style="background-color:${bgColor}; color:${txtColor}; -webkit-text-fill-color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>${parallelTranslationHtml}</p>\n`);
+      const primary = `<span style="background-color:${bgColor}; color:${txtColor}; -webkit-text-fill-color:${txtColor}; padding:2px 8px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${MosaicParser.processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing })}</span>`;
+      const body = alignedStack ? stackedParallelPairHTML(primary,parallelTranslationHtml) : primary+parallelTranslationHtml;
+      return wrapDialogue(`      <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mtEff}px 0 ${mb}px 0; ${dialogueAlign}font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${body}</p>\n`);
     }
 
-    const dialogueHtml = processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
-    const dialogueBodyHtml = parallelDialogue && parallelTranslationMode === 'inline'
-      ? `<span style="display:block;">${dialogueHtml}${parallelTranslationHtml}</span>`
-      : `<span style="display:block;">${dialogueHtml}</span>${parallelTranslationHtml}`;
+    const dialogueHtml = MosaicParser.processBodyInline(dialogueSource, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
+    const dialogueBodyHtml = alignedStack ? stackedParallelPairHTML(dialogueHtml,parallelTranslationHtml)
+      : parallelDialogue && parallelTranslationMode === 'inline'
+        ? `<span style="display:block;">${dialogueHtml}${parallelTranslationHtml}</span>`
+        : `<span style="display:block;">${dialogueHtml}</span>${parallelTranslationHtml}`;
 
     // 옵션3: 화자명을 옅은 화자색 배지로 압축하고 대사는 장식 없이 읽게 함
     if(settings.dlgStyle === 'badge'){
@@ -1016,7 +1055,9 @@ function buildParagraph(rawLine, settings, opts){
       const badgeLabel = speakerNameHtml
         ? `<span data-mosaic-speaker-label="true" style="display:inline-block; margin:0 0 7px 0; padding:2px 7px; border-radius:999px; background-color:${badgeBg}; color:${textColorFor(badgeBg)}; -webkit-text-fill-color:${textColorFor(badgeBg)}; font-size:10px; font-weight:700; line-height:1.35; letter-spacing:0.3px;">${speakerNameHtml}</span>`
         : '';
-      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${dialogueBodyHtml}</p>\n`;
+      // 화자 배지가 원문·번역 묶음 옆으로 올라오지 않게 기존 본문 줄 분리를 유지한다.
+      const badgeBody = alignedStack ? `<span style="display:block;">${dialogueBodyHtml}</span>` : dialogueBodyHtml;
+      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${badgeLabel}${badgeBody}</p>\n`;
     }
 
     // 옵션4: 왼쪽에서 오른쪽으로 자연스럽게 사라지는 연한 색면
@@ -1024,51 +1065,48 @@ function buildParagraph(rawLine, settings, opts){
       return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:10px 14px; border-radius:6px; background:linear-gradient(90deg, ${pal.boxBg} 0%, ${pal.boxBg} 52%, transparent 100%); color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
     }
 
-    // 옵션6: 화자별 말풍선. 기존 대사·이름표·번역 처리를 그대로 사용한다.
-    if(settings.dlgStyle === 'messenger'){
+    // 메신저의 면색은 화자와 무관하게 인용배경과 같은 중립색 토큰을 쓴다.
+    if(MosaicState.isMessengerDialogueStyle(settings.dlgStyle)){
       const userSide = speaker === 'user';
-      const bubbleBg = accentTint(settings.bgColor, color);
+      const bubbleBg = pal.boxBg;
       const centered = settings.cardBodyCenter === true;
-      return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mt}px ${centered || !userSide ? 'auto' : '0'} ${mb}px ${centered || userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:${centered ? 'center' : 'left'}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+      // 이름표는 말풍선 밖의 별도 문단으로 둔다. 위 여백은 이름표에만 적용한다.
+      return wrapDialogue(`    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mtEff}px ${centered || !userSide ? 'auto' : '0'} ${mb}px ${centered || userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:${centered ? 'center' : 'left'}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${dialogueBodyHtml}</p>\n`);
     }
 
-    // 옵션5: 배경이 있는 인용박스. 저장된 quote 값도 같은 형태로 표시한다.
-    return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:13px 18px; border-left:2px solid ${color}; background-color:${pal.boxBg}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
+    // 인용선은 텍스트 높이만큼 긋고, 선과 대사 사이의 왼쪽 간격을 14px로 둔다.
+    const quoteBackground = settings.dlgStyle === 'quote-bg' ? pal.boxBg : 'transparent';
+    const quotePadding = settings.dlgStyle === 'quote-bg' ? '13px 18px' : '0 18px 0 14px';
+    return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:${quotePadding}; border-left:2px solid ${color}; background-color:${quoteBackground}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
     const mb = opts.extraBottom ? HR_GAP : (opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap);
     const baseColor = overrideColor
       || (speaker && typeof speaker === 'object' ? safeHexColor(speaker.color, settings.charColor)
           : (speaker === 'user' ? settings.userColor : settings.charColor));
     // 병행 번역을 임시 토큰으로 보호하고 사용자 글자를 안전한 HTML로 만든 뒤 대사 강조를 합친다.
-    const preparedParallel = prepareMixedParallelTranslations(line, settings, baseColor);
-    let content = processBodyInline(preparedParallel.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
+    const preparedParallel = prepareMixedParallelTranslations(line, settings, baseColor, {
+      narration:true,
+      stackCenter:forceCenter || settings.narrCenter,
+      inlineSpeakers:settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'
+    });
+    let content = MosaicParser.processBodyInline(preparedParallel.line, settings.emphasisColor, { softBreakSpacing:settings.softBreakSpacing });
 
     // 옵션1·2에서는 서술이 섞인 줄이라도 "..." 부분만 골라서 대사 강조 처리.
     // 대사 바로 앞에 <<, >>를 붙이면 그 대사만 해당 화자 색으로 칠해짐 (마커는 출력에서 제거).
     // 마커가 없는 대사는 줄 맨 앞 마커/{#색} 또는 기본({{char}}) 색을 따름.
-    // 옵션3·4·5의 일반 문장은 assembleBody에서 출력용 줄로 먼저 분리된다.
+    // 분리형 표현의 일반 문장은 assembleBody에서 출력용 줄로 먼저 분리된다.
     // 이 분기에 남은 특수 문법 줄에서는 인라인 화자 마커만 흔적 없이 정리한다.
     if(/"[^"]*"/.test(content)){
       if(settings.dlgStyle === 'highlight' || settings.dlgStyle === 'softlight'){
-        const soft = settings.dlgStyle === 'softlight';
         content = content.replace(/(&gt;&gt;|&lt;&lt;|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g, (m, mark, personName, q) => {
-          let who;
-          if(mark === '&lt;&lt;') who = settings.userColor;
-          else if(mark === '&gt;&gt;') who = settings.charColor;
-          else if(personName){
-            const p = findChar(settings, personName);
-            if(!p) return m;                 // 등록되지 않은 이름이면 원문 그대로 둠
-            who = p.color;
-          }
-          else who = baseColor;
-          const bg = soft ? pal.boxBg : accentTint(settings.bgColor, who);
-          const txtColor = soft ? who : textColorFor(bg);
+          const who = inlineDialogueSpeakerColor(settings, mark, personName, baseColor);
+          if(who === null) return m; // 등록되지 않은 이름이면 원문 그대로 둠
           // 서술 안에 섞인 대사도 독립 대사와 같은 크기·행간을 사용한다. 이전에는
           // 나레이션 크기를 상속해 특히 모바일에서 대사 크기 설정이 풀린 것처럼 보였다.
-          return (m.startsWith(' ') ? ' ' : '') + `<span data-mosaic-dialogue="true" style="background-color:${bg}; color:${txtColor}; -webkit-text-fill-color:${txtColor}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; padding:1px 6px; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone;">${q}</span>`;
+          return (m.startsWith(' ') ? ' ' : '') + inlineDialogueHTML(q,settings,who);
         });
       } else {
-        // 옵션3·4·5: 인라인 화자 마커가 출력에 남지 않게 제거 (등록된 인물 이름만)
+        // 분리형 표현: 인라인 화자 마커가 출력에 남지 않게 제거 (등록된 인물 이름만)
         content = content.replace(/(?:&gt;&gt;|&lt;&lt;)\s*(?=")/g, '');
         content = content.replace(/\[([^\[\]\n]{1,24})\]\s*(?=")/g, (m, name) => findChar(settings, name) ? '' : m);
       }
@@ -1079,480 +1117,6 @@ function buildParagraph(rawLine, settings, opts){
     const indentN = (settings.narrIndent && !forceCenter && !settings.narrCenter) ? 'text-indent:1em; ' : '';
     return `    <p style="margin:${mt}px 0 ${mb}px 0; ${indentN}${alignN}color:${settings.narrColor}; font-size:${settings.narrSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
   }
-}
-
-const MAX_CREDIT_ITEMS = 20;
-let creditDragIndex = null;
-let creditDropMarker = null;
-
-function clearCreditDragUi(){
-  document.querySelectorAll('#creditEditorList .creditEditorRow').forEach(row => {
-    row.classList.remove('isCreditDragging');
-    row.removeAttribute('aria-grabbed');
-  });
-  if(creditDropMarker) creditDropMarker.remove();
-  creditDropMarker = null;
-  creditDragIndex = null;
-}
-
-function reorderCreditItem(from, insertionIndex){
-  const items = creditItemsFromEditor();
-  if(from < 0 || from >= items.length) return false;
-  let target = Math.max(0, Math.min(items.length, insertionIndex));
-  const [moved] = items.splice(from, 1);
-  if(target > from) target--;
-  if(target === from) return false;
-  items.splice(target, 0, moved);
-  MosaicUI.cards.snapshot();
-  setStoredCreditItems(items, true);
-  renderCreditItemsEditor();
-  MosaicUI.feedback.undo('크레딧 항목 순서를 변경했습니다.');
-  return true;
-}
-
-function finishCreditItemDrop(event){
-  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
-  event.preventDefault();
-  event.stopPropagation();
-  const list = document.getElementById('creditEditorList');
-  const children = Array.from(list.children);
-  const insertionIndex = children
-    .slice(0, children.indexOf(creditDropMarker))
-    .filter(child => child.classList && child.classList.contains('creditEditorRow'))
-    .length;
-  const from = creditDragIndex;
-  clearCreditDragUi();
-  reorderCreditItem(from, insertionIndex);
-}
-
-function normalizeCreditItems(value){
-  let source = value;
-  if(typeof source === 'string'){
-    try { source = JSON.parse(source || '[]'); }
-    catch(e){ source = []; }
-  }
-  if(!Array.isArray(source)) return [];
-  return source.slice(0, MAX_CREDIT_ITEMS).map((item, index) => {
-    const row = item && typeof item === 'object' ? item : {};
-    return {
-      label:String(row.label || '').slice(0, 80),
-      value:String(row.value || '').slice(0, 500),
-      url:String(row.url || '').slice(0, 8192),
-      dividerBefore:index > 0 && settingFlagOn(row.dividerBefore)
-    };
-  });
-}
-
-function creditItemsFromEditor(){
-  return Array.from(document.querySelectorAll('#creditEditorList .creditEditorRow')).map(row => ({
-    label:row.querySelector('.creditLabelInput').value,
-    value:row.querySelector('.creditValueInput').value,
-    url:row.querySelector('.creditUrlInput').value,
-    dividerBefore:row.dataset.dividerBefore === 'true'
-  }));
-}
-
-function storedCreditItems(){
-  return normalizeCreditItems(document.getElementById('creditItems').value);
-}
-
-function setStoredCreditItems(items, dispatch){
-  const field = document.getElementById('creditItems');
-  field.value = JSON.stringify(normalizeCreditItems(items));
-  if(dispatch) field.dispatchEvent(new Event('input', { bubbles:true }));
-}
-
-function syncCreditItemsField(){
-  setStoredCreditItems(creditItemsFromEditor(), true);
-}
-
-function renderCreditItemsEditor(){
-  const list = document.getElementById('creditEditorList');
-  if(!list) return;
-  const stored = storedCreditItems();
-  const items = stored.length ? stored : [{ label:'', value:'', url:'', dividerBefore:false }];
-  list.replaceChildren();
-  items.forEach((item, index) => {
-    const row = document.createElement('div');
-    row.className = 'creditEditorRow';
-    row.dataset.creditIndex = String(index);
-    row.dataset.dividerBefore = String(index > 0 && settingFlagOn(item.dividerBefore));
-
-    const header = document.createElement('div');
-    header.className = 'creditRowHeader';
-    header.draggable = true;
-    header.title = '헤더를 끌어서 크레딧 순서 변경';
-
-    const rowTitle = document.createElement('span');
-    rowTitle.className = 'creditRowTitle';
-    rowTitle.textContent = `항목 ${index + 1}`;
-
-    const label = document.createElement('input');
-    label.type = 'text';
-    label.id = `creditLabel${index}`;
-    label.className = 'creditLabelInput';
-    label.maxLength = 80;
-    label.placeholder = '항목명 · 예: Model';
-    label.setAttribute('aria-label', `크레딧 ${index + 1} 항목명`);
-    label.value = item.label;
-
-    const value = document.createElement('input');
-    value.type = 'text';
-    value.id = `creditValue${index}`;
-    value.className = 'creditValueInput';
-    value.maxLength = 500;
-    value.placeholder = '내용';
-    value.setAttribute('aria-label', `크레딧 ${index + 1} 내용`);
-    value.value = item.value;
-
-    const url = document.createElement('input');
-    url.type = 'url';
-    url.id = `creditUrl${index}`;
-    url.className = 'creditUrlInput';
-    url.maxLength = 8192;
-    url.placeholder = '연결 URL · 선택';
-    url.setAttribute('aria-label', `크레딧 ${index + 1} 링크`);
-    url.value = item.url;
-
-    const actions = document.createElement('div');
-    actions.className = 'creditRowActions';
-    const divider = document.createElement('button');
-    divider.type = 'button';
-    divider.className = 'creditDividerBtn uiButton';
-    divider.textContent = '―';
-    divider.title = index === 0 ? '첫 항목 위에는 구분선을 넣을 수 없습니다.' : '이 항목 위 구분선 표시 전환';
-    divider.setAttribute('aria-label', `크레딧 ${index + 1} 위 구분선 표시 전환`);
-    divider.setAttribute('aria-pressed', row.dataset.dividerBefore);
-    divider.disabled = index === 0;
-    const moveGroup = document.createElement('span');
-    moveGroup.className = 'creditMoveGroup';
-    const up = document.createElement('button');
-    up.type = 'button';
-    up.className = 'itemMoveBtn uiButton';
-    up.textContent = '↑';
-    up.title = '항목을 위로';
-    up.setAttribute('aria-label', `크레딧 ${index + 1} 위로 이동`);
-    up.disabled = index === 0;
-    const down = document.createElement('button');
-    down.type = 'button';
-    down.className = 'itemMoveBtn uiButton';
-    down.textContent = '↓';
-    down.title = '항목을 아래로';
-    down.setAttribute('aria-label', `크레딧 ${index + 1} 아래로 이동`);
-    down.disabled = index === items.length - 1;
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'creditDeleteBtn';
-    remove.textContent = '×';
-    remove.title = '항목 삭제';
-    remove.setAttribute('aria-label', `크레딧 ${index + 1} 삭제`);
-    moveGroup.append(up, down);
-    actions.append(divider, moveGroup, remove);
-
-    header.addEventListener('dragstart', event => {
-      if(event.target.closest('button') || !document.getElementById('creditOn').checked){
-        event.preventDefault();
-        return;
-      }
-      creditDragIndex = index;
-      creditDropMarker = document.createElement('div');
-      creditDropMarker.className = 'creditDropMarker';
-      creditDropMarker.setAttribute('aria-hidden', 'true');
-      row.classList.add('isCreditDragging');
-      row.setAttribute('aria-grabbed', 'true');
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', String(index));
-    });
-    header.addEventListener('dragend', clearCreditDragUi);
-    row.addEventListener('dragover', event => {
-      if(creditDragIndex === null) return;
-      // 끌던 항목으로 다시 돌아오면 앞서 가리키던 위치를 취소한다. 표시선이
-      // 다른 자리에 남은 채 원래 항목에서 놓여 뜻밖의 순서 변경이 되는 것을 막는다.
-      if(creditDragIndex === index){
-        if(creditDropMarker && creditDropMarker.isConnected) creditDropMarker.remove();
-        return;
-      }
-      event.preventDefault();
-      if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      const rect = row.getBoundingClientRect();
-      if(event.clientY >= rect.top + rect.height / 2) row.after(creditDropMarker);
-      else row.before(creditDropMarker);
-    });
-    row.addEventListener('drop', finishCreditItemDrop);
-
-    [label, value, url].forEach(input => input.addEventListener('input', syncCreditItemsField));
-    url.addEventListener('change', () => {
-      const normalized = normalizeProtocolRelativeUrl(url.value);
-      if(url.value !== normalized) url.value = normalized;
-      syncCreditItemsField();
-    });
-    up.addEventListener('click', () => moveCreditItem(index, -1));
-    down.addEventListener('click', () => moveCreditItem(index, 1));
-    divider.addEventListener('click', () => {
-      if(index === 0) return;
-      MosaicUI.cards.snapshot();
-      const enabled = row.dataset.dividerBefore !== 'true';
-      row.dataset.dividerBefore = String(enabled);
-      divider.setAttribute('aria-pressed', String(enabled));
-      syncCreditItemsField();
-      MosaicUI.feedback.undo(`크레딧 ${index + 1} 위 구분선을 ${enabled ? '표시합니다.' : '숨겼습니다.'}`);
-    });
-    remove.addEventListener('click', () => deleteCreditItem(index));
-    const fields = document.createElement('div');
-    fields.className = 'creditRowFields';
-    fields.append(label, value, url);
-    header.append(rowTitle, actions);
-    row.append(header, fields);
-    list.appendChild(row);
-  });
-  MosaicUI.controls.syncCredit();
-}
-
-document.getElementById('creditEditorList').addEventListener('dragover', event => {
-  if(creditDragIndex === null || !creditDropMarker || !creditDropMarker.isConnected) return;
-  event.preventDefault();
-  if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-});
-document.getElementById('creditEditorList').addEventListener('drop', finishCreditItemDrop);
-
-function addCreditItem(){
-  const items = creditItemsFromEditor();
-  if(items.length >= MAX_CREDIT_ITEMS){
-    MosaicUI.feedback.notice(`크레딧은 최대 ${MAX_CREDIT_ITEMS}개까지 추가할 수 있습니다.`);
-    return;
-  }
-  MosaicUI.cards.snapshot();
-  items.push({ label:'', value:'', url:'', dividerBefore:false });
-  setStoredCreditItems(items, true);
-  renderCreditItemsEditor();
-  const next = document.querySelector('#creditEditorList .creditEditorRow:last-child .creditLabelInput');
-  if(next) next.focus();
-  MosaicUI.feedback.undo('크레딧 항목을 추가했습니다.');
-}
-
-function moveCreditItem(index, delta){
-  const items = creditItemsFromEditor();
-  const target = index + delta;
-  if(target < 0 || target >= items.length) return;
-  MosaicUI.cards.snapshot();
-  [items[index], items[target]] = [items[target], items[index]];
-  setStoredCreditItems(items, true);
-  renderCreditItemsEditor();
-  MosaicUI.feedback.undo('크레딧 항목 순서를 변경했습니다.');
-}
-
-function deleteCreditItem(index){
-  const items = creditItemsFromEditor();
-  if(index < 0 || index >= items.length) return;
-  MosaicUI.cards.snapshot();
-  items.splice(index, 1);
-  setStoredCreditItems(items, true);
-  renderCreditItemsEditor();
-  MosaicUI.feedback.undo('크레딧 항목을 삭제했습니다.');
-}
-
-const CREDIT_PRESET_KEY = 'mosaicCreditItemPresets_v1';
-const MAX_CREDIT_PRESETS = 50;
-
-function sanitizeCreditPresetList(value){
-  if(!Array.isArray(value)) return [];
-  return value.slice(0, MAX_CREDIT_PRESETS).map((preset, index) => {
-    if(!preset || typeof preset !== 'object' || Array.isArray(preset)) return null;
-    const name = typeof preset.name === 'string' ? preset.name.trim().slice(0, 80) : '';
-    if(!name || !Array.isArray(preset.items)) return null;
-    const items = normalizeCreditItems(preset.items)
-      .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
-    if(!items.length) return null;
-    const id = typeof preset.id === 'string' && preset.id
-      ? preset.id.slice(0, 120)
-      : `credit-preset-${index}-${name.toLowerCase()}`;
-    return { id, name, items, updatedAt:Number(preset.updatedAt) || 0 };
-  }).filter(Boolean);
-}
-
-function loadCreditPresets(){
-  return MosaicStorage.loadProtectedPresetList(CREDIT_PRESET_KEY, sanitizeCreditPresetList, MAX_CREDIT_PRESETS);
-}
-
-function saveCreditPresets(presets){
-  return MosaicStorage.saveProtectedPresetList(CREDIT_PRESET_KEY, presets, sanitizeCreditPresetList, MAX_CREDIT_PRESETS, '크레딧 프리셋');
-}
-
-function syncCreditPresetControls(){
-  const selected = document.getElementById('creditPresetSelect').value !== '';
-  const hasName = document.getElementById('creditPresetName').value.trim() !== '';
-  document.getElementById('creditPresetLoadBtn').disabled = !selected;
-  document.getElementById('creditPresetDeleteBtn').disabled = !selected;
-  document.getElementById('creditPresetSaveBtn').disabled = !hasName;
-}
-
-function renderCreditPresetOptions(selectedId){
-  const select = document.getElementById('creditPresetSelect');
-  const presets = loadCreditPresets();
-  const preferred = selectedId !== undefined ? selectedId : select.value;
-  select.replaceChildren(new Option(presets === null ? '저장된 프리셋을 읽지 못함' : '저장된 프리셋 선택', ''));
-  if(presets) presets.forEach(preset => select.appendChild(new Option(preset.name, preset.id)));
-  select.value = presets && presets.some(preset => preset.id === preferred) ? preferred : '';
-  syncCreditPresetControls();
-}
-
-function saveCurrentCreditPreset(){
-  const nameInput = document.getElementById('creditPresetName');
-  const name = nameInput.value.trim();
-  if(!name) return;
-  const items = normalizeCreditItems(creditItemsFromEditor())
-    .filter(item => item.label.trim() || item.value.trim() || item.url.trim());
-  if(!items.length){
-    MosaicUI.feedback.notice('저장할 크레딧 항목이 없습니다.');
-    return;
-  }
-  const presets = loadCreditPresets();
-  if(presets === null){ MosaicUI.feedback.notice('크레딧 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
-  const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
-  if(!existing && presets.length >= MAX_CREDIT_PRESETS){
-    MosaicUI.feedback.notice(`크레딧 프리셋은 최대 ${MAX_CREDIT_PRESETS}개까지 저장할 수 있습니다.`);
-    return;
-  }
-  const id = existing ? existing.id : `credit-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const next = existing
-    ? presets.map(preset => preset.id === id ? { id, name, items, updatedAt:Date.now() } : preset)
-    : [...presets, { id, name, items, updatedAt:Date.now() }];
-  if(!saveCreditPresets(next)) return;
-  renderCreditPresetOptions(id);
-  MosaicUI.feedback.notice(existing ? `'${name}' 크레딧 프리셋을 덮어썼습니다.` : `'${name}' 크레딧 프리셋을 저장했습니다.`);
-}
-
-function loadSelectedCreditPreset(){
-  const id = document.getElementById('creditPresetSelect').value;
-  const presets = loadCreditPresets();
-  const preset = presets && presets.find(item => item.id === id);
-  if(!preset) return;
-  MosaicUI.cards.snapshot();
-  setStoredCreditItems(preset.items, true);
-  renderCreditItemsEditor();
-  document.getElementById('creditPresetName').value = preset.name;
-  syncCreditPresetControls();
-  MosaicUI.feedback.undo(`'${preset.name}' 크레딧 항목을 불러왔습니다.`);
-}
-
-function deleteSelectedCreditPreset(){
-  const id = document.getElementById('creditPresetSelect').value;
-  const presets = loadCreditPresets();
-  const preset = presets && presets.find(item => item.id === id);
-  if(!preset || !confirm(`'${preset.name}' 크레딧 프리셋을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
-  if(!saveCreditPresets(presets.filter(item => item.id !== id))) return;
-  renderCreditPresetOptions('');
-  MosaicUI.feedback.notice(`'${preset.name}' 크레딧 프리셋을 삭제했습니다.`);
-}
-
-const DETAIL_PRESET_KEY = 'mosaicDetailPresets_v1';
-const MAX_DETAIL_PRESETS = 50;
-const DETAIL_PRESET_FIELDS = [
-  'advancedOn', 'hrShape', 'hrOpacity', 'hrLength', 'hrVerticalSpace', 'hr2Shape', 'hr2Opacity', 'hr2VerticalSpace',
-  'hr3Shape', 'hr3Opacity', 'hr3VerticalSpace', 'gapHeight', 'coverVerticalSpace',
-  'profileOuterBackground', 'profileItemGap', 'cardTitlePadding',
-  'coverDividerLength', 'cardDividerLength', 'cardCornerRadius', 'cardTitleOrnamentOpacity', 'foldAutoNumberStyle',
-  'profileTitleGap', 'coverCardGap', 'cardGap', 'unifiedBottomSpace', 'creditCardGap',
-  'cardInlinePadding', 'cardBodyTopSpace', 'cardBodyBottomSpace', 'footerBodyGap', 'headingTopSpace', 'headingBetweenSpace', 'headingBottomSpace',
-  'creditBorderOn', 'creditTransparentOn'
-];
-
-function sanitizeDetailPresetList(value){
-  if(!Array.isArray(value)) return [];
-  return value.slice(0, MAX_DETAIL_PRESETS).map((preset, index) => {
-    if(!preset || typeof preset !== 'object' || Array.isArray(preset)) return null;
-    const name = typeof preset.name === 'string' ? preset.name.trim().slice(0, 80) : '';
-    if(!name || !preset.values || typeof preset.values !== 'object' || Array.isArray(preset.values)
-      || !DETAIL_PRESET_FIELDS.some(id => Object.prototype.hasOwnProperty.call(preset.values, id))) return null;
-    const safe = sanitizeImportedPreset({ name, values:preset.values });
-    if(!safe) return null;
-    const values = {};
-    DETAIL_PRESET_FIELDS.forEach(id => { values[id] = safe.values[id]; });
-    const id = typeof preset.id === 'string' && preset.id
-      ? preset.id.slice(0, 120)
-      : `detail-preset-${index}-${name.toLowerCase()}`;
-    return { id, name, values, updatedAt:Number(preset.updatedAt) || 0 };
-  }).filter(Boolean);
-}
-
-function loadDetailPresets(){
-  return MosaicStorage.loadProtectedPresetList(DETAIL_PRESET_KEY, sanitizeDetailPresetList, MAX_DETAIL_PRESETS);
-}
-
-function saveDetailPresets(presets){
-  return MosaicStorage.saveProtectedPresetList(DETAIL_PRESET_KEY, presets, sanitizeDetailPresetList, MAX_DETAIL_PRESETS, '세부 조정 프리셋');
-}
-
-function syncDetailPresetControls(){
-  const selected = document.getElementById('detailPresetSelect').value !== '';
-  const hasName = document.getElementById('detailPresetName').value.trim() !== '';
-  document.getElementById('detailPresetLoadBtn').disabled = !selected;
-  document.getElementById('detailPresetDeleteBtn').disabled = !selected;
-  document.getElementById('detailPresetSaveBtn').disabled = !hasName;
-}
-
-function renderDetailPresetOptions(selectedId){
-  const select = document.getElementById('detailPresetSelect');
-  const presets = loadDetailPresets();
-  const preferred = selectedId !== undefined ? selectedId : select.value;
-  select.replaceChildren(new Option(presets === null ? '저장된 프리셋을 읽지 못함' : '저장된 프리셋 선택', ''));
-  if(presets) presets.forEach(preset => select.appendChild(new Option(preset.name, preset.id)));
-  select.value = presets && presets.some(preset => preset.id === preferred) ? preferred : '';
-  syncDetailPresetControls();
-}
-
-function currentDetailPresetValues(){
-  const values = {};
-  DETAIL_PRESET_FIELDS.forEach(id => {
-    const input = document.getElementById(id);
-    values[id] = input.type === 'checkbox' ? input.checked : input.value;
-  });
-  return values;
-}
-
-function saveCurrentDetailPreset(){
-  const nameInput = document.getElementById('detailPresetName');
-  const name = nameInput.value.trim();
-  if(!name) return;
-  const values = currentDetailPresetValues();
-  const presets = loadDetailPresets();
-  if(presets === null){ MosaicUI.feedback.notice('세부 조정 프리셋 원본을 읽지 못해 저장하지 않았습니다.'); return; }
-  const existing = presets.find(preset => preset.name.toLowerCase() === name.toLowerCase());
-  if(!existing && presets.length >= MAX_DETAIL_PRESETS){
-    MosaicUI.feedback.notice(`세부 조정 프리셋은 최대 ${MAX_DETAIL_PRESETS}개까지 저장할 수 있습니다.`);
-    return;
-  }
-  const id = existing ? existing.id : `detail-preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const next = existing
-    ? presets.map(preset => preset.id === id ? { id, name, values, updatedAt:Date.now() } : preset)
-    : [...presets, { id, name, values, updatedAt:Date.now() }];
-  if(!saveDetailPresets(next)) return;
-  renderDetailPresetOptions(id);
-  MosaicUI.feedback.notice(existing ? `'${name}' 세부 조정 프리셋을 덮어썼습니다.` : `'${name}' 세부 조정 프리셋을 저장했습니다.`);
-}
-
-function loadSelectedDetailPreset(){
-  const id = document.getElementById('detailPresetSelect').value;
-  const presets = loadDetailPresets();
-  const preset = presets && presets.find(item => item.id === id);
-  if(!preset) return;
-  applyStyleValues({ ...currentStyleValues(), ...preset.values });
-  MosaicUI.preview.render();
-  saveDraft();
-  commitStyleHistory(true);
-  document.getElementById('detailPresetName').value = preset.name;
-  syncDetailPresetControls();
-  MosaicUI.feedback.open(`'${preset.name}' 세부 조정을 불러왔습니다.`, null, true);
-}
-
-function deleteSelectedDetailPreset(){
-  const id = document.getElementById('detailPresetSelect').value;
-  const presets = loadDetailPresets();
-  const preset = presets && presets.find(item => item.id === id);
-  if(!preset || !confirm(`'${preset.name}' 세부 조정 프리셋을 삭제하십시오.\n삭제 후 되돌릴 수 없습니다.`)) return;
-  if(!saveDetailPresets(presets.filter(item => item.id !== id))) return;
-  renderDetailPresetOptions('');
-  MosaicUI.feedback.notice(`'${preset.name}' 세부 조정 프리셋을 삭제했습니다.`);
 }
 
 // Output settings reader lives in state.js. Keep output builders independent of input controls.
@@ -1593,11 +1157,9 @@ function buildImageBlock(settings, connectedAbove = false){
     ? ''
     : `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; ${connectedAbove ? '' : `border-top:1px solid ${pal.shellBorder};`}`;
   const radius = cardCornerRadiusPx(settings);
-  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:${connectedAbove ? 0 : radius}px ${connectedAbove ? 0 : radius}px 0 0;"></div>
+  return `<div data-mosaic-cover-image="true" style="width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; height:${H}px; background-image:url('${MosaicParser.escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; ${outerBorder} border-radius:${connectedAbove ? 0 : radius}px ${connectedAbove ? 0 : radius}px 0 0;"></div>
 `;
 }
-
-
 
 function foldAutoNumberText(number, style){
   if(style !== 'roman' || number < 1 || number > 3999) return String(number);
@@ -1617,7 +1179,7 @@ function foldDividerStyle(minimal, palette, settings){
   // display는 지정하지 않는다. 인라인 display:block은 닫힌 details의 기본 숨김보다
   // 우선해 아카라이브에서 접힌 본문이 다시 보일 수 있다.
   const stableLayout = 'box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; clear:both;';
-  if(settingFlagOn(minimal)) return `${stableLayout} border-top:none;`;
+  if(MosaicState.settingFlagOn(minimal)) return `${stableLayout} border-top:none;`;
   const length = cardDividerLengthPercent(settings);
   if(length === 100) return `${stableLayout} border-top:1px solid ${palette.divider};`;
   return `${stableLayout} border-top:none; background-image:linear-gradient(to right, ${palette.divider}, ${palette.divider}); background-repeat:no-repeat; background-position:center top; background-size:${length}% 1px;`;
@@ -1632,8 +1194,8 @@ function buildFold(title, innerHTML, settings, forceCenter){
   const sm = spacingMult(settings);
   const inlinePadding = cardInlinePaddingCss(settings);
   const radius = Math.max(0, cardCornerRadiusPx(settings) - 4);
-  const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
-  const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const titleMinimal = MosaicState.settingFlagOn(settings.foldTitleMinimal);
+  const bodyMinimal = MosaicState.settingFlagOn(settings.foldBodyMinimal);
   const ornamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   const ornament = (!titleMinimal || !title.trim())
     ? `<span data-mosaic-generated="true" style="color:${pal.ornament}; opacity:${ornamentOpacity}; font-size:11px; margin-right:9px;">✦</span>`
@@ -1641,9 +1203,8 @@ function buildFold(title, innerHTML, settings, forceCenter){
   const bodyDivider = foldDividerStyle(bodyMinimal, pal, settings);
   const bodyTopPadding = bodyMinimal ? 20 : 16;
   const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(20*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:13px ${inlinePadding}; ${align}font-size:13px; font-weight:700; color:${pal.heading[3]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${MosaicParser.processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
-
 
 // 일부 접기의 마크다운 제목 ([접기 ## 제목]): 소제목이 접기 헤더가 되는 블록 — 배경 칩 없는 미니멀 스타일
 function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
@@ -1653,21 +1214,21 @@ function buildHeadingFold(level, title, innerHTML, settings, forceCenter){
   const radius = Math.max(0, cardCornerRadiusPx(settings) - 4);
   const spec = headingSpec(level);
   const align = `text-align:${(forceCenter || settings.bodyFoldTitleCenter) ? 'center' : 'left'}; `;
-  const titleMinimal = settingFlagOn(settings.foldTitleMinimal);
-  const bodyMinimal = settingFlagOn(settings.foldBodyMinimal);
+  const titleMinimal = MosaicState.settingFlagOn(settings.foldTitleMinimal);
+  const bodyMinimal = MosaicState.settingFlagOn(settings.foldBodyMinimal);
   const ornamentOpacity = advancedOpaqueOpacity(settings.cardTitleOrnamentOpacity);
   const ornament = titleMinimal
     ? ''
     : `<span data-mosaic-generated="true" style="color:${pal.ornament}; opacity:${ornamentOpacity}; font-size:${Math.round(spec.size*0.62)}px; margin-right:10px;">✦</span>`;
   const bodyDivider = foldDividerStyle(bodyMinimal, pal, settings);
   const bodyTopPadding = bodyMinimal ? 22 : 18;
-  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
+  return `    <details style="box-sizing:border-box; padding:0; border:1px solid ${pal.shellBorder}; border-radius:${radius}px; margin:${Math.round(24*sm)}px 0; overflow:hidden;"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:block; list-style:none; padding:14px ${inlinePadding}; ${align}font-size:${spec.size}px; font-weight:${spec.weight}; color:${pal.heading[level]}; line-height:1.4; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${ornament}${MosaicParser.processInline(title, settings.emphasisColor)}</summary><div data-mosaic-fold-body="true" style="${bodyDivider} padding:${bodyTopPadding}px ${inlinePadding} 14px;">\n${innerHTML}    </div></details>\n`;
 }
-
 
 // 접두어({#색}, >>, <<)를 벗겨낸 뒤 줄 전체가 "..." 대사인지 판별 (연속 대사 간격용)
 function isPureDialogueLine(line, settings){
-  let l = normalizeQuotes(line.trim());
+  if(MosaicParser.parseBodyCommentLine(line)) return false;
+  let l = MosaicParser.normalizeQuotes(line.trim());
   const cm = l.match(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/);
   if(cm) l = l.slice(cm[0].length).trim();
   if(l.startsWith('>>') || l.startsWith('<<')) l = l.slice(2).trim();
@@ -1675,21 +1236,23 @@ function isPureDialogueLine(line, settings){
     const pm = l.match(/^\[([^\[\]\n]{1,24})\]\s*/);
     if(pm && settings && findChar(settings, pm[1])) l = l.slice(pm[0].length).trim();
   }
-  const parallel = settings && settings.parallelTranslationSoft ? parallelDialogueParts(l) : null;
-  return /^"[^"]*"$/.test(l)
+  const parallel = settings && settings.parallelTranslationSoft ? MosaicParser.parallelDialogueParts(l) : null;
+  return (l.startsWith('"') && MosaicParser.quotedTextRanges(l).some(quote=>quote.closed && quote.quote==='"' && quote.start===0 && quote.end===l.length))
     || Boolean(parallel && parallel.original.startsWith('"'));
 }
 
-// 옵션 3~6은 입력값을 바꾸지 않고 출력용 줄 배열에서만
+// 분리형 대사 표현은 입력값을 바꾸지 않고 출력용 줄 배열에서만
 // 문장 속 대사를 독립 문단으로 분리한다.
 function usesSeparatedDialogueOutput(settings){
-  return ['badge', 'gradient', 'box', 'messenger'].includes(settings.dlgStyle);
+  return ['badge', 'gradient', 'quote-bg', 'box'].includes(settings.dlgStyle)
+    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle);
 }
 
 function isStructuralBodyLine(line){
   const trimmed = String(line).trim().replace(/^\[C\]\s*/i, '');
   const upper = trimmed.toUpperCase();
   return upper === '[HR]'
+    || MosaicParser.parseBodyCommentLine(line) !== null
     || upper === '[HR2]'
     || upper === '[HR3]'
     || upper === '[HR4]'
@@ -1709,6 +1272,10 @@ function combineSoftBreakPair(left, right){
   const leftText = String(left);
   const rightText = String(right);
   if(!leftText.trim() || !rightText.trim()) return null;
+  if(MosaicParser.parseBodyCommentLine(leftText)){
+    const continuation = MosaicParser.bodyCommentContinuation(rightText);
+    return continuation ? leftText + MosaicParser.SOFT_BREAK_TOKEN + continuation.content.trimStart() : null;
+  }
 
   // [C]는 인용문보다 먼저 해석되는 정렬 접두어다. 따라서 `[C] > 인용`도
   // 일반 `> 인용`과 같은 문단으로 결합하되, 첫 줄의 [C]와 >는 그대로 보존한다.
@@ -1719,16 +1286,16 @@ function combineSoftBreakPair(left, right){
     if(!quoteRight && (/^\s*(?:>>|<<)/.test(rightText) || isStructuralBodyLine(rightText))) return null;
     const continuation = quoteRight ? quoteRight[1] : rightText;
     if(!continuation.trim()) return null;
-    return quoteLeft[1] + quoteLeft[2] + SOFT_BREAK_TOKEN + continuation.trimStart();
+    return quoteLeft[1] + quoteLeft[2] + MosaicParser.SOFT_BREAK_TOKEN + continuation.trimStart();
   }
 
   if(isStructuralBodyLine(leftText) || isStructuralBodyLine(rightText)) return null;
-  return leftText + SOFT_BREAK_TOKEN + rightText;
+  return leftText + MosaicParser.SOFT_BREAK_TOKEN + rightText;
 }
 
 function splitDialogueLineForOutput(rawLine, settings){
   const original = String(rawLine);
-  let line = normalizeQuotes(original).trim();
+  let line = MosaicParser.normalizeQuotes(original).trim();
   if(!usesSeparatedDialogueOutput(settings)
     || !/"[^"]*"/.test(line)
     || isPureDialogueLine(line, settings)
@@ -1764,24 +1331,27 @@ function splitDialogueLineForOutput(rawLine, settings){
 
   const parts = [];
   let cursor = 0;
-  const dialoguePattern = settings.parallelTranslationSoft
-    ? /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")((?:\s*\(\s*[^()（）]+?\s*\)|\s*（\s*[^()（）]+?\s*）))?/g
-    : /(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*("[^"]*")/g;
-  let match;
-  while((match = dialoguePattern.exec(line))){
-    const inlinePerson = match[2] ? findChar(settings, match[2]) : null;
-    const recognizedInlineSpeaker = Boolean(match[1] || inlinePerson);
-    const quoteOffset = match[0].indexOf(match[3]);
-    const quoteStart = match.index + quoteOffset;
-    const segmentStart = recognizedInlineSpeaker ? match.index : quoteStart;
+  const pairs = settings.parallelTranslationSoft || MosaicParser.parallelKindEnabled('narration',settings)
+    ? MosaicParser.parallelSegments(line,settings).filter(segment=>segment.kind==='dialogue') : [];
+  for(const quote of MosaicParser.quotedTextRanges(line)){
+    if(!quote.closed || quote.quote!=='"' || quote.start<cursor) continue;
+    const mark=/(?:(>>|<<)|\[([^\[\]\n]{1,24})\])?\s*$/.exec(line.slice(cursor,quote.start));
+    const inlinePerson = mark[2] ? findChar(settings, mark[2]) : null;
+    const recognizedInlineSpeaker = Boolean(mark[1] || inlinePerson);
+    const segmentStart = recognizedInlineSpeaker ? quote.start-mark[0].length : quote.start;
     const narration = line.slice(cursor, segmentStart).trim();
     if(narration) parts.push(centerPrefix + narration);
 
-    const inlineSpeakerPrefix = match[1]
-      ? match[1] + ' '
-      : (inlinePerson ? `[${match[2]}] ` : '');
-    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}${match[3]}${match[4] || ''}`.trim());
-    cursor = match.index + match[0].length;
+    const inlineSpeakerPrefix = mark[1]
+      ? mark[1] + ' '
+      : (inlinePerson ? `[${mark[2]}] ` : '');
+    const pair=pairs.find(pair=>pair.start===quote.start);
+    const translation = pair ? line.slice(quote.end,pair.end) : '';
+    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}${line.slice(quote.start,quote.end)}${settings.parallelTranslationSoft ? translation : ''}`.trim());
+    // 대사 병행을 꺼도 기존 괄호 번역의 경계는 보존한다. 이를 다음 서술에
+    // 붙이면 나레이션 병행이 그 괄호까지 소비해 표시·편집 좌표가 어긋난다.
+    if(translation && !settings.parallelTranslationSoft) parts.push(centerPrefix+translation.trim());
+    cursor = pair?.end ?? quote.end;
   }
 
   const tail = line.slice(cursor).trim();
@@ -1804,8 +1374,8 @@ function expandDialogueLinesForOutput(lines, settings){
 // 출력과 미리보기 편집·이동은 같은 문단 목록을 사용한다. 빈 출력 줄을 먼저
 // 제외하되, [BR]로 실제 합쳐진 원문 줄 번호는 남겨 숨긴 원문을 덮어쓰지 않는다.
 function bodyRenderGroups(lines, settings){
-  const visible = lines.map((line, raw) => ({raw, text:String(line).trim()}))
-    .filter(entry => entry.text);
+  const visible = lines.map((line, raw) => ({raw, text:String(line).trim(), memo:MosaicParser.parseBodyCommentLine(line)}))
+    .filter(entry => entry.text && entry.memo?.content.trim() !== '');
   const groups = [];
   for(let i = 0; i < visible.length; i++){
     let line = visible[i].text;
@@ -1827,6 +1397,7 @@ function bodyRenderGroups(lines, settings){
 
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (일부 접기 포함)
 function assembleBody(lines, settings){
+  const paragraphCache = paragraphCacheFor(settings);
   const renderLines = bodyRenderGroups(lines, settings).flatMap(group => group.renderLines);
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
@@ -1848,14 +1419,23 @@ function assembleBody(lines, settings){
 
   const isNarrationLine = raw => {
     if(raw === undefined) return false;
-    const text = normalizeQuotes(String(raw).trim()).replace(/^\[C\]\s*/i, '');
+    const text = MosaicParser.normalizeQuotes(String(raw).trim()).replace(/^\[C\]\s*/i, '');
     return !!text && !isSep(text) && !isStatusBodyLine(text)
+      && !MosaicParser.parseBodyCommentLine(text)
       && !parseBodyHeading(text) && !parseOutputBodyImage(text)
       && !/^>(?!>)/.test(text) && !/^\[\/?접기(?:\s|\])/.test(text)
       && text.toUpperCase() !== '[HR4]' && text.toUpperCase() !== '[GAP]' && !isPureDialogueLine(text, settings);
   };
   const isDialogueLine = raw => raw !== undefined
     && isPureDialogueLine(String(raw).trim().replace(/^\[C\]\s*/i, ''), settings);
+  const dialogueRole = raw => {
+    if(!isDialogueLine(raw)) return null;
+    const text = MosaicParser.normalizeQuotes(String(raw).trim()).replace(/^\[C\]\s*/i, '')
+      .replace(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/, '');
+    const speaker = stripSpeaker(text, settings).speaker;
+    // 표시 이름·색상이 같아도 원래 역할을 사용한다. 추가 인물은 char로 묶지 않는다.
+    return speaker === null ? 'char' : typeof speaker === 'string' ? speaker : null;
+  };
   const isHeadingLine = raw => raw !== undefined
     && !!parseBodyHeading(String(raw).trim().replace(/^\[C\]\s*/i, ''));
   renderLines.forEach((line, i) => {
@@ -1884,6 +1464,9 @@ function assembleBody(lines, settings){
     const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
       && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
     const nextLine = renderLines[i + 1];
+    const currentRole = dialogueRole(line), nextRole = dialogueRole(nextLine);
+    const charUserBoundary = (currentRole === 'char' && nextRole === 'user')
+      || (currentRole === 'user' && nextRole === 'char');
     const narrDialogueBoundary = (isNarrationLine(line) && isDialogueLine(nextLine))
       || (isDialogueLine(line) && isNarrationLine(nextLine));
     // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
@@ -1891,7 +1474,7 @@ function assembleBody(lines, settings){
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
     const isFirst = bodyHTML === '' && manualBuf === null;
     const isLast = i === renderLines.length - 1;
-    push(buildParagraph(line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
+    push(cachedParagraph(paragraphCache, line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, charUserBoundary, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
       prevIsHeading:isHeadingLine(renderLines[i - 1]), nextIsHeading:isHeadingLine(renderLines[i + 1]),
       prevIsNarration:isNarrationLine(renderLines[i - 1]),
       }));
@@ -1921,15 +1504,15 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const textColor = imageBackground ? '#f8f8f8' : pal.heading[1];
   const mutedColor = imageBackground ? '#e1e1e1' : pal.caption;
   const emphasisColor = imageBackground ? '#ffffff' : settings.emphasisColor;
-  const processedNum = processInline(num, emphasisColor);
-  const processedTitle = processInline(title, emphasisColor);
-  const processedSc = processInline(sc, emphasisColor);
-  const processedSu = processInline(su, emphasisColor);
+  const processedNum = MosaicParser.processInline(num, emphasisColor);
+  const processedTitle = MosaicParser.processInline(title, emphasisColor);
+  const processedSc = MosaicParser.processInline(sc, emphasisColor);
+  const processedSu = MosaicParser.processInline(su, emphasisColor);
   // 부제의 BOT·USER 의미와 입력 순서는 프로필 배치 순서와 독립적이다.
   const orderedNameHTML = [sc ? processedSc : '', su ? processedSu : ''];
-  const coupleSeparator = escapeTextHTML(normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
+  const coupleSeparator = MosaicParser.escapeTextHTML(MosaicState.normalizeSubtitleCoupleSeparator(settings.subtitleCoupleSeparator));
   const coupleHTML = orderedNameHTML.filter(Boolean).join(` ${coupleSeparator} `);
-  const freeHTML = processInline(free, emphasisColor);
+  const freeHTML = MosaicParser.processInline(free, emphasisColor);
   const subHTML = coupleHTML && freeHTML
     ? `${coupleHTML} · ${freeHTML}`
     : (coupleHTML || freeHTML);
@@ -1940,7 +1523,7 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   // 이미지가 있으면 이미지 아래 밀착(위 모서리 각짐, 이미지와의 경계는 옅은 선),
   // 없으면 밴드가 맨 위가 되므로 위 모서리를 둥글게
   const showOuterBorder = settings.cardBorderOn !== false;
-  const outerBorderColor = imageBackground && outputThemeTransparent(settings.outputTheme)
+  const outerBorderColor = imageBackground && MosaicState.outputThemeTransparent(settings.outputTheme)
     ? 'rgba(128,128,128,.22)' : pal.shellBorder;
   const sideBorders = showOuterBorder
     ? `border-left:1px solid ${outerBorderColor}; border-right:1px solid ${outerBorderColor};`
@@ -1953,7 +1536,7 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const extraVerticalSpace = coverVerticalSpacePx(settings);
   const padTop = Math.round(22*sm) + extraVerticalSpace;
   const padBottom = titleBottomPaddingPx(
-    settingFlagOn(settings.titleMinimal), imageBackground, sm, extraVerticalSpace
+    MosaicState.settingFlagOn(settings.titleMinimal), imageBackground, sm, extraVerticalSpace
   );
   const inlinePadding = cardInlinePaddingCss(settings);
   const W = parseInt(settings.cardWidth) || 750;
@@ -1962,7 +1545,7 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const xpos = Number.isFinite(xValue) ? Math.min(100, Math.max(0, xValue)) : 50;
   const ypos = Number.isFinite(yValue) ? Math.min(100, Math.max(0, yValue)) : 0;
   const imageStyle = imageBackground
-    ? `background-color:#303030; background-image:url('${escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; background-clip:padding-box; overflow:hidden;`
+    ? `background-color:#303030; background-image:url('${MosaicParser.escapeCssUrl(settings.imgUrl)}'); background-repeat:no-repeat; background-position:${xpos}% ${ypos}%; background-size:cover; background-clip:padding-box; overflow:hidden;`
     : `background-color:${pal.cardBg};`;
   const seamlessBottom = imageBackground && connectedBelow
     ? 'border-bottom:0 !important; border-bottom-width:0 !important; border-bottom-style:none !important; border-bottom-color:transparent !important; outline:0 !important; box-shadow:none !important; background-clip:border-box !important;'
@@ -1983,9 +1566,10 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
 // 깨지지 않도록 단일 고정 크기 배경 요소로 출력한다. 이미지 방향을 확인한 뒤에는
 // cover 기준 확대 배율도 가로·세로 사진에 맞게 안전한 background-size로 변환한다.
 const profileImageDimensions = new Map();
+
 function profileImageBackgroundSize(url, zoom){
   if(zoom <= 100) return 'cover';
-  const dimensions = profileImageDimensions.get(normalizeProtocolRelativeUrl(url));
+  const dimensions = profileImageDimensions.get(MosaicState.normalizeProtocolRelativeUrl(url));
   if(!dimensions || !dimensions.width || !dimensions.height) return 'cover';
   return dimensions.width >= dimensions.height ? `auto ${zoom}%` : `${zoom}% auto`;
 }
@@ -2159,7 +1743,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     backgroundOn:settings.profileImageBackgroundOn,
     color:settings.narrColor || '#555555'
   })));
-  const profileOrder = normalizeProfileEntityOrder(
+  const profileOrder = MosaicState.normalizeProfileEntityOrder(
     settings.profileEntityOrder,
     (settings.profileExtras || []).length,
     settings.profileOrder
@@ -2213,7 +1797,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     : (connectedBelow ? `${cardRadius}px ${cardRadius}px 0 0` : `${cardRadius}px`));
   const transparentProfileOuter = settings.profilePlacement === 'top'
     && settings.profileOuterBackground === 'transparent';
-  const multiline = text => processInline(text, settings.emphasisColor).replace(/\r?\n/g, '<br>');
+  const multiline = text => MosaicParser.processInline(text, settings.emphasisColor).replace(/\r?\n/g, '<br>');
   const safeScale = value => {
     const scale = Number(value);
     return Number.isFinite(scale) ? Math.min(300, Math.max(100, Math.round(scale / 5) * 5)) : 100;
@@ -2233,7 +1817,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // flex/grid 없이도 같은 줄의 카드 높이를 맞출 수 있도록, 출력 전에 각 프로필의
   // 이름·태그·정보가 차지할 줄 수를 보수적으로 계산한다. 아카라이브가 반응형 CSS를
   // 일부 정리해도 모든 카드에는 같은 최소 높이 숫자가 직접 들어가므로 결과가 유지된다.
-  const visualTextWidth = (value, fontSize) => Array.from(stripMarkers(String(value || '')))
+  const visualTextWidth = (value, fontSize) => Array.from(MosaicParser.stripMarkers(String(value || '')))
     .reduce((width, char) => {
       if(/\s/.test(char)) return width + fontSize * 0.35;
       if(/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u3400-\u9fff]/.test(char)) return width + fontSize;
@@ -2488,8 +2072,8 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const secondaryColor = imageBackground ? '#eeeeee' : softBodyTextColor(settings, profile.color);
     const role = settings.profileMinimal || !profile.role.trim()
       ? ''
-      : `<p data-mosaic-profile-field="${profileFieldPrefix}Role" style="margin:0 0 3px; color:${secondaryColor}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${escapeHTML(profile.role)}</p>`;
-    const profileNameHTML = processInline(profile.name, emphasisColor).replace(/\r?\n/g, '<br>');
+      : `<p data-mosaic-profile-field="${profileFieldPrefix}Role" style="margin:0 0 3px; color:${secondaryColor}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${MosaicParser.escapeHTML(profile.role)}</p>`;
+    const profileNameHTML = MosaicParser.processInline(profile.name, emphasisColor).replace(/\r?\n/g, '<br>');
     const name = profile.name
       ? `<p data-mosaic-profile-field="${profileFieldPrefix}Name" style="margin:0; color:${nameColor}; font-size:${large ? 14 : 12.5}px; font-weight:700; line-height:1.4; letter-spacing:-0.1px; text-align:${textAlign};">${profileNameHTML}</p>`
       : '';
@@ -2499,10 +2083,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     // 구분 요소까지 정리해 하나의 span으로 합칠 수 있다. 칩과 칩 목록을 각각 독립 div로
     // 만들면 인라인 서식 병합이 블록 경계를 넘을 수 없어 세 칩의 배경과 간격이 보존된다.
     const tags = tagsList.length
-      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${nameColor}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${processInline(tag, emphasisColor)}</div>`).join('')}</div>`
+      ? `<div style="margin:${profile.name ? 6 : 0}px 0 -3px; color:${nameColor}; font-size:${large ? 10.5 : 10}px; font-weight:400; line-height:1.5; letter-spacing:-0.1px; text-align:${textAlign};">${tagsList.map((tag, tagIndex) => `<div data-mosaic-profile-field="${profileFieldPrefix}Tag${tagIndex + 1}" style="display:inline-block; margin:0 3px 3px 0; padding:1px 5px; border-radius:999px; background-color:${chipBg}; line-height:1.5; vertical-align:top; white-space:nowrap;">${MosaicParser.processInline(tag, emphasisColor)}</div>`).join('')}</div>`
       : '';
     const desc = profile.desc
-      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${secondaryColor}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${processInline(profile.desc, emphasisColor).replace(/\r?\n/g, '<br>')}</p>`
+      ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${secondaryColor}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${MosaicParser.processInline(profile.desc, emphasisColor).replace(/\r?\n/g, '<br>')}</p>`
       : '';
     const text = `${role}${name}${tags}${desc}`;
     // 3칸 행은 안쪽 폭 690px 이상에서 3열, 500~689px에서 2열, 그 아래에서 1열이다.
@@ -2578,10 +2162,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
         : joinedShowcaseProfiles ? '' : partialPortraitCss.seam;
       const textVerticalAlign = settings.profileTextPosition === 'top' ? 'top'
         : settings.profileTextPosition === 'bottom' ? 'bottom' : 'middle';
-      return wrapProfileItem(`<div data-mosaic-image-background="true" data-mosaic-profile-image-field="${profileFieldPrefix}Image" style="box-sizing:border-box; width:100%; ${outerHeightCss} display:block; padding:0; background-color:#303030; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; background-origin:border-box; border-radius:${joinedProfileItems ? 0 : portraitPhotoBackgroundOnly ? cardRadius : 10}px; ${partialPortraitCss.radius}${cornerCss}${photoJointBorder}${compactSeam} text-align:center; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;"><div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${backgroundPadding}px 14px; background-color:rgba(0,0,0,.58);"><div style="box-sizing:border-box; width:100%; ${innerHeightCss} display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div></div>`);
+      return wrapProfileItem(`<div data-mosaic-image-background="true" data-mosaic-profile-image-field="${profileFieldPrefix}Image" style="box-sizing:border-box; width:100%; ${outerHeightCss} display:block; padding:0; background-color:#303030; background-image:url('${MosaicParser.escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; background-origin:border-box; border-radius:${joinedProfileItems ? 0 : portraitPhotoBackgroundOnly ? cardRadius : 10}px; ${partialPortraitCss.radius}${cornerCss}${photoJointBorder}${compactSeam} text-align:center; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;"><div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${backgroundPadding}px 14px; background-color:rgba(0,0,0,.58);"><div style="box-sizing:border-box; width:100%; ${innerHeightCss} display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center; font-family:${fontStack(settings.narrFont)};">${text}</div></div></div></div>`);
     }
     const imageRadius = showcase ? '12px' : (large ? '10px' : '50%');
-    const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
+    const image = `<div data-mosaic-profile-image-field="${profileFieldPrefix}Image" aria-hidden="true" style="display:${showcase ? 'inline-block' : 'block'}; width:${size}px; min-width:${size}px; max-width:${size}px; height:${size}px; min-height:${size}px; max-height:${size}px; margin:0; vertical-align:top; background-color:${pal.boxBg}; background-image:url('${MosaicParser.escapeCssUrl(profile.image)}'); background-repeat:no-repeat; background-position:${imagePosition}; background-size:${profileImageBackgroundSize(profile.image, zoom)}; border-radius:${imageRadius};"></div>`;
     if(showcase){
       const showcaseContent = `${image}<div style="box-sizing:border-box; width:100%; margin-top:10px; font-family:${fontStack(settings.narrFont)}; text-align:center;">${text}</div>`;
       if(showcaseHasMixedImages){
@@ -2629,7 +2213,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     .map((item, index) => `<span data-mosaic-profile-field="profileRelationship${index + 1}">${multiline(item)}</span>`)
     .join(`<span aria-hidden="true" style="margin:0 5px;">·</span>`);
   const relationshipTextLength = relationshipItems
-    .map(item => stripMarkers(item))
+    .map(item => MosaicParser.stripMarkers(item))
     .join(' · ')
     .length;
   const minimalRelationshipIsLong = relationshipTextLength > 30;
@@ -2673,7 +2257,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     : relationship || situation
     ? 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);'
     : 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);';
-  const bottomMargin = settings.profilePlacement === 'top' && normalizeCardLayout(settings.cardLayout) !== 'unified'
+  const bottomMargin = settings.profilePlacement === 'top' && MosaicState.normalizeCardLayout(settings.cardLayout) !== 'unified'
     ? 20 + profileTitleGapPx(settings)
     : 20;
   // 간격 없는 카드가 바깥 면을 전부 덮을 때는 뒤의 카드색이 둥근 모서리 바깥에
@@ -2685,7 +2269,6 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // 바깥 잘림은 보조 안전망이며, 게시판 모바일의 모서리는 실제 면이 직접 그린다.
   return `<div data-mosaic-profile="true" ${borderlessTopProfile ? 'data-mosaic-borderless-top="true" ' : ''}${photoReachesProfileEdge ? 'data-mosaic-photo-profile="true" ' : ''}style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto ${bottomMargin}px; ${border} border-radius:${radius}; background-color:${outerBackground}; ${outerPadding} overflow:hidden;"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
 }
-
 
 function footerSpacing(settings){
   const number = Number(settings.footerBodyGap);
@@ -2712,23 +2295,19 @@ function buildFooter(settings){
   const fixedTextStyle = `font-size:${footerFontSize}px; line-height:1.5; -webkit-text-size-adjust:100%; text-size-adjust:100%;`;
   const linkStyle = `color:${footerColor}; -webkit-text-fill-color:${footerColor}; text-decoration:none; ${fixedTextStyle}`;
   const toolText = `<span style="${linkStyle}">조각로그</span>`;
-  const toolLink = outputThemeTransparent(settings.outputTheme)
+  const toolLink = MosaicState.outputThemeTransparent(settings.outputTheme)
     ? toolText
     : `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
-  const authorText = author ? ` <span style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${processInline(author, settings.emphasisColor)}</span>` : '';
+  const authorText = author ? ` <span style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${MosaicParser.processInline(author, settings.emphasisColor)}</span>` : '';
   return `    <div data-mosaic-footer="true" style="margin-top:${marginTop}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCreditLink(contentHTML, rawUrl, color){
-  const href = normalizeHttpLinkUrl(rawUrl);
+  const href = MosaicParser.normalizeHttpLinkUrl(rawUrl);
   if(!href) return contentHTML;
   // URL 동작은 유지하되 게시판 기본 링크 장식까지 덮어 크레딧의 낮은 위계를 유지한다.
   const style = `color:${color}; -webkit-text-fill-color:${color}; text-decoration:none; border-bottom:none; font-family:inherit; font-size:inherit; font-weight:inherit; line-height:inherit; letter-spacing:inherit;`;
-  return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
-}
-
-function normalizeCreditPlacement(value){
-  return value === 'top' ? 'top' : 'bottom';
+  return `<a href="${MosaicParser.escapeAttr(href)}" target="_blank" rel="noopener noreferrer" style="${style}"><span style="${style}">${contentHTML}</span></a>`;
 }
 
 // 모바일 게시판이 셀의 색을 재해석해도 실제 텍스트에는 지정 색을 유지한다.
@@ -2739,15 +2318,15 @@ function buildCreditText(contentHTML, color){
 const CREDIT_SURFACE = '#f4f4f4';
 
 function creditBackground(settings){
-  return settingFlagOn(settings.creditTransparentOn) ? 'transparent' : CREDIT_SURFACE;
+  return MosaicState.settingFlagOn(settings.creditTransparentOn) ? 'transparent' : CREDIT_SURFACE;
 }
 
 function buildCredit(settings){
   if(!settings.creditOn) return '';
-  const items = normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
+  const items = MosaicState.normalizeCreditItems(settings.creditItems).map((item, sourceIndex) => ({
     label:item.label.trim(),
     value:item.value.trim(),
-    url:normalizeHttpLinkUrl(item.url),
+    url:MosaicParser.normalizeHttpLinkUrl(item.url),
     dividerBefore:item.dividerBefore,
     sourceIndex
   })).filter(item => item.label || item.value);
@@ -2761,8 +2340,8 @@ function buildCredit(settings){
   const neutralCardBg = neutralHex(pal.cardBg);
   const darkBackground = textColorFor(neutralCardBg) === '#ffffff';
   const creditNeutral = darkBackground ? '#ffffff' : '#000000';
-  const transparentCredit = settingFlagOn(settings.creditTransparentOn) || outputThemeTransparent(settings.outputTheme);
-  const creditBg = outputThemeTransparent(settings.outputTheme) ? 'transparent' : creditBackground(settings);
+  const transparentCredit = MosaicState.settingFlagOn(settings.creditTransparentOn) || MosaicState.outputThemeTransparent(settings.outputTheme);
+  const creditBg = MosaicState.outputThemeTransparent(settings.outputTheme) ? 'transparent' : creditBackground(settings);
   const creditBorder = 'rgba(128,128,128,.22)';
   const creditDivider = mixHex(pal.boxBg, creditNeutral, darkBackground ? 0.07 : 0.045);
   const labelColor = !transparentCredit && darkBackground ? '#777777'
@@ -2772,12 +2351,12 @@ function buildCredit(settings){
   const font = fontStack(settings.narrFont);
   const creditPadding = '9px 14px 3px';
   const rows = items.map((item, renderedIndex) => {
-    const labelText = escapeTextHTML(item.label);
-    const valueText = escapeTextHTML(item.value);
+    const labelText = MosaicParser.escapeTextHTML(item.label);
+    const valueText = MosaicParser.escapeTextHTML(item.value);
     const linkedValue = item.url
       ? buildCreditLink(valueText, item.url, valueColor)
       : buildCreditText(valueText, valueColor);
-    const divider = renderedIndex > 0 && settingFlagOn(item.dividerBefore)
+    const divider = renderedIndex > 0 && MosaicState.settingFlagOn(item.dividerBefore)
       ? `<div data-mosaic-generated="true" data-mosaic-credit-divider-before="${item.sourceIndex}" aria-hidden="true" style="box-sizing:border-box; width:100%; height:1px; margin:7px 0 9px; padding:0; border:0; background-color:${creditDivider} !important;"></div>`
       : '';
     if(!item.label || !item.value){
@@ -2796,10 +2375,10 @@ function buildCredit(settings){
   }).join('');
 
   const gap = Math.max(18, Math.min(80, Number(settings.creditCardGap) || 40));
-  const creditMargin = normalizeCreditPlacement(settings.creditPlacement) === 'top'
+  const creditMargin = MosaicState.normalizeCreditPlacement(settings.creditPlacement) === 'top'
     ? `0 auto ${gap}px`
     : `${gap}px auto 0`;
-  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${settingFlagOn(settings.creditBorderOn) ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor}; font-family:${font}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${rows}</div>\n`;
+  return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${MosaicState.settingFlagOn(settings.creditBorderOn) ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor}; font-family:${font}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${rows}</div>\n`;
 }
 
 // 코멘트에서는 독립된 [IMG] 줄과 Shift+Enter의 줄 끝 [BR]만 해석한다.
@@ -2836,13 +2415,13 @@ function buildCommentBlock(comment, settings){
   const paragraphStyle = settings.commentAlign === 'center' ? ' style="text-align:center;"' : '';
   const entries = commentParagraphEntries(comment.body);
   const paragraphs = entries.map((entry, index) => {
-    if(!entry.image) return `<p${paragraphStyle}>${entry.parts.map(escapeTextHTML).join('<br>')}</p>`;
+    if(!entry.image) return `<p${paragraphStyle}>${entry.parts.map(MosaicParser.escapeTextHTML).join('<br>')}</p>`;
     const {src, width, caption} = entry.image;
     const imageSrc = src.startsWith('//') ? 'https:' + src : src;
     const align = settings.commentAlign === 'center' ? 'center' : 'left';
     const sideMargin = align === 'center' ? 'auto' : '0';
-    const captionHTML = caption ? `<p style="width:${width}%; max-width:100%; margin:7px ${sideMargin} 0; text-align:${align}; font-size:11.5px; line-height:1.5;">${escapeTextHTML(caption)}</p>` : '';
-    return `<div data-mosaic-comment-image="true" style="margin:${index === 0 ? 0 : 16}px 0 ${index === entries.length - 1 ? 0 : 16}px; line-height:0; font-size:0; text-align:${align};"><img src="${escapeAttr(imageSrc)}" alt="${escapeAttr(caption)}" class="fr-fic fr-dib" style="width:${width}%; max-width:100%; height:auto; display:block; margin:0 ${sideMargin};">${captionHTML}</div>`;
+    const captionHTML = caption ? `<p style="width:${width}%; max-width:100%; margin:7px ${sideMargin} 0; text-align:${align}; font-size:11.5px; line-height:1.5;">${MosaicParser.escapeTextHTML(caption)}</p>` : '';
+    return `<div data-mosaic-comment-image="true" style="margin:${index === 0 ? 0 : 16}px 0 ${index === entries.length - 1 ? 0 : 16}px; line-height:0; font-size:0; text-align:${align};"><img src="${MosaicParser.escapeAttr(imageSrc)}" alt="${MosaicParser.escapeAttr(caption)}" class="fr-fic fr-dib" style="width:${width}%; max-width:100%; height:auto; display:block; margin:0 ${sideMargin};">${captionHTML}</div>`;
   });
   if(!paragraphs.length) return '';
   // 카드 디자인과 섞이지 않도록 배경·외곽선은 두지 않는다. 기본·가운데는
@@ -2855,7 +2434,7 @@ function buildCommentBlock(comment, settings){
 }
 
 function placeCoverDividerBeforeLeadingComment(html, settings){
-  if(settingFlagOn(settings.titleMinimal)) return html;
+  if(MosaicState.settingFlagOn(settings.titleMinimal)) return html;
   const template = document.createElement('template');
   template.innerHTML = html;
   const sections = Array.from(template.content.children);
@@ -2917,8 +2496,8 @@ function addCoverCardGapAfterIntro(html, settings, standaloneTopProfile = false)
     const radius = cardCornerRadiusPx(settings);
     boundary.style.setProperty('border-bottom-left-radius', `${radius}px`);
     boundary.style.setProperty('border-bottom-right-radius', `${radius}px`);
-    const titleDivider = boundary.hasAttribute('data-mosaic-title') && !settingFlagOn(settings.titleMinimal);
-    if(titleDivider && outputThemeShape(settings.outputTheme) !== 'document'){
+    const titleDivider = boundary.hasAttribute('data-mosaic-title') && !MosaicState.settingFlagOn(settings.titleMinimal);
+    if(titleDivider && MosaicState.outputThemeShape(settings.outputTheme) !== 'document'){
       appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
     }else if(settings.cardBorderOn !== false){
       boundary.style.setProperty('border-bottom', `1px solid ${tonePalette(settings).shellBorder}`);
@@ -2947,7 +2526,7 @@ function unifiedCardSpacing({folded, previousKind, nextKind, introDivider, after
 }
 
 function applyUnifiedCardLayout(html, settings){
-  if(normalizeCardLayout(settings && settings.cardLayout) !== 'unified') return html;
+  if(MosaicState.normalizeCardLayout(settings && settings.cardLayout) !== 'unified') return html;
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
   // 출력 직전에도 한 번 더 확인해 손상된 초안이나 외부 호출이 코멘트를 합치지 못하게 한다.
@@ -2984,7 +2563,7 @@ function applyUnifiedCardLayout(html, settings){
     // 이어보기 사진 표제는 양수 간격도 본문 안쪽 패딩이다. 실제 바깥 틈은 없다.
     // 사진 프로필의 기존 간격·접기 배치는 별도 하단 경계 정책을 그대로 따른다.
     && (introBoundary.hasAttribute('data-mosaic-title') || coverCardGapPx(settings) === 0);
-  const showIntroBoundary = hasUnifiedTitle && !settingFlagOn(settings.titleMinimal)
+  const showIntroBoundary = hasUnifiedTitle && !MosaicState.settingFlagOn(settings.titleMinimal)
     && !imageTitleTouchesBody;
   sections.forEach((section, index) => {
     const first = index === 0;
@@ -3031,7 +2610,7 @@ function applyUnifiedCardLayout(html, settings){
     }
     if(showOuterBorder && !section.hasAttribute('data-mosaic-borderless-top')){
       const borderColor = section.hasAttribute('data-mosaic-image-background')
-        && outputThemeTransparent(settings.outputTheme)
+        && MosaicState.outputThemeTransparent(settings.outputTheme)
         ? 'rgba(128,128,128,.22)' : pal.shellBorder;
       section.style.setProperty('border-left', `1px solid ${borderColor}`);
       section.style.setProperty('border-right', `1px solid ${borderColor}`);
@@ -3107,6 +2686,7 @@ function applyUnifiedCardLayout(html, settings){
 function stripEditorOutputMetadata(html){
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
+  normalizeLegacyPhotoBackgrounds(template.content);
   template.content.querySelectorAll('*').forEach(element => {
     Array.from(element.attributes).forEach(attribute => {
       if(attribute.name.startsWith('data-mosaic-')) element.removeAttribute(attribute.name);
@@ -3123,7 +2703,7 @@ function shouldRemoveImageTitleBodySeam({imageBackedTitle, nextExists, gap}){
   return Boolean(imageBackedTitle && nextExists && gap === 0);
 }
 
-function splitCssBackgroundLayers(value){
+function splitCssBackgroundLayers(value, separator = ','){
   const layers = [];
   let depth = 0, quote = '', start = 0;
   for(let index = 0; index < value.length; index++){
@@ -3134,10 +2714,97 @@ function splitCssBackgroundLayers(value){
     }else if(char === '"' || char === "'") quote = char;
     else if(char === '(') depth++;
     else if(char === ')') depth--;
-    else if(char === ',' && depth === 0){ layers.push(value.slice(start, index).trim()); start = index + 1; }
+    else if(char === separator && depth === 0){ layers.push(value.slice(start, index).trim()); start = index + 1; }
   }
   layers.push(value.slice(start).trim());
   return layers;
+}
+
+// 게시된 옛 HTML은 생성기 업데이트만으로 바뀌지 않는다. CSSOM이 옛 복합 좌표를
+// 버리기 전에 원래 선언을 읽고, 사진 URL과 균일한 검은 덮개를 별도 요소로 옮긴다.
+function legacyPhotoStyleDeclarations(value){
+  return splitCssBackgroundLayers(String(value || ''), ';').flatMap(raw => {
+    const colon = raw.indexOf(':');
+    if(colon < 1) return [];
+    const name = raw.slice(0,colon).trim().toLowerCase();
+    const content = raw.slice(colon+1).trim(), important = /\s*!important\s*$/i.test(content);
+    return [{name,value:content.replace(/\s*!important\s*$/i,''),important,raw}];
+  });
+}
+
+function arcaSignedImageIdentity(value){
+  try {
+    const url = new URL(String(value).startsWith('//') ? 'https:'+value : value);
+    if(!/^https?:$/.test(url.protocol) || !/^ac\d*(?:-[a-z0-9-]+)?\.(?:arca\.live|namu\.la)$/i.test(url.hostname)) return null;
+    if(!/^\d+$/.test(url.searchParams.get('expires') || '') || !url.searchParams.get('key')) return null;
+    const expires = Number(url.searchParams.get('expires'));
+    if(!Number.isSafeInteger(expires)) return null;
+    url.searchParams.delete('expires');url.searchParams.delete('key');url.searchParams.sort();url.hash='';
+    return {identity:url.href,expires};
+  } catch(e){return null;}
+}
+
+function normalizeLegacyPhotoBackgrounds(root){
+  let repaired = 0, reusedImageUrls = 0, skipped = 0;
+  const imageSources = new Map();
+  root.querySelectorAll('img[src]').forEach(image => {
+    const value=image.getAttribute('src'),item=arcaSignedImageIdentity(value);
+    if(item && (!imageSources.has(item.identity) || imageSources.get(item.identity).expires<item.expires))imageSources.set(item.identity,{...item,value});
+  });
+  root.querySelectorAll('div[style]').forEach(photo => {
+    const originalStyle=photo.getAttribute('style');
+    if(!/background-image\s*:/i.test(originalStyle) || !/\b(?:arca\.live|namu\.la)\b/i.test(originalStyle))return;
+    const declarations=legacyPhotoStyleDeclarations(originalStyle);
+    const get=name=>declarations.filter(item=>item.name===name).sort((a,b)=>Number(a.important)-Number(b.important)).at(-1);
+    const image=get('background-image');if(!image)return;
+    const layers=splitCssBackgroundLayers(image.value),last=layers.length-1;
+    const match=/^url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^'"()\s]+))\s*\)$/i.exec(layers[last]);
+    if(!match)return;
+    const rawUrl=(match[1] || match[2] || match[3]).replace(/\\(['"\\])/g,'$1');
+    const signed=arcaSignedImageIdentity(rawUrl);if(!signed)return;
+    const shade=layers[last-1]?.replace(/\s+/g,'');
+    const shadeMatch=/^linear-gradient\(rgba\(0,0,0,(0?\.(?:56|58))\),rgba\(0,0,0,\1\)\)$/i.exec(shade || '');
+    const composite=layers.length>1;
+    if(composite && (!shadeMatch || layers.length>3 || !layers.slice(0,last-1).every(layer=>/^linear-gradient\(/i.test(layer))
+      || declarations.some(item=>item.name==='background') || declarations.filter(item=>item.name==='background-image').length!==1)){
+      skipped++;return;
+    }
+    const fresh=imageSources.get(signed.identity),replacement=fresh && fresh.expires>signed.expires ? fresh.value : null;
+    if(!composite && !replacement)return;
+    const urlCss=replacement ? `url("${replacement.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\r\n\f]/g,'')}")` : layers[last];
+    if(replacement)reusedImageUrls++;
+    const changed=new Set(['background-image']);
+    const parent=[{name:'background-image',value:urlCss,important:image.important}],overlay=[];
+    if(composite){
+      const properties=['background-position','background-size','background-repeat','background-origin','background-clip'];
+      properties.forEach(name=>{
+        const declaration=get(name);if(!declaration)return;
+        const list=splitCssBackgroundLayers(declaration.value);changed.add(name);
+        parent.push({...declaration,value:list[last%list.length]});
+        if(last>1)overlay.push({...declaration,value:layers.slice(0,last-1).map((_,index)=>list[index%list.length]).join(', ')});
+      });
+      if(last>1)overlay.push({name:'background-image',value:layers.slice(0,last-1).join(', '),important:image.important});
+      const paddings=declarations.filter(item=>/^padding(?:-(?:top|right|bottom|left))?$/.test(item.name));
+      paddings.forEach(item=>changed.add(item.name));overlay.push(...paddings);
+      parent.push({name:'padding',value:'0',important:paddings.some(item=>item.important)});
+      const rounding=declarations.filter(item=>/^border-(?:(?:top|bottom)-(?:left|right)-)?radius$/.test(item.name));
+      overlay.push(...rounding,{name:'background-color',value:`rgba(0,0,0,${shadeMatch[1]})`,important:false});
+      const layer=document.createElement('div');
+      layer.setAttribute('style','box-sizing:border-box;width:100%;'+overlay.map(item=>`${item.name}:${item.value}${item.important?' !important':''};`).join(''));
+      while(photo.firstChild)layer.append(photo.firstChild);photo.append(layer);repaired++;
+    }
+    photo.setAttribute('style',declarations.filter(item=>!changed.has(item.name)).map(item=>item.raw+';').join('')
+      +parent.map(item=>`${item.name}:${item.value}${item.important?' !important':''};`).join(''));
+  });
+  return {repaired,reusedImageUrls,skipped};
+}
+
+// 서명을 만들거나 만료 시각을 조작하지 않는다. 같은 HTML의 더 최신 img 주소만
+// 정확히 같은 호스트·파일·변형 옵션일 때 재사용하며, 나머지는 게시판 재저장이 필요하다.
+function repairLegacyPhotoBackgrounds(html){
+  const template=document.createElement('template');template.innerHTML=String(html || '');
+  const report=normalizeLegacyPhotoBackgrounds(template.content);
+  return {html:template.innerHTML,...report};
 }
 
 function removeCoverEdgeBackgroundLine(element, edge){
@@ -3192,7 +2859,7 @@ function resolveCoverProfileBoundary(first, second, settings){
   // 채워진 경우에만 사진끼리 닿는 선을 만든다. 사진 표제의 아래는 계속 선 없이 잇는다.
   const profileHasPhotoEdge = (profileFirst ? first : second).hasAttribute('data-mosaic-photo-profile');
   const joinPhoto = profileHasPhotoEdge && (profileFirst
-    ? normalizeCardLayout(settings.cardLayout) === 'unified' || profileTitleGapPx(settings) === -20
+    ? MosaicState.normalizeCardLayout(settings.cardLayout) === 'unified' || profileTitleGapPx(settings) === -20
     : photoFirst && !first.hasAttribute('data-mosaic-title'));
   const nextIsBody = second.hasAttribute('data-mosaic-card-index') || second.hasAttribute('data-mosaic-comment-index');
   const marginGap = Math.max(0, Number.parseFloat(first.style.marginBottom) || 0)
@@ -3264,7 +2931,8 @@ function transparentOutput(html, settings){
         ? image.replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/gi, 'rgba(128,128,128,.22)') : 'none', 'important');
     }
     if(style.border || style.borderColor || style.borderTop || style.borderBottom || style.borderLeft || style.borderRight){
-      style.setProperty('border-color', 'rgba(128,128,128,.22)', 'important');
+      style.setProperty('border-color', el.hasAttribute('data-mosaic-inline-comment')
+        ? 'rgba(128,128,128,.4)' : 'rgba(128,128,128,.22)', 'important');
     }
     if(style.boxShadow) style.setProperty('box-shadow', 'none', 'important');
     if(style.textShadow) style.setProperty('text-shadow', 'none', 'important');
@@ -3313,21 +2981,6 @@ function transparentOutput(html, settings){
   return template.innerHTML;
 }
 
-// 특수 테마는 내용과 접기 동작을 보존하고 출력 장식만 바꾼다.
-function normalizeOutputTheme(value){
-  return ['transparent', 'document', 'document-transparent'].includes(value) ? value : 'solid';
-}
-function outputThemeShape(value){
-  return ['document', 'document-transparent'].includes(value) ? 'document' : 'solid';
-}
-function outputThemeTransparent(value){
-  return ['transparent', 'document-transparent'].includes(value);
-}
-function composeOutputTheme(shape, transparent){
-  return shape === 'document'
-    ? (transparent ? 'document-transparent' : 'document')
-    : (transparent ? 'transparent' : 'solid');
-}
 function specialThemeOutput(html, mode, settings){
   const template = document.createElement('template');
   template.innerHTML = html;
@@ -3336,7 +2989,9 @@ function specialThemeOutput(html, mode, settings){
     const style = el.style;
     style.setProperty('box-shadow', 'none', 'important');
     style.setProperty('text-shadow', 'none', 'important');
-    style.setProperty('border-radius', '0', 'important');
+    // 메신저 말풍선은 카드 외곽 모양과 별개로 양쪽 화자의 둥근 모서리를 유지한다.
+    const messengerBubble = el.matches('p[data-mosaic-dialogue-side]') && style.width === 'fit-content';
+    if(!messengerBubble) style.setProperty('border-radius', '0', 'important');
 
   });
   if(mode === 'document'){
@@ -3360,7 +3015,7 @@ function specialThemeOutput(html, mode, settings){
       const centeredBodyTitle = card?.getAttribute('data-mosaic-body-center') === 'true'
         && el.parentElement !== card;
       el.style.setProperty('text-align', centeredBodyTitle ? 'center' : 'left');
-      const showDivider = !settingFlagOn(settings.foldDividerMinimal);
+      const showDivider = !MosaicState.settingFlagOn(settings.foldDividerMinimal);
       const dividerLength = cardDividerLengthPercent(settings);
       el.style.setProperty('border-bottom', showDivider && dividerLength === 100 ? `1px solid ${palette.divider}` : 'none', 'important');
       if(showDivider && dividerLength < 100){
@@ -3380,7 +3035,7 @@ function specialThemeOutput(html, mode, settings){
     });
     // 각진 카드의 표지선은 개별/이어보기 모두 실제 선 요소로 그린다.
     // 배경 이미지와 border는 각진 테마의 장식 정리에서 제거되므로 여기서 최종 경계를 정한다.
-    if(title && !settingFlagOn(settings.titleMinimal)){
+    if(title && !MosaicState.settingFlagOn(settings.titleMinimal)){
       const sections = Array.from(template.content.children);
       const titleIndex = sections.indexOf(title);
       const firstBodyIndex = sections.findIndex(section =>
@@ -3420,6 +3075,7 @@ function specialThemeOutput(html, mode, settings){
 // 테마 처리 뒤 한 단계에서 사진·프로필 접합선을 확정한다.
 // 사진 표지와 끝까지 사진인 프로필 아래는 선 없이 잇되, 사진끼리의 접합선은 유지한다.
 function finalizeCoverProfileBoundaries(html, settings){
+  if(!/data-mosaic-(?:cover-image|photo-profile|image-background)/.test(html)) return html;
   const template = document.createElement('template');
   template.innerHTML = String(html || '');
   const sections = Array.from(template.content.children).filter(section =>
@@ -3491,7 +3147,7 @@ function finalizeCoverProfileBoundaries(html, settings){
     const overlay = title.querySelector(':scope > [data-mosaic-photo-overlay="true"]');
     if(!overlay) return;
     // 각진 테마는 이미 모든 면을 0으로 잠근다. 그 선언과 우선순위는 그대로 둔다.
-    if(outputThemeShape(settings.outputTheme) === 'document') return;
+    if(MosaicState.outputThemeShape(settings.outputTheme) === 'document') return;
     const style = title.style;
     // 표제의 반경은 설정에서 생성한 px 값이다. 하단 간격은 개별 모서리 선언으로,
     // 각진 테마는 우선순위가 높은 축약형으로 바뀌므로 둘의 최종 우선순위를 따른다.
@@ -3518,21 +3174,17 @@ function finalizeCoverProfileBoundaries(html, settings){
   return template.innerHTML;
 }
 
-// 숨길 때의 편집 상태를 기억한다. 숨긴 상태에서도 수동 펼치기는 허용한다.
-function syncHiddenEditorCollapse(ed, collapseBtn, hiding){
-  if(hiding) ed.dataset.collapsedBeforeHide = String(ed.classList.contains('isCollapsed'));
-  const collapsed = hiding || ed.dataset.collapsedBeforeHide === 'true';
-  if(ed.classList.contains('isCollapsed') !== collapsed) collapseBtn.click();
-  if(!hiding) delete ed.dataset.collapsedBeforeHide;
-}
-
-function buildCard(settings, sourceCards){
+function buildCardUncached(settings, sourceCards){
   settings = MosaicParser.outputRuleSettings(settings);
-  sourceCards = sourceCards.map(card => card.type === 'comment' ? card
-    : {...card,body:MosaicParser.applyOutputTextRules(card.body,{...settings,
-      outputRuleExclusions:card.outputRuleExclusions || [],outputRuleSourceOffset:0})});
+  sourceCards = sourceCards.map(card => {
+    if(card.type === 'comment')return card;
+    const local={...settings,outputRuleExclusions:card.outputRuleExclusions || [],parallelExclusions:card.parallelExclusions || [],parallelBodyOnly:true,outputRuleSourceOffset:0};
+    if(!card.parallelExclusions?.length)return {...card,body:MosaicParser.applyOutputTextRules(card.body,local)};
+    const projection=MosaicParser.outputTextProjection(card.body,local);
+    return {...card,body:projection.text,parallelCandidates:MosaicParser.parallelOutputCandidates(card.body,local,projection)};
+  });
   const pal = tonePalette(settings);
-  const unifiedLayout = normalizeCardLayout(settings.cardLayout) === 'unified';
+  const unifiedLayout = MosaicState.normalizeCardLayout(settings.cardLayout) === 'unified';
 
   // 입력 카드 목록은 호출자가 넘긴다. 출력 생성 중 편집창을 다시 읽지 않는다.
   const firstVisibleSourceIndex = sourceCards.findIndex(card => card.type !== 'comment' && card.visible !== false);
@@ -3540,9 +3192,11 @@ function buildCard(settings, sourceCards){
     .map((c, sourceIndex) => ({
       sourceIndex,
       type: c.type === 'comment' ? 'comment' : 'card',
-      lines: c.body.split('\n').map(l => l.trim()).filter(l => l !== ''),
-      folded: settingFlagOn(c.folded),
-      bodyCenter: settingFlagOn(c.bodyCenter),
+      // 메모의 접두어와 원문 공백은 문단 조립 전까지 보존한다.
+      lines: c.body.split('\n').filter(l => l.trim() !== ''),
+      folded: MosaicState.settingFlagOn(c.folded),
+      bodyCenter: MosaicState.settingFlagOn(c.bodyCenter),
+      parallelCandidates:c.parallelCandidates,
       foldTitle: (c.cardTitle !== undefined ? c.cardTitle : (c.foldTitle || '')).trim(),
       visible: c.visible !== false,
     }))
@@ -3561,7 +3215,7 @@ function buildCard(settings, sourceCards){
     // 대표 이미지가 먼저여도, 독립 프로필이 먼저여도 다음 시각 블록 위에 확대 아이콘이
     // 떠버린다. 서버의 대표 썸네일 탐색용 <img>는 남기되 모든 배치에서 완전히 숨기고,
     // 뷰어가 이미지로 꾸미는 데 사용하는 fr-* 클래스도 붙이지 않는다.
-    recognitionImg = `<div hidden aria-hidden="true" style="display:none !important; width:0; height:0; margin:0; padding:0; overflow:hidden; line-height:0;"><img src="${escapeAttr(settings.imgUrl)}" alt="" hidden style="display:none !important; width:0; height:0; margin:0;"></div>\n`;
+    recognitionImg = `<div hidden aria-hidden="true" style="display:none !important; width:0; height:0; margin:0; padding:0; overflow:hidden; line-height:0;"><img src="${MosaicParser.escapeAttr(settings.imgUrl)}" alt="" hidden style="display:none !important; width:0; height:0; margin:0;"></div>\n`;
   }
 
   // 대표 이미지와 표제 밴드는 모든 카드 '위'에 항상 표시 — 카드를 접어도 보이고, 첫 카드와 한 몸처럼 연결됨
@@ -3603,7 +3257,7 @@ function buildCard(settings, sourceCards){
         visibleComments.length ? visibleComments[0].sourceIndex : Number.POSITIVE_INFINITY
       );
 
-  const foldDividerMinimal = settingFlagOn(settings.foldDividerMinimal);
+  const foldDividerMinimal = MosaicState.settingFlagOn(settings.foldDividerMinimal);
   const cardInlinePadding = cardInlinePaddingCss(settings);
   const titledBodyTopPadding = foldDividerMinimal
     ? cardBodyTopPaddingCss(12, 2.5, 16, settings)
@@ -3634,6 +3288,7 @@ function buildCard(settings, sourceCards){
       && (hasImg || hasTitle || hasAttachedProfile) && (coverCardGap === 0 || unifiedLayout); // 간격 0일 때 도입부와 외곽선을 잇는다.
     // 전역 옵션 하나로 모든 접기 카드와 본문 내부 접기의 제목 아래 구분선을 함께 제어한다.
     const bodySettings = Object.assign({}, settings, {
+      ...(card.parallelCandidates ? {parallelContext:{items:card.parallelCandidates,cursor:0}} : {}),
       foldBodyMinimal: foldDividerMinimal,
       unifiedFoldQuoteContrast: unifiedLayout && card.folded,
       cardBodyCenter: card.bodyCenter === true,
@@ -3679,17 +3334,17 @@ function buildCard(settings, sourceCards){
       // 표지(간지) 스타일: 삼각형 마커 제거(list-style:none + display:block), 가운데 정렬,
       // 넉넉한 여백, 제목 양옆 ✦ 장식. 열면 제목 아래 구분선이 나타나 본문과 나뉨.
       const foldTitle = card.foldTitle || '';
-      const autoFoldTitle = settingFlagOn(settings.foldTitleAutoNumber) && !foldTitle.trim()
+      const autoFoldTitle = MosaicState.settingFlagOn(settings.foldTitleAutoNumber) && !foldTitle.trim()
         ? foldAutoNumberText(++blankFoldNumber, settings.foldAutoNumberStyle)
         : '';
       const visibleFoldTitle = foldTitle.trim() || autoFoldTitle;
-      const minimalFoldTitle = settingFlagOn(settings.foldTitleMinimal);
+      const minimalFoldTitle = MosaicState.settingFlagOn(settings.foldTitleMinimal);
       // 제목이 비어 ✦ ✦ ✦만 보이는 카드 헤더는 일반 제목 장식보다 아주 살짝 연하게 둔다.
       const foldOrnamentColor = visibleFoldTitle
         ? pal.ornament
         : mixHex(pal.ornament, pal.cardBg, 0.12);
       const foldTitleHTML = visibleFoldTitle
-        ? `<span style="min-width:0; line-height:1.35;">${processInline(visibleFoldTitle, settings.emphasisColor)}</span>`
+        ? `<span style="min-width:0; line-height:1.35;">${MosaicParser.processInline(visibleFoldTitle, settings.emphasisColor)}</span>`
         : `<span data-mosaic-generated="true" style="color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const foldLeftOrnament = minimalFoldTitle
         ? ''
@@ -3706,8 +3361,8 @@ ${bodyHTML}${footer}  </div>
     }
     const cardTitle = (card.foldTitle || '').trim();
     if(cardTitle){
-      const minimalCardTitle = settingFlagOn(settings.foldTitleMinimal);
-      const cardTitleHTML = `<span style="min-width:0; line-height:1.35;">${processInline(cardTitle, settings.emphasisColor)}</span>`;
+      const minimalCardTitle = MosaicState.settingFlagOn(settings.foldTitleMinimal);
+      const cardTitleHTML = `<span style="min-width:0; line-height:1.35;">${MosaicParser.processInline(cardTitle, settings.emphasisColor)}</span>`;
       const cardLeftOrnament = minimalCardTitle
         ? ''
         : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
@@ -3739,7 +3394,7 @@ ${bodyHTML}${footer}  </div>
   // 꼬리말은 마지막 본문 카드 안에 붙인다. 통합 모드의 코멘트는 본문 뒤에 모으되,
   // 크레딧은 코멘트 유무와 관계없이 사용자가 선택한 최상단·최하단에 둔다.
   const credit = buildCredit(settings);
-  const creditAtTop = normalizeCreditPlacement(settings.creditPlacement) === 'top';
+  const creditAtTop = MosaicState.normalizeCreditPlacement(settings.creditPlacement) === 'top';
   const topCredit = creditAtTop ? credit : '';
   const bottomCredit = creditAtTop ? '' : credit;
   const introFlow = topProfileBlock + imgBlock + titleBand + attachedProfileBlock;
@@ -3755,65 +3410,81 @@ ${bodyHTML}${footer}  </div>
   const mainFlow = spacedIntroFlow + (unifiedLayout ? renderedCardFlow : orderedBody).join('\n');
   const arrangedMainFlow = unifiedLayout
     ? applyUnifiedCardLayout(mainFlow, settings)
-    : (outputThemeShape(settings.outputTheme) === 'document'
+    : (MosaicState.outputThemeShape(settings.outputTheme) === 'document'
       ? mainFlow
       : placeCoverDividerBeforeLeadingComment(mainFlow, settings));
   const collectedComments = unifiedLayout && renderedCommentFlow.length
     ? `\n${renderedCommentFlow.join('\n')}` : '';
   const output = recognitionImg + topCredit + arrangedMainFlow + collectedComments + bottomCredit;
   const lockedOutput = lockOutputTypographyForArca(output);
-  const shapedOutput = outputThemeShape(settings.outputTheme) === 'document'
+  const shapedOutput = MosaicState.outputThemeShape(settings.outputTheme) === 'document'
     ? specialThemeOutput(lockedOutput, 'document', settings)
     : lockedOutput;
-  const themedOutput = outputThemeTransparent(settings.outputTheme)
+  const themedOutput = MosaicState.outputThemeTransparent(settings.outputTheme)
     ? transparentOutput(shapedOutput, settings)
     : shapedOutput;
   return finalizeCoverProfileBoundaries(themedOutput, settings);
 }
+function rememberProfileImageSize(url, dimensions){
+  const previous = profileImageDimensions.get(url);
+  if(previous?.width === dimensions.width && previous?.height === dimensions.height) return;
+  profileImageDimensions.set(url, dimensions); profileImageRevision += 1; lastCardRender = null;
+}
 
-// 편집 UI가 출력 구현의 내부 전역을 하나씩 붙잡지 않도록 공개 경계를 고정한다.
-const MosaicRenderer = Object.freeze({
-  MOD_KEY,
-  addCreditItem,
-  assembleBody,
-  bodyRenderGroups,
-  buildCard,
-  buildParagraph,
-  combineSoftBreakPair,
-  commentParagraphEntries,
-  composeOutputTheme,
-  creditItemsFromEditor,
-  deleteSelectedCreditPreset,
-  deleteSelectedDetailPreset,
-  expandDialogueLinesForOutput,
-  findChar,
-  formatStatusContent,
-  generateHTML,
-  isStatusBodyLine,
-  isStructuralBodyLine,
-  loadSelectedCreditPreset,
-  loadSelectedDetailPreset,
-  loadSelectedWebFont,
-  normalizeCardLayout,
-  normalizeCreditPlacement,
-  outputThemeShape,
-  outputThemeTransparent,
-  parseBodyHeading,
-  parseBodyImageLine,
-  profileItemGapBasePx,
-  renderCreditItemsEditor,
-  renderCreditPresetOptions,
-  renderDetailPresetOptions,
-  saveCurrentCreditPreset,
-  saveCurrentDetailPreset,
-  setStoredCreditItems,
-  splitDialogueLineForOutput,
-  statusLineContent,
-  storedCreditItems,
-  stripEditorOutputMetadata,
-  syncCardLayoutCheckbox,
-  syncCreditPresetControls,
-  syncDetailPresetControls,
-  syncHiddenEditorCollapse,
-  syncSoftBreakSpacingControl
+let lastCardRender = null;
+let profileImageRevision = 0;
+function buildCard(settings, sourceCards){
+  const key = JSON.stringify([profileImageRevision, settings, sourceCards]);
+  if(lastCardRender?.key === key) return lastCardRender.html;
+  const html = buildCardUncached(settings, sourceCards);
+  lastCardRender = key.length + html.length <= 6000000 ? {key,html} : null;
+  return html;
+}
+const paragraphCaches = new Map();
+function paragraphCacheFor(settings){
+  // Parallel rendering advances its context cursor; that path intentionally remains uncached.
+  if(settings.parallelContext) return null;
+  const key = JSON.stringify(settings);
+  if(paragraphCaches.has(key)) return paragraphCaches.get(key);
+  if(paragraphCaches.size >= 4) paragraphCaches.delete(paragraphCaches.keys().next().value);
+  const cache = {entries:new Map(),characters:0}; paragraphCaches.set(key,cache); return cache;
+}
+function cachedParagraph(cache, line, settings, options){
+  if(!cache) return buildParagraph(line,settings,options);
+  const key = JSON.stringify([line,options]);
+  if(cache.entries.has(key)) return cache.entries.get(key);
+  const html = buildParagraph(line,settings,options), size=key.length+html.length;
+  if(size <= 1000000){
+    while(cache.entries.size && (cache.entries.size >= 2048 || cache.characters+size > 1000000)){
+      const oldest=cache.entries.keys().next().value;
+      cache.characters -= oldest.length+cache.entries.get(oldest).length; cache.entries.delete(oldest);
+    }
+    cache.entries.set(key,html); cache.characters += size;
+  }
+  return html;
+}
+
+return Object.freeze({
+...Object.freeze({assembleBody,
+bodyRenderGroups,
+buildCard,
+buildParagraph,
+combineSoftBreakPair,
+commentParagraphEntries,
+expandDialogueLinesForOutput,
+findChar,
+formatStatusContent,
+isStatusBodyLine,
+isStructuralBodyLine,
+parseBodyHeading,
+parseBodyImageLine,
+repairLegacyPhotoBackgrounds,
+splitDialogueLineForOutput,
+statusLineContent,
+stripEditorOutputMetadata}),
+fontStack,
+parseOutputBodyImage,
+rememberProfileImageSize,
+stripSpeaker
 });
+})();

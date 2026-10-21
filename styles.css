@@ -564,7 +564,7 @@
   }
   /* 보이는 선택창은 디자인 탭과 같은 작은 채움 삼각형을 쓴다.
      본문 도구 모음의 ⋯ 메뉴와 화면에서 숨긴 상태 저장용 select는 제외한다. */
-  select:not([hidden]):not(.segmentedChoiceSource):not(.separatorInsertSelect) {
+  select:not([hidden]):not(.segmentedChoiceSource), #slotExportMenuBtn {
     -webkit-appearance: none;
     appearance: none;
     padding-right: 25px;
@@ -1263,59 +1263,13 @@
   }
   #bodyInputGroup > .foldBody > #bodyEditorToolbar button {
     min-height: 28px;
-    padding: 0 8px;
+    padding: 0 6px;
+    white-space: nowrap;
   }
   #bodyInputGroup > .foldBody > #bodyEditorToolbar button:hover {
     border-color: transparent;
     background: var(--bg-muted);
   }
-  #bodyEditorToolbar .separatorInsertSplit {
-    position: relative;
-    display: inline-flex;
-    align-items: stretch;
-    flex: none;
-    overflow: hidden;
-    border-radius: 6px;
-  }
-  #bodyInputGroup > .foldBody > #bodyEditorToolbar .separatorInsertSplit > button {
-    padding-right: 7px;
-    border-radius: 6px 0 0 6px;
-  }
-  #bodyEditorToolbar .separatorInsertSelect {
-    width: 24px;
-    min-width: 24px;
-    min-height: 28px;
-    padding: 0;
-    appearance: none;
-    border: 0;
-    border-radius: 0 6px 6px 0;
-    background: transparent;
-    color: transparent;
-    font-size: 0;
-    cursor: pointer;
-  }
-  #bodyEditorToolbar .separatorInsertSelect:hover { background: var(--bg-muted); }
-  #bodyEditorToolbar .separatorInsertSelect:focus-visible {
-    outline: 2px solid var(--ink-faint);
-    outline-offset: -2px;
-  }
-  #bodyEditorToolbar .separatorInsertSelect:disabled { cursor: default; opacity: .45; }
-  #bodyEditorToolbar .separatorInsertSelect option {
-    color: var(--ink);
-    font-size: 12px;
-  }
-  #bodyEditorToolbar .separatorInsertSplit::after {
-    content: '⋯';
-    position: absolute;
-    top: 50%;
-    right: 6px;
-    color: var(--ink-faint);
-    font-size: 15px;
-    line-height: 1;
-    pointer-events: none;
-    transform: translateY(-50%);
-  }
-  #bodyEditorToolbar .separatorInsertSplit:has(.separatorInsertSelect:disabled)::after { opacity: .45; }
 
   /* ---------- 본문 카운터 ---------- */
   .counterRow {
@@ -1469,6 +1423,29 @@
   #archiveDrawer .archiveFileRow { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; margin-top:8px; }
   #archiveDrawer .archiveFileRow[hidden] { display:none; }
   #archiveDrawer .archiveFileRow button { width:100%; min-width:0; min-height:34px; padding:6px; }
+  #archiveDrawer .archiveBackupRow button { height:auto; white-space:normal; word-break:keep-all; line-height:1.4; }
+  #archiveDrawer #slotExportMenuBtn { padding-right:25px; }
+  .archiveExportDropdown { position:relative; min-width:0; }
+  .archiveExportMenu {
+    position:absolute; bottom:calc(100% + 4px); left:0; right:0; z-index:4;
+    display:grid; gap:2px; padding:4px; border:1px solid var(--line-strong);
+    border-radius:6px; background:var(--bg-panel); box-shadow:0 4px 14px rgba(35,32,28,.10);
+  }
+  .archiveExportMenu[hidden] { display:none; }
+  #archiveDrawer .archiveExportMenu button {
+    border:0; border-radius:4px; background:transparent; color:var(--ink-soft);
+    padding:7px 9px; text-align:left; font-size:11.5px;
+  }
+  #archiveDrawer .archiveExportMenu button:hover,
+  #archiveDrawer .archiveExportMenu button:focus-visible { background:var(--bg-muted); color:var(--ink); }
+  .archiveSelectionTools { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; margin-top:8px; }
+  .archiveSelectionTools[hidden] { display:none; }
+  #archiveDrawer .archiveSelectionTools button {
+    min-height:28px; padding:3px 0; border:0; background:transparent; color:var(--ink-soft);
+    font-size:11.5px; font-weight:500; white-space:nowrap;
+  }
+  #archiveDrawer .archiveSelectionTools button:hover { color:var(--accent); }
+  #archiveDrawer .archiveSelectionTools button:disabled { color:var(--ink-faint); cursor:default; }
   .archiveListTools {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 104px;
@@ -1509,6 +1486,8 @@
     color: var(--ink-faint);
     font-size: 10.5px;
   }
+  #slotCount { min-width:0; overflow-wrap:anywhere; }
+  .archiveMetaActions { flex-shrink:0; }
   #slotExpandBtn {
     width: auto;
     min-height: 24px;
@@ -2032,18 +2011,19 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    flex-wrap: nowrap;
-    margin: 0 2px 12px;
+    gap: 6px 8px;
+    flex-wrap: wrap;
+    margin: 0 2px 6px;
     padding: 0 2px;
   }
   .bodyEditorOptions .bodyEditorDesc {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 1 0 auto;
     max-width: none;
     margin: 0;
     white-space: nowrap;
   }
+  .bodyEditorOptions .labInlineTools { flex-shrink: 0; gap: 2px; }
+  .bodyEditorOptions .labInlineTools button { padding: 3px 5px; white-space: nowrap; }
   .previewSyncFloat {
     position:fixed;
     right:20px;
@@ -2472,22 +2452,17 @@
     justify-content: flex-start;
     gap: var(--card-control-gutter);
   }
-  /* 입력창을 접었을 때 보이는 본문 첫 줄 */
-  .cardPeek {
-    flex: 1;
-    min-width: 0;
-    font-size: 11.5px;
-    color: var(--ink-faint);
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding-left: 2px;
-  }
   /* 접힌 카드는 살짝 눌러 앉은 느낌으로 구분 */
   .cardEditor.isCollapsed { background: #f7f6f4; }
-  .cardEditor.isCollapsed .cardToolRow { flex-wrap: wrap; gap: 6px; border-bottom: none; }
-  .cardEditor.isCollapsed .cardPeek { flex: 1 0 100%; order: 1; }
+  .cardEditor.isCollapsed > .cardToolRow { display: none; }
+  .cardEditor.isCollapsed .cardEditorHead { cursor: pointer; }
+  .cardEditor.isCollapsed .cardNum {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: none;
+  }
+  .cardEditor.isCollapsed .headLeft > .miniCtl { flex-shrink: 0; }
   .cardFmtBar { display: inline-flex; gap: 0; flex: 0 0 var(--card-control-rail); width: var(--card-control-rail); }
   .cardFoldGroup {
     display: flex;
@@ -2496,7 +2471,6 @@
     flex: 1 1 0;
     min-width: 0;
   }
-  .cardEditor.isCollapsed .cardFoldGroup { flex: 1 1 100%; order: 0; }
   .cardFmtBar .fmtBtn {
     width: 20px;
     height: 26px;
@@ -2526,8 +2500,7 @@
   }
   .cardFoldGroup .foldTitleInput:focus { border-color: var(--accent); background: #fff; }
   .cardToolRow.isTitleEditing { flex-wrap: nowrap; }
-  .cardToolRow.isTitleEditing .cardFmtBar,
-  .cardToolRow.isTitleEditing .cardPeek { display: none !important; }
+  .cardToolRow.isTitleEditing .cardFmtBar { display: none !important; }
   .cardToolRow.isTitleEditing .cardFoldGroup { flex: 1 1 0; min-width: 0; }
   .cardToolRow.isTitleEditing .foldTitleInput { flex: 1 1 0; min-width: 0; }
   .cardFoldGroup .foldChk { margin-left: auto; white-space: nowrap; }
@@ -2803,6 +2776,14 @@
     line-height: 1;
   }
   #selToolbar button:hover { background: rgba(255,255,255,0.18); }
+  #selToolbar {
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  #selToolbar button { flex: 0 0 auto; }
   #blockToolbar button { width: auto; min-width: 44px; padding: 0 9px; font-size: 12px; }
   #blockToolbar button.separatorChoice {
     min-width: 30px;
@@ -2816,7 +2797,15 @@
   /* 이미 서식이 적용된 부분을 선택하면 해당 버튼이 선택 상태로 켜짐 (다시 누르면 해제) */
   #selToolbar button.active { background: var(--accent); color: #fff; }
   #selToolbar button.active:hover { background: var(--accent-hover); }
-  #selToolbar button[data-rule-action] { width:auto; padding:0 9px; font-size:12px; }
+  #selToolbar button[data-rule-action],
+  #selToolbar button[data-parallel-action] {
+    width:auto;
+    padding:0 9px;
+    font-size:12px;
+    white-space:nowrap;
+    word-break:keep-all;
+    overflow-wrap:normal;
+  }
   #selToolbar button[hidden] { display:none; }
   .previewRuleText { color:inherit; font:inherit; cursor:text; }
   .previewRuleText:hover { text-decoration:underline dotted; text-underline-offset:3px; }
@@ -3661,13 +3650,14 @@
   #preview [data-preview-direct-edit="true"]:focus {
     outline: 2px solid color-mix(in srgb, var(--ink-faint) 64%, transparent);
     background-color: color-mix(in srgb, var(--ink) 5%, transparent);
-    caret-color: var(--ink);
+    /* 앱 테마 대신 편집 위치의 글자색을 따라 어두운 카드·병행 번역에서도 보이게 한다. */
+    caret-color: currentColor;
   }
   #preview [data-preview-direct-edit="true"][data-preview-edit-changed="true"]:focus {
     outline-color: var(--accent);
     background-color: color-mix(in srgb, var(--accent) 10%, transparent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
-    caret-color: var(--accent);
+    caret-color: currentColor;
   }
   /* 왼쪽 설정·본문 입력 중에는 미리보기의 편집용 경계를 완전히 감춘다. */
   body.sidebarFieldActive #preview [data-preview-direct-edit="true"] {
@@ -3895,6 +3885,7 @@
     display: none;
   }
   /* 표지 탭의 단일 선택은 문단 설정과 같은 텍스트·밑줄 방식으로 통일한다. */
+  #parallelTranslationGroup .segmentedChoice,
   #tabCover .settingsForm .segmentedChoice {
     grid-column: 2;
     display: flex;
@@ -3934,6 +3925,7 @@
   ) > button:first-child { grid-column: 2; }
   #tabCover #profileTextPositionRow[hidden] { display: none; }
   #tabCover #titleTextPositionRow[hidden] { display: none; }
+  #parallelTranslationGroup .segmentedChoice button,
   #tabCover .settingsForm .segmentedChoice button {
     position: relative;
     width: auto;
@@ -3952,6 +3944,7 @@
     white-space: nowrap;
     cursor: pointer;
   }
+  #parallelTranslationGroup .segmentedChoice button::after,
   #tabCover .settingsForm .segmentedChoice button::after {
     content: "";
     position: absolute;
@@ -3964,28 +3957,34 @@
     transform: scaleX(.45);
     transition: opacity .16s ease, transform .16s ease;
   }
+  #parallelTranslationGroup .segmentedChoice button:hover:not(:disabled),
   #tabCover .settingsForm .segmentedChoice button:hover:not(:disabled) {
     background: transparent;
     color: var(--ink);
   }
+  #parallelTranslationGroup .segmentedChoice button[aria-pressed="true"],
   #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"] {
     background: transparent;
     color: var(--accent);
   }
+  #parallelTranslationGroup .segmentedChoice button[aria-pressed="true"]::after,
   #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"]::after {
     opacity: .72;
     transform: scaleX(1);
   }
+  #parallelTranslationGroup .segmentedChoice button:focus-visible,
   #tabCover .settingsForm .segmentedChoice button:focus-visible {
     outline: 2px solid color-mix(in srgb,var(--accent) 52%,transparent);
     outline-offset: 2px;
     border-radius: 3px;
   }
+  #parallelTranslationGroup .segmentedChoice button:disabled,
   #tabCover .settingsForm .segmentedChoice button:disabled {
     background: transparent;
     color: var(--ink-faint);
     cursor: default;
   }
+  #parallelTranslationGroup .segmentedChoice button[aria-pressed="true"]:disabled,
   #tabCover .settingsForm .segmentedChoice button[aria-pressed="true"]:disabled {
     background: transparent;
     color: var(--accent);
@@ -4236,6 +4235,7 @@
     color:var(--ink);
   }
   #tabBody .bodyFold[open] > summary.foldHead { margin-bottom:14px; }
+  #tabBody #bodyInputGroup[open] > summary.foldHead { margin-bottom:8px; }
   #tabBody .bodyFold .bodyFoldTitle {
     flex:0 0 auto;
     font-size:14px;
@@ -4542,8 +4542,8 @@
   }
   #profileGroup .profileAddBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   #profileGroup .profileAddBtn:disabled { opacity: .4; cursor: default; }
-  #tabDesign .advancedDesignGroup.isAdvancedInactive > summary.foldHead #advancedResetBtn {
-    color: var(--advanced-off-ink);
+  #tabDesign .advancedDesignGroup .profileResetIconBtn:disabled {
+    display: none;
   }
   #profileGroup .profileSubBody.isEntityDisabled { opacity: .46; }
   /* 상위 프로필과 하위 항목의 흐림이 중복되지 않도록 한다. */
@@ -5778,6 +5778,32 @@
   #tabDesign :is(.typographyGroup, .advancedDesignGroup) .typographySubsectionBody { padding: 4px 0 1px; }
   #tabDesign .typographyGroup .typographySubsectionBody > .row { margin-bottom: 2px; }
   #tabDesign .typographyGroup .typographySubsectionBody > .row:last-child { margin-bottom: 0; }
+  #tabDesign #parallelTranslationOptions { margin-top:0; }
+  #tabDesign #parallelTranslationOptions[hidden] { display:none; }
+  /* 구분선 없이 같은 행 간격을 쓰고, 아래 선택지는 오른쪽에 모은다. */
+  #tabDesign #parallelTranslationGroup .row { min-height:var(--control-h); margin-bottom:4px; }
+  #tabDesign #parallelTranslationGroup .parallelScopeRow {
+    min-height:var(--control-h);
+    margin-top:12px;
+    margin-bottom:4px;
+    padding-bottom:0;
+    border-bottom:0;
+  }
+  #preview .previewParallelText { cursor:text; }
+  #tabDesign #parallelTranslationOptions > .row:last-child { margin-bottom:0; }
+  /* 오른쪽의 같은 두 열에 글자 중심을 맞추고, 밑줄은 글자 폭을 유지한다. */
+  #tabDesign #parallelTranslationGroup :is(.parallelScopeChoices, .segmentedChoice) {
+    grid-column:2 / -1;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    align-items:center;
+    justify-items:center;
+    justify-self:end;
+    width:126px;
+    max-width:100%;
+    height:var(--control-h);
+    gap:14px;
+  }
   #tabDesign .typographyGroup .titleStyleRow {
     grid-template-columns: 80px minmax(0, 1fr) var(--design-value-width) auto;
     column-gap: 10px;
@@ -6043,6 +6069,7 @@
   #sidebar button:where(.uiButton) { font-size: 11.5px !important; }
   #sidebar .uiHistoryButton { font-size: 15px !important; }
   #sidebar .uiStepperButton { font-size: 17px !important; }
+  #sidebar .bodyEditorOptions .labInlineTools button,
   #sidebar .uiToolbarButton { font-size: 10.5px !important; }
   #sidebar .uiCopyButton { font-size: 12.5px !important; }
 
