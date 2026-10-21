@@ -182,11 +182,7 @@ function fontStack(key){
 
 // 배치 기준은 적용 스위치와 분리한다. 대사를 꺼도 나레이션은 같은 자동 배치를 쓴다.
 function parallelTranslationPlacement(settings){
-  const selected = settings.parallelTranslationLayout || 'auto';
-  // 불러온 이전 자료나 내부 호출에서 두 값이 어긋나도 `미적용`을 우선한다.
-  if(selected === 'off') return 'plain';
-  if(selected === 'inline' || selected === 'stack') return selected;
-  return ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+  return MosaicParser.parallelTranslationPlacement(settings);
 }
 
 function resolvedParallelTranslationMode(settings){

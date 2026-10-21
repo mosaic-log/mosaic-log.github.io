@@ -173,6 +173,7 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
     for(let i = Math.max(0, start); i < Math.min(chars.length, end); i++) chars[i] = '\u0000';
   };
   meta.hidden.forEach(range => mask(range[0], range[1]));
+  (currentSettings.parallelTranslationQuoteRanges || []).forEach(([start,end])=>mask(start,end));
 
   let m;
   // 일반 문단 중간의 화자 마커만 화면에서 사라진다. 제목·인용문에서는 글자 그대로다.
@@ -197,7 +198,7 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
 function sourceDisplayProjectionMap(line, settings = host.getSettings()){
   const projection = lineSearchProjection(line, settings);
   const extended = settings.parallelTranslationOrder === 'translation' || settings.parallelTranslationBrackets === 'hide'
-    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle);
+    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle) || MosaicParser.parallelKindEnabled('dialogue',settings);
   if(extended && (sourceProjectionMeta(line,settings).maskInlineSpeakers || /^\s*(?:\[C\]\s*)?>(?!>)/.test(line))){
     const parallel = MosaicParser.parallelTextProjection(line,{...settings,
       hideDialogueQuotes:MosaicState.isMessengerDialogueStyle(settings.dlgStyle) && sourceProjectionMeta(line,settings).maskInlineSpeakers});
@@ -968,15 +969,27 @@ function planMultilineChange(body, descriptor, next, context, lines, end){
   const parts = next ? next.split('\n') : [];
   const rawLines = descriptor.rawLines || Array.from({length:end - descriptor.raw + 1}, (_,i) => descriptor.raw + i);
   const oldParts = rawLines.map(raw => lines[raw].replace(/\[BR\]\s*$/i, ''));
+  const outputParts = oldParts.map((part,index)=>MosaicParser.applyOutputTextRules(part,context.lineSettings(rawLines[index])));
+  const translationQuotes = MosaicParser.parallelSegments(outputParts.join(MosaicParser.SOFT_BREAK_TOKEN),context.settings,{softDialogueGroups:true})
+    .filter(segment=>segment.original.includes(MosaicParser.SOFT_BREAK_TOKEN))
+    .flatMap(segment=>{
+      const display=MosaicParser.parallelDisplayParts(segment,context.settings);
+      return display.translationQuoted && !display.reverse
+        ? [[display.translationStart-1,display.translationStart],[display.translationStart+display.translation.length,display.translationStart+display.translation.length+1]] : [];
+    });
   const quotes = MosaicState.isMessengerDialogueStyle(context.settings.dlgStyle) && context.dialogue
     ? MosaicParser.dialogueQuoteRanges(oldParts.join(MosaicParser.SOFT_BREAK_TOKEN),context.settings,{rawSource:true}) : null;
-  let partOffset=0;
+  let partOffset=0,outputOffset=0;
   const updated = parts.map((part,index) => {
     if(oldParts[index] === undefined) return part;
     const settings=context.lineSettings(rawLines[index]),start=partOffset,partEnd=start+oldParts[index].length;
     partOffset=partEnd+1;
+    const quoteStart=outputOffset,quoteEnd=quoteStart+outputParts[index].length;
+    outputOffset=quoteEnd+1;
+    const lineSettings=translationQuotes.length ? {...settings,parallelTranslationQuoteRanges:translationQuotes
+      .filter(range=>range[0]>=quoteStart && range[1]<=quoteEnd).map(range=>range.map(at=>at-quoteStart))} : settings;
     return host.replacePreviewBodyLine(oldParts[index],part,quotes
-      ? {...settings,messengerQuoteRanges:quotes.filter(range=>range[0]>=start && range[1]<=partEnd).map(range=>range.map(at=>at-start))} : settings,descriptor.parallelEditHints?.[index]);
+      ? {...lineSettings,messengerQuoteRanges:quotes.filter(range=>range[0]>=start && range[1]<=partEnd).map(range=>range.map(at=>at-start))} : lineSettings,descriptor.parallelEditHints?.[index]);
   }).map((part,index) => part + (index < parts.length - 1 ? '[BR]' : ''));
   const replacement = []; let index = 0;
   for(let raw=descriptor.raw;raw<=end;raw++){

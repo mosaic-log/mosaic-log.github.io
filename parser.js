@@ -178,9 +178,16 @@ function parallelKindEnabled(kind, settings = {}){
 }
 
 // 문법을 추가하지 않는다. 줄/BR 끝과 다음 대사 앞의 서술 조각 끝을 같은 경계로 본다.
-function parallelSegments(value, settings = {}){
+function parallelSegments(value, settings = {}, options = {}){
   const source = normalizeQuotes(String(value)), result = [];
   const comments = bodyCommentLineContexts(source);
+  // 이미 출력된 [BR] 대사의 편집 투영에서만 연결된 쌍을 함께 찾는다.
+  // 일반 본문 해석·나레이션 분할·병행 제외 후보의 기존 경계는 유지한다.
+  const softDialogues = !options.softDialogueGroups || settings.bodyCommentLiteral || !source.includes(SOFT_BREAK_TOKEN) ? [] : parallelDialogueSegments(source)
+    .filter(segment=>segment.original.includes(SOFT_BREAK_TOKEN) || segment.translationGroup.includes(SOFT_BREAK_TOKEN))
+    .filter(segment=>!comments.some(comment=>comment && comment.start<segment.end && comment.end>segment.start))
+    .map(segment=>({...segment,kind:'dialogue'}));
+  result.push(...softDialogues);
   let base = 0;
   source.split(/\n|\uE200/).forEach((line,index) => {
     const sourceLength=line.length;
@@ -226,7 +233,8 @@ function parallelSegments(value, settings = {}){
     }
     base += sourceLength+1;
   });
-  return result.sort((a,b)=>a.start-b.start);
+  return result.filter(segment=>!softDialogues.some(pair=>pair!==segment && pair.start<segment.end && pair.end>segment.start))
+    .sort((a,b)=>a.start-b.start);
 }
 
 function parallelSegmentKey(segment){
@@ -264,6 +272,14 @@ function parallelHidesDialogueQuotes(settings){
   return settings.dlgStyle === 'messenger2' || settings.dlgStyle === 'messenger';
 }
 
+// 출력과 편집 투영이 같은 자동/이어쓰기/아래쓰기 기준을 사용한다.
+function parallelTranslationPlacement(settings){
+  const selected = settings.parallelTranslationLayout || 'auto';
+  if(selected === 'off') return 'plain';
+  if(selected === 'inline' || selected === 'stack') return selected;
+  return ['softlight', 'highlight'].includes(settings.dlgStyle) ? 'inline' : 'stack';
+}
+
 function parallelDisplayParts(segment, settings = {}){
   const enabled = !segment.excluded && parallelKindEnabled(segment.kind || 'dialogue',settings);
   const reverse = enabled && settings.parallelTranslationOrder === 'translation';
@@ -271,10 +287,10 @@ function parallelDisplayParts(segment, settings = {}){
   const quote = segment.kind === 'narration' ? '' : segment.original[0];
   const original = quote ? segment.original.slice(1,-1) : segment.original;
   const inner = segment.translationGroup.slice(1,-1), rawTranslation = inner.trim();
-  // 번역 우선은 대사용 큰따옴표를 새로 두르므로 기존 번역의 바깥 큰따옴표와
-  // 중복하지 않는다. 메신저는 두 쪽 모두 생략하며 내부 인용·원문은 보존한다.
+  // 병행 대사의 보조 문장은 표시 순서와 무관하게 바깥 큰따옴표를 생략한다.
+  // 주 대사의 구분자는 표현 방식에 따르며 내부 인용·원문은 보존한다.
   // 생략한 기호만큼 편집 좌표도 안쪽으로 옮겨 숨긴 입력 구분자를 유지한다.
-  const wrapper = enabled && quote === '"' && (reverse || parallelHidesDialogueQuotes(settings))
+  const wrapper = enabled && quote === '"'
     ? quotedTextRanges(rawTranslation).find(range=>range.closed && range.quote==='"' && range.start===0 && range.end===rawTranslation.length)
     : null;
   const translation = wrapper ? rawTranslation.slice(1,-1) : rawTranslation;
@@ -298,11 +314,8 @@ function parallelTextProjection(value, settings = {}){
     for(let at=start;at<end;at++){text.push(source[at]);spans.push({start:at,end:at+1,part,editable});}
   };
   const generated = (char,start,end,part) => {text.push(char);spans.push({start,end,part,editable:false});};
-  if(settings.parallelTranslationOrder !== 'translation' && settings.parallelTranslationBrackets !== 'hide' && !parallelHidesDialogueQuotes(settings)){
-    copy(0,source.length);return {text:source,spans,changed:false};
-  }
   let cursor=0;
-  parallelSegments(source,settings).filter(segment=>parallelKindEnabled(segment.kind,settings)).map(segment=>resolveParallelSegment(segment,settings)).forEach((segment,index) => {
+  parallelSegments(source,settings,{softDialogueGroups:true}).filter(segment=>parallelKindEnabled(segment.kind,settings)).map(segment=>resolveParallelSegment(segment,settings)).forEach((segment,index) => {
     if(segment.excluded) return;
     const parts = parallelDisplayParts(segment,settings), key='pair'+index;
     // 직접 편집에서는 원문 우선 메신저의 숨긴 대사 구분자도 같은 좌표로 보호한다.
@@ -315,9 +328,17 @@ function parallelTextProjection(value, settings = {}){
     if(showQuote)generated(parts.quote,first[0],first[0],key+':shell');
     copy(...first);
     if(showQuote)generated(parts.quote,first[1],first[1],key+':shell');
-    generated(' ',first[1],first[1],key+':shell');
+    const mode = parts.quote === "'" ? settings.parallelTranslationLayout === 'stack' ? 'stack' : 'inline'
+      : parallelTranslationPlacement(settings);
+    for(const char of mode === 'stack' ? ' ' : parts.between)generated(char,first[1],first[1],key+':shell');
     if(!parts.hide)generated(segment.translationGroup[0],second[0],second[0],key+':shell');
+    // 원문 우선·괄호 표시에서는 출력도 괄호 안의 원래 여백을 보존한다.
+    // 숨긴 따옴표와 여백을 내용 편집 범위로 섞지 않고 같은 표시 좌표를 만든다.
+    if(!parts.reverse && !parts.hide)
+      copy(parts.open+1,parts.translationStart-(parts.translationQuoted ? 1 : 0),key+':shell',false);
     copy(...second);
+    if(!parts.reverse && !parts.hide)
+      copy(parts.translationStart+parts.translation.length+(parts.translationQuoted ? 1 : 0),segment.end-1,key+':shell',false);
     if(!parts.hide)generated(segment.translationGroup.at(-1),second[1],second[1],key+':shell');
     cursor=segment.end;
   });
@@ -327,7 +348,6 @@ function parallelTextProjection(value, settings = {}){
 
 function parallelSourceBounds(value,bounds,settings = {}){
   const result={...bounds};
-  if(settings.parallelTranslationOrder !== 'translation' && settings.parallelTranslationBrackets !== 'hide' && !parallelHidesDialogueQuotes(settings))return result;
   for(const segment of parallelSegments(value,settings).filter(segment=>parallelKindEnabled(segment.kind,settings))){
     const parts=parallelDisplayParts(segment,settings);
     if(!parts.reverse && !parts.hide && !parts.translationQuoted) continue;
@@ -539,6 +559,7 @@ parallelKindEnabled,
 parallelOutputCandidates,
 resolveParallelSegment,
 parallelDisplayParts,
+parallelTranslationPlacement,
 parallelTextProjection,
 parallelSourceBounds,
 applyOutputTextRules,
