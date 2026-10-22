@@ -74,7 +74,7 @@ function lockOutputTypographyForArca(html){
       lockArcaStyleProperty(element.style, property, element.style.getPropertyValue(property));
     });
   };
-  const lockDialogueTree = (element, inheritedColor = '', inheritedSize = '') => {
+  const lockTextColorAndSizeTree = (element, inheritedColor = '', inheritedSize = '') => {
     if(!element || !element.style) return;
     const declaredColor = element.style.getPropertyValue('color').trim();
     const declaredFill = element.style.getPropertyValue('-webkit-text-fill-color').trim();
@@ -89,7 +89,7 @@ function lockOutputTypographyForArca(html){
     }
     if(effectiveSize) lockArcaStyleProperty(element.style, 'font-size', effectiveSize);
     Array.from(element.children).forEach(child => {
-      if(child.tagName !== 'BR') lockDialogueTree(child, effectiveColor, effectiveSize);
+      if(child.tagName !== 'BR') lockTextColorAndSizeTree(child, effectiveColor, effectiveSize);
     });
   };
   const foldTitleProperties = ['color', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'font-family'];
@@ -111,19 +111,24 @@ function lockOutputTypographyForArca(html){
       if(child.tagName !== 'BR') lockFoldTitleTree(child, effective);
     });
   };
-  const nearestConcreteSize = element => {
+  const nearestConcreteTypography = element => {
+    let color = '', size = '';
     let current = element;
-    while(current && current !== template.content){
+    while(current && current !== template.content && (!color || !size)){
       if(current.style){
-        const size = current.style.getPropertyValue('font-size').trim();
-        if(isConcreteSize(size)) return size;
+        const declaredColor = current.style.getPropertyValue('color').trim();
+        const declaredFill = current.style.getPropertyValue('-webkit-text-fill-color').trim();
+        const declaredSize = current.style.getPropertyValue('font-size').trim();
+        if(!color) color = isConcreteColor(declaredColor) ? declaredColor
+          : (isConcreteColor(declaredFill) ? declaredFill : '');
+        if(!size && isConcreteSize(declaredSize)) size = declaredSize;
       }
       current = current.parentElement;
     }
-    return '';
+    return {color,size};
   };
   const lockInlineFormatTree = root => {
-    const inheritedSize = nearestConcreteSize(root.parentElement);
+    const inheritedSize = nearestConcreteTypography(root.parentElement).size;
     if(!inheritedSize) return;
     const visit = (element, parentSize) => {
       if(!element || !element.style) return;
@@ -165,7 +170,13 @@ function lockOutputTypographyForArca(html){
     element.querySelectorAll('[data-mosaic-dialogue="true"], [data-mosaic-speaker-label="true"]').forEach(dialogue => {
       lockArcaStyleProperty(dialogue.style, '-webkit-text-size-adjust', '100%');
       lockArcaStyleProperty(dialogue.style, 'text-size-adjust', '100%');
-      lockDialogueTree(dialogue);
+      lockTextColorAndSizeTree(dialogue);
+    });
+    // 부모의 !important는 자식에게 직접 지정된 게시글 CSS보다 우선하지 않는다.
+    // 병행 묶음에도 실제 상속값을 잠그되, 번역 보조색·크기와 내부 강조는 보존한다.
+    element.querySelectorAll('[data-mosaic-parallel-stack="true"]').forEach(pair => {
+      const inherited = nearestConcreteTypography(pair.parentElement);
+      lockTextColorAndSizeTree(pair, inherited.color, inherited.size);
     });
   });
   return template.innerHTML;

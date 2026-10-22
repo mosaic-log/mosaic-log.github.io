@@ -128,6 +128,7 @@ MosaicUI.feedback.undo('새 카드 추가.');
 
 - 병행 대사의 표시와 원문 위치는 `parser.js`의 `parallelDisplayParts`를 공유합니다. 보조 대사를 감싸는 바깥 큰따옴표만 생략하고, 내부 인용·입력 원문·나레이션·속마음은 보존합니다. 표시 순서를 바꿔도 같은 규칙을 적용합니다.
 - 자동·이어쓰기·아래쓰기 판정은 `MosaicParser.parallelTranslationPlacement()`를 출력과 편집 투영이 함께 사용합니다. 괄호 안 공백과 숨긴 구분자의 원문 위치도 함께 보존합니다.
+- 아카라이브 PC·모바일의 출력 색·크기 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.
 - `createPreviewSourceEdits`는 `{before, after, message}` 변경안을 계산합니다. 위치·표시 글자 치환은 `createSourceMapping`을 공유합니다.
 - `applyPreviewSourceChange`는 연결과 현재 원문을 확인하고 입력창·작업 기록·입력 이벤트를 갱신합니다. 계산 함수에 포커스·렌더·저장 코드를 넣지 않습니다.
 - 작업 전체 복원 전에는 `discardActiveDirectEdit()`로 미확정 편집을 종료합니다. 이전 편집기의 `blur`가 복원한 내용을 덮지 않도록 유지합니다.
