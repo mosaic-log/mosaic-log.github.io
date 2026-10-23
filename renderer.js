@@ -2346,11 +2346,11 @@ function buildCredit(settings){
     ? Math.min(900, requestedCreditWidth) : 380);
   const neutralCardBg = neutralHex(pal.cardBg);
   const darkBackground = textColorFor(neutralCardBg) === '#ffffff';
-  const creditNeutral = darkBackground ? '#ffffff' : '#000000';
   const transparentCredit = MosaicState.settingFlagOn(settings.creditTransparentOn) || MosaicState.outputThemeTransparent(settings.outputTheme);
   const creditBg = MosaicState.outputThemeTransparent(settings.outputTheme) ? 'transparent' : creditBackground(settings);
   const creditBorder = 'rgba(128,128,128,.22)';
-  const creditDivider = mixHex(pal.boxBg, creditNeutral, darkBackground ? 0.07 : 0.045);
+  // 크레딧 항목 구분선은 카드색·투명 여부와 관계없이 같은 밝은 회색을 쓴다.
+  const creditDivider = '#e9e9e9';
   const labelColor = !transparentCredit && darkBackground ? '#777777'
     : mixHex(pal.caption, pal.cardBg, darkBackground ? 0.04 : 0.08);
   const valueColor = !transparentCredit && darkBackground ? '#555555'
@@ -2894,6 +2894,12 @@ function transparentOutput(html, settings){
   const template = document.createElement('template');
   template.innerHTML = html;
   template.content.querySelectorAll('*').forEach(el => {
+    // 본문 HR은 투명 테마에서도 원래 팔레트·농도를 쓴다. 다른 장식선과 분리한다.
+    if(el.closest('[data-mosaic-separator="hr"]')){
+      lockArcaStyleProperty(el.style, 'background-color', el.style.backgroundColor || 'transparent');
+      lockArcaStyleProperty(el.style, 'border-top-color', el.style.borderTopColor);
+      return;
+    }
     // 투명 테마의 일반 배경은 비우되, 포트레이트 사진 사이 틈만 외곽선과
     // 같은 반투명 구조색으로 남긴다. 이 처리가 없으면 틈이 다시 흰색으로 보인다.
     if(el.hasAttribute('data-mosaic-photo-gap')){
@@ -2930,7 +2936,9 @@ function transparentOutput(html, settings){
     style.removeProperty('color');
     style.removeProperty('-webkit-text-fill-color');
     el.removeAttribute('color');
-    style.setProperty('background-color', thinRule ? 'rgba(128,128,128,.22)' : 'transparent', 'important');
+    const background = el.hasAttribute('data-mosaic-credit-divider-before')
+      ? style.backgroundColor : thinRule ? 'rgba(128,128,128,.22)' : 'transparent';
+    style.setProperty('background-color', background, 'important');
     // URL 이미지는 보존하고 색상 장식만 무채색으로 바꾼다.
     if(image && !image.includes('url(')){
       const lineImage = thinRule || /(?:^|\s)(?:0?\.5|1|2)px$/.test(style.backgroundSize);
@@ -2944,29 +2952,18 @@ function transparentOutput(html, settings){
     if(style.boxShadow) style.setProperty('box-shadow', 'none', 'important');
     if(style.textShadow) style.setProperty('text-shadow', 'none', 'important');
   });
-  // 투명 구분선도 게시판의 본문(p) 라이트/다크 규칙을 받는다.
-  // 색상을 고정하지 않고 실선은 currentColor, 장식은 기본 글자색을 사용한다.
+  // 본문(p)으로 바꾸는 기존 배치는 유지한다. HR만 원래 색·농도를 보존하고,
+  // HR2·HR3은 게시판 글자색을 따르는 기존 규칙을 유지한다.
   template.content.querySelectorAll('[data-mosaic-separator="hr"], [data-mosaic-separator="hr2"], [data-mosaic-separator="hr3"]').forEach(separator => {
     const paragraph = document.createElement('p');
     Array.from(separator.attributes).forEach(attribute => paragraph.setAttribute(attribute.name, attribute.value));
     paragraph.innerHTML = separator.innerHTML;
-    paragraph.style.removeProperty('color');
-    paragraph.style.removeProperty('-webkit-text-fill-color');
     const type = separator.dataset.mosaicSeparator;
-    const chosenOpacity = settings[type === 'hr' ? 'hrOpacity' : type === 'hr2' ? 'hr2Opacity' : 'hr3Opacity'];
-    paragraph.style.setProperty('opacity', String(advancedTransparentOpacity(chosenOpacity, type === 'hr3' ? .32 : .22)));
-    if(type === 'hr'){
-      if(paragraph.dataset.mosaicHrShape === 'star'){
-        paragraph.style.setProperty('background-color', 'transparent', 'important');
-        [paragraph.firstElementChild, paragraph.lastElementChild].forEach(rule => {
-          if(rule) rule.style.setProperty('border-top-color', 'currentColor', 'important');
-        });
-      }else if(paragraph.style.borderTopStyle && paragraph.style.borderTopStyle !== 'none'){
-        paragraph.style.setProperty('border-top-color', 'currentColor', 'important');
-        paragraph.style.setProperty('background-color', 'transparent', 'important');
-      }else{
-        paragraph.style.setProperty('background-color', 'currentColor', 'important');
-      }
+    if(type !== 'hr'){
+      paragraph.style.removeProperty('color');
+      paragraph.style.removeProperty('-webkit-text-fill-color');
+      const chosenOpacity = settings[type === 'hr2' ? 'hr2Opacity' : 'hr3Opacity'];
+      paragraph.style.setProperty('opacity', String(advancedTransparentOpacity(chosenOpacity, type === 'hr3' ? .32 : .22)));
     }
     separator.replaceWith(paragraph);
   });
