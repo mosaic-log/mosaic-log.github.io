@@ -1081,9 +1081,9 @@ function buildParagraph(rawLine, settings, opts){
       return wrapDialogue(`    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; width:fit-content; max-width:88%; margin:${mtEff}px ${centered || !userSide ? 'auto' : '0'} ${mb}px ${centered || userSide ? 'auto' : '0'}; padding:12px 16px; border:0; border-radius:${userSide ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background-color:${bubbleBg}; text-align:${centered ? 'center' : 'left'}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${dialogueBodyHtml}</p>\n`);
     }
 
-    // 인용선은 텍스트 높이만큼 긋고, 선과 대사 사이의 왼쪽 간격을 12px로 둔다.
+    // 인용선은 텍스트 높이만큼 긋고, 선과 대사 사이의 왼쪽 간격을 10px로 둔다.
     const quoteBackground = settings.dlgStyle === 'quote-bg' ? pal.boxBg : 'transparent';
-    const quotePadding = settings.dlgStyle === 'quote-bg' ? '13px 18px' : '0 18px 0 12px';
+    const quotePadding = settings.dlgStyle === 'quote-bg' ? '13px 18px' : '0 18px 0 10px';
     return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:${quotePadding}; border-left:2px solid ${color}; background-color:${quoteBackground}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
     const mb = opts.extraBottom ? HR_GAP : (opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap);
