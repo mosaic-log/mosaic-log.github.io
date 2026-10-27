@@ -1595,6 +1595,11 @@ function resolveProfileJoinState({profilePlacement, showcase, portraitPhotoBackg
   };
 }
 
+// 2열→1열로 바꾸는 안쪽 폭. 프로필 배치·모서리·접합선이 함께 사용한다.
+const PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT = 400;
+// 3인 한 줄·5인 2+3은 여백·테두리를 포함한 실제 카드 폭으로 판정한다.
+const PROFILE_THREE_COLUMN_CARD_BREAKPOINT = 680;
+
 function profileRowLengths(profileCount){
   if(profileCount <= 0) return [];
   if(profileCount <= 3) return [profileCount];
@@ -1648,19 +1653,19 @@ function profileRowSeamFlagsAt(index, columns, rowLengths, rows = profileDisplay
   };
 }
 
-function responsiveProfileSeamWidth(values, fallbackWidth){
+function responsiveProfileSeamWidth(values, fallbackWidth, threeColumnBreakpoint){
   const [narrow, medium, wide] = values.map(value => Number(Boolean(value)));
-  const fallback = fallbackWidth >= 690 ? wide : fallbackWidth >= 500 ? medium : narrow;
+  const fallback = fallbackWidth >= threeColumnBreakpoint ? wide : fallbackWidth >= PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT ? medium : narrow;
   const responsive = unit => {
     if(narrow === medium && medium === wide) return `${narrow}px`;
     const steps = [`${narrow}px`];
     const mediumDifference = medium - narrow;
     const wideDifference = wide - medium;
     if(mediumDifference){
-      steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - 499px), 1px)`);
+      steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - ${PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT - 1}px), 1px)`);
     }
     if(wideDifference){
-      steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - 689px), 1px)`);
+      steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100${unit} - ${threeColumnBreakpoint - 1}px), 1px)`);
     }
     return `clamp(0px, calc(${steps.join(' ')}), 1px)`;
   };
@@ -1817,9 +1822,13 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     .map(tag => tag.trim().replace(/^#+\s*/, ''))
     .filter(Boolean)))
     .slice(0, 3);
-  // 750px 카드의 3열 칸은 안쪽 여백을 빼면 약 230~250px이다.
-  // 2열의 각 칸이 그보다 좁아지지 않도록 안쪽 폭 500px까지 유지한다.
-  const twoColumnContentBreakpoint = 500;
+  // 작은 화면에서도 2열을 유지하고, 안쪽 폭 400px 미만에서 한 명씩 배치한다.
+  const twoColumnContentBreakpoint = PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT;
+  // 카드 전체 폭 680px에서 3열이 되도록 안쪽 경계로 변환한다.
+  // 해당 폭에서는 clamp(14px,3.5vw,20px)의 좌우 패딩이 각각 20px이다.
+  // 붙임형의 패딩 0과 외곽선 유무도 반영하며, 2열→1열은 안쪽 400px을 유지한다.
+  const profileHorizontalInset = (joinedProfileItems ? 0 : 40) + (showOuterBorder ? 2 : 0);
+  const threeColumnContentBreakpoint = PROFILE_THREE_COLUMN_CARD_BREAKPOINT - profileHorizontalInset;
   const baseProfileCardHeight = large ? 116 : 80;
   // flex/grid 없이도 같은 줄의 카드 높이를 맞출 수 있도록, 출력 전에 각 프로필의
   // 이름·태그·정보가 차지할 줄 수를 보수적으로 계산한다. 아카라이브가 반응형 CSS를
@@ -1897,7 +1906,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     ? Math.max(baseProfileCardHeight, ...profiles.map(estimateProfileCardHeight))
     : baseProfileCardHeight;
   // 넓은 화면은 3 / 2+2 / 2+3을 따른다. DOM 행을 강제로 분리하지 않아
-  // 중간 폭에서는 전체 인물이 2명씩 다시 흐르고, 안쪽 폭 500px 미만에서 한 명씩 놓인다.
+  // 중간 폭에서는 전체 인물이 2명씩 다시 흐르고, 안쪽 폭 400px 미만에서 한 명씩 놓인다.
   const rowLengths = profileRowLengths(profiles.length);
   const displayRows = [1, 2, 3].map(columns => profileDisplayRows(columns, rowLengths));
   const rowForIndex = index => profileLogicalRowAt(index, rowLengths);
@@ -1915,7 +1924,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const profileSeamFallbackWidth = profileCornerWidth;
   const responsiveProfileLength = (values, maximum) => {
     const [narrow, medium, wide] = values;
-    const fallback = profileCornerWidth >= 690 ? wide
+    const fallback = profileCornerWidth >= threeColumnContentBreakpoint ? wide
       : profileCornerWidth >= twoColumnContentBreakpoint ? medium : narrow;
     if(narrow === medium && medium === wide){
       return { fallback:`${fallback}px`, responsive:`${narrow}px` };
@@ -1924,10 +1933,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const mediumDifference = medium - narrow;
     const wideDifference = wide - medium;
     if(mediumDifference){
-      steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 499px), ${Math.abs(mediumDifference)}px)`);
+      steps.push(`${mediumDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - ${twoColumnContentBreakpoint - 1}px), ${Math.abs(mediumDifference)}px)`);
     }
     if(wideDifference){
-      steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - 689px), ${Math.abs(wideDifference)}px)`);
+      steps.push(`${wideDifference > 0 ? '+' : '-'} clamp(0px, calc(100cqw - ${threeColumnContentBreakpoint - 1}px), ${Math.abs(wideDifference)}px)`);
     }
     return {
       fallback:`${fallback}px`,
@@ -1977,10 +1986,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const bottomLeftRadius = responsiveProfileLength(radiusValues('bottomLeft'), 10);
     const rightSeam = responsiveProfileSeamWidth(layout.rows.map(row =>
       row.joined && row.axis === 'horizontal' && row.position < row.length - 1
-    ), profileSeamFallbackWidth);
+    ), profileSeamFallbackWidth, threeColumnContentBreakpoint);
     const bottomSeam = responsiveProfileSeamWidth(layout.rows.map(row =>
       row.joined && row.axis === 'vertical' && row.position < row.length - 1
-    ), profileSeamFallbackWidth);
+    ), profileSeamFallbackWidth, threeColumnContentBreakpoint);
     const seamColor = 'rgba(128,128,128,.22)';
     return {
       wrapper:`padding-top:0; padding-bottom:${bottomPadding.fallback}; padding-bottom:${bottomPadding.responsive}; padding-left:${leftPadding.fallback}; padding-left:${leftPadding.responsive}; padding-right:${rightPadding.fallback}; padding-right:${rightPadding.responsive};`,
@@ -1988,9 +1997,8 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
       seam:`border-right:${rightSeam.fallback} solid ${seamColor}; border-right-width:${rightSeam.viewport}; border-right-width:${rightSeam.container}; border-bottom:${bottomSeam.fallback} solid ${seamColor}; border-bottom-width:${bottomSeam.viewport}; border-bottom-width:${bottomSeam.container};`
     };
   };
-  // 브라우저가 게시용 inline style을 직렬화하면 cqw 선언과 고정 폴백이 한
-  // border-radius 값으로 합쳐질 수 있다. 구형 모바일 WebView에서는 그 값 전체가
-  // 무효가 되므로, 보이는 사진·배경 요소에 vw 기반 모서리를 직접 둔다.
+  // vw는 구형 WebView용 폴백이다. 3칸 행은 카드가 부모 폭에 맞춰 줄어들어도
+  // 실제 배치와 모서리가 함께 바뀌도록 안쪽 컨테이너 기준을 마지막에 적용한다.
   const profileCornersAt = (index, columns) => {
     const rows = displayRows[columns - 1];
     const first = rows[0] || [];
@@ -2003,21 +2011,24 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const profileCornerCss = index => {
     if(!joinedProfileRadius) return '';
     const layouts = [profileCornersAt(index, 1), profileCornersAt(index, 2), profileCornersAt(index, 3)];
-    const cornerValue = (key, radius) => {
+    const cornerValue = (key, radius, unit = 'vw') => {
       if(!radius) return '0px';
-      const values = layouts.slice(0, profileCornerWidth < 500 ? 1 : profileCornerWidth < 690 ? 2 : 3)
+      const values = layouts.slice(0, profileCornerWidth < twoColumnContentBreakpoint ? 1 : profileCornerWidth < threeColumnContentBreakpoint ? 2 : 3)
         .map(layout => Number(layout[key]));
       if(values.every(value => value === values[0])) return values[0] ? `${radius}px` : '0px';
-      const rising = breakpoint => `clamp(0px,calc(10000vw - ${breakpoint * 100 - 16}px),${radius}px)`;
-      const falling = breakpoint => `clamp(0px,calc(${breakpoint * 100}px - 10000vw),${radius}px)`;
-      if(values.length === 2) return values[0] ? falling(500) : rising(500);
-      if(values[0] === values[1]) return values[1] ? falling(690) : rising(690);
-      if(values[1] === values[2]) return values[0] ? falling(500) : rising(500);
+      const boundary = breakpoint => unit === 'vw' && rowLengths.includes(3) ? breakpoint + profileHorizontalInset : breakpoint;
+      const rising = breakpoint => `clamp(0px,calc(10000${unit} - ${boundary(breakpoint) * 100 - 16}px),${radius}px)`;
+      const falling = breakpoint => `clamp(0px,calc(${boundary(breakpoint) * 100}px - 10000${unit}),${radius}px)`;
+      if(values.length === 2) return values[0] ? falling(twoColumnContentBreakpoint) : rising(twoColumnContentBreakpoint);
+      if(values[0] === values[1]) return values[1] ? falling(threeColumnContentBreakpoint) : rising(threeColumnContentBreakpoint);
+      if(values[1] === values[2]) return values[0] ? falling(twoColumnContentBreakpoint) : rising(twoColumnContentBreakpoint);
       return values[1]
-        ? `min(${rising(500)},${falling(690)})`
-        : `max(${falling(500)},${rising(690)})`;
+        ? `min(${rising(twoColumnContentBreakpoint)},${falling(threeColumnContentBreakpoint)})`
+        : `max(${falling(twoColumnContentBreakpoint)},${rising(threeColumnContentBreakpoint)})`;
     };
-    return `border-radius:${cornerValue('topLeft', joinedProfileTopRadius)} ${cornerValue('topRight', joinedProfileTopRadius)} ${cornerValue('bottomRight', joinedProfileBottomRadius)} ${cornerValue('bottomLeft', joinedProfileBottomRadius)};`;
+    const viewportCorners = `border-radius:${cornerValue('topLeft', joinedProfileTopRadius)} ${cornerValue('topRight', joinedProfileTopRadius)} ${cornerValue('bottomRight', joinedProfileBottomRadius)} ${cornerValue('bottomLeft', joinedProfileBottomRadius)};`;
+    if(!rowLengths.includes(3)) return viewportCorners;
+    return `${viewportCorners} border-top-left-radius:${cornerValue('topLeft', joinedProfileTopRadius, 'cqw')}; border-top-right-radius:${cornerValue('topRight', joinedProfileTopRadius, 'cqw')}; border-bottom-right-radius:${cornerValue('bottomRight', joinedProfileBottomRadius, 'cqw')}; border-bottom-left-radius:${cornerValue('bottomLeft', joinedProfileBottomRadius, 'cqw')};`;
   };
   const previewCornerTokens = (index, columns) => {
     if(!joinedProfileRadius) return '';
@@ -2054,13 +2065,13 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const narrow = flagsAt(1);
     const medium = flagsAt(2);
     const wide = flagsAt(3);
-    const fallback = W - (showOuterBorder ? 2 : 0) >= 690 ? wide
+    const fallback = W - (showOuterBorder ? 2 : 0) >= threeColumnContentBreakpoint ? wide
       : W - (showOuterBorder ? 2 : 0) >= twoColumnContentBreakpoint ? medium : narrow;
     const rightWidth = responsiveProfileSeamWidth(
-      [narrow.right, medium.right, wide.right], profileSeamFallbackWidth
+      [narrow.right, medium.right, wide.right], profileSeamFallbackWidth, threeColumnContentBreakpoint
     );
     const bottomWidth = responsiveProfileSeamWidth(
-      [narrow.bottom, medium.bottom, wide.bottom], profileSeamFallbackWidth
+      [narrow.bottom, medium.bottom, wide.bottom], profileSeamFallbackWidth, threeColumnContentBreakpoint
     );
     const seamColor = 'rgba(128,128,128,.22)';
     return `border-right:${Number(fallback.right)}px solid ${seamColor}; border-right-width:${rightWidth.viewport}; border-right-width:${rightWidth.container}; border-bottom:${Number(fallback.bottom)}px solid ${seamColor}; border-bottom-width:${bottomWidth.viewport}; border-bottom-width:${bottomWidth.container};`;
@@ -2096,11 +2107,11 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
       ? `<p data-mosaic-profile-field="${profileFieldPrefix}Desc" style="box-sizing:border-box; width:100%; margin:${profile.name || tagsList.length ? 6 : 0}px 0 0; color:${secondaryColor}; font-size:${large ? 12 : 11.5}px; font-weight:400; line-height:1.55; letter-spacing:-0.1px; text-align:${textAlign}; overflow-wrap:anywhere; word-break:break-word; white-space:normal; font-family:${fontStack(settings.narrFont)};">${MosaicParser.processInline(profile.desc, emphasisColor).replace(/\r?\n/g, '<br>')}</p>`
       : '';
     const text = `${role}${name}${tags}${desc}`;
-    // 3칸 행은 안쪽 폭 690px 이상에서 3열, 500~689px에서 2열, 그 아래에서 1열이다.
-    // 2칸 행은 안쪽 폭 500px에서 2열→1열로 바뀐다. 출력 HTML에서도 동작한다.
+    // 3칸 행은 여백·테두리를 포함한 카드 폭 680px부터 3열이다. 3인·5인이 공유한다.
+    // 2칸 행은 안쪽 폭 400px에서 2열→1열로 바뀐다. 출력 HTML에서도 동작한다.
     // 첫 width:100%는 min()/max()가 제거되는 구형 WebView의 안전 폴백이다.
     const twoColumnBreakpoint = twoColumnContentBreakpoint + profileGap;
-    const threeColumnBreakpoint = 690 + profileGap;
+    const threeColumnBreakpoint = threeColumnContentBreakpoint + profileGap;
     // 홀수 인원의 마지막 카드는 2열에서 혼자 남으므로 한 명짜리 카드처럼 전폭을 쓴다.
     const fillsTwoColumnRow = row.length === 3
       && profileIndex === profiles.length - 1 && profiles.length % 2 === 1;
@@ -2157,10 +2168,10 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
         profileRowSeamFlagsAt(profileIndex, columns, rowLengths, displayRows[columns - 1])
       );
       const rightSeam = responsiveProfileSeamWidth(
-        seamLayouts.map(layout => layout.right), profileSeamFallbackWidth
+        seamLayouts.map(layout => layout.right), profileSeamFallbackWidth, threeColumnContentBreakpoint
       );
       const topSeam = responsiveProfileSeamWidth(
-        seamLayouts.map(layout => layout.top), profileSeamFallbackWidth
+        seamLayouts.map(layout => layout.top), profileSeamFallbackWidth, threeColumnContentBreakpoint
       );
       // 사진은 선 아래까지 칠하고, 접합선만 반투명하게 얹는다.
       const photoJointColor = 'rgba(128,128,128,.22)';
@@ -2183,17 +2194,16 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     }
     const imageTextSpacing = large ? 12 : 10;
     const imageColumnWidth = size + imageTextSpacing;
-    // 미니·클래식은 사진 칸과 실제 텍스트 폭을 하나의 inline-table로 묶어 카드의
-    // 정중앙에 놓는다. 기존 width:100% 표는 남는 텍스트 셀까지 묶음 폭으로 계산해
-    // 사진이 있는 프로필만 왼쪽으로 치우쳐 보였다. 실제 table 태그는 사용하지 않아
-    // 아카라이브의 게시판 표 테두리 스타일도 적용되지 않는다.
+    // 미니·클래식은 사진과 글을 함께 가운데 정렬하되, 글 영역은 사진 칸을 뺀 폭으로 제한한다.
+    // auto-layout table은 줄바꿈하지 않는 긴 태그 때문에 max-width를 넘어 커질 수 있어
+    // 소개글까지 밀어낸다. inline-block 두 칸은 소개가 실제 남은 폭 안에서 줄바꿈되게 한다.
     const imageProfilePadding = large ? 14 : 12;
     const imageProfileInnerHeight = Math.max(size, sharedProfileCardHeight - imageProfilePadding * 2);
-    return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:${imageProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:${compactRadius}px; ${cornerCss}${compactSeam} overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${imageProfileInnerHeight}px; height:${imageProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:auto; max-width:100%; display:inline-table; table-layout:auto; margin:0; vertical-align:middle; text-align:left;"><div style="box-sizing:border-box; display:table-cell; width:${imageColumnWidth}px; padding-right:${imageTextSpacing}px; vertical-align:middle;">${image}</div><div style="box-sizing:border-box; display:table-cell; width:auto; vertical-align:middle; font-family:${fontStack(settings.narrFont)}; overflow-wrap:anywhere; word-break:break-word;">${text}</div></div></div></div></div>`);
+    return wrapProfileItem(`<div style="box-sizing:border-box; width:100%; min-height:${sharedProfileCardHeight}px; padding:${imageProfilePadding}px 14px; background-color:${profileCardBg}; border-radius:${compactRadius}px; ${cornerCss}${compactSeam} overflow-wrap:anywhere; word-break:break-word; text-align:center;"><div style="box-sizing:border-box; width:100%; min-height:${imageProfileInnerHeight}px; height:${imageProfileInnerHeight}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:middle; text-align:center;"><div style="box-sizing:border-box; width:100%; display:block; margin:0; font-size:0; text-align:center;"><div style="box-sizing:border-box; display:inline-block; width:${imageColumnWidth}px; padding-right:${imageTextSpacing}px; vertical-align:middle; text-align:left;">${image}</div><div style="box-sizing:border-box; display:inline-block; width:auto; max-width:calc(100% - ${imageColumnWidth}px); vertical-align:middle; text-align:left; font-family:${fontStack(settings.narrFont)}; overflow-wrap:anywhere; word-break:break-word;">${text}</div></div></div></div></div>`);
   });
 
   // 항목을 하나의 흐름에 놓아 최대 5명까지 2+3→2+2+1로 접힌다.
-  const profileBreakpoint = rowLengths.some(length => length === 3) ? 690 : twoColumnContentBreakpoint;
+  const profileBreakpoint = rowLengths.some(length => length === 3) ? threeColumnContentBreakpoint : twoColumnContentBreakpoint;
   const outerHalfGap = `clamp(0px, calc(100000% - ${(twoColumnContentBreakpoint - 1) * 1000}px), ${profileGap / 2}px)`;
   const profileGrid = profileItems.length
     ? `<div data-mosaic-profile-grid="true" style="box-sizing:border-box; ${joinedProfileItems ? 'width:100%; margin-left:0; margin-bottom:0;' : `width:calc(100% + ${outerHalfGap} + ${outerHalfGap}); margin-left:calc(0px - ${outerHalfGap}); margin-bottom:-${profileGap}px;`} display:block; text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`

@@ -130,6 +130,7 @@ MosaicUI.feedback.undo('새 카드 추가.');
 - 자동·이어쓰기·아래쓰기 판정은 `MosaicParser.parallelTranslationPlacement()`를 출력과 편집 투영이 함께 사용합니다. 괄호 안 공백과 숨긴 구분자의 원문 위치도 함께 보존합니다.
 - 아카라이브 PC·모바일의 출력 색·크기 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.
 - 크레딧 항목 구분선의 색은 `buildCredit()`의 `creditDivider`(`#e9e9e9`)에서 정합니다. `transparentOutput()`은 이 색과 본문 `[HR]`의 원래 색·농도를 보존하며, HR2·HR3·HR4는 기존 투명 규칙을 유지합니다.
+- 프로필 줄바꿈은 `renderer.js`의 `buildProfileBlock()`에서 정합니다. 3인 한 줄과 5인 2+3은 `PROFILE_THREE_COLUMN_CARD_BREAKPOINT`의 카드 전체 폭 680px 기준입니다. `profileHorizontalInset`이 좌우 패딩·테두리를 빼서 실제 안쪽 경계를 계산합니다. 2열→1열은 `PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT`의 안쪽 폭 400px 기준입니다. `styles.css`의 638·640·678·680px 컨테이너 조건도 함께 맞춥니다. 일반/붙임형·외곽선 여부에 따라 620px에서 3인 2+1·5인 2+2+1, 679px에서 2열, 680px에서 3인 한 줄·5인 2+3인지 확인합니다. 사진 접합선·모서리와 미리보기·출력 HTML도 비교합니다.
 - `createPreviewSourceEdits`는 `{before, after, message}` 변경안을 계산합니다. 위치·표시 글자 치환은 `createSourceMapping`을 공유합니다.
 - `applyPreviewSourceChange`는 연결과 현재 원문을 확인하고 입력창·작업 기록·입력 이벤트를 갱신합니다. 계산 함수에 포커스·렌더·저장 코드를 넣지 않습니다.
 - 작업 전체 복원 전에는 `discardActiveDirectEdit()`로 미확정 편집을 종료합니다. 이전 편집기의 `blur`가 복원한 내용을 덮지 않도록 유지합니다.
