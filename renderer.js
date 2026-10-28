@@ -2314,8 +2314,8 @@ function buildFooter(settings){
   const toolText = `<span style="${linkStyle}">조각로그</span>`;
   const toolLink = MosaicState.outputThemeTransparent(settings.outputTheme)
     ? toolText
-    : `<a href="https://arca.live/b/characterai/176749943" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
-  const authorText = author ? ` <span style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${MosaicParser.processInline(author, settings.emphasisColor)}</span>` : '';
+    : `<a href="https://mosaic-log.github.io/" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
+  const authorText = author ? ` <span data-mosaic-footer-author="true" style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${MosaicParser.processInline(author, settings.emphasisColor)}</span>` : '';
   return `    <div data-mosaic-footer="true" style="margin-top:${marginTop}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
 }
 

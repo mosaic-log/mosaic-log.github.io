@@ -856,6 +856,7 @@ function bindPreviewInteractions(preview){
   previewInteractions.decoratePreviewCoverImageNavigation();
   previewInteractions.decoratePreviewProfileEditors();
   previewInteractions.decoratePreviewCreditEditors();
+  previewInteractions.decoratePreviewFooterEditor();
   previewInteractions.decoratePreviewCardTitlePositionLinks();
   previewLayout.decoratePreviewControls();
 }
@@ -2184,6 +2185,12 @@ function bindSidebarOutputEvents(){
       }else if(PREVIEW_FOCUS_MAP[id]){
         target = PREVIEW_FOCUS_MAP[id]();
       }
+      if(target) scrollPreviewIfNeeded(target, true);
+    });
+
+    document.getElementById('footerGroup').addEventListener('focusin', event => {
+      if(event.target.id !== 'footerAuthor' || !positionSyncEnabled()) return;
+      const target = previewLayout.previewVisibleFooterElement();
       if(target) scrollPreviewIfNeeded(target, true);
     });
 

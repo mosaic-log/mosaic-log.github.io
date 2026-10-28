@@ -132,6 +132,9 @@ MosaicUI.feedback.undo('새 카드 추가.');
 
 ## 미리보기 편집 수정하기
 
+- 꼬리말 작성자는 `renderer.js`의 `buildFooter()`에서 표시하고 `ui-preview-edit.js`의 `decoratePreviewFooterEditor()`에서 표시된 이름에만 편집을 연결합니다. 프로필과 같은 `commitPreviewInlineFieldEdit()` 경로로 저장합니다. ©·도구 링크·여백은 편집 영역 밖에 둡니다. 이름이 없으면 편집 영역을 만들지 않으며, 표지 탭의 작성자 입력란에서 추가합니다.
+- 꼬리말의 도구 링크 주소는 `buildFooter()`의 `https://mosaic-log.github.io/`입니다. `decoratePreviewFooterEditor()`는 작성자 유무와 관계없이 미리보기 DOM에서만 이 링크의 `href`·`target`을 제거하고 탭 이동에서 제외합니다. 게시용 HTML의 링크는 유지하며, 투명 테마의 기존 링크 없는 표시는 바꾸지 않습니다.
+
 - 병행 대사의 표시와 원문 위치는 `parser.js`의 `parallelDisplayParts`를 공유합니다. 보조 대사를 감싸는 바깥 큰따옴표만 생략하고, 내부 인용·입력 원문·나레이션·속마음은 보존합니다. 표시 순서를 바꿔도 같은 규칙을 적용합니다.
 - 자동·이어쓰기·아래쓰기 판정은 `MosaicParser.parallelTranslationPlacement()`를 출력과 편집 투영이 함께 사용합니다. 괄호 안 공백과 숨긴 구분자의 원문 위치도 함께 보존합니다.
 - 아카라이브 PC·모바일의 출력 색·크기 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.

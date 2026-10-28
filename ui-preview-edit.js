@@ -881,7 +881,7 @@ function syncDirectEditPosition(el, descriptor){
     host.cardEditors.syncBodyOnlyToolbarAvailability({ target:descriptor.ta });
   }
   if(!host.positionSyncEnabled()) return;
-  if(descriptor.type === 'cover'){
+  if(descriptor.type === 'cover' || descriptor.type === 'footer'){
     revealCoverControl(descriptor.id);
     return;
   }
@@ -1003,7 +1003,7 @@ function commitPreviewSubtitleEdit(el, descriptor, next){
   return;
 }
 
-function commitPreviewProfileEdit(el, descriptor, next){
+function commitPreviewInlineFieldEdit(el, descriptor, next){
   const input = document.getElementById(descriptor.id);
   if(!input) return;
   const visible = descriptor.normalizeTag ? host.normalizeProfileTag(next) : next;
@@ -1019,7 +1019,7 @@ function commitPreviewProfileEdit(el, descriptor, next){
     host.snapshotCards();
     input.value = updated;
     input.dispatchEvent(new Event('input', { bubbles:true }));
-    host.showUndoToast('미리보기에서 프로필 수정.');
+    host.showUndoToast(descriptor.type === 'footer' ? '미리보기에서 꼬리말 수정.' : '미리보기에서 프로필 수정.');
   } finally {
     previewEditState.committing = false;
   }
@@ -1094,7 +1094,8 @@ function commitPreviewDirectEdit(el, descriptor){
   switch(descriptor.type){
     case 'cover': return commitPreviewCoverEdit(el, descriptor, next);
     case 'coverSubtitle': return commitPreviewSubtitleEdit(el, descriptor, next);
-    case 'profile': return commitPreviewProfileEdit(el, descriptor, next);
+    case 'profile':
+    case 'footer': return commitPreviewInlineFieldEdit(el, descriptor, next);
     case 'credit': return commitPreviewCreditEdit(el, descriptor, next);
     case 'comment': return commitPreviewCommentEdit(el, descriptor, next);
     default: {
@@ -1697,6 +1698,42 @@ function decoratePreviewProfileEditors(){
         : role === 'user' ? 'profileUserName' : 'profileCharName';
       if(host.positionSyncEnabled()) revealProfileControl(id);
     });
+  });
+}
+
+// 표시된 작성자 이름만 편집한다. 도구 링크·©와 꼬리말 여백은 편집 영역에서 제외한다.
+function decoratePreviewFooterEditor(){
+  if(!previewEditState.ready) return;
+  const footer = host.uiElements.preview.querySelector('[data-mosaic-footer="true"]');
+  if(!footer) return;
+  // 게시용 링크는 유지하고, 미리보기 DOM에서만 도구 링크의 이동을 막는다.
+  const toolLink = footer.querySelector(':scope > a');
+  if(toolLink){
+    toolLink.removeAttribute('href');
+    toolLink.removeAttribute('target');
+    toolLink.tabIndex = -1;
+  }
+  if(footer.querySelector('[data-preview-footer-field]')) return;
+  const author = footer.querySelector('[data-mosaic-footer-author="true"]');
+  if(!author) return;
+  const field = document.createElement('span');
+  field.dataset.previewFooterField = 'footerAuthor';
+  const prefix = author.firstChild;
+  if(prefix?.nodeType === Node.TEXT_NODE && prefix.data.startsWith('©')) prefix.deleteData(0, 1);
+  while(author.firstChild) field.append(author.firstChild);
+  author.append(document.createTextNode('©'), field);
+  const syncEmptyState = () => {
+    const empty = !previewEditableText(field, false);
+    field.dataset.previewFooterEmpty = String(empty);
+  };
+  syncEmptyState();
+  field.addEventListener('input', syncEmptyState);
+  enablePreviewDirectEditor(field, { type:'footer', id:'footerAuthor' }, '꼬리말 작성자 수정');
+  field.querySelectorAll('a').forEach(link => {
+    link.removeAttribute('href');
+    link.removeAttribute('target');
+    link.tabIndex = -1;
+    link.addEventListener('click', event => event.preventDefault());
   });
 }
 
@@ -2427,6 +2464,7 @@ decorateParallelOccurrences,
 decoratePreviewCardTitlePositionLinks,
 decoratePreviewCoverImageNavigation,
 decoratePreviewCreditEditors,
+decoratePreviewFooterEditor,
 decoratePreviewDirectEditors,
 decoratePreviewProfileEditors,
 discardActiveDirectEdit,
