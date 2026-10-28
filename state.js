@@ -5,13 +5,23 @@ globalThis.MosaicState = (() => {
 'use strict';
 // 조각로그 v1.9.0 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.9.4';
+const APP_VERSION = '1.9.5';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
 function normalizeProtocolRelativeUrl(value){
   const url = String(value || '').trim();
   return url.startsWith('//') ? 'https:' + url : url;
+}
+
+// 폐기한 기본 표지 주소만 복원에서 제외한다. 사용자가 넣은 이미지와 다른 작업 필드는 보존한다.
+function normalizeRetiredCoverImageFields(fields){
+  let url;
+  try { url = new URL(normalizeProtocolRelativeUrl(fields.imgUrl)); }
+  catch(error){ return fields; }
+  if(!['http:', 'https:'].includes(url.protocol)
+    || url.host !== 'mosaic-log.github.io' || url.pathname !== '/Top_image.png') return fields;
+  return { ...fields, imgUrl:'', imgOn:false, titleImageBackgroundOn:false };
 }
 
 function normalizeHex(raw){
@@ -125,7 +135,7 @@ const DEFAULT_STYLE = Object.freeze({
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
   outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff',
-  advancedOn:true, hrShape:'solid', hrOpacity:'50', hrLength:'100', hrVerticalSpace:'26', hr2Shape:'star', hr2Opacity:'50', hr2VerticalSpace:'48', hr3Shape:'dots', hr3Opacity:'50', hr3VerticalSpace:'36', gapHeight:'48', coverVerticalSpace:'0',
+  advancedOn:false, hrShape:'solid', hrOpacity:'55', hrLength:'100', hrVerticalSpace:'26', hr2Shape:'star', hr2Opacity:'50', hr2VerticalSpace:'48', hr3Shape:'dots', hr3Opacity:'65', hr3VerticalSpace:'36', gapHeight:'48', coverVerticalSpace:'0',
   profileOuterBackground:'filled', profileItemGap:'0', profileTitleGap:'0', coverCardGap:'0', cardGap:'20', unifiedBottomSpace:'0', creditWidth:'380', creditCardGap:'40', cardInlinePadding:'22', cardBodyTopSpace:'0', cardBodyBottomSpace:'0', headingTopSpace:'0', headingBetweenSpace:'0', headingBottomSpace:'0', cardCornerRadius:'16', cardTitleOrnamentOpacity:'50', foldAutoNumberStyle:'arabic', coverDividerLength:'100', cardTitlePadding:'26', cardDividerLength:'100', creditBorderOn:false, creditTransparentOn:false,
   footerBodyGap:'0',
   narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, memoCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
@@ -776,6 +786,7 @@ normalizeParallelExclusions,
 rebaseParallelExclusions,
 normalizeProfileEntityOrder,
 normalizeProtocolRelativeUrl,
+normalizeRetiredCoverImageFields,
 savedProfileImageBackgroundOn,
 settingFlagOn}),
 DEFAULT_STYLE,

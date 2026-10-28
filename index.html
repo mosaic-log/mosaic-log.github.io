@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.9.4 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.9.5 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -19,7 +19,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.4 GitHub 저장소 열기">v1.9.4</a></span></h1>
+      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.5 GitHub 저장소 열기">v1.9.5</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -32,21 +32,21 @@
     </div>
 
     <div class="tabBar" role="tablist" aria-label="설정">
-      <button type="button" id="tabBtnCover" class="tabBtn active" data-tab="tabCover" role="tab" aria-controls="tabCover" aria-selected="true" tabindex="0">표지</button>
-      <button type="button" id="tabBtnBody" class="tabBtn" data-tab="tabBody" role="tab" aria-controls="tabBody" aria-selected="false" tabindex="-1">본문</button>
+      <button type="button" id="tabBtnCover" class="tabBtn" data-tab="tabCover" role="tab" aria-controls="tabCover" aria-selected="false" tabindex="-1">표지</button>
+      <button type="button" id="tabBtnBody" class="tabBtn active" data-tab="tabBody" role="tab" aria-controls="tabBody" aria-selected="true" tabindex="0">본문</button>
       <button type="button" id="tabBtnDesign" class="tabBtn" data-tab="tabDesign" role="tab" aria-controls="tabDesign" aria-selected="false" tabindex="-1">디자인</button>
       <button type="button" id="tabBtnTheme" class="tabBtn" data-tab="tabTheme" role="tab" aria-controls="tabTheme" aria-selected="false" tabindex="-1">테마</button>
     </div>
   </div>
 
-<div class="tabPanel active" id="tabCover" role="tabpanel" aria-labelledby="tabBtnCover">
+<div class="tabPanel" id="tabCover" role="tabpanel" aria-labelledby="tabBtnCover">
 
   <details class="group foldGroup coverFold halfControls imageControls settingsForm" id="imageGroup">
-    <summary class="group-title foldHead"><span class="coverFoldTitle">대표 이미지</span><span class="coverFoldMeta" id="imageCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="대표 이미지 표시 전환"><input type="checkbox" id="imgOn" checked aria-label="대표 이미지 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="coverFoldTitle">대표 이미지</span><span class="coverFoldMeta" id="imageCoverSummary"></span><span class="coverFoldActions"><label class="coverVisibilitySwitch" title="대표 이미지 표시 전환"><input type="checkbox" id="imgOn" aria-label="대표 이미지 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
     <p class="group-desc">첫 화면 대표 이미지·위치</p>
     <div class="row">
-      <input type="url" id="imgUrl" maxlength="8192" aria-label="대표 이미지 URL" placeholder="이미지 URL 붙여넣기" value="https://mosaic-log.github.io/Top_image.png">
+      <input type="url" id="imgUrl" maxlength="8192" aria-label="대표 이미지 URL" placeholder="이미지 URL 붙여넣기">
     </div>
     <div class="imageCheckRow"><span class="imageLoadStatus" id="imageLoadStatus" data-state="idle" aria-live="polite" hidden></span></div>
     <div class="row">
@@ -376,7 +376,7 @@
 
 </div><!-- /tabCover -->
 
-<div class="tabPanel" id="tabBody" role="tabpanel" aria-labelledby="tabBtnBody">
+<div class="tabPanel active" id="tabBody" role="tabpanel" aria-labelledby="tabBtnBody">
 
   <details class="group foldGroup bodyFold bodyEditorFold" id="bodyInputGroup" open>
     <summary class="group-title foldHead"><span class="bodyFoldTitle">본문 입력</span><span class="foldArrow" aria-hidden="true"></span></summary>
@@ -1457,17 +1457,17 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=8e4ddc834e88" defer></script>
+<script src="./state.js?v=035b764720b0" defer></script>
 <script src="./parser.js?v=7d1d3267c6bc" defer></script>
 <script src="./renderer.js?v=c05e4e8547db" defer></script>
 <script src="./ui-source.js?v=9515fe5a3edb" defer></script>
 <script src="./ui-editor.js?v=96cae7a86756" defer></script>
 <script src="./ui-preview-edit.js?v=85fbbb20fa0b" defer></script>
 <script src="./ui-preview-view.js?v=583b7abf02bf" defer></script>
-<script src="./ui-library.js?v=8cfbc879e3c4" defer></script>
-<script src="./ui.js?v=b00f42d52f33" defer></script>
+<script src="./ui-library.js?v=208444d17a3e" defer></script>
+<script src="./ui.js?v=7927ee7a8888" defer></script>
 <script src="./storage.js?v=dd286eec87f4" defer></script>
-<script src="./app.js?v=98cd86ddaf89" defer></script>
+<script src="./app.js?v=e1f7dd6b321e" defer></script>
 
 </body>
 </html>

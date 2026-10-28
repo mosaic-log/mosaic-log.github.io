@@ -171,14 +171,14 @@ function getSettings(){
     bgColor: host.root.getElementById('bgColor').value,
     advancedOn,
     hrShape: advancedOn ? host.root.getElementById('hrShape').value : 'solid',
-    hrOpacity: advancedOn ? host.root.getElementById('hrOpacity').value : '50',
+    hrOpacity: advancedOn ? host.root.getElementById('hrOpacity').value : MosaicState.DEFAULT_STYLE.hrOpacity,
     hrLength: advancedOn ? host.root.getElementById('hrLength').value : '100',
     hrVerticalSpace: advancedOn ? host.root.getElementById('hrVerticalSpace').value : '26',
     hr2Shape: advancedOn ? host.root.getElementById('hr2Shape').value : 'star',
     hr2Opacity: advancedOn ? host.root.getElementById('hr2Opacity').value : '50',
     hr2VerticalSpace: advancedOn ? host.root.getElementById('hr2VerticalSpace').value : '48',
     hr3Shape: advancedOn ? host.root.getElementById('hr3Shape').value : 'dots',
-    hr3Opacity: advancedOn ? host.root.getElementById('hr3Opacity').value : '50',
+    hr3Opacity: advancedOn ? host.root.getElementById('hr3Opacity').value : MosaicState.DEFAULT_STYLE.hr3Opacity,
     hr3VerticalSpace: advancedOn ? host.root.getElementById('hr3VerticalSpace').value : '36',
     gapHeight: advancedOn ? host.root.getElementById('gapHeight').value : '48',
     coverVerticalSpace: advancedOn ? host.root.getElementById('coverVerticalSpace').value : '0',
@@ -2370,7 +2370,7 @@ function captureDraftUiState(){
 function applyWorkState(data){
   previewInteractions.discardActiveDirectEdit();
   controlSync.invalidateControlSync();
-  const fields = data.fields || {};
+  const fields = MosaicState.normalizeRetiredCoverImageFields(data.fields || {});
   MosaicState.WORK_FIELDS.forEach(id => {
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : MosaicState.WORK_FIELD_DEFAULTS[id];
   });

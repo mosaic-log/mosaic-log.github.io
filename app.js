@@ -421,7 +421,7 @@ function setArchiveDrawerOpen(open){
 // 마지막으로 사용자가 보고 있던 위치가 남는다.
 const tabScroll = {};
 
-let activeTabId = 'tabCover';
+let activeTabId = document.querySelector('.tabBtn.active')?.dataset.tab || 'tabBody';
 
 let tabSwitching = false;
 

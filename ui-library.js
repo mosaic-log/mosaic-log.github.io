@@ -869,8 +869,9 @@ function savedTimeLabel(){
 }
 
 function applyDraftRestorePlan(plan){
-  Object.entries(plan.fields).forEach(([id, value]) => { document.getElementById(id).value = value; });
-  Object.entries(plan.booleans).forEach(([id, value]) => { document.getElementById(id).checked = value; });
+  const fields = MosaicState.normalizeRetiredCoverImageFields({ ...plan.fields, ...plan.booleans });
+  Object.keys(plan.fields).forEach(id => { document.getElementById(id).value = fields[id]; });
+  Object.keys(plan.booleans).forEach(id => { document.getElementById(id).checked = fields[id]; });
   if(plan.style) applyStyleValues(plan.style);
   else if(plan.legacyFoldDividerMinimal) document.getElementById('foldDividerOn').checked = false;
   MosaicUI.cards.clear();
