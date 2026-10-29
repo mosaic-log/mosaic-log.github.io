@@ -8,10 +8,12 @@ HTML·CSS·JS를 수정하고 `index.html`을 다시 열면 됩니다. 설치·�
 |---|---|
 | 디자인 기본값·허용 타입·범위 | `state.js` → `DEFAULT_STYLE`, `STYLE_SCHEMA` |
 | 본문 문법 해석 | `parser.js` |
+| 검색·대치의 문구 매칭 | `parser.js` → `literalMatchRanges` |
 | 표시 글자와 원문 위치의 대응·제외 범위 | `ui-source.js` → `createSourceMapping` |
 | 출력 HTML·인용선 등 출력 간격 | `renderer.js` → `buildParagraph`, `buildProfileBlock`, `buildCard` |
 | 작업 화면의 모양 | `styles.css`, `index.html` |
-| 카드 입력·추가·삭제·이동 | `ui-editor.js` → `createCardEditors` |
+| 카드 입력·추가·삭제·이동·커서 분할 | `ui-editor.js` → `createCardEditors`, `splitCardAtCursor` |
+| 카드 분할의 원문·제외 범위 계산 | `ui-source.js` → `planCardSplit` |
 | 전체 화면 입력·찾기 | `ui-editor.js` → `createFullscreenEditor` |
 | 미리보기 찾기·바꾸기 | `ui-preview-view.js` → `createPreviewSearch` |
 | 미리보기 클릭·직접 편집·선택 서식 | `ui-preview-edit.js` → `createPreviewInteractions` |
@@ -19,11 +21,20 @@ HTML·CSS·JS를 수정하고 `index.html`을 다시 열면 됩니다. 설치·�
 | 출력·저장 설정 읽기 | `ui.js` → `createSettingsReader` |
 | 컨트롤 표시·활성화·동기화 캐시 | `ui.js` → `createControlSync` |
 | 미리보기 도구모음·접기·전체 화면 배치 | `ui-preview-view.js` → `createPreviewLayout` |
+| 모바일 본문·미리보기 이동 | `ui-preview-view.js` → `createMobilePanelNavigation` |
 | 보관함·테마·프리셋·크레딧 | `ui-library.js` → `createLibrary`, `createCredit` |
 | 변경 후 렌더·저장·히스토리 순서 | `app.js` → `changes`, `replaceWork` |
 | 저장 키·직렬화·복원 | `storage.js`, `state.js` |
 
 담당 파일의 `create...` 함수가 구현이고, `ui.js`의 같은 이름 호출이 기능 사이의 연결 목록입니다. 예를 들어 카드 입력은 `ui-editor.js`의 `createCardEditors(host)`에서 수정하고, 다른 기능과의 연결은 `ui.js`의 `createCardEditors({...})`에서 수정합니다.
+
+좁은 헤더에서 아래줄로 내려가는 `Mosaic Log`는 `styles.css`의 `@container sidebar (max-width: 410px)` 안에서 오른쪽으로 1.5px 옮겨 광학 정렬합니다. 영문 이름만 시각적으로 이동하며 한글 제목·버전·줄 높이는 유지합니다.
+
+한글 제목의 `조`는 `index.html`에서 `.brandInitial`로 감싸고 오른쪽에 0.5px 여백을 둡니다. `로`는 `.brandLogInitial`로 감싸고 오른쪽에 0.25px 여백을 둡니다. `조·각`, `로·그` 사이만 조정하며 실제 공백 문자는 추가하지 않습니다.
+
+영문 이름의 `os`, `i`, `Lo` 묶음에는 `.enTightSpacing`으로 자간 0.45px를 적용합니다. `o–s`, `s–a`, `i–c`, `L–o`, `o–g` 사이만 각각 약 0.15px 좁히고 나머지 기본 자간 0.6px와 첫 글자의 광학 정렬은 유지합니다. `Lo`는 하나의 묶음으로 두어 원래 커닝을 보존합니다.
+
+버전 표시의 `v`는 `.versionPrefix`로 감싸고 오른쪽에 0.5px 여백을 추가합니다. 숫자 사이의 기본 자간 0.25px와 버전 문자열은 유지하며 실제 공백 문자는 넣지 않습니다.
 
 ## 파일 로드와 기능 조립
 
@@ -98,6 +109,8 @@ HTML·보관함·작업 히스토리 → replaceWork
 
 예약된 렌더는 다음 화면 프레임에 실행됩니다. 일반 타이핑의 실행 취소는 브라우저가 관리합니다. 작업 단위 변경은 변경 전 `cards.snapshot()`, 완료 후 `feedback.undo()`로 기록합니다. 기존 `input` 이벤트를 발생시켰다면 이벤트 처리기가 공통 경로를 호출하므로 렌더·저장을 중복 호출하지 않습니다.
 
+디자인 조절은 350ms 동안 묶어 기록합니다. `goActionHistory()`는 대기 중인 디자인 기록을 먼저 확정한 뒤 이동하므로, 조절 직후 실행 취소해도 앞선 카드 작업을 함께 취소하지 않습니다. 대기 기록을 취소할 때는 `cancelStyleHistoryCommit()`으로 타이머와 상태를 함께 정리합니다.
+
 ### 본문에 구분선 추가
 
 ```js
@@ -122,15 +135,37 @@ MosaicApp.changes.styleChange();
 
 ```js
 const work = MosaicUI.work.collectSlot();
-work.cards.push({type: 'card', body: '새 카드', visible: true});
-MosaicUI.cards.snapshot();
-MosaicUI.work.apply(work);
-MosaicUI.feedback.undo('새 카드 추가.');
+if (work.cards.length < MosaicState.MAX_WORK_BLOCKS) {
+  work.cards.push({type: 'card', body: '새 카드', visible: true});
+  MosaicUI.cards.snapshot();
+  MosaicUI.work.apply(work);
+  MosaicUI.feedback.undo('새 카드 추가.');
+}
 ```
 
 `work.apply()`는 `MosaicApp.replaceWork()`를 통해 복원·렌더·저장을 연결합니다. `work.applyState()`는 화면 값만 복원하는 내부용 경로입니다. 시작 시 초안 복원은 검증과 실패 시 되돌림을 포함하는 별도 경로를 유지합니다.
 
+### 카드 분할 수정하기
+
+`ui-editor.js`의 `splitCardAtCursor()`는 해당 입력창의 `selectionStart`를 사용합니다. `⋯` 메뉴를 열 때 `syncCardSplitButton()`이 선택 범위·빈 본문·한글 조합 상태를 확인합니다. 분할 버튼은 `.splitCardBtn`이며 중앙 정렬 버튼 바로 왼쪽에 놓습니다. SVG와 접근성 이름은 `createCardEditor()`에서 정합니다.
+
+보조 도구모음은 같은 카드 안에서 본문·제목을 편집해도 유지합니다. 바깥 클릭·포커스 판정은 열린 카드 전체를 기준으로 하며, 본문 입력·선택·커서 이동·한글 조합 중 분할 버튼 상태를 갱신합니다. `styles.css`의 `.cardActionMenu`가 PC의 일반 도구 폭 24px와 간격 2px를 정합니다. 순서 이동 버튼은 28px 폭·2px 간격·왼쪽 여백 8px로 헤더의 `− ○`와 중심을 맞추며, 구분선도 같은 위치에 놓습니다. 화살표 글자 크기는 바꾸지 않습니다. 삭제 버튼과 화살표 옆 구분선은 같은 의사 요소 스타일을 공유합니다. 최소 사이드바 폭 340px와 모바일 폭 320px에서 실제 버튼 영역이 잘리거나 넘치지 않는지 확인합니다.
+
+680px 이하에서는 `--mobile-card-control-size`로 위·아래 화살표의 크기와 전체 도구 높이를 헤더 버튼에 맞춥니다. 560px 이하에서는 36px, 그보다 넓은 세로 배치에서는 28px입니다. 나머지 도구 너비는 `--mobile-card-tool-width`로 실제 도구모음 안쪽 폭에서 계산하며 26~32px 범위를 사용합니다. 화살표 묶음과 두 구분선 주변의 여백을 먼저 빼고 6개 도구에 나누므로, 화면이 좁아져도 가로 스크롤 없이 들어가야 합니다. 나머지 모바일 도구 아이콘 크기는 14~16px이며 PC 크기와 구분합니다.
+
+카드 순서 이동 화살표는 모바일에서 12px·선 두께 1.2의 SVG(`.cardMoveIcon`)를 사용합니다. 누르는 영역과 정렬은 유지하며, PC에서는 기존 문자 화살표(`.cardMoveGlyph`)를 표시합니다.
+
+다른 카드의 메뉴 버튼으로 전환할 때는 `pointerdown`·`focusin`에서 기존 도구모음을 먼저 접지 않고 `click`에서 교체합니다. 높이가 줄면서 누르려던 버튼이 움직여 클릭이 빗나가는 것을 막기 위한 처리입니다.
+
+`ui-source.js`의 `planCardSplit()`은 원문을 잘라 두 카드와 제외 범위만 계산합니다. 공백을 제거하지 않고, 아래 카드의 제목만 비웁니다. 제외 범위는 절단 위치로 정확히 옮기며, 제외 문구·문자 한가운데나 구분선 정규화로 원문이 바뀌는 위치에서는 나누지 않습니다. 일반 문자열 비교로 반복 문구의 위치를 다시 추정하지 않습니다.
+
+보관함·HTML 불러오기의 카드·코멘트 합계 상한은 기존과 같은 200개입니다. 추가·복제·분할은 `hasEditorCapacity()`에서 `MosaicState.MAX_WORK_BLOCKS`를 확인합니다. 초안 복원에도 쓰는 `addCard()` 자체는 기존 초안의 블록을 자르지 않습니다. 개조 코드로 카드를 추가할 때도 상한을 확인합니다.
+
+적용 시 기존 카드의 원문 매핑을 다시 연결하고 새 카드를 바로 아래에 삽입합니다. `committedChange()`로 렌더·저장을 처리하고 새 입력창 맨 앞에 포커스를 둡니다. 제목·정렬·접기·출력 여부·부분 제외·코멘트 순서와 실행 취소·다시 실행을 함께 확인합니다. 카드가 각각 문법을 해석하므로 대사·강조·접기 구간 안에서 나눌 때의 결과도 구분합니다.
+
 ## 미리보기 편집 수정하기
+
+검색과 대치는 `MosaicParser.literalMatchRanges()`의 원문 범위를 공유합니다. 따옴표를 정규화한 뒤 리터럴 정규식으로 검색하며, 문자열 전체를 소문자로 바꾼 위치를 원문에 적용하지 않습니다. `İ`처럼 소문자 변환 시 길이가 달라지는 문자 뒤의 위치를 지키기 위한 규칙입니다. 전체 화면의 현재 대치·전체 대치도 같은 범위를 사용합니다.
 
 - 꼬리말 작성자는 `renderer.js`의 `buildFooter()`에서 표시하고 `ui-preview-edit.js`의 `decoratePreviewFooterEditor()`에서 표시된 이름에만 편집을 연결합니다. 프로필과 같은 `commitPreviewInlineFieldEdit()` 경로로 저장합니다. ©·도구 링크·여백은 편집 영역 밖에 둡니다. 이름이 없으면 편집 영역을 만들지 않으며, 표지 탭의 작성자 입력란에서 추가합니다.
 - 꼬리말의 도구 링크 주소는 `buildFooter()`의 `https://mosaic-log.github.io/`입니다. `decoratePreviewFooterEditor()`는 작성자 유무와 관계없이 미리보기 DOM에서만 이 링크의 `href`·`target`을 제거하고 탭 이동에서 제외합니다. 게시용 HTML의 링크는 유지하며, 투명 테마의 기존 링크 없는 표시는 바꾸지 않습니다.
@@ -147,6 +182,16 @@ MosaicUI.feedback.undo('새 카드 추가.');
 - `bindOutputRuleInteractions`의 일반 클릭과 `showOutputRulePopover`는 치환·삭제 예외를 처리합니다. 병행 제외 클릭 팝업을 다시 추가하지 않습니다.
 - `parallelExclusions`·`outputRuleExclusions`의 저장 구조와 원문 범위 계산을 공유합니다.
 - 컨트롤 동기화 캐시는 `createControlSync`가 관리합니다. 복원 시 `invalidateControlSync()`를 사용하고 캐시 객체를 직접 수정하지 않습니다.
+
+## 모바일 화면 이동 수정하기
+
+`createMobilePanelNavigation()`은 세로 배치에서 우하단 이동 버튼과 임시 스크롤 위치를 관리합니다. 680px 분기는 기존 `createPreviewLayout().isStackedLayout()`을 공유합니다. `ui.js`는 이벤트 등록·세로 배치 판정·화면 요소·미확정 렌더 반영만 주입합니다.
+
+`editorOffset`과 `previewOffset`은 각 구역 시작점에 대한 상대 스크롤 위치입니다. 버튼을 누를 때 떠나는 구역의 위치를 기록하고, 반대 구역에서 직전에 보던 위치로 이동합니다. 탭 전환·본문 입력 펼치기·특정 카드 이동은 하지 않습니다. 구역 위쪽이 화면 안에 남아 있는 경우도 복원하도록 음수 상대 위치를 보존합니다. 원문·위치 연동 체크값·저장 형식은 바꾸지 않습니다. 전체 작업을 바꾸면 `applyWorkState()`가 이동 예약과 이전 위치를 초기화하며, 돌아온 입력창에 자동 포커스를 주지 않습니다.
+
+아이콘은 `index.html`의 `mobilePanelSwitch`와 `previewSyncIcon`에서 정합니다. `styles.css`에서 SVG 크기·선 두께와 44px 터치 영역을 관리합니다. 모바일 헤더는 불투명한 `var(--bg-panel)`을 사용하며, `color-mix`를 지원하지 않는 환경에도 기본 배경색이 남도록 유지합니다. PC와 680px 경계, 긴·짧은 미리보기, 다른 탭·집중 모드·전체 화면·작업 복원을 함께 확인합니다.
+
+모바일 이동 버튼은 아래·위 화살표만 표시하며, 마우스 호버·키보드 포커스에도 44px 크기를 유지합니다. 화면에 표시하는 문구와 `title` 툴팁은 없고, 이동 대상에 맞춘 `aria-label`은 유지합니다.
 
 ## 설정 추가하기
 

@@ -5,7 +5,7 @@ globalThis.MosaicState = (() => {
 'use strict';
 // 조각로그 v1.9.0 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.9.5';
+const APP_VERSION = '1.9.6';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -444,12 +444,14 @@ const KEYWORD_RULE_LIMIT = 20;
 
 const MAX_CARD_CHARS = 500000;
 
+const MAX_WORK_BLOCKS = 200;
+
 const MAX_TOTAL_BODY_CHARS = 2000000;
 
 const MAX_FOLD_TITLE_CHARS = 200;
 
 function sanitizeImportedWork(data){
-  if(!data || !Array.isArray(data.cards) || data.cards.length > 200) return null;
+  if(!data || !Array.isArray(data.cards) || data.cards.length > MAX_WORK_BLOCKS) return null;
   const cards = [];
   let totalBodyChars = 0;
   for(const card of data.cards){
@@ -797,6 +799,7 @@ KEYWORD_RULE_LIMIT,
 MAX_CREDIT_ITEMS,
 MAX_CREDIT_PRESETS,
 MAX_DETAIL_PRESETS,
+MAX_WORK_BLOCKS,
 NAME_RULE_LIMIT,
 SAVED_PRESET_FIELDS,
 STYLE_SCHEMA,

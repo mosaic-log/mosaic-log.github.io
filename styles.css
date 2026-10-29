@@ -147,6 +147,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    background: var(--bg-panel);
     background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
     backdrop-filter: blur(8px);
     /* 좌우 패딩만큼 넓혀 사이드바 폭을 꽉 채우고, 위쪽 여백도 헤더가 직접 가짐 */
@@ -180,6 +181,8 @@
     line-height: 1.2;
   }
   #sidebar h1 .brandName { white-space: nowrap; }
+  #sidebar h1 .brandInitial { margin-right: 0.5px; }
+  #sidebar h1 .brandLogInitial { margin-right: 0.25px; }
   #sidebar h1 .brandMeta {
     display: inline-flex;
     flex-direction: column;
@@ -197,6 +200,7 @@
     color: var(--ink-faint);
     letter-spacing: 0.6px;
   }
+  #sidebar h1 .enName .enTightSpacing { letter-spacing: 0.45px; }
   #sidebar h1 .appVersion {
     color: var(--help-ink);
     font-size: 9px;
@@ -205,6 +209,7 @@
     line-height: 1;
     text-decoration: none;
   }
+  #sidebar h1 .appVersion .versionPrefix { margin-right: 0.5px; }
   #sidebar h1 .appVersion:hover,
   #sidebar h1 .appVersion:focus-visible {
     color: var(--ink-soft);
@@ -227,6 +232,8 @@
       gap: 6px;
       margin: 2px 0 0;
     }
+    /* 아래줄의 M이 더 왼쪽으로 보이지 않도록 영문 이름만 광학 정렬한다. */
+    #sidebar h1 .enName { transform: translateX(1.5px); }
     .brandActions {
       width: auto;
       gap: 8px;
@@ -1873,8 +1880,8 @@
     align-items: center;
     justify-content: flex-start;
     flex-wrap: nowrap;
-    gap: 4px;
-    padding: 6px 8px;
+    gap: 2px;
+    padding: 4px 8px;
     border-bottom: 1px solid var(--line);
     background: var(--bg-panel);
   }
@@ -1884,44 +1891,56 @@
     flex: 0 0 var(--card-control-rail);
     width: var(--card-control-rail);
     justify-content: flex-start;
-    gap: 0;
+    gap: 2px;
     margin-right: auto;
   }
-  .cardActionMenu .cardBodyCenterBtn { margin-left: calc(var(--card-control-gutter) - 4px); }
-  .cardBodyCenterIcon { width: 12px; height: 12px; }
+  /* 윗줄의 −·○와 중심을 맞추되, 화살표 글자 크기는 유지한다. */
+  .cardActionMenu .arrowGroup button {
+    flex-basis: 28px;
+    width: 28px;
+    min-width: 28px;
+    margin-left: 0;
+  }
+  .cardActionMenu .splitCardBtn { margin-left: 4px; }
+  .cardSplitIcon { width: 11px; height: 11px; }
+  .cardBodyCenterIcon { width: 10px; height: 10px; }
+  .cardActionMenu .autoExpandIcon { width: 12px; height: 12px; }
   .cardActionMenu button {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 28px;
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-    min-height: 28px;
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+    height: 26px;
+    min-height: 26px;
     padding: 0;
     border: 0;
     border-radius: 5px;
     background: transparent;
     color: var(--ink-soft);
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1;
   }
-  /* 미리보기 펼치기 추가 전 헤더 버튼의 28px 영역과 아이콘별 크기를 유지한다. */
-  .cardActionMenu .fsBtn { font-size: 12px; }
   .cardActionIcon { display: grid; place-items: center; position: relative; width: 16px; height: 16px; font-size: inherit; font-weight: 400; line-height: 1; }
-  /* 복제 기호만 보정해 일반 버튼의 글자 크기 잠금과 28px 조작 영역은 유지한다. */
-  .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size: 13px; }
-  .cardActionMenu button:hover, .cardActionMenu button:focus-visible, .cardActionMenu button[aria-pressed="true"] {
+  .cardMoveIcon { display:none; }
+  /* 글자형 아이콘도 일반 작업 버튼의 글자 크기와 분리해 같은 비율로 줄인다. */
+  .cardActionMenu .cardActionIcon { width: 14px; height: 14px; font-size: 10px; }
+  .cardActionMenu .fsBtn .cardActionIcon { font-size: 11px; }
+  .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size: 12px; }
+  .cardActionMenu .cardDeleteIcon::before,
+  .cardActionMenu .cardDeleteIcon::after { width: 10px; }
+  .cardActionMenu button:hover:not(:disabled), .cardActionMenu button:focus-visible, .cardActionMenu button[aria-pressed="true"] {
     color: var(--accent);
     background: var(--bg-muted);
   }
   .cardActionMenu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cardActionMenu button:disabled { opacity: .35; cursor: default; }
   .cardActionMenu .delCardBtn {
-    margin-left: 4px;
-    border-left: 1px solid var(--line);
-    border-radius: 0 5px 5px 0;
+    position: relative;
+    margin-left: 6px;
   }
-  .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active) { color: #a7473f; background: #fff4f3; }
+  .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active):not(:disabled) { color: #a7473f; background: rgba(167, 71, 63, .08); }
   .foldChk {
     --fold-check-fill: var(--accent);
     position: relative;
@@ -2049,7 +2068,8 @@
   .previewSyncFloat:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); color:var(--accent); }
   .previewSyncFloat input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
   .previewSyncFloat:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:2px; }
-  .previewSyncIcon { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; font-size:17px; font-weight:800; }
+  .previewSyncIcon { display:grid; place-items:center; flex:0 0 40px; width:40px; height:40px; }
+  .previewSyncIcon svg { display:block; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
   .previewSyncText { flex:none; padding-right:14px; opacity:0; font-size:11.5px; font-weight:700; white-space:nowrap; transition:opacity .12s ease; }
   .previewSyncFloat:hover .previewSyncText,
   .previewSyncFloat:focus-within .previewSyncText { opacity:1; }
@@ -2057,6 +2077,12 @@
     right:auto;
     left:20px;
   }
+  .mobilePanelSwitch { display:none; }
+  .mobilePanelSwitch[hidden] { display:none; }
+  .mobilePanelIcon { display:grid; place-items:center; flex:0 0 42px; width:42px; height:42px; }
+  .mobilePanelIcon svg { display:block; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+  .mobilePanelSwitch[data-target="preview"] .mobileEditIcon,
+  .mobilePanelSwitch[data-target="editor"] .mobilePreviewIcon { display:none; }
   /* 카드별 버튼을 늘어놓지 않고 위치 연동 위의 한 입구에서 접기 카드를 찾는다. */
   .previewCardNavigator {
     position: fixed;
@@ -2547,7 +2573,8 @@
   }
   .cardEditorHead .cardNum::before,
   .cardEditorHead .autoExpandBtn::before,
-  .cardActionMenu .arrowGroup::after {
+  .cardActionMenu .arrowGroup::after,
+  .cardActionMenu .delCardBtn::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -2561,6 +2588,7 @@
   .cardEditorHead .autoExpandBtn { position: relative; }
   .cardEditorHead .autoExpandBtn::before { left: -7px; }
   .cardActionMenu .arrowGroup::after { left: 100%; }
+  .cardActionMenu .delCardBtn::before { left: -4px; }
   .foldChk { width: auto; justify-content: flex-end; }
 
   /* 접기 카드 상태 표시 */
@@ -3506,7 +3534,9 @@
   body.previewFullscreen #previewWrap > .previewFloatingControl,
   body.previewFullscreen #previewSyncFloat,
   body.previewFullscreen .previewSyncFloat,
+  body.previewFullscreen .mobilePanelSwitch,
   body.previewFullscreen .layoutMirrorBtn { display:none !important; }
+  body.fsLock .mobilePanelSwitch { display:none !important; }
   body.previewFullscreen #preview { filter:none; }
   body.previewFullscreen #previewArea,
   body.previewFullscreen #previewArea *,
@@ -5200,6 +5230,29 @@
 
   /* 모바일 최종 보정 — 기본 규칙 뒤에 두어 데스크톱 값을 확실히 덮어씀 */
   @media (max-width: 680px) {
+    .cardEditor { --mobile-card-control-size:28px; }
+    .cardActionMenu {
+      /* 이동 묶음·6개 도구·구분 여백을 실제 안쪽 폭 안에 배치한다. */
+      --mobile-card-tool-width:clamp(26px, calc((100% - var(--card-control-rail) - 22px) / 6), 32px);
+    }
+    .cardActionMenu button { height:var(--mobile-card-control-size); min-height:var(--mobile-card-control-size); }
+    .cardActionMenu > button { flex-basis:var(--mobile-card-tool-width); width:var(--mobile-card-tool-width); min-width:var(--mobile-card-tool-width); }
+    .cardActionMenu .arrowGroup button {
+      flex-basis:var(--mobile-card-control-size);
+      width:var(--mobile-card-control-size);
+      min-width:var(--mobile-card-control-size);
+      margin-left:0;
+    }
+    .cardActionMenu .cardActionIcon { width:18px; height:18px; font-size:14px; }
+    .cardActionMenu .cardMoveGlyph { display:none; }
+    .cardActionMenu .cardMoveIcon { display:block; width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+    .cardActionMenu .fsBtn .cardActionIcon { font-size:14px; }
+    .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size:15px; }
+    .cardActionMenu .cardSplitIcon,
+    .cardActionMenu .cardBodyCenterIcon { width:14px; height:14px; }
+    .cardActionMenu .autoExpandIcon { width:16px; height:16px; }
+    .cardActionMenu .cardDeleteIcon::before,
+    .cardActionMenu .cardDeleteIcon::after { width:14px; }
     body { display: block; height: auto; min-height: 100%; overflow: visible; }
     #sidebar {
       width: 100%;
@@ -5226,6 +5279,9 @@
     #sidebarTop {
       margin: 0 -16px;
       padding: 16px 16px 0;
+      background: var(--bg-panel);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
     }
     #brandRow { margin-bottom: 12px; }
     .tabPanel > .group:first-child,
@@ -5249,7 +5305,17 @@
       scrollbar-width: none;
       padding: 5px 4px;
     }
+    /* 남는 공간은 양쪽으로 나누고, 좁으면 여백이 0이 되어 첫 도구부터 스크롤한다. */
+    #bodyInputGroup > .foldBody > #bodyEditorToolbar > .tbGroup:first-child { margin-left:auto; }
+    #bodyInputGroup > .foldBody > #bodyEditorToolbar > .tbGroup:last-child { margin-right:auto; }
     #bodyEditorToolbar::-webkit-scrollbar { display: none; }
+    /* 전체 화면 입력의 고정 폭 제목란이 닫기 버튼을 화면 밖으로 밀지 않게 한다. */
+    #fsHead { gap:8px; }
+    #fsTitle { flex:none; }
+    #fsFoldGroup { flex:1 1 0; min-width:0; margin-left:0; margin-right:0; }
+    #fsFoldLabel { flex:none; gap:4px; }
+    #fsFoldTitle { flex:1 1 0; width:0; min-width:0; }
+    #fsCloseBtn { flex:0 0 32px; }
     .editorToolbar .tbGroup { flex: none; }
     #previewArea,
     body.layoutMirrored #previewArea { padding: 22px 48px 52px 12px; }
@@ -5257,6 +5323,28 @@
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
     .layoutMirrorBtn { display:none; }
+    .previewSyncFloat { display:none; }
+    .mobilePanelSwitch {
+      position:fixed;
+      right:calc(12px + env(safe-area-inset-right, 0px));
+      bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index:45;
+      display:flex;
+      align-items:center;
+      width:44px;
+      height:44px;
+      padding:0;
+      overflow:hidden;
+      border:1px solid var(--line-strong);
+      border-radius:var(--radius);
+      background:var(--bg-panel);
+      color:var(--ink-soft);
+      box-shadow:0 5px 18px rgba(35,32,28,.13);
+      cursor:pointer;
+      font:inherit;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .mobilePanelSwitch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     body.layoutMirrored .previewSyncFloat { left:auto; right:12px; }
     .previewCardNavigator, body.layoutMirrored .previewCardNavigator { left: auto; right: 12px; }
     .previewCardNavPanel, body.layoutMirrored .previewCardNavPanel { left: auto; right: 0; }
@@ -5270,9 +5358,13 @@
     .settingsForm { --settings-label-w: 68px; --settings-row-gap: 8px; }
   }
 
+  @media (max-width: 680px) and (hover: hover) {
+    .mobilePanelSwitch:hover { color:var(--ink); }
+  }
+
   @media (max-width: 560px) {
     /* 작은 화면의 헤더 버튼 36px 두 개에도 같은 구분선 기준을 적용한다. */
-    .cardEditor { --card-control-rail: 81px; }
+    .cardEditor { --card-control-rail: 81px; --mobile-card-control-size:36px; }
     #sidebar { padding: 0 12px 24px; }
     #sidebarTop { margin: 0 -12px; padding: 13px 12px 0; }
     #sidebar h1 { font-size: 21px; }
@@ -6318,7 +6410,9 @@ body .uiPaletteCurrent { border-radius: 50% !important; }
 :root.uiNight #tabTheme .presetCard { background:var(--bg-panel); }
 :root.uiNight #bodyInputGroup > .foldBody > .editorToolbar button:hover,
 :root.uiNight #fsToolbar button:hover { background:var(--bg-muted); }
-:root.uiNight .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active),
+:root.uiNight .cardActionMenu .delCardBtn:is(:hover, :focus-visible, :active):not(:disabled) {
+  color:#d99b94; background:rgba(210, 90, 80, .12);
+}
 :root.uiNight .btnDanger:hover,
 :root.uiNight #draftConflictBtn:hover { background:#442d2d; }
 :root.uiNight #copyBtn,

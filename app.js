@@ -116,7 +116,7 @@ function discardUndoSnapshot(){
 
 function snapshotCards(){
   // 막 끝난 디자인 조절이 뒤늦게 끼어들지 않도록 작업 경계를 확정한다.
-  clearTimeout(styleCommitTimer);
+  cancelStyleHistoryCommit();
   undoSnapshot = captureActionState('작업 전');
 }
 
@@ -186,8 +186,9 @@ function recordCompletedAction(label){
 // 디자인 변경도 통합 기록에 넣되, 그동안 타이핑한 본문은 현재 상태로 보존한다.
 // 슬라이더·색상 드래그는 짧게 묶어 한 단계로 기록한다.
 function commitStyleHistory(immediate){
-  clearTimeout(styleCommitTimer);
+  cancelStyleHistoryCommit();
   const doCommit = () => {
+    styleCommitTimer = null;
     const after = captureActionState('디자인 변경');
     if(actionIndex < 0){ pushActionState(after, '초기 상태'); return; }
     const current = actionHistory[actionIndex];
@@ -207,6 +208,9 @@ function commitStyleHistory(immediate){
 }
 
 function goActionHistory(delta){
+  // 슬라이더의 묶음 기록이 아직 대기 중이면 먼저 확정한다. 빠르게 되돌려도
+  // 디자인보다 앞선 카드 작업을 건너뛰어 취소하지 않게 한다.
+  if(styleCommitTimer !== null) commitStyleHistory(true);
   const target = actionIndex + delta;
   if(target < 0 || target >= actionHistory.length) return;
   actionIndex = target;

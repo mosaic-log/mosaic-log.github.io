@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.9.5 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.9.6 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=7a4be546b9fb">
+<link rel="stylesheet" href="./styles.css?v=09c3fde49856">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName">조각로그</span><span class="brandMeta"><span class="enName">Mosaic Log</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.5 GitHub 저장소 열기">v1.9.5</a></span></h1>
+      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTightSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTightSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.6 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.6</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -1332,9 +1332,15 @@
   </div>
   <label class="previewSyncFloat" id="previewSyncFloat" title="위치 연동 켜짐">
     <input type="checkbox" id="positionSyncOn" checked aria-label="위치 연동 켜짐">
-    <span class="previewSyncIcon" aria-hidden="true">↕</span>
+    <span class="previewSyncIcon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 2v16 M6.5 5.5 10 2 13.5 5.5 M6.5 14.5 10 18 13.5 14.5"/></svg></span>
     <span class="previewSyncText" id="previewSyncText">위치 연동 켜짐</span>
   </label>
+  <button type="button" class="mobilePanelSwitch" id="mobilePanelSwitch" data-target="preview" aria-controls="previewArea" aria-label="미리보기로 이동" hidden>
+    <span class="mobilePanelIcon" aria-hidden="true">
+      <svg class="mobilePreviewIcon" viewBox="0 0 20 20" focusable="false"><path d="M10 3v14 M5 12l5 5 5-5"/></svg>
+      <svg class="mobileEditIcon" viewBox="0 0 20 20" focusable="false"><path d="M10 17V3 M5 8l5-5 5 5"/></svg>
+    </span>
+  </button>
 </div>
 
 <div id="codeOverlay" aria-hidden="true">
@@ -1457,17 +1463,17 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=035b764720b0" defer></script>
-<script src="./parser.js?v=7d1d3267c6bc" defer></script>
-<script src="./renderer.js?v=877a6f585746" defer></script>
-<script src="./ui-source.js?v=9515fe5a3edb" defer></script>
-<script src="./ui-editor.js?v=96cae7a86756" defer></script>
-<script src="./ui-preview-edit.js?v=a47ce8c3b36e" defer></script>
-<script src="./ui-preview-view.js?v=583b7abf02bf" defer></script>
+<script src="./state.js?v=c22a095343f7" defer></script>
+<script src="./parser.js?v=02c69f2fb475" defer></script>
+<script src="./renderer.js?v=d8196f6a2b4a" defer></script>
+<script src="./ui-source.js?v=1fad4a0b2046" defer></script>
+<script src="./ui-editor.js?v=2f64dea55e9f" defer></script>
+<script src="./ui-preview-edit.js?v=d7b531d00cf3" defer></script>
+<script src="./ui-preview-view.js?v=66ce01bb5789" defer></script>
 <script src="./ui-library.js?v=208444d17a3e" defer></script>
-<script src="./ui.js?v=96c4da9731ca" defer></script>
+<script src="./ui.js?v=bc83b1ce2005" defer></script>
 <script src="./storage.js?v=dd286eec87f4" defer></script>
-<script src="./app.js?v=e1f7dd6b321e" defer></script>
+<script src="./app.js?v=5d5eeeeaa3f4" defer></script>
 
 </body>
 </html>

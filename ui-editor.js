@@ -36,7 +36,9 @@ const cardEditorState = {
   delegatedEventsBound:false,
   actionMenuEditor:null,
   actionMenuSerial:0,
-  briefViewBatching:false
+  briefViewBatching:false,
+  composingTextareas:new WeakSet(),
+  autoExpandedResizers:new WeakMap()
 };
 
 // 보조 조작은 카드 안에서 펼친다. 편집/출력 상태와 분리하고 한 곳만 열어 둔다.
@@ -57,6 +59,7 @@ function openCardActionMenu(editor){
   host.closePreviewCardNavigator();
   const panel = editor.querySelector('.cardActionMenu');
   if(!panel) return;
+  syncCardSplitButton(editor);
   cardEditorState.actionMenuEditor = editor;
   panel.hidden = false;
   editor.querySelector('.cardMenuBtn').setAttribute('aria-expanded', 'true');
@@ -84,6 +87,62 @@ function toggleCardBodyCenter(editor){
   syncCardBodyCenterButton(editor);
   afterEditorControlChange();
   host.showUndoToast(centered ? '카드 본문 전체 중앙 정렬.' : '카드 본문 기존 정렬 복원.');
+}
+
+// 가져오기·복원에서 허용하는 수와 사용자 추가 동작의 상한을 맞춘다.
+// addCard는 복원에도 쓰이므로 기존 초안의 블록을 잘라내는 제한은 두지 않는다.
+function hasEditorCapacity(notify = false){
+  const available = host.uiElements.cardEditors.children.length < MosaicState.MAX_WORK_BLOCKS;
+  if(!available && notify) host.showNoticeToast(`카드·코멘트는 합쳐서 ${MosaicState.MAX_WORK_BLOCKS}개까지 만들 수 있습니다.`);
+  return available;
+}
+
+function cardSplitPlan(editor){
+  const textarea = editor.querySelector('textarea');
+  if(!hasEditorCapacity()) return {reason:'limit'};
+  if(cardEditorState.composingTextareas.has(textarea)) return {reason:'composing'};
+  if(textarea.selectionStart !== textarea.selectionEnd) return {reason:'selection'};
+  return host.sourceMap.planCardSplit(readEditorCard(editor),textarea.selectionStart);
+}
+
+function syncCardSplitButton(editor){
+  const button = editor.querySelector('.splitCardBtn');
+  if(!button) return;
+  const {reason} = cardSplitPlan(editor);
+  const hints = {
+    limit:'저장 가능한 카드·코멘트 수를 모두 사용했습니다.',
+    boundary:'나눌 위치에 커서를 놓으세요. 양쪽에 본문이 있어야 합니다.',
+    character:'한 글자 안쪽에서는 나눌 수 없습니다.',
+    marker:'구분선 문법 밖으로 커서를 옮겨 주세요.',
+    exclusion:'제외 설정이 적용된 문구 밖으로 커서를 옮겨 주세요.',
+    composing:'글자 입력을 마친 뒤 나눌 수 있습니다.',
+    selection:'선택을 해제하고 나눌 위치에 커서를 놓으세요.'
+  };
+  button.disabled = !!reason;
+  button.title = reason ? `커서에서 카드 나누기 · ${hints[reason]}` : '커서에서 카드 나누기';
+}
+
+function splitCardAtCursor(editor){
+  const {cards} = cardSplitPlan(editor);
+  if(!cards){ syncCardSplitButton(editor); return; }
+  host.snapshotCards();
+  const textarea = editor.querySelector('textarea');
+  textarea.value = cards[0].body;
+  host.sourceMap.attachEditorSource(textarea,cards[0]);
+  const next = createCardEditor(cards[1]);
+  editor.after(next);
+  renumberCards();
+  afterEditorStructureChange();
+  if(textarea.classList.contains('isAutoExpanded')){
+    requestAnimationFrame(cardEditorState.autoExpandedResizers.get(textarea));
+  }
+  if(next.classList.contains('isCollapsed')) next.querySelector('.collapseCtl').click();
+  const nextTextarea = next.querySelector('textarea');
+  nextTextarea.setSelectionRange(0,0);
+  cardEditorState.activeTextarea = nextTextarea;
+  nextTextarea.focus();
+  next.scrollIntoView({block:'nearest',behavior:'smooth'});
+  host.showUndoToast('커서 위치에서 카드 나눔.');
 }
 
 function bodyCardTextareas(){
@@ -125,7 +184,7 @@ function bindCardEditorDelegatedEvents(){
           menuAction.focus({preventScroll:true});
         }
       } else closeCardActionMenu(true);
-    } else closeCardActionMenu();
+    } else if(cardEditorState.actionMenuEditor !== editor) closeCardActionMenu();
     const textarea = editor.querySelector('textarea');
     const formatButton = event.target.closest('.fmtBtn[data-card-format]');
     if(formatButton && textarea){
@@ -204,8 +263,8 @@ function bindCardEditorDelegatedEvents(){
   });
   const outsideMenu = target => {
     const editor = cardEditorState.actionMenuEditor;
-    return editor && !editor.querySelector('.cardActionMenu').contains(target)
-      && !editor.querySelector('.cardMenuBtn').contains(target);
+    // 다른 카드 메뉴는 click에서 전환한다. pointerdown에서 접으면 대상 버튼이 위로 움직인다.
+    return editor && !editor.contains(target) && !target.closest('.cardMenuBtn');
   };
   document.addEventListener('pointerdown', event => { if(outsideMenu(event.target)) closeCardActionMenu(); });
   document.addEventListener('focusin', event => { if(outsideMenu(event.target)) closeCardActionMenu(); });
@@ -332,26 +391,29 @@ function bindCardToolbarLayoutEvents(){
   });
 }
 
+function readEditorCard(ed){
+  const textarea = ed.querySelector('textarea');
+  const body = textarea.value;
+  const visible = ed.dataset.outputVisible !== 'false';
+  if(ed.dataset.blockType === 'comment') return { type:'comment', body, visible };
+  const fold = ed.querySelector('.cardFoldChk');
+  const title = ed.querySelector('.foldTitleInput');
+  const outputRuleExclusions = host.sourceMap.editorOutputRuleExclusions(textarea);
+  const parallelExclusions = host.sourceMap.editorParallelExclusions(textarea);
+  return {
+    type:'card',body,
+    folded:!!(fold && fold.checked),
+    foldTitle:title ? title.value : '',
+    cardTitle:title ? title.value : '',
+    visible,
+    ...(ed.dataset.bodyCenter === 'true' ? {bodyCenter:true} : {}),
+    ...(outputRuleExclusions.length ? {outputRuleExclusions:outputRuleExclusions.map(item => ({...item}))} : {}),
+    ...(parallelExclusions.length ? {parallelExclusions:parallelExclusions.map(item => ({...item}))} : {})
+  };
+}
+
 function getCards(){
-  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).map(ed => {
-    const body = ed.querySelector('textarea').value;
-    const visible = ed.dataset.outputVisible !== 'false';
-    if(ed.dataset.blockType === 'comment') return { type:'comment', body, visible };
-    const fold = ed.querySelector('.cardFoldChk');
-    const title = ed.querySelector('.foldTitleInput');
-    return {
-      type:'card',
-      body,
-      folded:!!(fold && fold.checked),
-      foldTitle:title ? title.value : '',
-      cardTitle:title ? title.value : '',
-      visible,
-      ...(ed.dataset.bodyCenter === 'true' ? {bodyCenter:true} : {}),
-      ...(host.sourceMap.editorOutputRuleExclusions(ed.querySelector('textarea')).length
-        ? {outputRuleExclusions:host.sourceMap.editorOutputRuleExclusions(ed.querySelector('textarea')).map(item => ({...item}))} : {}),
-      ...(host.sourceMap.editorParallelExclusions(ed.querySelector('textarea')).length ? {parallelExclusions:host.sourceMap.editorParallelExclusions(ed.querySelector('textarea')).map(item=>({...item}))} : {}),
-    };
-  });
+  return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).map(readEditorCard);
 }
 
 function renumberCards(){
@@ -663,6 +725,7 @@ function setupAutoExpandTextarea(editor, textarea, button, minimumHeight, access
       textarea.scrollTop = 0;
     }
   };
+  cardEditorState.autoExpandedResizers.set(textarea,resize);
   button.addEventListener('click', () => setExpanded(!textarea.classList.contains('isAutoExpanded')));
   if(typeof ResizeObserver === 'function'){
     let lastWidth = 0;
@@ -843,6 +906,12 @@ function createCardEditor(value){
   actionMenu.hidden = true;
   actionMenu.setAttribute('role', 'group');
   actionMenu.setAttribute('aria-label', '카드 보조 조작');
+  const splitButton = document.createElement('button');
+  splitButton.type = 'button';
+  splitButton.className = 'splitCardBtn uiButton';
+  splitButton.setAttribute('aria-label','커서에서 카드 나누기');
+  splitButton.innerHTML = '<span class="cardActionIcon" aria-hidden="true"><svg class="cardSplitIcon" viewBox="0 0 16 16" fill="none" focusable="false"><path d="M3 2h10v4H3z M3 10h10v4H3z M1 8h2m3 0h4m3 0h2" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/></svg></span>';
+  splitButton.addEventListener('click',() => splitCardAtCursor(ed));
   const centerButton = document.createElement('button');
   centerButton.type = 'button';
   centerButton.className = 'cardBodyCenterBtn uiButton';
@@ -856,13 +925,17 @@ function createCardEditor(value){
     icon.setAttribute('aria-hidden', 'true');
     if(button === autoExpandBtn) icon.appendChild(button.querySelector('svg'));
     else if(button === del) icon.classList.add('cardDeleteIcon');
+    else if(button === upBtn || button === downBtn){
+      const path = button === upBtn ? 'M10 17V3 M5 8l5-5 5 5' : 'M10 3v14 M5 12l5 5 5-5';
+      icon.innerHTML = `<span class="cardMoveGlyph">${glyph}</span><svg class="cardMoveIcon" viewBox="0 0 20 20" focusable="false"><path d="${path}"/></svg>`;
+    }
     else icon.textContent = glyph;
     button.replaceChildren(icon);
   });
   const moveGroup = upBtn.parentElement;
   moveGroup.setAttribute('role', 'group');
   moveGroup.setAttribute('aria-label', '카드 순서 이동');
-  actionMenu.append(moveGroup, centerButton, autoExpandBtn, fsBtn, duplicateBtn, del);
+  actionMenu.append(moveGroup, splitButton, centerButton, autoExpandBtn, fsBtn, duplicateBtn, del);
   const menuButton = document.createElement('button');
   menuButton.type = 'button';
   menuButton.className = 'miniCtl cardMenuBtn';
@@ -897,6 +970,9 @@ function createCardEditor(value){
   host.sourceMap.attachEditorSource(ta,source);
   ta.placeholder = '이 카드의 본문을 입력...';
   const resizeAutoExpanded = setupAutoExpandTextarea(ed, ta, autoExpandBtn, 200);
+  const syncSplitIfOpen = () => {
+    if(cardEditorState.actionMenuEditor === ed) syncCardSplitButton(ed);
+  };
 
   const syncVisibilityUi = () => syncEditorVisibilityUI(ed, visibilityBtn, 'card');
   visibilityBtn.addEventListener('click', () => {
@@ -912,6 +988,7 @@ function createCardEditor(value){
   });
   syncVisibilityUi();
   duplicateBtn.addEventListener('click', () => {
+    if(!hasEditorCapacity(true)) return;
     host.snapshotCards();
     const clone = createCardEditor({
       body: ta.value,
@@ -934,6 +1011,7 @@ function createCardEditor(value){
   });
   ta.addEventListener('input', () => {
     host.normalizeStandaloneHrInput(ta);
+    syncSplitIfOpen();
     // 미리보기 직접 편집이 원문 입력창으로 반영되는 동안에는 현재 미리보기 위치를
     // 유지한다. 왼쪽 입력창에서 직접 타이핑할 때만 기존 위치 연동을 실행한다.
     host.focusPreviewAfterEditorInput(ta);
@@ -941,8 +1019,18 @@ function createCardEditor(value){
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
   ta.addEventListener('keydown', handleSoftBreakKeydown);
+  ['select','keyup','pointerup'].forEach(event => ta.addEventListener(event,syncSplitIfOpen));
+  ta.addEventListener('compositionstart',() => {
+    cardEditorState.composingTextareas.add(ta);
+    syncSplitIfOpen();
+  });
+  ta.addEventListener('compositionend',() => {
+    cardEditorState.composingTextareas.delete(ta);
+    syncSplitIfOpen();
+  });
   ta.addEventListener('focus', () => {
     cardEditorState.activeTextarea = ta;
+    syncSplitIfOpen();
     host.decoratePreviewDirectEditors();
   });
   host.bindEditorPositionSyncEvents(ta);
@@ -1086,6 +1174,7 @@ function bindCardCreationEvents(){
   host.bindUIFeatureEvents('card-creation', () => {
     document.getElementById('briefViewBtn').addEventListener('click', toggleBriefView);
     document.getElementById('addCardBtn').addEventListener('click', () => {
+      if(!hasEditorCapacity(true)) return;
       host.snapshotCards();
       addCard('', true);
       afterEditorStructureChange();
@@ -1093,6 +1182,7 @@ function bindCardCreationEvents(){
     });
 
     document.getElementById('addCommentBtn').addEventListener('click', () => {
+      if(!hasEditorCapacity(true)) return;
       host.snapshotCards();
       const activeTextarea = cardEditorState.activeTextarea;
       const activeEditor = activeTextarea && activeTextarea.closest
@@ -1371,16 +1461,16 @@ function fsReplaceCurrent(){
   if(!q) return;
   const r = document.getElementById('fsReplInput').value;
   const searchAt = fullscreenEditorState.searchAt;
-  const selTxt = searchAt >= 0 ? ta.value.slice(searchAt, searchAt + q.length) : '';
-  if(selTxt.toLowerCase() !== q.toLowerCase()){ fsFindStep(1); return; }  // 먼저 현재 항목 표시
-  const s = searchAt;
+  const match = MosaicParser.literalMatchRanges(ta.value,q).find(range => range.start === searchAt);
+  if(!match){ fsFindStep(1); return; }  // 먼저 현재 항목 표시
+  const s = match.start;
   host.snapshotCards();
   ta.focus();
-  ta.setSelectionRange(s, s + q.length);  // 실제 대치 순간에만 잠깐 선택해 브라우저 되돌리기를 유지
+  ta.setSelectionRange(s, match.end);  // 실제 대치 순간에만 잠깐 선택해 브라우저 되돌리기를 유지
   let ok = false;
   try { ok = document.execCommand('insertText', false, r); } catch(e){ ok = false; }
   if(!ok){
-    ta.value = ta.value.slice(0, s) + r + ta.value.slice(s + selTxt.length);
+    ta.value = ta.value.slice(0, s) + r + ta.value.slice(match.end);
     ta.setSelectionRange(s + r.length, s + r.length);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   } else syncMirror(ta);
@@ -1396,11 +1486,15 @@ function fsReplaceAll(){
   const q = document.getElementById('fsFindInput').value;
   if(!q) return;
   const r = document.getElementById('fsReplInput').value;
-  const re = new RegExp(host.escRe(q), 'gi');
-  const matches = ta.value.match(re);
-  if(!matches){ counter.textContent = '0 / 0'; return; }
+  const matches = MosaicParser.literalMatchRanges(ta.value,q);
+  if(!matches.length){ counter.textContent = '0 / 0'; return; }
   host.snapshotCards();
-  const newVal = ta.value.replace(re, () => r);
+  let newVal = '', from = 0;
+  matches.forEach(match => {
+    newVal += ta.value.slice(from,match.start) + r;
+    from = match.end;
+  });
+  newVal += ta.value.slice(from);
   ta.focus();
   ta.setSelectionRange(0, ta.value.length);
   let ok = false;

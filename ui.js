@@ -9,7 +9,7 @@ const parts = Object.freeze(globalThis.MosaicUIParts);
 const {createSourceMapping,createPreviewSourceEdits} = parts.source;
 const {createCardEditors,createFullscreenEditor} = parts.editor;
 const {createPreviewInteractions} = parts.previewEdit;
-const {createPreviewLayout,createPreviewSearch} = parts.previewView;
+const {createPreviewLayout,createPreviewSearch,createMobilePanelNavigation} = parts.previewView;
 const {createCredit,createLibrary} = parts.library;
 
 // DEFAULT_STYLE is the single source for fresh controls and design resets.
@@ -2376,6 +2376,7 @@ function captureDraftUiState(){
 // 저장된 값과 입력 UI를 복원한다. 출력 렌더링과 초안 저장은 완료 단계에서 수행한다.
 function applyWorkState(data){
   previewInteractions.discardActiveDirectEdit();
+  mobilePanelNavigation.reset();
   controlSync.invalidateControlSync();
   const fields = MosaicState.normalizeRetiredCoverImageFields(data.fields || {});
   MosaicState.WORK_FIELDS.forEach(id => {
@@ -2633,16 +2634,7 @@ function applyTextareaFormat(ta, fmt){
 function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function normalizedLiteralOffsets(text, query){
-  if(!query) return [];
-  const hay = MosaicParser.normalizeQuotes(text).toLowerCase();
-  const needle = MosaicParser.normalizeQuotes(query).toLowerCase();
-  const offsets = [];
-  let p = hay.indexOf(needle);
-  while(p !== -1){
-    offsets.push(p);
-    p = hay.indexOf(needle, p + Math.max(1, needle.length));
-  }
-  return offsets;
+  return MosaicParser.literalMatchRanges(text, query).map(range => range.start);
 }
 
 
@@ -3046,6 +3038,7 @@ function initUI(){
   bindPositionSyncEvents();
   previewLayout.bindPreviewFullscreenEvents();
   previewLayout.bindPreviewToolbarLayoutEvents();
+  mobilePanelNavigation.bindEvents();
   bindThemeChoiceEvents();
   bindColorInputEvents();
   bindCoverRangeLabelEvents();
@@ -3189,6 +3182,7 @@ openFullscreen:(...args)=>fullscreen.openFullscreen(...args),
 previewCardStartForEditor,
 scrollCardIntoSidebar,
 scrollPreviewToCardEditor,
+showNoticeToast,
 showUndoToast,
 sourceMap,
 syncParagraphSettingsUI,
@@ -3206,7 +3200,6 @@ bindUIFeatureEvents,
 cancelPendingPositionSync,
 cardEditors,
 caretOffsetTop,
-escRe,
 insertBodyImage,
 insertIntoBody,
 normalizeStandaloneHrInput,
@@ -3279,6 +3272,13 @@ syncCoverControlState,
 syncDesignSummaries,
 uiElements,
 uiUpdateEffects
+});
+
+const mobilePanelNavigation = createMobilePanelNavigation({
+bindUIFeatureEvents,
+isStackedLayout:previewLayout.isStackedLayout,
+uiElements,
+flushPreview:() => { if(previewRenderPending()) uiUpdateEffects.renderNow(); }
 });
 
 const controlSync = createControlSync({

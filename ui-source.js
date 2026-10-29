@@ -306,13 +306,9 @@ function findAllSourceRanges(line, text, caseInsensitive, settings){
   const display = outputSourceDisplayProjectionMap(line, settings);
   const normalizedText = MosaicParser.normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
   if(!normalizedText) return [];
-  const hay = caseInsensitive ? display.text.toLowerCase() : display.text;
-  const needle = caseInsensitive ? normalizedText.toLowerCase() : normalizedText;
   const ranges = [];
-  let from = 0;
-  let at = hay.indexOf(needle, from);
-  while(at !== -1){
-    const last = at + needle.length - 1;
+  MosaicParser.literalMatchRanges(display.text, normalizedText, !!caseInsensitive).forEach(({start:at,end}) => {
+    const last = end - 1;
     if(display.map[at] !== undefined && display.map[last] !== undefined){
       let range = display.parallel
         ? {start:display.map.slice(at,last+1).reduce((min,value)=>Math.min(min,value),Infinity),
@@ -321,9 +317,7 @@ function findAllSourceRanges(line, text, caseInsensitive, settings){
       if(display.parallel)range=MosaicParser.parallelSourceBounds(line,range,settings);
       if(range.end>range.start && !ranges.some(item => item.start === range.start && item.end === range.end)) ranges.push(range);
     }
-    from = at + Math.max(1, needle.length);
-    at = hay.indexOf(needle, from);
-  }
+  });
   return ranges;
 }
 
@@ -831,6 +825,36 @@ function attachEditorSource(ta,source){
   setParallelExclusions(ta,MosaicState.rebaseParallelExclusions(source.parallelExclusions || [],source.body || '',ta.value));
 }
 
+// 이미 아는 절단 위치를 사용한다. 반복 문구를 일반 변경 비교로 다시 찾지 않는다.
+function planCardSplit(source,offset){
+  const body = source.body;
+  if(!Number.isInteger(offset) || offset <= 0 || offset >= body.length) return {reason:'boundary'};
+  if(/[\uD800-\uDBFF]/.test(body[offset-1]) && /[\uDC00-\uDFFF]/.test(body[offset])) return {reason:'character'};
+  const bodies = [body.slice(0,offset),body.slice(offset)];
+  if(bodies.some(part => !part.trim())) return {reason:'boundary'};
+  // 새 줄 맨 앞에서 구분선으로 바뀌는 절단은 원문을 조용히 정규화하지 않는다.
+  if(bodies.some(part => MosaicParser.normalizeBodyHrMarkers(part) !== part)) return {reason:'marker'};
+  const ranges = {
+    outputRuleExclusions:MosaicState.normalizeOutputRuleExclusions(source.outputRuleExclusions,body),
+    parallelExclusions:MosaicState.normalizeParallelExclusions(source.parallelExclusions,body)
+  };
+  if(Object.values(ranges).some(items => items.some(item => item.start < offset && offset < item.end))){
+    return {reason:'exclusion'};
+  }
+  const cards = bodies.map((part,index) => {
+    const card = {...source,body:part};
+    if(index === 1){ card.cardTitle = ''; card.foldTitle = ''; }
+    Object.entries(ranges).forEach(([key,items]) => {
+      const kept = items.filter(item => index === 0 ? item.end <= offset : item.start >= offset)
+        .map(item => ({...item,start:item.start-(index ? offset : 0),end:item.end-(index ? offset : 0)}));
+      if(kept.length) card[key] = kept;
+      else delete card[key];
+    });
+    return card;
+  });
+  return {cards};
+}
+
 // Shared eligibility and source spans for ordinary paragraphs, in both render paths.
 function isPlainSource(body,settings){
   return !settings.parallelNarrationOn
@@ -884,6 +908,7 @@ isPlainSource,
 messengerEditSourceBounds,
 outputRuleLineSettings,
 outputSourceDisplayProjectionMap,
+planCardSplit,
 parallelCardCandidates,
 parallelEditHunks,
 replacePreviewBodyLine,

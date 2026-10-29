@@ -2587,7 +2587,6 @@ function applyUnifiedCardLayout(html, settings){
     const last = index === sections.length - 1;
     const bodyCard = section.hasAttribute('data-mosaic-card-index');
     const previousSection = index > 0 ? sections[index - 1] : null;
-    const nextSection = index < sections.length - 1 ? sections[index + 1] : null;
     const previousBodyCard = !!(previousSection && previousSection.hasAttribute('data-mosaic-card-index'));
     const foldedCard = bodyCard && section.tagName === 'DETAILS';
     const previousFoldedCard = previousBodyCard && previousSection.tagName === 'DETAILS';

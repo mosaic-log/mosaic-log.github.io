@@ -1178,6 +1178,84 @@ toggleEditorPreviewFold
 });
 }
 
+// 세로 배치의 화면 이동만 담당한다. 작업 데이터와 위치 연동 설정은 바꾸지 않는다.
+function createMobilePanelNavigation(host){
+const button = document.getElementById('mobilePanelSwitch');
+const sidebar = document.getElementById('sidebar');
+const state = {editorOffset:0,previewOffset:0,frame:null,jumpFrame:null};
+const documentTop = element => window.scrollY + element.getBoundingClientRect().top;
+
+function currentPanel(){
+  const rect = host.uiElements.previewArea.getBoundingClientRect();
+  const page = document.scrollingElement || document.documentElement;
+  const atBottom = window.scrollY + window.innerHeight >= page.scrollHeight - 2;
+  // 짧은 미리보기는 페이지 끝에서도 화면 위까지 올라오지 못할 수 있다.
+  return rect.top <= window.innerHeight / 2 || (atBottom && rect.top < window.innerHeight)
+    ? 'preview' : 'editor';
+}
+
+function syncButton(){
+  state.frame = null;
+  button.hidden = !host.isStackedLayout();
+  if(button.hidden) return;
+  const target = currentPanel() === 'preview' ? 'editor' : 'preview';
+  button.dataset.target = target;
+  button.setAttribute('aria-label',target === 'preview' ? '미리보기로 이동' : '편집 화면으로 이동');
+  button.setAttribute('aria-controls',target === 'preview' ? 'previewArea' : 'sidebar');
+}
+
+function scheduleSync(){
+  if(state.frame === null) state.frame = requestAnimationFrame(syncButton);
+}
+
+function switchPanel(){
+  if(!host.isStackedLayout() || state.jumpFrame !== null
+    || document.body.classList.contains('previewFullscreen') || document.body.classList.contains('fsLock')) return;
+  const target = currentPanel() === 'preview' ? 'editor' : 'preview';
+  // 탭과 접힘 상태는 유지하고, 떠나는 구역에서 보던 위치만 기억한다.
+  if(target === 'preview') state.editorOffset = window.scrollY - documentTop(sidebar);
+  else state.previewOffset = window.scrollY - documentTop(host.uiElements.previewArea);
+  const active = document.activeElement;
+  if(active && (document.getElementById('sidebar').contains(active) || host.uiElements.preview.contains(active))){
+    active.blur(); // 미리보기 편집을 확정하고 모바일 키보드를 닫는다.
+  }
+  host.flushPreview();
+  state.jumpFrame = requestAnimationFrame(() => {
+    state.jumpFrame = null;
+    if(!host.isStackedLayout()) return;
+    const area = target === 'preview' ? host.uiElements.previewArea : sidebar;
+    const offset = target === 'preview' ? state.previewOffset : state.editorOffset;
+    window.scrollTo({top:Math.max(0,documentTop(area) + offset),behavior:'auto'});
+    syncButton();
+  });
+}
+
+function reset(){
+  if(state.jumpFrame !== null) cancelAnimationFrame(state.jumpFrame);
+  state.jumpFrame = null;
+  state.editorOffset = 0;
+  state.previewOffset = 0;
+  scheduleSync();
+}
+
+function bindEvents(){
+  host.bindUIFeatureEvents('mobile-panel-navigation',() => {
+    button.addEventListener('click',switchPanel);
+    window.addEventListener('scroll',scheduleSync,{passive:true});
+    window.addEventListener('resize',scheduleSync);
+    window.visualViewport?.addEventListener('resize',scheduleSync);
+    window.visualViewport?.addEventListener('scroll',scheduleSync,{passive:true});
+    if(typeof ResizeObserver === 'function'){
+      const observer = new ResizeObserver(scheduleSync);
+      observer.observe(document.getElementById('sidebar'));
+      observer.observe(host.uiElements.previewArea);
+    }
+    syncButton();
+  });
+}
+return Object.freeze({bindEvents,reset});
+}
+
 function createPreviewSearch(host){
 // ---------- 미리보기 검색 (Ctrl/⌘+F) ----------
 // 미리보기 DOM 의 텍스트 노드에만 강조 span(.pvHit)을 끼워 넣는다.
@@ -1530,5 +1608,5 @@ pvApplySearch
 });
 }
 
-return Object.freeze({createPreviewLayout,createPreviewSearch});
+return Object.freeze({createPreviewLayout,createPreviewSearch,createMobilePanelNavigation});
 })();

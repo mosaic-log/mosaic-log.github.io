@@ -46,6 +46,17 @@ function normalizeQuotes(text){
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\uFF07]/g, "'");
 }
 
+// 따옴표 정규화는 길이를 유지한다. 문자열 전체를 소문자로 바꾸면 İ처럼
+// 길이가 늘어나는 문자 뒤의 위치가 어긋나므로 원래 문자열에서 범위를 찾는다.
+function literalMatchRanges(text, query, caseInsensitive = true){
+  const source = normalizeQuotes(String(text));
+  const needle = normalizeQuotes(String(query));
+  if(!needle) return [];
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(escaped, caseInsensitive ? 'giu' : 'gu');
+  return Array.from(source.matchAll(pattern), match => ({start:match.index,end:match.index + match[0].length}));
+}
+
 function stripMarkers(value){
   return String(value).replace(/__|\*/g, '');
 }
@@ -569,6 +580,7 @@ SOFT_BREAK_TOKEN,
 formatMatchContent,
 normalizeBodyHrMarkers,
 normalizeQuotes,
+literalMatchRanges,
 normalizeStandaloneHr,
 stripMarkers}),
 escapeAttr,

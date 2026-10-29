@@ -2384,7 +2384,7 @@ function enableBlockDrag(preview){
 
 function startBlockDrag(ctx){
   if(!previewBlockContextCurrent(ctx)) return false;
-  const { block, blocks } = ctx;
+  const { block } = ctx;
   block.style.opacity = '0.45';
   block.style.cursor = 'grabbing';
 
