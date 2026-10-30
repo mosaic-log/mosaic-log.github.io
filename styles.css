@@ -201,6 +201,7 @@
     letter-spacing: 0.6px;
   }
   #sidebar h1 .enName .enTightSpacing { letter-spacing: 0.45px; }
+  #sidebar h1 .enName .enTighterSpacing { letter-spacing: 0.3px; margin-right: 0.15px; }
   #sidebar h1 .appVersion {
     color: var(--help-ink);
     font-size: 9px;

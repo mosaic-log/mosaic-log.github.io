@@ -476,9 +476,8 @@ function updateCounter(allCards = MosaicUI.cards.all(), settings = MosaicUI.getS
       dlgC += MosaicParser.stripMarkers(body.slice(1, -1)).replace(/\s/g, '').length;
     }else{
       const plainLength = MosaicParser.stripMarkers(body).replace(/\s/g, '').length;
-      const re = new RegExp(MosaicUI.FMT_RE.emphasis.source, 'g');
-      let match, emphasized = 0;
-      while((match = re.exec(body)) !== null){
+      let emphasized = 0;
+      for(const match of MosaicParser.formatMatches('emphasis', body)){
         emphasized += MosaicParser.stripMarkers(MosaicParser.formatMatchContent('emphasis', match)).replace(/\s/g, '').length;
       }
       emphasisC += emphasized;
@@ -928,7 +927,10 @@ function basicPreflightIssues(){
       issues.push({ severity:'error', message:`${blockLabel}의 굵게 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
     }
     const withoutStrong = card.body.replace(/__/g, '');
-    const emphasisMarkers = (withoutStrong.match(/(?<!\\)\*/g) || []).length;
+    let emphasisMarkers = 0;
+    for(let i = 0; i < withoutStrong.length; i++){
+      if(withoutStrong[i] === '*' && withoutStrong[i - 1] !== '\\') emphasisMarkers++;
+    }
     if(emphasisMarkers % 2){
       issues.push({ severity:'error', message:`${blockLabel}의 강조(*) 문법이 닫히지 않았습니다.`, cardIndex, lineIndex:0 });
     }

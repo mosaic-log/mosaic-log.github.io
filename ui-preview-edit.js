@@ -20,10 +20,18 @@ const FMT_WRAP = { bold: '**', emphasis: '*' };
 
 const FMT_TAG = { bold: 'STRONG', emphasis: 'EM' };
 
+// 기존 공개 정규식은 지원 엔진에서 유지한다. 앱의 서식 범위 계산은
+// formatMatches를 사용하며 구형 Safari의 시작을 막는 정규식 리터럴을 두지 않는다.
+let legacyEmphasisPattern;
+try {
+  legacyEmphasisPattern = new RegExp(String.raw`\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)`, 'g');
+} catch(e){
+  legacyEmphasisPattern = /\*\*\*([^*\n]+?)\*\*\*|\*([^*\n]+?)\*(?!\*)/g;
+}
 const FMT_RE = {
   // 새 입력은 **만 만들지만, 기존 로그의 __ 굵기도 읽고 해제할 수 있게 남긴다.
   bold: /__(.+?)__|\*\*(.+?)\*\*/g,
-  emphasis: /\*\*\*([^*\n]+?)\*\*\*|(?<!\*)\*([^*\n]+?)\*(?!\*)/g
+  emphasis: legacyEmphasisPattern
 };
 
 const CENTER_RE = /^(>\s?)?\[C\]\s*/i;
@@ -1211,9 +1219,7 @@ function applyPreviewFormatToSource(el, descriptor, fmt, details){
 
   let nextLine = '';
   let removed = false;
-  const re = new RegExp(FMT_RE[fmt].source, 'g');
-  let match;
-  while((match = re.exec(line)) !== null){
+  for(const match of MosaicParser.formatMatches(fmt, line)){
     const innerStart = match.index + wrap.length;
     const innerEnd = match.index + match[0].length - wrap.length;
     if(sourceRange.start >= innerStart && sourceRange.end <= innerEnd){
@@ -2052,10 +2058,9 @@ document.querySelectorAll('#selToolbar button[data-fmt]').forEach(btn => {
     // 이미 서식이 걸린 부분 → 해제
     if(active[fmt]){
       const targetPlain = active[fmt];
-      const re = new RegExp(FMT_RE[fmt].source, 'g');
-      let m, found = null;
+      let found = null;
       const sourceRange = capturedRange || host.sourceMap.findSourceRange(line, text, occurrence, false, host.sourceMap.outputRuleLineSettings(ta,raw));
-      while((m = re.exec(line)) !== null){
+      for(const m of MosaicParser.formatMatches(fmt, line)){
         const containsSelection = sourceRange && sourceRange.start >= m.index && sourceRange.end <= m.index + m[0].length;
         const content = MosaicParser.formatMatchContent(fmt,m);
         const contentOffset = m.index+m[0].indexOf(content);

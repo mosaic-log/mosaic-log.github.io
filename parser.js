@@ -95,6 +95,11 @@ function bodyCommentLineContexts(value){
   });
 }
 
+function formatMatches(format, value){
+  return format === 'emphasis' ? MosaicState.emphasisMatches(value, true)
+    : Array.from(String(value).matchAll(/__(.+?)__|\*\*(.+?)\*\*/g));
+}
+
 function formatMatchContent(format, match){
   // ***글***에서 강조만 해제할 때 굵기는 남겨 **글**로 되돌린다.
   if(format === 'emphasis' && match[0].startsWith('***')) return `**${match[1]}**`;
@@ -419,11 +424,16 @@ function processInline(text, emphasisColor, options){
     cursor=quote.end;
   }
   content+=escapeTextHTML(source.slice(cursor));
-  return content
+  const formatted = content
     .replace(/\*\*\*([^*\n]+?)\*\*\*/g, (m, inner) => strong(em(inner, true)))
     .replace(/\*\*(.+?)\*\*/g, (m, inner) => strong(inner))
-    .replace(/__(.+?)__/g, (m, inner) => strong(inner))
-    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, (m, inner) => em(inner));
+    .replace(/__(.+?)__/g, (m, inner) => strong(inner));
+  let result = '', last = 0;
+  for(const match of MosaicState.emphasisMatches(formatted)){
+    result += formatted.slice(last, match.index) + em(match[1]);
+    last = match.index + match[0].length;
+  }
+  return result + formatted.slice(last);
 }
 
 const SOFT_BREAK_TOKEN = '\uE200';
@@ -577,6 +587,7 @@ applyOutputTextRules,
 outputRuleSettings,
 outputTextProjection,
 SOFT_BREAK_TOKEN,
+formatMatches,
 formatMatchContent,
 normalizeBodyHrMarkers,
 normalizeQuotes,

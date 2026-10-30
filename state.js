@@ -291,6 +291,25 @@ function rebaseParallelExclusions(value,before,after){
   return rebaseTextRangeExclusions(value,before,after,normalizeParallelExclusions);
 }
 
+// iOS 15 Safari에서도 파싱되도록 뒤쪽 조건 검사를 문자 비교로 처리한다.
+// 건너뛴 후보의 닫는 *가 다음 강조의 시작일 수 있으므로 한 글자만 전진한다.
+function emphasisMatches(value, combined = false){
+  const source = String(value);
+  const pattern = combined
+    ? /\*\*\*([^*\n]+?)\*\*\*|\*([^*\n]+?)\*(?!\*)/g
+    : /\*([^*\n]+?)\*(?!\*)/g;
+  const matches = [];
+  let match;
+  while((match = pattern.exec(source)) !== null){
+    if((!combined || match[2] !== undefined) && source[match.index - 1] === '*'){
+      pattern.lastIndex = match.index + 1;
+      continue;
+    }
+    matches.push(match);
+  }
+  return matches;
+}
+
 function rebaseTextRangeExclusions(value,before,after,normalize){
   const items = normalize(value,before);
   if(before === after) return items;
@@ -299,9 +318,10 @@ function rebaseTextRangeExclusions(value,before,after,normalize){
   const formattingProjection = body => {
     const hidden = new Set();
     const mask = (start,end) => {for(let i=start;i<end;i++) hidden.add(i);};
-    for(const [pattern,width] of [[/\*\*\*([^*\n]+?)\*\*\*/g,3],[/\*\*([^*\n]+?)\*\*/g,2],[/__(.+?)__/g,2],[/(?<!\*)\*([^*\n]+?)\*(?!\*)/g,1]]){
+    for(const [pattern,width] of [[/\*\*\*([^*\n]+?)\*\*\*/g,3],[/\*\*([^*\n]+?)\*\*/g,2],[/__(.+?)__/g,2]]){
       let match; while((match = pattern.exec(body)) !== null){ mask(match.index,match.index+width); mask(match.index+match[0].length-width,match.index+match[0].length); }
     }
+    for(const match of emphasisMatches(body)){ mask(match.index,match.index+1); mask(match.index+match[0].length-1,match.index+match[0].length); }
     let match; const center = /^(?:>(?!>)\s*)?\[C\]\s*/gim;
     while((match = center.exec(body)) !== null){ const at = match.index+match[0].indexOf('[C]'); mask(at,match.index+match[0].length); }
     let text = ''; const map = [];
@@ -768,6 +788,7 @@ function migrateStyleValues(input, strict = false){
 return Object.freeze({
 ...Object.freeze({APP_VERSION,
 EXTRA_PROFILE_SLOTS,
+emphasisMatches,
 STYLE_FIELDS,
 WORK_BOOLEAN_DEFAULTS,
 WORK_BOOLEAN_FIELDS,

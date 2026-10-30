@@ -22,8 +22,7 @@ function maskInlineFormatMarkers(value, mask){
   [
     { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
     { re:/\*\*([^*\n]+?)\*\*/g, width:2 },
-    { re:/__(.+?)__/g, width:2 },
-    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
+    { re:/__(.+?)__/g, width:2 }
   ].forEach(({ re, width }) => {
     let match;
     while((match = re.exec(normalized)) !== null){
@@ -31,6 +30,10 @@ function maskInlineFormatMarkers(value, mask){
       mask(match.index + match[0].length - width, match.index + match[0].length);
     }
   });
+  for(const match of MosaicState.emphasisMatches(normalized)){
+    mask(match.index, match.index + 1);
+    mask(match.index + match[0].length - 1, match.index + match[0].length);
+  }
 }
 
 // MosaicRenderer.buildParagraph/MosaicRenderer.assembleBody와 같은 순서로 문법을 해석한다. 화면에 숨겨지는 구간은
@@ -327,11 +330,10 @@ function prepareSourceRangeReplacement(line, sourceRange){
   const raw = String(line);
   const remove = new Set();
   [
-    { re:/__(.+?)__/g, width:2 },
-    { re:/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, width:1 }
-  ].forEach(({ re, width }) => {
-    let match;
-    while((match = re.exec(raw)) !== null){
+    { matches:Array.from(raw.matchAll(/__(.+?)__/g)), width:2 },
+    { matches:MosaicState.emphasisMatches(raw), width:1 }
+  ].forEach(({ matches, width }) => {
+    for(const match of matches){
       const innerStart = match.index + width;
       const innerEnd = match.index + match[0].length - width;
       const overlaps = sourceRange.start < innerEnd && sourceRange.end > innerStart;

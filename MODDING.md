@@ -32,7 +32,7 @@ HTML·CSS·JS를 수정하고 `index.html`을 다시 열면 됩니다. 설치·�
 
 한글 제목의 `조`는 `index.html`에서 `.brandInitial`로 감싸고 오른쪽에 0.5px 여백을 둡니다. `로`는 `.brandLogInitial`로 감싸고 오른쪽에 0.25px 여백을 둡니다. `조·각`, `로·그` 사이만 조정하며 실제 공백 문자는 추가하지 않습니다.
 
-영문 이름의 `os`, `i`, `Lo` 묶음에는 `.enTightSpacing`으로 자간 0.45px를 적용합니다. `o–s`, `s–a`, `i–c`, `L–o`, `o–g` 사이만 각각 약 0.15px 좁히고 나머지 기본 자간 0.6px와 첫 글자의 광학 정렬은 유지합니다. `Lo`는 하나의 묶음으로 두어 원래 커닝을 보존합니다.
+영문 이름의 `os`, `Lo` 묶음에는 `.enTighterSpacing`으로 자간 0.3px를 적용하고 오른쪽에 0.15px 여백을 둡니다. `o–s`, `L–o` 사이는 기본값보다 각각 약 0.3px 좁히되, 묶음 뒤의 `s–a`, `o–g` 사이는 기존 자간 0.45px에 맞춥니다. `i`에는 `.enTightSpacing`으로 자간 0.45px를 적용해 `i–c` 사이를 약 0.15px 좁힙니다. 나머지 기본 자간 0.6px와 첫 글자의 광학 정렬은 유지합니다. `os`와 `Lo`는 각각 하나의 묶음으로 두어 원래 커닝을 보존합니다.
 
 버전 표시의 `v`는 `.versionPrefix`로 감싸고 오른쪽에 0.5px 여백을 추가합니다. 숫자 사이의 기본 자간 0.25px와 버전 문자열은 유지하며 실제 공백 문자는 넣지 않습니다.
 
@@ -182,6 +182,14 @@ if (work.cards.length < MosaicState.MAX_WORK_BLOCKS) {
 - `bindOutputRuleInteractions`의 일반 클릭과 `showOutputRulePopover`는 치환·삭제 예외를 처리합니다. 병행 제외 클릭 팝업을 다시 추가하지 않습니다.
 - `parallelExclusions`·`outputRuleExclusions`의 저장 구조와 원문 범위 계산을 공유합니다.
 - 컨트롤 동기화 캐시는 `createControlSync`가 관리합니다. 복원 시 `invalidateControlSync()`를 사용하고 캐시 객체를 직접 수정하지 않습니다.
+
+## 모바일 Safari 호환성
+
+iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법을 정규식 리터럴에 넣으면 버튼을 연결하기 전에 JS 파일 전체가 파싱에 실패합니다.
+
+강조 범위는 `MosaicState.emphasisMatches(text, combined)`에서 이전 문자를 직접 확인합니다. `combined`가 참이면 `***굵은 강조***`도 함께 찾습니다. 미리보기 서식과 글자 수 계산은 `MosaicParser.formatMatches(format, text)`를 사용하며 원문의 인덱스와 기존 캡처 그룹을 보존합니다.
+
+기존 `MosaicUI.FMT_RE`는 유지하지만 구형 Safari에서는 강조 후보를 찾는 대체 정규식이 제공됩니다. 새 코드에서 `.source`를 재컴파일하지 말고 `formatMatches`로 실제 서식 범위를 구합니다. PC의 모바일 화면 검사와 Safari 문법 호환성 검사는 별도로 진행합니다.
 
 ## 모바일 화면 이동 수정하기
 
