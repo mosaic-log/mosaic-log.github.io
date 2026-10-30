@@ -5,7 +5,7 @@ globalThis.MosaicState = (() => {
 'use strict';
 // 조각로그 v1.9.0 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.9.6';
+const APP_VERSION = '1.9.7';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -102,13 +102,13 @@ const extraProfileFields = slot => {
   return ['Role','Image','Scale','X','Y','Name','Desc','Tags'].map(field => prefix + field);
 };
 
-const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','titleTextPosition','profilePlacement','profileTextPosition','profileStyle','profileOrder','profileEntityOrder','profileExtraCount','profileCharRole','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserRole','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags',...EXTRA_PROFILE_SLOTS.flatMap(extraProfileFields),'profileRelationship','profileSituation','nameRules','keywordRules'];
+const WORK_FIELDS = ['imgUrl','imgHeight','xpos','ypos','charName','userName','extraChars','footerAuthor','creditItems','creditPlacement','logNumber','logTitle','subChar','subUser','subtitleCoupleSeparator','logSubtitle','titleTextPosition','profilePlacement','profileTextPosition','profileStyle','profileOrder','profileEntityOrder','profileExtraCount','profileCharRole','profileCharImage','profileCharScale','profileCharX','profileCharY','profileCharName','profileCharDesc','profileCharTags','profileUserRole','profileUserImage','profileUserScale','profileUserX','profileUserY','profileUserName','profileUserDesc','profileUserTags',...EXTRA_PROFILE_SLOTS.flatMap(extraProfileFields),'profileRelationshipHeading','profileRelationship','profileSituationHeading','profileSituation','nameRules','keywordRules'];
 
 const WORK_FIELD_DEFAULTS = Object.freeze({
   imgUrl:'', imgHeight:'300', xpos:'50', ypos:'0',
   charName:'', userName:'', extraChars:'[]', footerAuthor:'', creditItems:'[]', creditPlacement:'bottom',
   logNumber:'', logTitle:'', subChar:'', subUser:'', subtitleCoupleSeparator:'×', logSubtitle:'', titleTextPosition:'center',
-  profilePlacement:'below', profileTextPosition:'center', profileStyle:'compact', profileOrder:'bot-user', profileEntityOrder:'["bot","user"]', profileExtraCount:'0', profileCharRole:'BOT', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserRole:'USER', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationship:'', profileSituation:'',
+  profilePlacement:'below', profileTextPosition:'center', profileStyle:'compact', profileOrder:'bot-user', profileEntityOrder:'["bot","user"]', profileExtraCount:'0', profileCharRole:'BOT', profileCharImage:'', profileCharScale:'100', profileCharX:'50', profileCharY:'50', profileCharName:'', profileCharDesc:'', profileCharTags:'', profileUserRole:'USER', profileUserImage:'', profileUserScale:'100', profileUserX:'50', profileUserY:'50', profileUserName:'', profileUserDesc:'', profileUserTags:'', profileRelationshipHeading:'RELATIONSHIP', profileRelationship:'', profileSituationHeading:'SITUATION', profileSituation:'',
   ...Object.fromEntries(EXTRA_PROFILE_SLOTS.flatMap(slot => {
     const prefix = extraProfilePrefix(slot);
     return [['Role','CHAR'],['Image',''],['Scale','100'],['X','50'],['Y','50'],['Name',''],['Desc',''],['Tags','']].map(([field,value]) => [prefix + field,value]);
@@ -117,10 +117,10 @@ const WORK_FIELD_DEFAULTS = Object.freeze({
 });
 
 const WORK_BOOLEAN_DEFAULTS = Object.freeze({
-  logTitleOn:false, titleMinimal:false, titleImageBackgroundOn:false, imgOn:false, profileOn:false, profileMinimal:false,
+  logTitleOn:false, titleMinimal:false, titleImageBackgroundOn:false, imgOn:false, profileOn:false, profileDividerMinimal:false,
   profileCharOn:true, profileUserOn:true, profileImageBackgroundOn:false,
   ...Object.fromEntries(EXTRA_PROFILE_SLOTS.map(slot => [`profileExtra${slot}On`, true])),
-  profileCommonOn:true, footerOn:true, creditOn:false
+  profileRelationshipOn:true, profileSituationOn:true, footerOn:true, creditOn:false
 });
 
 const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
@@ -130,8 +130,8 @@ const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 const DEFAULT_STYLE = Object.freeze({
   parallelDialogueOn:true, parallelNarrationOn:false,
   parallelTranslationOrder:'original', parallelTranslationBrackets:'show',
-  textFont: 'pretendard', narrSize: '14', narrLine: '1.7', narrColor: '#555555',
-  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.7', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
+  textFont: 'pretendard', narrSize: '13.5', narrLine: '1.6', narrColor: '#555555',
+  dlgStyle: 'softlight', dlgSize: '13.5', dlgLine: '1.6', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
   outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff',
@@ -225,6 +225,21 @@ const STYLE_SCHEMA = Object.freeze({
 
 function settingFlagOn(value){
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
+}
+
+// 관계·상황을 나누기 전 자료의 공통 표시값은 새 두 항목이 누락된 경우에만 이어받는다.
+function savedProfileCommonVisibility(fields){
+  const enabled = id => fields[id] !== undefined ? settingFlagOn(fields[id])
+    : fields.profileCommonOn !== undefined ? settingFlagOn(fields.profileCommonOn)
+    : WORK_BOOLEAN_DEFAULTS[id];
+  return {
+    profileRelationshipOn:enabled('profileRelationshipOn'),
+    profileSituationOn:enabled('profileSituationOn')
+  };
+}
+
+function savedProfileDividerMinimal(fields){
+  return settingFlagOn(fields.profileDividerMinimal);
 }
 
 function savedProfileImageBackgroundOn(fields){
@@ -535,6 +550,7 @@ function sanitizeImportedWork(data){
       ? 8192
       : ((id === 'extraChars' || id === 'creditItems') ? 200000 : 5000);
     if(value.length > limit) return null;
+    if(['profileRelationshipHeading','profileSituationHeading'].includes(id) && value.length > 80) return null;
     fields[id] = value;
   }
   const importedExtraCount = Math.max(0, Math.min(3, Number(fields.profileExtraCount) || 0));
@@ -558,6 +574,9 @@ function sanitizeImportedWork(data){
     }
   });
   if(invalidBoolean) return null;
+  if(source.profileCommonOn !== undefined && typeof source.profileCommonOn !== 'boolean') return null;
+  Object.assign(fields, savedProfileCommonVisibility(source));
+  fields.profileDividerMinimal = savedProfileDividerMinimal(source);
   if(source.profileImageBackgroundOn === undefined){
     for(const legacyId of ['profileCharImageBackgroundOn','profileUserImageBackgroundOn']){
       if(source[legacyId] !== undefined && typeof source[legacyId] !== 'boolean') return null;
@@ -786,7 +805,7 @@ function migrateStyleValues(input, strict = false){
 }
 
 return Object.freeze({
-...Object.freeze({APP_VERSION,
+APP_VERSION,
 EXTRA_PROFILE_SLOTS,
 emphasisMatches,
 STYLE_FIELDS,
@@ -811,7 +830,9 @@ normalizeProfileEntityOrder,
 normalizeProtocolRelativeUrl,
 normalizeRetiredCoverImageFields,
 savedProfileImageBackgroundOn,
-settingFlagOn}),
+savedProfileDividerMinimal,
+savedProfileCommonVisibility,
+settingFlagOn,
 DEFAULT_STYLE,
 DETAIL_PRESET_FIELDS,
 DRAFT_FIELDS,

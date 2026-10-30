@@ -38,6 +38,12 @@ function initializeStyleDefaults(root){
   }
 }
 initializeStyleDefaults(document);
+// 새 라벨의 초기값도 저장·복원과 같은 작업 기본값을 사용한다.
+for(const id of ['profileRelationshipHeading','profileSituationHeading']){
+  const input = document.getElementById(id);
+  input.defaultValue = MosaicState.WORK_FIELD_DEFAULTS[id];
+  input.value = input.defaultValue;
+}
 
 let appCommands = null;
 let initialized = false;
@@ -116,10 +122,11 @@ function getSettings(){
     subtitleCoupleSeparator: MosaicState.normalizeSubtitleCoupleSeparator(host.root.getElementById('subtitleCoupleSeparator').value),
     logSubtitle: host.root.getElementById('logSubtitle').value,
     profileOn: host.root.getElementById('profileOn').checked,
-    profileMinimal: host.root.getElementById('profileMinimal').checked,
+    profileDividerMinimal: host.root.getElementById('profileDividerMinimal').checked,
     profileCharOn: host.root.getElementById('profileCharOn').checked,
     profileUserOn: host.root.getElementById('profileUserOn').checked,
-    profileCommonOn: host.root.getElementById('profileCommonOn').checked,
+    profileRelationshipOn: host.root.getElementById('profileRelationshipOn').checked,
+    profileSituationOn: host.root.getElementById('profileSituationOn').checked,
     profilePlacement: host.root.getElementById('profilePlacement').value,
     profileTextPosition: host.root.getElementById('profileTextPosition').value,
     profileStyle: host.root.getElementById('profileStyle').value,
@@ -158,7 +165,9 @@ function getSettings(){
     profileUserName: host.root.getElementById('profileUserName').value,
     profileUserDesc: host.root.getElementById('profileUserDesc').value,
     profileUserTags: host.root.getElementById('profileUserTags').value,
+    profileRelationshipHeading: host.root.getElementById('profileRelationshipHeading').value,
     profileRelationship: host.root.getElementById('profileRelationship').value,
+    profileSituationHeading: host.root.getElementById('profileSituationHeading').value,
     profileSituation: host.root.getElementById('profileSituation').value,
     paragraphGap: host.root.getElementById('paragraphGap').value,
     narrDialogueGap: host.root.getElementById('narrDialogueGap').value,
@@ -206,7 +215,7 @@ function getSettings(){
     cardTitleOrnamentOpacity: advancedOn && host.root.getElementById('foldTitleDecorationOn').checked
       ? host.root.getElementById('cardTitleOrnamentOpacity').value : '50',
     foldAutoNumberStyle: advancedOn && host.root.getElementById('foldTitleAutoNumber').checked
-      ? host.root.getElementById('foldAutoNumberStyle').value : 'arabic',
+      ? host.root.getElementById('foldAutoNumberStyle').value : MosaicState.DEFAULT_STYLE.foldAutoNumberStyle,
     creditBorderOn: advancedOn && host.root.getElementById('creditBorderOn').checked,
     creditTransparentOn: advancedOn && host.root.getElementById('creditTransparentOn').checked,
     narrIndent: host.root.getElementById('narrIndent').checked,
@@ -335,8 +344,9 @@ function syncCardLayoutCheckbox(){
 }
 
 function profileItemGapBasePx(){
-  if(document.getElementById('profileStyle').value !== 'showcase') return 10;
+  const profileStyle = document.getElementById('profileStyle').value;
   const photoBackgroundOn = document.getElementById('profileImageBackgroundOn').checked;
+  if(profileStyle !== 'showcase') return 10;
   const prefixes = ['profileChar','profileUser',
     ...MosaicState.EXTRA_PROFILE_SLOTS.filter(slot => slot <= host.extraProfileCount() + 2).map(MosaicState.extraProfilePrefix)];
   const visible = prefixes.filter(prefix => document.getElementById(`${prefix}On`).checked
@@ -1477,8 +1487,10 @@ function selectedControlText(id){
 
 
 function syncDividerLengthControlState(){
+  const profileDividerOn = document.getElementById('profileOn').checked
+    && !document.getElementById('profileDividerMinimal').checked;
   const controls = [
-    ['coverDividerLength', document.getElementById('titleMinimal').checked],
+    ['coverDividerLength', document.getElementById('titleMinimal').checked && !profileDividerOn],
     ['cardDividerLength', !document.getElementById('foldDividerOn').checked]
   ];
   controls.forEach(([id, unavailable]) => {
@@ -1592,14 +1604,14 @@ function syncDesignSummaryText(){
 
   const titleOn = document.getElementById('logTitleOn').checked;
   document.getElementById('titleCoverSummary').textContent = titleOn
-    ? (document.getElementById('titleMinimal').checked ? '미니멀' : '일반')
+    ? (document.getElementById('titleMinimal').checked ? '구분선 숨김' : '구분선 표시')
     : '';
   const profileOn = document.getElementById('profileOn').checked;
   const profilePlacementSummary = document.getElementById('profilePlacement').value === 'top'
     ? '최상단'
     : selectedControlText('profilePlacement');
   document.getElementById('profileCoverSummary').textContent = profileOn
-    ? `${selectedControlText('profileStyle')} · ${document.getElementById('profileMinimal').checked ? '미니멀' : '일반'} · ${profilePlacementSummary}`
+    ? `${selectedControlText('profileStyle')}${document.getElementById('profileDividerMinimal').checked ? ' · 선 숨김' : ''} · ${profilePlacementSummary}`
     : '';
 
   const footerAuthorSummary = document.getElementById('footerAuthor').value.trim();
@@ -1675,11 +1687,18 @@ const PROFILE_ENTITY_CONFIGS = [
       resetValues:{ [`${prefix}Role`]:'CHAR', [`${prefix}Name`]:'', [`${prefix}Tags`]:'', [`${prefix}Desc`]:'', [`${prefix}Image`]:'', [`${prefix}Scale`]:'100', [`${prefix}X`]:'50', [`${prefix}Y`]:'50' } };
   }),
   {
-    label:'관계와 상황', toggleId:'profileCommonOn', groupId:'profileCommonGroup', resetButtonId:'profileCommonResetBtn',
-    controlIds:['profileRelationship1','profileRelationship2','profileRelationship3','profileSituation'],
-    resetValues:{ profileRelationship:'', profileSituation:'' },
-    emptyMessage:'관계와 상황은 이미 초기 상태입니다.',
-    completeMessage:'관계와 상황을 초기화했습니다.'
+    label:'관계', toggleId:'profileRelationshipOn', groupId:'profileRelationshipGroup', resetButtonId:'profileRelationshipResetBtn',
+    controlIds:['profileRelationshipHeading','profileRelationship1','profileRelationship2','profileRelationship3'],
+    resetValues:{ profileRelationshipHeading:MosaicState.WORK_FIELD_DEFAULTS.profileRelationshipHeading, profileRelationship:'' },
+    emptyMessage:'관계는 이미 초기 상태입니다.',
+    completeMessage:'관계를 초기화했습니다.'
+  },
+  {
+    label:'상황', toggleId:'profileSituationOn', groupId:'profileSituationGroup', resetButtonId:'profileSituationResetBtn',
+    controlIds:['profileSituationHeading','profileSituation'],
+    resetValues:{ profileSituationHeading:MosaicState.WORK_FIELD_DEFAULTS.profileSituationHeading, profileSituation:'' },
+    emptyMessage:'상황은 이미 초기 상태입니다.',
+    completeMessage:'상황을 초기화했습니다.'
   }
 ];
 
@@ -1903,7 +1922,7 @@ const SIDEBAR_OUTPUT_IDS = new Set([...MosaicState.WORK_FIELDS, ...MosaicState.S
 
 // 표시 여부에 따라 미리보기 높이가 크게 바뀌는 옵션들.
 // 위치 맞추기가 꺼져 있으면 브라우저의 자동 스크롤 보정까지 취소해 현재 화면을 유지한다.
-const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'titleImageBackgroundOn', 'profileOn', 'profileMinimal', 'profileCharOn', 'profileUserOn', ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`), 'profileImageBackgroundOn', 'profileCommonOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
+const POSITION_PRESERVE_TOGGLE_IDS = new Set(['logTitleOn', 'titleMinimal', 'titleImageBackgroundOn', 'profileOn', 'profileDividerMinimal', 'profileCharOn', 'profileUserOn', ...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`), 'profileImageBackgroundOn', 'profileRelationshipOn', 'profileSituationOn', 'footerOn', 'creditOn', 'creditPlacement', 'cardLayout']);
 
 
 function previewProfileRoleTarget(role){
@@ -1965,10 +1984,11 @@ const PREVIEW_FOCUS_MAP = {
   xpos:       () => previewLayout.previewParts().image,
   ypos:       () => previewLayout.previewParts().image,
   profileOn:  () => previewLayout.previewParts().profile,
-  profileMinimal:() => previewLayout.previewParts().profile,
+  profileDividerMinimal:() => previewLayout.previewParts().profile,
   profileCharOn:() => previewProfileRoleTarget('bot'),
   profileUserOn:() => previewProfileRoleTarget('user'),
-  profileCommonOn:() => previewLayout.previewParts().profile,
+  profileRelationshipOn:() => previewLayout.previewParts().profile,
+  profileSituationOn:() => previewLayout.previewParts().profile,
   profilePlacement:() => previewLayout.previewParts().profile,
   profileTextPosition:() => previewLayout.previewParts().profile,
   profileImageBackgroundOn:() => previewLayout.previewParts().profile,
@@ -1991,7 +2011,9 @@ const PREVIEW_FOCUS_MAP = {
   profileUserRole: () => previewProfileFieldTarget('profileUserRole'),
   profileUserDesc: () => previewProfileFieldTarget('profileUserDesc'),
   profileUserTags: () => previewProfileFieldTarget('profileUserTags'),
+  profileRelationshipHeading:() => previewProfileFieldTarget('profileRelationshipHeading'),
   profileRelationship:() => previewProfileFieldTarget('profileRelationship'),
+  profileSituationHeading:() => previewProfileFieldTarget('profileSituationHeading'),
   profileSituation:() => previewProfileFieldTarget('profileSituation'),
   // 숨긴 뒤에는 대체 대상으로 마지막 카드 전체를 반환하지 않는다.
   // 큰 카드를 중앙 정렬하며 미리보기 스크롤이 튀는 것을 막고,
@@ -2328,13 +2350,13 @@ function bindCoverAndPresetEvents(){
       });
     });
 
-    // BOT·USER·관계가 자체 OFF일 때도 첫 입력으로 해당 항목을 켠다.
+    // 인물·관계·상황이 자체 OFF일 때도 첫 입력으로 해당 항목만 켠다.
     PROFILE_ENTITY_CONFIGS.forEach(config => {
       const body = document.querySelector(`#${config.groupId} > .profileSubBody`);
       const toggle = document.getElementById(config.toggleId);
       bindVisibilityActivation(body, toggle);
     });
-    ['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn',...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`),'profileCommonOn','footerOn','creditOn'].forEach(id => {
+    ['imgOn','logTitleOn','profileOn','profileCharOn','profileUserOn',...MosaicState.EXTRA_PROFILE_SLOTS.map(slot => `profileExtra${slot}On`),'profileRelationshipOn','profileSituationOn','footerOn','creditOn'].forEach(id => {
       document.getElementById(id).addEventListener('change', syncCoverControlState);
     });
 
@@ -2387,7 +2409,10 @@ function applyWorkState(data){
   previewInteractions.discardActiveDirectEdit();
   mobilePanelNavigation.reset();
   controlSync.invalidateControlSync();
-  const fields = MosaicState.normalizeRetiredCoverImageFields(data.fields || {});
+  const savedFields = data.fields || {};
+  const fields = MosaicState.normalizeRetiredCoverImageFields({
+    ...savedFields, ...MosaicState.savedProfileCommonVisibility(savedFields)
+  });
   MosaicState.WORK_FIELDS.forEach(id => {
     document.getElementById(id).value = fields[id] !== undefined ? fields[id] : MosaicState.WORK_FIELD_DEFAULTS[id];
   });
@@ -2398,6 +2423,7 @@ function applyWorkState(data){
   Object.entries(MosaicState.WORK_BOOLEAN_DEFAULTS).forEach(([id, fallback]) => {
     document.getElementById(id).checked = id === 'profileImageBackgroundOn'
       ? MosaicState.savedProfileImageBackgroundOn(fields)
+      : id === 'profileDividerMinimal' ? MosaicState.savedProfileDividerMinimal(fields)
       : (fields[id] !== undefined ? MosaicState.settingFlagOn(fields[id]) : fallback);
   });
   if(data.style && typeof data.style === 'object') library.applyStyleValues(data.style);
@@ -3308,8 +3334,8 @@ readCards:(...args)=>cardEditors.getCards(...args),
 syncSegmentedChoice:(...args)=>library.syncSegmentedChoiceControl(...args)
 });
 
-return Object.freeze({...Object.freeze({
-...Object.freeze({init:initUI,
+return Object.freeze({
+init:initUI,
 cards:Object.freeze({
     add:cardEditors.addCard,
     clear:cardEditors.clearCardEditors,
@@ -3370,7 +3396,7 @@ controls:Object.freeze({
     renderKeywordRules:renderKeywordRuleList,
     selectedText:selectedControlText
   }),
-workspace:Object.freeze({ setInert:fullscreen.setWorkspaceInert })}),
+workspace:Object.freeze({ setInert:fullscreen.setWorkspaceInert }),
 FMT_RE:previewInteractions.FMT_RE,
 IS_MAC,
 MOD_KEY,
@@ -3383,8 +3409,9 @@ generateHTML,
 getSettings:settingsReader.getSettings,
 layoutPreviewFloatingButtons:previewLayout.layoutPreviewFloatingButtons,
 openFullscreen:fullscreen.openFullscreen,
-restoreEditorIdentities:cardEditors.restoreEditorIdentities
-}), bindFeatureEvents});
+restoreEditorIdentities:cardEditors.restoreEditorIdentities,
+bindFeatureEvents
+});
 })();
 
 // ---------- 크레딧 편집·세부 프리셋 UI ----------

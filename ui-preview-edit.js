@@ -1028,13 +1028,30 @@ function commitPreviewInlineFieldEdit(el, descriptor, next){
   const input = document.getElementById(descriptor.id);
   if(!input) return;
   const visible = descriptor.normalizeTag ? host.normalizeProfileTag(next) : next;
-  const updated = host.sourceMap.replaceVisibleUsingProjection(
-    input.value,
-    visible,
-    host.sourceMap.inlineEditProjection(input.value),
-    descriptor.multiline === true
-  );
-  if(updated === input.value) return;
+  const maxLength = Number(input.maxLength);
+  let plain = String(visible);
+  if(descriptor.plainText && maxLength > 0 && plain.length > maxLength){
+    plain = plain.slice(0, maxLength).replace(/[\uD800-\uDBFF]$/, '');
+  }
+  const updated = descriptor.plainText
+    ? plain
+    : host.sourceMap.replaceVisibleUsingProjection(
+      input.value,
+      visible,
+      host.sourceMap.inlineEditProjection(input.value),
+      descriptor.multiline === true
+    );
+  // 서식 원문을 중간에서 자르면 강조 기호나 링크가 깨진다. 제한을 넘는
+  // 새 입력은 저장하지 않고, 이미 긴 구버전 값은 줄여서 고칠 수 있게 둔다.
+  if(maxLength > 0 && updated.length > maxLength && updated.length > input.value.length){
+    host.uiUpdateEffects.renderNow();
+    host.showNoticeToast(`입력 제한(${maxLength}자)을 넘어 저장하지 않았습니다. 내용을 줄여 주세요.`);
+    return;
+  }
+  if(updated === input.value){
+    if(descriptor.plainText && plain !== String(visible)) host.uiUpdateEffects.renderNow();
+    return;
+  }
   previewEditState.committing = true;
   try {
     host.snapshotCards();
@@ -1636,6 +1653,8 @@ const PROFILE_DIRECT_EDIT_LABELS = Object.freeze({
   profileUserRole:'USER 라벨 수정',
   profileUserName:'USER 이름 수정',
   profileUserDesc:'USER 소개 수정',
+  profileRelationshipHeading:'관계 라벨 수정',
+  profileSituationHeading:'상황 라벨 수정',
   profileRelationship1:'관계·키워드 1 수정',
   profileRelationship2:'관계·키워드 2 수정',
   profileRelationship3:'관계·키워드 3 수정',
@@ -1683,6 +1702,7 @@ function decoratePreviewProfileEditors(){
     enablePreviewDirectEditor(field, {
       type:'profile',
       id,
+      plainText:/Role$/.test(id) || id === 'profileRelationshipHeading' || id === 'profileSituationHeading',
       multiline,
       normalizeTag:isTag
     }, PROFILE_DIRECT_EDIT_LABELS[id] || (isTag ? '프로필 태그 수정' : '프로필 내용 수정'));

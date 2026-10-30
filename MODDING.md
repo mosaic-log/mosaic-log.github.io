@@ -60,7 +60,7 @@ UI 부품 5개는 생성 함수 묶음만 `MosaicUIParts`에 등록합니다. `u
 
 ## 디자인 기본값 바꾸기
 
-`state.js`의 `DEFAULT_STYLE`을 수정합니다. 예를 들어 `narrSize: '14'`를 `'16'`으로 바꾸면 새 시작과 디자인 초기화에서 16px를 사용합니다.
+`state.js`의 `DEFAULT_STYLE`을 수정합니다. 대사·나레이션 기본 크기는 13.5px, 줄간격은 1.6배입니다. 예를 들어 `narrSize: '13.5'`를 `'16'`으로 바꾸면 새 시작과 디자인 초기화에서 16px를 사용합니다.
 
 `initializeStyleDefaults`가 초기화 시 HTML 컨트롤과 숫자·색상 입력 미러를 채우므로, HTML에 같은 디자인 기본값을 중복 작성하지 않습니다. 기존 초안이 있으면 저장된 값이 우선합니다. 새 기본값은 별도 브라우저 저장 공간에서 확인하거나, 작업을 백업한 뒤 디자인 초기화로 확인합니다.
 
@@ -169,12 +169,30 @@ if (work.cards.length < MosaicState.MAX_WORK_BLOCKS) {
 
 - 꼬리말 작성자는 `renderer.js`의 `buildFooter()`에서 표시하고 `ui-preview-edit.js`의 `decoratePreviewFooterEditor()`에서 표시된 이름에만 편집을 연결합니다. 프로필과 같은 `commitPreviewInlineFieldEdit()` 경로로 저장합니다. ©·도구 링크·여백은 편집 영역 밖에 둡니다. 이름이 없으면 편집 영역을 만들지 않으며, 표지 탭의 작성자 입력란에서 추가합니다.
 - 꼬리말의 도구 링크 주소는 `buildFooter()`의 `https://mosaic-log.github.io/`입니다. `decoratePreviewFooterEditor()`는 작성자 유무와 관계없이 미리보기 DOM에서만 이 링크의 `href`·`target`을 제거하고 탭 이동에서 제외합니다. 게시용 HTML의 링크는 유지하며, 투명 테마의 기존 링크 없는 표시는 바꾸지 않습니다.
+- 본문 좌우 기본 여백은 `CARD_INLINE_PADDING`의 `clamp(20px,calc(4.5vw + 2px),26px)`입니다. 기존 저장값 `cardInlinePadding:22`는 반응형 기본값을 뜻하며, 나머지 직접 지정값은 기존 픽셀값을 유지합니다. 위아래 기본값은 `cardBodyVerticalPaddingCss()`의 공통 기준에 `CARD_BODY_PADDING_OFFSET`(−5px)을 더해 37~43px로 맞춥니다. `trimCardBodyEdgeMargins()`는 첫·마지막 요소와 화자 이름의 flow-root 래퍼에서 바깥 margin만 제거합니다. 내부 문단 간격과 부분 접기의 안쪽 여백은 건드리지 않습니다. `cardBodyBottomSpace`는 꼬리말 유무와 관계없이 카드 아래에 적용하고, `footerBodyGap`은 꼬리말 앞 간격만 조절합니다. 꼬리말 앞 기본 간격은 공통 세로 기준의 1.5배에 `FOOTER_SPACING_OFFSET`(−10px)을 더한 값(일반 모드 53~62px)이며 문단 간격 모드의 배율을 유지합니다. 사용자 추가값은 별도로 더하고, 카드 하단 여백은 37~43px를 유지합니다.
 
 - 병행 대사의 표시와 원문 위치는 `parser.js`의 `parallelDisplayParts`를 공유합니다. 보조 대사를 감싸는 바깥 큰따옴표만 생략하고, 내부 인용·입력 원문·나레이션·속마음은 보존합니다. 표시 순서를 바꿔도 같은 규칙을 적용합니다.
 - 자동·이어쓰기·아래쓰기 판정은 `MosaicParser.parallelTranslationPlacement()`를 출력과 편집 투영이 함께 사용합니다. 괄호 안 공백과 숨긴 구분자의 원문 위치도 함께 보존합니다.
 - 아카라이브 PC·모바일의 출력 색·크기 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.
 - 크레딧 항목 구분선의 색은 `buildCredit()`의 `creditDivider`(`#e9e9e9`)에서 정합니다. `transparentOutput()`은 이 색과 본문 `[HR]`의 원래 색·농도를 보존하며, HR2·HR3·HR4는 기존 투명 규칙을 유지합니다.
 - 프로필 줄바꿈은 `renderer.js`의 `buildProfileBlock()`에서 정합니다. 3인 한 줄과 5인 2+3은 `PROFILE_THREE_COLUMN_CARD_BREAKPOINT`의 카드 전체 폭 680px 기준입니다. `profileHorizontalInset`이 좌우 패딩·테두리를 빼서 실제 안쪽 경계를 계산합니다. 2열→1열은 `PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT`의 안쪽 폭 400px 기준입니다. `styles.css`의 638·640·678·680px 컨테이너 조건도 함께 맞춥니다. 일반/붙임형·외곽선 여부에 따라 620px에서 3인 2+1·5인 2+2+1, 679px에서 2열, 680px에서 3인 한 줄·5인 2+3인지 확인합니다. 사진 접합선·모서리와 미리보기·출력 HTML도 비교합니다.
+- 프로필은 기본 표현만 사용합니다. 미니·클래식의 인물 배경은 `buildProfileBlock()`의 `profileCardBg`에서 결정하며, 사진 배경과 포트레이트의 기존 규칙은 유지합니다. 프로필 구분선은 `profileDividerMinimal`, 표제 구분선은 `titleMinimal`로 결정하고 UI에는 구분선 — 표시/숨김으로 표시합니다.
+- 프로필 기본 설정은 구분선·배치·배경·스타일 순서입니다. `styles.css`의 프로필 `.segmentedChoice` 공통 세 열에 구분선도 포함해 선택지 중심을 맞춥니다. 미니·클래식의 인물 기본 간격은 10px이며 상단 프로필의 사용자 간격 조절값을 더합니다. 포트레이트의 사진 접합·간격 규칙은 유지하고 `ui.js`의 `profileItemGapBasePx()`로 숫자 표시를 맞춥니다.
+- 관계와 상황의 입력은 `#profileCommonGroup` 안의 `.profileCommonSection` 두 개로 묶습니다. 관계는 라벨·키워드, 상황은 라벨·요약 순서이며 작은 소제목과 간격으로 구분하며 소제목과 첫 입력행 사이는 6px로 둡니다. 바깥 제목에는 접기만 두고 각 소그룹의 `.profileCommonHead`에 초기화와 표시 스위치를 둡니다. `.profileCommonHead`와 입력행은 같은 설정 폼 그리드를 공유합니다. 조작 버튼을 두 번째 열 끝에 두어 스위치의 보이는 오른쪽 끝과 클릭 영역이 입력칸 밖으로 나가지 않게 맞춥니다. 인물 헤더의 접기 버튼 자리를 위한 빈 공간은 두지 않습니다. 내부 `.profileSubBody`는 별도 패딩 없이 기존 `PROFILE_ENTITY_CONFIGS`의 초기화·OFF 표시·입력 시 활성화 경로를 공유합니다. 관계 초기화는 라벨·키워드만, 상황 초기화는 라벨·요약만 바꾸며 입력 ID는 유지합니다. 중첩된 요약 textarea에도 기존 입력 스타일을 적용합니다. 키워드 라벨은 align-self: start와 --control-h 높이의 flex 정렬로 첫 입력줄 중앙에 맞춥니다. 요약 라벨은 위쪽 패딩 8px를 두고 나머지 라벨과 입력 폭은 유지합니다.
+- 개별 표시값은 `profileRelationshipOn`·`profileSituationOn`이며 `WORK_BOOLEAN_DEFAULTS`에서 둘 다 true로 관리합니다. `MosaicState.savedProfileCommonVisibility()`는 명시한 개별 값을 우선하고 누락값에만 구버전 `profileCommonOn`을 적용합니다. 상태 검증·초안 준비·UI 작업 적용·렌더러는 이 변환을 공유합니다. 새 작업과 백업에는 개별 두 값만 저장하고 기존 저장 키·컨테이너·복원 버전은 유지합니다.
+- 관계·상황 라벨은 `profileRelationshipHeading`·`profileSituationHeading`입니다. 기본값은 `state.js`의 `WORK_FIELD_DEFAULTS`에서 관리하며, `WORK_FIELDS`에 등록해 초안·보관함·실행 취소·HTML 복원에서 함께 수집합니다. 누락값만 기본값으로 채우고 빈 문자열은 유지합니다. 입력창과 가져오기에서 최대 80자를 허용합니다.
+- `renderer.js`는 내용이 있는 관계·상황 상자에만 라벨을 출력하고 빈 라벨은 생략합니다. 라벨은 HTML을 이스케이프한 일반 텍스트이며 `data-mosaic-profile-field`로 미리보기 편집에 연결합니다. `decoratePreviewProfileEditors()`의 라벨 편집은 `plainText`를 사용해 별표·괄호 등을 서식 문법으로 해석하지 않습니다. 기존 `commitPreviewInlineFieldEdit()`의 입력 이벤트 경로로 입력창·렌더·히스토리·저장을 갱신합니다. 새 저장소나 별도 이벤트 경로를 추가하지 않습니다.
+- 역할 라벨(`profileCharRole`·`profileUserRole`·추가 인물의 `Role`)도 평문 경로를 사용합니다. 공통 편집 함수는 입력창의 `maxlength`를 확인합니다. 평문은 제한 안에서 반영하고 서식 원문은 중간에서 자르지 않도록 초과한 새 입력을 거절합니다. `maxlength`가 없으면 제한을 적용하지 않으며, 구버전의 긴 값은 줄여 수정할 수 있습니다.
+- 표제의 구분선과 배경 선택지는 `#titleGroup .segmentedChoice`의 두 열을 공유합니다. 두 그룹은 우측 정렬하고 첫 열은 문구 폭, 둘째 열은 64px, 열 간격은 14px로 중심을 맞춥니다. 라벨 위치의 세 선택지는 기존 배치를 유지합니다.
+- `coverSectionDividerEnabled(settings, kind)`는 선의 표시를 판정하며 `coverDividerCss()`·`appendCoverDividerLine()`이 길이와 위치를 표현합니다. 연결형에서 구분선 생략 시 아래 안쪽 여백은 공통 `COVER_DIVIDER_OMIT_PADDING`을 기준으로 줄입니다. 기본 간격에서는 8px이며 좁게/넓게 설정에서는 기존 간격 배율을 따릅니다. 독립 프로필은 생략 값과 관계없이 기존 여백을 유지합니다. 사진으로 채운 붙임형 프로필처럼 바깥 패딩이 0이면 추가로 줄이지 않습니다. 이어보기·각진 테마와 사진 접합면의 마지막 보정 규칙을 유지합니다.
+- 미리보기의 `addPreviewOptionToggleButton()`은 표제·프로필 구분선을 연결합니다. 사진 배경 표제는 `data-mosaic-image-background`를 읽어 버튼을 만들지 않습니다. 구분선 버튼에는 `_mosaicDividerAtBottom`을 붙여 아래 경계에 중심을 맞춥니다. `previewControlGeometry()`가 좌표를 읽고 `positionPreviewControls()`가 구분선 위치를 먼저 확보한 뒤 다른 버튼을 겹치지 않게 배치합니다. 꼬리말의 `_mosaicFooterTextCenter`는 패딩을 제외한 글줄 중심을 사용하고 `_mosaicHideWhenCardClosed`는 마지막 카드가 닫히면 버튼을 숨깁니다. 좌표와 속성은 출력하거나 저장하지 않습니다. 표지선 길이 입력은 `syncDividerLengthControlState()`에서 두 구분선 설정을 확인합니다.
+- 렌더러의 `data-mosaic-profile-divider-available`은 설정을 바꿔 표시할 내부 구분선이 있는지를 나타냅니다. 독립 프로필과 선을 제거하는 사진 접합면은 false로 표시하며, 미리보기는 이 값과 다음 영역의 존재를 확인해 버튼을 만듭니다. 사용자가 생략한 연결형 구분선은 버튼을 남깁니다. 구분선 표시는 `−`, 생략은 `createPreviewDividerToggleButton()`의 12px SVG로 표시합니다. 가로선·빗금의 두께는 1.1이며 표제·프로필·카드 제목 버튼이 공유합니다. 이 속성은 다른 미리보기 메타데이터와 함께 출력 시 제거되며 저장 필드를 추가하지 않습니다.
+- 일반 표제 뒤에 `data-mosaic-photo-profile-top` 프로필이 틈 없이 붙으면 `resolveCoverProfileBoundary()`가 `titleDividerUnavailable`을 반환합니다. `finalizeCoverProfileBoundaries()`가 양쪽 접합선을 정리하고 `data-mosaic-title-divider-available=false`를 붙입니다. 이어보기의 접기 본문 간격도 같은 경계 판정으로 기본값을 유지합니다. 이 경우 `titleBottomPaddingPx()`의 기본 여백을 유지하고 미리보기는 가용성 표식을 읽어 표제 구분선 버튼을 만들지 않습니다. 사진 배경 표제의 기존 높이와 일반 프로필의 구분선 조작은 유지합니다. 상단 사진 표식은 관계·상황 설명 유무와 분리하며 기존 하단 사진 접합 판정은 유지합니다. 이 표식은 게시용 HTML에서 제거됩니다.
+- `photoFollowsProfile`은 연결된 최상단 프로필 다음에 대표 이미지나 사진 배경 표제가 오는지를 판정합니다. 이때 구분선 가용성을 false로 만들고 생략에 따른 아래 여백 축소를 건너뜁니다. 이어보기의 선 보정도 같은 가용성 표식을 사용합니다.
+- `createPreviewControlButton()`과 `setPreviewControlIcon()`은 복사·이동·구분선·꼬리말 및 복사 성공/실패 SVG를 공유합니다. 선 두께는 1.1, 구분선 크기는 12px, 나머지는 14px입니다. `.previewControlIcon`은 포인터 이벤트를 받지 않으며, 버튼 영역 27px와 접근성 이름은 유지합니다. 기본 색은 `--help-ink`이고 호버·포커스·복사 결과 색은 기존 경로를 사용합니다. `previewControlGeometry()`는 기본 왼쪽·PC 반전 오른쪽을 계산하며 `styles.css`의 미리보기 바깥 여백도 같은 방향을 따릅니다. `decoratePreviewOptionButtons()`는 첫 표시 카드 제목에만 전역 구분선 버튼을 만듭니다.
+- 자동번호의 기본 형식은 `MosaicState.DEFAULT_STYLE.foldAutoNumberStyle`의 `arabic`입니다. HTML 선택지와 스키마 순서는 `arabic`·`roman`이며, 설정 수집기의 기본 경로와 렌더러의 누락값도 같은 기본값을 씁니다. 자동번호 ON/OFF 기본값은 바꾸지 않습니다. 저장된 명시적 `arabic`·`roman` 값은 그대로 복원하고, 작성한 제목에는 자동번호를 덮어쓰지 않습니다.
+- `ui-library.js`의 `advancedResetBtn`은 `resetAdvancedControlFields()`에 세부 조정값만 전달합니다. 적용 스위치 `advancedOn`은 초기화 목록에서 제외하므로 ON 상태로 초기화해도 계속 ON을 유지합니다. 전체 디자인의 `resetDefaultsBtn`은 기존처럼 전체 기본값을 적용합니다.
+- 프로필 구분선의 `profileDividerMinimal`은 기존 저장 컨테이너 안의 선택적 불리언입니다. `savedProfileDividerMinimal()`은 이 값만 읽고 누락값은 기본으로 처리합니다. 폐기된 표현 옵션은 읽거나 새 작업에 저장하지 않습니다. 명시한 구분선 값과 기존 저장 키·복원 버전은 유지합니다.
 - `createPreviewSourceEdits`는 `{before, after, message}` 변경안을 계산합니다. 위치·표시 글자 치환은 `createSourceMapping`을 공유합니다.
 - `applyPreviewSourceChange`는 연결과 현재 원문을 확인하고 입력창·작업 기록·입력 이벤트를 갱신합니다. 계산 함수에 포커스·렌더·저장 코드를 넣지 않습니다.
 - 작업 전체 복원 전에는 `discardActiveDirectEdit()`로 미확정 편집을 종료합니다. 이전 편집기의 `blur`가 복원한 내용을 덮지 않도록 유지합니다.
@@ -218,6 +236,8 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 `createMobilePanelNavigation()`은 세로 배치에서 우하단 이동 버튼과 임시 스크롤 위치를 관리합니다. 680px 분기는 기존 `createPreviewLayout().isStackedLayout()`을 공유합니다. `ui.js`는 이벤트 등록·세로 배치 판정·화면 요소·미확정 렌더 반영만 주입합니다.
 
 `editorOffset`과 `previewOffset`은 각 구역 시작점에 대한 상대 스크롤 위치입니다. 버튼을 누를 때 떠나는 구역의 위치를 기록하고, 반대 구역에서 직전에 보던 위치로 이동합니다. 탭 전환·본문 입력 펼치기·특정 카드 이동은 하지 않습니다. 구역 위쪽이 화면 안에 남아 있는 경우도 복원하도록 음수 상대 위치를 보존합니다. 원문·위치 연동 체크값·저장 형식은 바꾸지 않습니다. 전체 작업을 바꾸면 `applyWorkState()`가 이동 예약과 이전 위치를 초기화하며, 돌아온 입력창에 자동 포커스를 주지 않습니다.
+
+모바일의 `--mobile-preview-tool-clearance`는 560px 이하에서 116px, 561~680px에서 124px입니다. 고정 목차와 화면 이동 버튼의 높이·하단 위치에 12px 여유를 더한 값입니다. 일반 미리보기의 바깥 아래 패딩과 조작 버튼의 `scroll-margin-bottom`에 safe-area와 함께 적용해, 짧은 마지막 카드에서도 꼬리말 버튼을 고정 도구 위로 스크롤할 수 있게 합니다. 전체 화면과 게시용 HTML의 여백에는 적용하지 않습니다.
 
 아이콘은 `index.html`의 `mobilePanelSwitch`와 `previewSyncIcon`에서 정합니다. `styles.css`에서 SVG 크기·선 두께와 44px 터치 영역을 관리합니다. 모바일 헤더는 불투명한 `var(--bg-panel)`을 사용하며, `color-mix`를 지원하지 않는 환경에도 기본 배경색이 남도록 유지합니다. PC와 680px 경계, 긴·짧은 미리보기, 다른 탭·집중 모드·전체 화면·작업 복원을 함께 확인합니다.
 

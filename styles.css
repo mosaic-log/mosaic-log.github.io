@@ -3229,7 +3229,7 @@
     flex: 1;
     min-width: 0;
     height: 100vh;
-    padding: 36px 52px 72px 32px;
+    padding: 36px 32px 72px 52px;
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -3240,7 +3240,7 @@
     color: #212529;
     color-scheme: light;
   }
-  body.layoutMirrored #previewArea { padding: 36px 32px 72px 52px; }
+  body.layoutMirrored #previewArea { padding: 36px 52px 72px 32px; }
   #previewWrap {
     position: relative;
     width: 100%;
@@ -3705,7 +3705,7 @@
     border: 1px solid var(--line);
     border-radius: 7px;
     background: rgba(255,255,255,.9);
-    color: var(--ink-faint);
+    color: var(--help-ink);
     box-shadow: 0 1px 5px rgba(0,0,0,.06);
     font-family: Arial, sans-serif;
     font-size: 14px;
@@ -3714,6 +3714,11 @@
     cursor: pointer;
     opacity: .46;
     transition: opacity .12s ease, color .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .previewControlIcon {
+    display: block;
+    flex: none;
+    pointer-events: none;
   }
   .previewBlockCopyBtn:hover,
   .previewBlockCopyBtn:focus-visible,
@@ -3811,7 +3816,8 @@
     --settings-label-w: 68px;
     --settings-row-gap: 12px;
   }
-  .settingsForm .row {
+  .settingsForm .row,
+  #profileGroup .profileCommonHead {
     display: grid;
     grid-template-columns: var(--settings-label-w) minmax(0, 1fr) auto;
     column-gap: var(--settings-row-gap);
@@ -4018,9 +4024,9 @@
     background: transparent;
   }
   /* 프로필 선택지는 공통 세 열을 쓴다. 두 선택지의 첫 칸을 비워
-     기본·최상단은 클래식, 미니멀·사진 배경·표지 아래는 포트레이트와 맞춘다. */
+     기본·최상단은 클래식, 생략·사진 배경·표지 아래는 포트레이트와 맞춘다. */
   #tabCover #profileGroup .profileBaseSettings .segmentedChoice:is(
-    [data-minimal-control="profileMinimal"],
+    [data-minimal-control="profileDividerMinimal"],
     [data-background-control="profileImageBackgroundOn"],
     [data-control="profilePlacement"],
     [data-control="profileStyle"],
@@ -4034,12 +4040,23 @@
     max-width: 100%;
   }
   #tabCover #profileGroup .profileBaseSettings .segmentedChoice:is(
-    [data-minimal-control="profileMinimal"],
+    [data-minimal-control="profileDividerMinimal"],
     [data-background-control="profileImageBackgroundOn"],
     [data-control="profilePlacement"]
   ) > button:first-child { grid-column: 2; }
   #tabCover #profileTextPositionRow[hidden] { display: none; }
   #tabCover #titleTextPositionRow[hidden] { display: none; }
+  #tabCover #titleGroup .segmentedChoice:is(
+    [data-minimal-control="titleMinimal"],
+    [data-background-control="titleImageBackgroundOn"]
+  ) {
+    display: grid;
+    grid-template-columns: max-content 64px;
+    justify-items: center;
+    column-gap: 14px;
+    width: auto;
+    max-width: 100%;
+  }
   #parallelTranslationGroup .segmentedChoice button,
   #tabCover .settingsForm .segmentedChoice button {
     position: relative;
@@ -4475,6 +4492,25 @@
       linear-gradient(var(--ink-faint), var(--ink-faint)) center / 1px 8px no-repeat;
   }
   #profileGroup .profileSubBody { padding: 3px 2px 14px; }
+  #profileGroup .profileCommonSection + .profileCommonSection { margin-top: 20px; }
+  /* 입력행과 같은 그리드의 두 번째 열 끝에 조작 버튼을 맞춘다. */
+  #profileGroup .profileCommonHead {
+    min-height: 32px;
+    margin: 2px 0 6px;
+  }
+  #profileGroup .profileCommonHead > .profileSubActions {
+    grid-column: 2;
+    justify-self: end;
+  }
+  #profileGroup .profileCommonHead .coverVisibilitySwitch { justify-content: flex-end; }
+  #profileGroup .profileCommonSection > .profileSubBody { padding: 0; }
+  #profileGroup .profileCommonTitle {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
   #profileGroup .profileSubBody > .group-desc:first-child { margin-top: 0; }
   #profileGroup .profileSubActions {
     position: static;
@@ -4732,6 +4768,17 @@
   /* 상위 프로필과 하위 항목의 흐림이 중복되지 않도록 한다. */
   #profileGroup.isCoverInactive .profileSubBody.isEntityDisabled { opacity: 1; }
   #profileGroup .profileTagsRow { align-items: center; }
+  /* 키워드는 첫 입력줄 중앙, 요약은 윗선에서 조금 띄워 정렬한다. */
+  #profileCommonGroup .profileTagsRow > label {
+    align-self: start;
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+  }
+  #profileCommonGroup label[for="profileSituation"] {
+    align-self: start;
+    padding-top: 8px;
+  }
   #profileGroup .profileImageRow { align-items: center; }
   #profileGroup .profileImageField {
     grid-column: 2;
@@ -5422,7 +5469,15 @@
     #fsCloseBtn { flex:0 0 32px; }
     .editorToolbar .tbGroup { flex: none; }
     #previewArea,
-    body.layoutMirrored #previewArea { padding: 22px 48px 52px 12px; }
+    body.layoutMirrored #previewArea { padding: 22px 12px 52px 48px; }
+    /* 마지막 카드의 조작 버튼을 고정 목차·화면 이동 버튼 위까지 스크롤할 수 있게 한다. */
+    #previewArea { --mobile-preview-tool-clearance: 124px; }
+    body:not(.previewFullscreen) #previewArea {
+      padding-bottom: calc(var(--mobile-preview-tool-clearance) + env(safe-area-inset-bottom, 0px));
+    }
+    #previewWrap > .previewFloatingControl {
+      scroll-margin-bottom: calc(var(--mobile-preview-tool-clearance) + env(safe-area-inset-bottom, 0px));
+    }
     #previewToolbar { --preview-toolbar-flow-margin: 8px; margin-bottom: 8px; }
     #preview { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.045)); }
     #sidebarResizer { display: none; }
@@ -5467,6 +5522,7 @@
   }
 
   @media (max-width: 560px) {
+    #previewArea { --mobile-preview-tool-clearance: 116px; }
     /* 작은 화면의 헤더 버튼 36px 두 개에도 같은 구분선 기준을 적용한다. */
     .cardEditor { --card-control-rail: 81px; --mobile-card-control-size:36px; }
     #sidebar { padding: 0 12px 24px; }

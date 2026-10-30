@@ -570,7 +570,7 @@ function outputRuleSettings(settings){
     extraChars:(settings.extraChars || []).map(char => ({...char,sourceName:char.name,name:exactName(char.name) }))};
 }
 return Object.freeze({
-...Object.freeze({parseBodyCommentLine,
+parseBodyCommentLine,
 bodyCommentContinuation,
 bodyCommentLineContexts,
 quotedTextRanges,
@@ -593,7 +593,7 @@ normalizeBodyHrMarkers,
 normalizeQuotes,
 literalMatchRanges,
 normalizeStandaloneHr,
-stripMarkers}),
+stripMarkers,
 escapeAttr,
 escapeCssUrl,
 escapeHTML,

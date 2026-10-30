@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.9.6 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.9.7 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=215ec3feb8b5">
+<link rel="stylesheet" href="./styles.css?v=714d23cf7b66">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.6 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.6</a></span></h1>
+      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.7 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.7</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -72,11 +72,11 @@
     <div class="foldBody">
     <p class="group-desc">제목·부제 구성 · 빈 항목 자동 생략</p>
     <div class="row segmentedChoiceRow">
-      <label id="titleMinimalLabel">표현</label>
+      <label id="titleMinimalLabel">구분선</label>
       <input type="checkbox" id="titleMinimal" hidden>
       <span class="segmentedChoice" data-minimal-control="titleMinimal" role="group" aria-labelledby="titleMinimalLabel">
-        <button class="uiButton" type="button" data-value="default" aria-pressed="true">기본</button>
-        <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">미니멀</button>
+        <button class="uiButton" type="button" data-value="default" aria-pressed="true">표시</button>
+        <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">숨김</button>
       </span>
     </div>
     <div class="row imageBackgroundToggleRow segmentedChoiceRow titleBackgroundChoiceRow">
@@ -128,11 +128,11 @@
       <div class="profileSubBody profileBaseSettings">
       <p class="group-desc">최상단 또는 표지 아래에 인물 소개</p>
       <div class="row segmentedChoiceRow">
-        <label id="profileMinimalLabel">표현</label>
-        <input type="checkbox" id="profileMinimal" hidden>
-        <span class="segmentedChoice" data-minimal-control="profileMinimal" role="group" aria-labelledby="profileMinimalLabel">
-          <button class="uiButton" type="button" data-value="default" aria-pressed="true">기본</button>
-          <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">미니멀</button>
+        <label id="profileDividerMinimalLabel">구분선</label>
+        <input type="checkbox" id="profileDividerMinimal" hidden>
+        <span class="segmentedChoice" data-minimal-control="profileDividerMinimal" role="group" aria-labelledby="profileDividerMinimalLabel">
+          <button class="uiButton" type="button" data-value="default" aria-pressed="true">표시</button>
+          <button class="uiButton" type="button" data-value="minimal" aria-pressed="false">숨김</button>
         </span>
       </div>
       <div class="row segmentedChoiceRow">
@@ -299,21 +299,45 @@
       <button type="button" id="profileAddBtn" class="profileAddBtn">+ 인물 추가</button>
 
       <details class="profileSubFold" id="profileCommonGroup">
-        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileCommonResetBtn" aria-label="관계와 상황 내용 초기화" title="관계와 상황 내용 초기화">↺</button><label class="coverVisibilitySwitch" title="관계와 상황 표시 전환"><input type="checkbox" id="profileCommonOn" checked aria-label="관계와 상황 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span><span class="profileSubArrow" aria-hidden="true"></span></summary>
+        <summary class="profileSubHead"><span class="profileSubTitle">관계와 상황</span><span class="profileSubArrow" aria-hidden="true"></span></summary>
         <div class="profileSubBody">
-      <div class="row profileTagsRow">
-        <label id="profileRelationshipLabel">관계·키워드</label>
-        <div class="profileTagFields" role="group" aria-labelledby="profileRelationshipLabel">
-          <input type="text" id="profileRelationship1" maxlength="150" placeholder="관계 1">
-          <input type="text" id="profileRelationship2" maxlength="150" placeholder="관계 2">
-          <input type="text" id="profileRelationship3" maxlength="150" placeholder="관계 3">
-        </div>
-        <input type="hidden" id="profileRelationship" value="">
-      </div>
-      <div class="row">
-        <label for="profileSituation">상황·요약</label>
-        <textarea id="profileSituation" maxlength="1000" rows="3" style="min-height:76px; resize:vertical;" placeholder="현재 상황, 분위기, 관계 요약, 장면 설명 등을 자유롭게 입력"></textarea>
-      </div>
+          <div class="profileCommonSection" id="profileRelationshipGroup" role="group" aria-labelledby="profileRelationshipSectionTitle">
+            <div class="profileCommonHead">
+              <h4 class="profileCommonTitle" id="profileRelationshipSectionTitle">관계</h4>
+              <span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileRelationshipResetBtn" aria-label="관계 내용 초기화" title="관계 내용 초기화">↺</button><label class="coverVisibilitySwitch" title="관계 표시 전환"><input type="checkbox" id="profileRelationshipOn" checked aria-label="관계 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span>
+            </div>
+            <div class="profileSubBody">
+              <div class="row">
+                <label for="profileRelationshipHeading">라벨</label>
+                <input type="text" id="profileRelationshipHeading" maxlength="80" aria-label="관계 라벨">
+              </div>
+              <div class="row profileTagsRow">
+                <label id="profileRelationshipLabel">키워드</label>
+                <div class="profileTagFields" role="group" aria-labelledby="profileRelationshipLabel">
+                  <input type="text" id="profileRelationship1" maxlength="150" placeholder="관계 1">
+                  <input type="text" id="profileRelationship2" maxlength="150" placeholder="관계 2">
+                  <input type="text" id="profileRelationship3" maxlength="150" placeholder="관계 3">
+                </div>
+                <input type="hidden" id="profileRelationship" value="">
+              </div>
+            </div>
+          </div>
+          <div class="profileCommonSection" id="profileSituationGroup" role="group" aria-labelledby="profileSituationSectionTitle">
+            <div class="profileCommonHead">
+              <h4 class="profileCommonTitle" id="profileSituationSectionTitle">상황</h4>
+              <span class="profileSubActions"><button type="button" class="profileResetIconBtn" id="profileSituationResetBtn" aria-label="상황 내용 초기화" title="상황 내용 초기화">↺</button><label class="coverVisibilitySwitch" title="상황 표시 전환"><input type="checkbox" id="profileSituationOn" checked aria-label="상황 표시"><span class="coverVisibilitySwitchTrack" aria-hidden="true"></span></label></span>
+            </div>
+            <div class="profileSubBody">
+              <div class="row">
+                <label for="profileSituationHeading">라벨</label>
+                <input type="text" id="profileSituationHeading" maxlength="80" aria-label="상황 라벨">
+              </div>
+              <div class="row">
+                <label for="profileSituation">요약</label>
+                <textarea id="profileSituation" maxlength="1000" rows="3" style="min-height:76px; resize:vertical;" placeholder="현재 상황, 분위기, 관계 요약, 장면 설명 등을 자유롭게 입력"></textarea>
+              </div>
+            </div>
+          </div>
         </div>
       </details>
     </div>
@@ -803,7 +827,7 @@
       <div class="layoutToggleChoices">
         <label class="layoutToggleChoice" title="카드 제목에 ✦ 장식을 표시"><input type="checkbox" id="foldTitleDecorationOn"><span>제목 장식</span></label>
         <label class="layoutToggleChoice" title="카드 제목과 내부 접기의 제목 아래에 구분선을 표시"><input type="checkbox" id="foldDividerOn"><span>구분선</span></label>
-        <label class="layoutToggleChoice" title="빈 접기 카드에 위에서부터 1, 2, 3 표시"><input type="checkbox" id="foldTitleAutoNumber"><span>자동 번호</span></label>
+        <label class="layoutToggleChoice" title="빈 접기 카드 제목에 위에서부터 번호 표시"><input type="checkbox" id="foldTitleAutoNumber"><span>자동 번호</span></label>
       </div>
     </div>
 
@@ -1463,16 +1487,16 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=fadc5a50abba" defer></script>
-<script src="./parser.js?v=0a709fba0a95" defer></script>
-<script src="./renderer.js?v=d8196f6a2b4a" defer></script>
+<script src="./state.js?v=0750eeadbbd2" defer></script>
+<script src="./parser.js?v=10a1bd9e2f0e" defer></script>
+<script src="./renderer.js?v=5707309ade19" defer></script>
 <script src="./ui-source.js?v=1bb03ab77f56" defer></script>
 <script src="./ui-editor.js?v=b49c44af8388" defer></script>
-<script src="./ui-preview-edit.js?v=abcf5ddfbcb5" defer></script>
-<script src="./ui-preview-view.js?v=6fb7f4a50f51" defer></script>
-<script src="./ui-library.js?v=ba2a83de2714" defer></script>
-<script src="./ui.js?v=bedb74e753ec" defer></script>
-<script src="./storage.js?v=dd286eec87f4" defer></script>
+<script src="./ui-preview-edit.js?v=735f99646e45" defer></script>
+<script src="./ui-preview-view.js?v=58157ea1fd1a" defer></script>
+<script src="./ui-library.js?v=1de3e7abca75" defer></script>
+<script src="./ui.js?v=0728259bef4e" defer></script>
+<script src="./storage.js?v=94d5f67a8dcf" defer></script>
 <script src="./app.js?v=76a352f665d8" defer></script>
 
 </body>

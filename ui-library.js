@@ -419,7 +419,7 @@ document.getElementById('creditEditorList').addEventListener('dragover', event =
 document.getElementById('creditEditorList').addEventListener('drop', finishCreditItemDrop);
 
 }
-return Object.freeze({...Object.freeze({
+return Object.freeze({
 addCreditItem,
 creditItemsFromEditor,
 deleteSelectedCreditPreset,
@@ -434,8 +434,9 @@ saveCurrentDetailPreset,
 setStoredCreditItems,
 storedCreditItems,
 syncCreditPresetControls,
-syncDetailPresetControls
-}), bindFeatureEvents});
+syncDetailPresetControls,
+bindFeatureEvents
+});
 }
 
 function createLibrary(host){
@@ -2290,7 +2291,7 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('advancedResetBtn').addEventListener('click', () => {
-  resetAdvancedControlFields(['advancedOn', 'unifiedBottomSpace', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
+  resetAdvancedControlFields(['unifiedBottomSpace', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
 });
 
 document.querySelectorAll('#advancedDesignGroup .advancedOptionResetBtn').forEach(button => {
@@ -2406,7 +2407,7 @@ document.getElementById('importPresetFile').addEventListener('change', (e) => {
 });
 
 }
-return Object.freeze({...Object.freeze({
+return Object.freeze({
 applyDraftRestorePlan,
 applyStyleValues,
 closeSlotExportMenu,
@@ -2428,8 +2429,9 @@ syncAllSegmentedChoiceControls,
 syncCharList,
 syncMinimalChoiceControls,
 syncSegmentedChoiceControl,
-updateOverwriteBtn
-}), bindFeatureEvents});
+updateOverwriteBtn,
+bindFeatureEvents
+});
 }
 
 return Object.freeze({createCredit,createLibrary});

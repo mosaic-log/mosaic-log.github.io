@@ -486,7 +486,9 @@ function narrDialogueGapPx(settings){
 }
 
 // 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
-const CARD_INLINE_PADDING = 'clamp(16px,4vw,22px)';
+const CARD_INLINE_PADDING = 'clamp(20px,calc(4.5vw + 2px),26px)';
+const CARD_BODY_PADDING_OFFSET = -5;
+const FOOTER_SPACING_OFFSET = -10;
 
 function advancedOpaqueOpacity(value){
   return Math.min(1, MosaicState.advancedPercent(value) / 50);
@@ -527,11 +529,18 @@ function cardBodyTopSpacePx(settings){
   return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 0;
 }
 
-function cardBodyTopPaddingCss(minPx, fluidVw, maxPx, settings){
-  const extra = cardBodyTopSpacePx(settings);
+// 본문 바깥과 꼬리말 앞 간격은 공통 세로 기준에 배율을 적용하며 문단 여백을 중복하지 않는다.
+function cardBodyVerticalPaddingCss(extra = 0, scale = 1){
+  const minPx = Math.max(0, Math.round(42 * scale) + extra);
+  const maxPx = Math.max(0, Math.round(48 * scale) + extra);
+  const fluidVw = Math.round(7.5 * scale * 1000) / 1000;
   return extra
-    ? `clamp(${minPx + extra}px,calc(${fluidVw}vw + ${extra}px),${maxPx + extra}px)`
+    ? `clamp(${minPx}px,calc(${fluidVw}vw ${extra < 0 ? '-' : '+'} ${Math.abs(extra)}px),${maxPx}px)`
     : `clamp(${minPx}px,${fluidVw}vw,${maxPx}px)`;
+}
+
+function cardBodyTopPaddingCss(settings){
+  return cardBodyVerticalPaddingCss(cardBodyTopSpacePx(settings) + CARD_BODY_PADDING_OFFSET);
 }
 
 function cardBodyBottomSpacePx(settings){
@@ -549,13 +558,8 @@ function profileItemGapDeltaPx(settings){
   return Number.isFinite(number) ? Math.max(-10, Math.min(40, number)) : 0;
 }
 
-function cardBodyBottomPaddingCss(settings, hasFooter){
-  const extra = hasFooter ? 0 : cardBodyBottomSpacePx(settings);
-  const minPadding = Math.max(0, 24 + extra);
-  const maxPadding = Math.max(0, 30 + extra);
-  return extra
-    ? `clamp(${minPadding}px,calc(5vw ${extra < 0 ? '-' : '+'} ${Math.abs(extra)}px),${maxPadding}px)`
-    : 'clamp(24px,5vw,30px)';
+function cardBodyBottomPaddingCss(settings){
+  return cardBodyVerticalPaddingCss(cardBodyBottomSpacePx(settings) + CARD_BODY_PADDING_OFFSET);
 }
 
 function cardGapPx(settings){
@@ -583,8 +587,10 @@ function coverVerticalSpacePx(settings){
   return Number.isFinite(number) ? Math.max(0, Math.min(60, number)) : 0;
 }
 
+const COVER_DIVIDER_OMIT_PADDING = 8;
+
 function titleBottomPaddingPx(titleMinimal, imageBackground, spacingMultiplier, extraVerticalSpace){
-  const base = titleMinimal && !imageBackground ? 12 : 20;
+  const base = 20 - (titleMinimal && !imageBackground ? COVER_DIVIDER_OMIT_PADDING : 0);
   return Math.round(base * spacingMultiplier) + extraVerticalSpace;
 }
 
@@ -603,11 +609,17 @@ function coverDividerLengthPercent(settings){
   return Number.isFinite(number) ? Math.max(20, Math.min(100, number)) : 100;
 }
 
-function coverDividerTopCss(settings, color){
+// 경계선은 바로 위 영역의 표현 설정을 따른다. 표제·프로필의 설정을 섞지 않는다.
+function coverSectionDividerEnabled(settings, kind){
+  return kind === 'profile' ? !MosaicState.savedProfileDividerMinimal(settings)
+    : !MosaicState.settingFlagOn(settings.titleMinimal);
+}
+
+function coverDividerCss(settings, color, edge = 'top'){
   const length = coverDividerLengthPercent(settings);
   return length === 100
-    ? `border-top:1px solid ${color};`
-    : `background-image:linear-gradient(to right, ${color}, ${color}); background-repeat:no-repeat; background-position:center top; background-size:${length}% 1px;`;
+    ? `border-${edge}:1px solid ${color};`
+    : `background-image:linear-gradient(to right, ${color}, ${color}); background-repeat:no-repeat; background-position:center ${edge}; background-size:${length}% 1px;`;
 }
 
 function appendCoverDividerLine(boundary, edge, settings, color){
@@ -1168,7 +1180,7 @@ function buildImageBlock(settings, connectedAbove = false){
 `;
 }
 
-function foldAutoNumberText(number, style){
+function foldAutoNumberText(number, style = MosaicState.DEFAULT_STYLE.foldAutoNumberStyle){
   if(style !== 'roman' || number < 1 || number > 3999) return String(number);
   const numerals = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
   let remaining = number;
@@ -1492,6 +1504,21 @@ function assembleBody(lines, settings){
   return bodyHTML;
 }
 
+// 카드 바깥 여백은 래퍼가 맡는다. 내부 문단 간격과 접기 안쪽 여백은 유지한다.
+function trimCardBodyEdgeMargins(html){
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  ['top', 'bottom'].forEach(edge => {
+    let element = edge === 'top' ? template.content.firstElementChild : template.content.lastElementChild;
+    while(element){
+      element.style.setProperty(`margin-${edge}`, '0');
+      if(element.style.display !== 'flow-root') break;
+      element = edge === 'top' ? element.firstElementChild : element.lastElementChild;
+    }
+  });
+  return template.innerHTML;
+}
+
 // 로그 표제 밴드: 번호/제목/부제 — 대표 이미지 바로 아래, 첫 카드 위에 붙는 표지 영역.
 // 카드 밖에 있어서 첫 카드를 접어도 이미지와 함께 항상 보임.
 function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelow = false){
@@ -1718,9 +1745,11 @@ function profilePhotoRowJoinAt(profiles, index, columns, rowLengths, showcase){
 // flex/grid를 쓰지 않고 block·inline-block·table-cell만 사용한다.
 function buildProfileBlock(settings, connectedAbove, removeTopDivider, connectedBelow = false){
   if(!settings.profileOn) return '';
-  const commonEnabled = settings.profileCommonOn !== false;
-  const relationship = commonEnabled ? (settings.profileRelationship || '').trim() : '';
-  const situation = commonEnabled ? (settings.profileSituation || '').trim().replace(/(^|[\s,，])#+(?=\S)/g, '$1') : '';
+  const commonVisibility = MosaicState.savedProfileCommonVisibility(settings);
+  const relationshipHeading = String(settings.profileRelationshipHeading ?? MosaicState.WORK_FIELD_DEFAULTS.profileRelationshipHeading).trim();
+  const situationHeading = String(settings.profileSituationHeading ?? MosaicState.WORK_FIELD_DEFAULTS.profileSituationHeading).trim();
+  const relationship = commonVisibility.profileRelationshipOn ? (settings.profileRelationship || '').trim() : '';
+  const situation = commonVisibility.profileSituationOn ? (settings.profileSituation || '').trim().replace(/(^|[\s,，])#+(?=\S)/g, '$1') : '';
   let profiles = [
     {
       role:settings.profileCharRole ?? 'BOT', key:'bot', prefix:'profileChar',
@@ -1775,7 +1804,8 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const portraitPhotoBackgroundOnly = showcase && profiles.length > 0
     && profiles.every(profile => profile.image && profile.backgroundOn);
   const responsivePortraitBackground = portraitPhotoBackgroundOnly && profiles.length > 1;
-  const defaultProfileGap = showcase ? (portraitPhotoBackgroundOnly ? 0 : 2) : 10;
+  const defaultProfileGap = showcase ? (portraitPhotoBackgroundOnly ? 0 : 2)
+    : 10;
   const profileGap = settings.profilePlacement === 'top' && profiles.length > 1
     ? Math.max(0, defaultProfileGap + profileItemGapDeltaPx(settings))
     : defaultProfileGap;
@@ -1799,11 +1829,18 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const showOuterBorder = settings.cardBorderOn !== false && !borderlessTopProfile;
   const border = showOuterBorder
     ? (connectedAbove
-        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; ${connectedBelow ? '' : `border-bottom:1px solid ${pal.shellBorder};`} ${removeTopDivider ? '' : coverDividerTopCss(settings, pal.divider)}`
+        ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; ${connectedBelow ? '' : `border-bottom:1px solid ${pal.shellBorder};`} ${removeTopDivider ? '' : coverDividerCss(settings, pal.divider)}`
         : (connectedBelow
             ? `border-left:1px solid ${pal.shellBorder}; border-right:1px solid ${pal.shellBorder}; border-top:1px solid ${pal.shellBorder};`
             : `border:1px solid ${pal.shellBorder};`))
-    : (connectedAbove && !removeTopDivider ? coverDividerTopCss(settings, pal.divider) : '');
+    : (connectedAbove && !removeTopDivider ? coverDividerCss(settings, pal.divider) : '');
+  const independentProfile = settings.profilePlacement === 'top' && !connectedBelow;
+  const topProfileOwnsDivider = settings.profilePlacement === 'top' && connectedBelow
+    && MosaicState.normalizeCardLayout(settings.cardLayout) !== 'unified';
+  const photoFollowsProfile = settings.profilePlacement === 'top' && connectedBelow && coverImageAvailable(settings);
+  const profileDividerAvailable = !independentProfile && !photoFollowsProfile;
+  const topProfileDivider = profileDividerAvailable && topProfileOwnsDivider && coverSectionDividerEnabled(settings, 'profile')
+    ? coverDividerCss(settings, pal.divider, 'bottom') : '';
   const radius = connectedAbove && connectedBelow ? '0' : (connectedAbove
     ? `0 0 ${cardRadius}px ${cardRadius}px`
     : (connectedBelow ? `${cardRadius}px ${cardRadius}px 0 0` : `${cardRadius}px`));
@@ -1857,9 +1894,11 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     });
     return lines;
   };
+  const rowLengths = profileRowLengths(profiles.length);
   const estimatedUsableWidth = Math.max(280, Math.min(W, 750) - 40);
+  const estimatedColumns = profiles.length >= 3 ? 3 : 2;
   const estimatedItemWidth = profiles.length > 1
-    ? Math.max(190, (estimatedUsableWidth - profileGap * 2) / (profiles.length >= 3 ? 3 : 2))
+    ? Math.max(190, (estimatedUsableWidth - profileGap * 2) / estimatedColumns)
     : estimatedUsableWidth;
   const estimateProfileCardHeight = profile => {
     const size = showcase ? 150 : (large ? 88 : 56);
@@ -1876,7 +1915,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const tagSize = large ? 10.5 : 10;
     const descSize = large ? 12 : 11.5;
     const tagsList = formatTags(profile.tags);
-    let textHeight = settings.profileMinimal ? 0 : 9 * 1.35 + 3;
+    let textHeight = 9 * 1.35 + 3;
     if(profile.name) textHeight += estimatedWrappedLines(profile.name, textWidth, nameSize) * nameSize * 1.4;
     if(tagsList.length){
       if(profile.name) textHeight += 6;
@@ -1907,7 +1946,6 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     : baseProfileCardHeight;
   // 넓은 화면은 3 / 2+2 / 2+3을 따른다. DOM 행을 강제로 분리하지 않아
   // 중간 폭에서는 전체 인물이 2명씩 다시 흐르고, 안쪽 폭 400px 미만에서 한 명씩 놓인다.
-  const rowLengths = profileRowLengths(profiles.length);
   const displayRows = [1, 2, 3].map(columns => profileDisplayRows(columns, rowLengths));
   const rowForIndex = index => profileLogicalRowAt(index, rowLengths);
   const partialPortraitPhotoRows = showcase && !portraitPhotoBackgroundOnly
@@ -2088,7 +2126,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     const emphasisColor = imageBackground ? '#ffffff' : settings.emphasisColor;
     const nameColor = imageBackground ? '#ffffff' : profile.color;
     const secondaryColor = imageBackground ? '#eeeeee' : softBodyTextColor(settings, profile.color);
-    const role = settings.profileMinimal || !profile.role.trim()
+    const role = !profile.role.trim()
       ? ''
       : `<p data-mosaic-profile-field="${profileFieldPrefix}Role" style="margin:0 0 3px; color:${secondaryColor}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:${textAlign};">${MosaicParser.escapeHTML(profile.role)}</p>`;
     const profileNameHTML = MosaicParser.processInline(profile.name, emphasisColor).replace(/\r?\n/g, '<br>');
@@ -2205,8 +2243,11 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // 항목을 하나의 흐름에 놓아 최대 5명까지 2+3→2+2+1로 접힌다.
   const profileBreakpoint = rowLengths.some(length => length === 3) ? threeColumnContentBreakpoint : twoColumnContentBreakpoint;
   const outerHalfGap = `clamp(0px, calc(100000% - ${(twoColumnContentBreakpoint - 1) * 1000}px), ${profileGap / 2}px)`;
+  const profileGridSpacing = joinedProfileItems
+    ? 'width:100%; margin-left:0; margin-bottom:0;'
+    : `width:calc(100% + ${outerHalfGap} + ${outerHalfGap}); margin-left:calc(0px - ${outerHalfGap}); margin-bottom:-${profileGap}px;`;
   const profileGrid = profileItems.length
-    ? `<div data-mosaic-profile-grid="true" style="box-sizing:border-box; ${joinedProfileItems ? 'width:100%; margin-left:0; margin-bottom:0;' : `width:calc(100% + ${outerHalfGap} + ${outerHalfGap}); margin-left:calc(0px - ${outerHalfGap}); margin-bottom:-${profileGap}px;`} display:block; text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`
+    ? `<div data-mosaic-profile-grid="true" style="box-sizing:border-box; ${profileGridSpacing} display:block; text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`
     : '';
   const profileItemsRow = profileGrid
     // 행의 잘림은 보조 안전망이다. 실제 윗·아랫모서리는 사진/배경 면에 직접 둔다.
@@ -2229,40 +2270,14 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   const relationshipDots = relationshipItems
     .map((item, index) => `<span data-mosaic-profile-field="profileRelationship${index + 1}">${multiline(item)}</span>`)
     .join(`<span aria-hidden="true" style="margin:0 5px;">·</span>`);
-  const relationshipTextLength = relationshipItems
-    .map(item => MosaicParser.stripMarkers(item))
-    .join(' · ')
-    .length;
-  const minimalRelationshipIsLong = relationshipTextLength > 30;
-  const minimalRelationshipWrap = minimalRelationshipIsLong
-    ? 'white-space:normal; overflow-wrap:normal !important; word-break:keep-all !important;'
-    : 'white-space:nowrap; overflow-wrap:normal !important; word-break:keep-all !important;';
-
-  // 아카라이브의 게시판 전역 table 스타일은 실제 table/td에 테두리를 강제로 만들고
-  // 가운데 셀을 다시 압축한다. 구조 요소를 한 개의 일반 블록으로 줄이고, 블록 중앙에
-  // 0.5px 배경선을 그린 뒤 문구 배경으로 가운데만 가리면 외부 table/flex CSS와 무관하게
-  // 미리보기와 같은 간격을 유지할 수 있다.
-  const minimalLineColor = mixHex(pal.cardBg, pal.divider, 0.82);
-  const minimalRelationshipMaxWidth = minimalRelationshipIsLong ? 'max-width:60%;' : '';
-  const minimalRelationshipRow = relationship
-    ? `<div style="box-sizing:border-box; width:100%; margin:0; padding:0; border:0; text-align:center; background-color:transparent; ${transparentProfileOuter ? '' : `background-image:linear-gradient(to right, ${minimalLineColor}, ${minimalLineColor}); background-position:center center; background-repeat:no-repeat; background-size:100% 0.5px;`}"><span style="box-sizing:border-box; display:inline-block; ${minimalRelationshipMaxWidth} margin:0; padding:0 8px; border:0; background-color:${transparentProfileOuter ? 'transparent' : pal.cardBg} !important; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center; ${minimalRelationshipWrap}">${relationshipDots}</span></div>`
-    : '';
-  const minimalSituationRow = situation
-    ? `<p data-mosaic-profile-field="profileSituation" style="margin:${relationship ? 8 : 0}px 0 0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p>`
-    : '';
-
-  const commonItems = settings.profileMinimal
-    ? ((relationship || situation)
-        ? `<div style="box-sizing:border-box; width:100%; padding:3px 14px 2px; text-align:center; word-break:break-word; font-size:0; font-family:${fontStack(settings.narrFont)};"><div style="box-sizing:border-box; width:100%; max-width:640px; display:inline-block; vertical-align:top; text-align:center;">${minimalRelationshipRow}${minimalSituationRow}</div></div>`
-        : '')
-    : [
-        relationship
-          ? `<div style="width:100%;"><div style="box-sizing:border-box; width:100%; padding:10px 14px 11px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word; font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 6px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">RELATIONSHIP</p><p style="margin:0; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center;">${relationshipDots}</p></div></div>`
-          : '',
-        situation
-          ? `<div style="width:100%; margin-top:${relationship ? 10 : 0}px;"><div style="box-sizing:border-box; width:100%; padding:12px 14px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="font-family:${fontStack(settings.narrFont)};"><p style="margin:0 0 5px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">SITUATION</p><p data-mosaic-profile-field="profileSituation" style="margin:0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p></div></div></div>`
-          : ''
-      ].join('');
+  const commonItems = [
+    relationship
+      ? `<div style="width:100%;"><div style="box-sizing:border-box; width:100%; padding:10px 14px 11px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${relationshipHeading ? `<p data-mosaic-profile-field="profileRelationshipHeading" style="margin:0 0 6px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">${MosaicParser.escapeHTML(relationshipHeading)}</p>` : ''}<p style="margin:0; color:${pal.caption}; font-size:10.5px; font-weight:400; line-height:1.3; letter-spacing:-0.1px; text-align:center;">${relationshipDots}</p></div></div>`
+      : '',
+    situation
+      ? `<div style="width:100%; margin-top:${relationship ? 10 : 0}px;"><div style="box-sizing:border-box; width:100%; padding:12px 14px; background-color:${commonBoxBg}; border-radius:10px; text-align:center; word-break:break-word;"><div style="font-family:${fontStack(settings.narrFont)};">${situationHeading ? `<p data-mosaic-profile-field="profileSituationHeading" style="margin:0 0 5px; color:${pal.caption}; font-size:9px; font-weight:700; line-height:1.35; letter-spacing:1.4px; text-align:center;">${MosaicParser.escapeHTML(situationHeading)}</p>` : ''}<p data-mosaic-profile-field="profileSituation" style="margin:0; color:${pal.caption}; font-size:11.5px; font-weight:400; line-height:1.6; letter-spacing:-0.1px; text-align:center;">${multiline(situation)}</p></div></div></div>`
+      : ''
+  ].join('');
 
   const commonSection = commonItems
     ? `<div style="box-sizing:border-box; width:100%; margin-top:${profileRow ? 10 : 0}px; ${joinedProfileItems ? 'padding:0 clamp(14px,3.5vw,20px) clamp(14px,3vw,18px);' : ''}">${commonItems}</div>`
@@ -2274,6 +2289,13 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     : relationship || situation
     ? 'padding:16px 18px; padding:clamp(14px,3vw,18px) clamp(14px,3.5vw,20px);'
     : 'padding:19px 18px; padding:clamp(17px,3vw,21px) clamp(14px,3.5vw,20px);';
+  // 연결형은 표제와 같은 기준으로 아래 여백을 줄인다. 독립형은 유지하며,
+  // 간격 0 사진은 바깥 패딩 자체가 없어 추가로 줄이지 않는다.
+  const bottomReduction = profileDividerAvailable && MosaicState.savedProfileDividerMinimal(settings)
+    ? Math.round(COVER_DIVIDER_OMIT_PADDING * spacingMult(settings)) : 0;
+  const compactBottomPadding = bottomReduction && !joinedProfileItems
+    ? ` padding-bottom:${Math.max(0, (relationship || situation ? 16 : 19) - bottomReduction)}px; padding-bottom:max(0px, calc(${relationship || situation ? 'clamp(14px,3vw,18px)' : 'clamp(17px,3vw,21px)'} - ${bottomReduction}px));`
+    : '';
   const bottomMargin = settings.profilePlacement === 'top' && MosaicState.normalizeCardLayout(settings.cardLayout) !== 'unified'
     ? 20 + profileTitleGapPx(settings)
     : 20;
@@ -2281,18 +2303,17 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
   // 네모난 쐐기처럼 남지 않게 한다. 선택한 카드색은 각 인물의 실제 면에 유지된다.
   const outerBackground = transparentProfileOuter || (borderlessTopProfile && joinedProfileItems && !commonItems)
     ? 'transparent' : pal.cardBg;
-  const photoReachesProfileEdge = joinedProfileItems && profiles.length > 0 && !commonItems
+  const photoReachesProfileTop = joinedProfileItems && profiles.length > 0
     && profiles.every(profile => profile.image && profile.backgroundOn);
+  const photoReachesProfileEdge = photoReachesProfileTop && !commonItems;
   // 바깥 잘림은 보조 안전망이며, 게시판 모바일의 모서리는 실제 면이 직접 그린다.
-  return `<div data-mosaic-profile="true" ${borderlessTopProfile ? 'data-mosaic-borderless-top="true" ' : ''}${photoReachesProfileEdge ? 'data-mosaic-photo-profile="true" ' : ''}style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto ${bottomMargin}px; ${border} border-radius:${radius}; background-color:${outerBackground}; ${outerPadding} overflow:hidden;"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
+  return `<div data-mosaic-profile="true" data-mosaic-profile-divider-available="${profileDividerAvailable}" ${borderlessTopProfile ? 'data-mosaic-borderless-top="true" ' : ''}${photoReachesProfileTop ? 'data-mosaic-photo-profile-top="true" ' : ''}${photoReachesProfileEdge ? 'data-mosaic-photo-profile="true" ' : ''}style="font-family:${fontStack(settings.narrFont)}; display:block; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto ${bottomMargin}px; ${border} ${topProfileDivider} border-radius:${radius}; background-color:${outerBackground}; ${outerPadding}${compactBottomPadding} overflow:hidden;"><div style="display:block; box-sizing:border-box; width:100%;">${profileRow}${commonSection}</div></div>\n`;
 }
 
 function footerSpacing(settings){
   const number = Number(settings.footerBodyGap);
   const extra = Number.isFinite(number) ? Math.max(-60, Math.min(80, number)) : 0;
-  const total = Math.max(0, Math.max(0, Math.round(28 * spacingMult(settings)) + cardBodyBottomSpacePx(settings)) + 14 + extra);
-  const paddingTop = Math.min(14, total);
-  return { marginTop:total - paddingTop, paddingTop };
+  return cardBodyVerticalPaddingCss(extra + FOOTER_SPACING_OFFSET, spacingMult(settings) * 1.5);
 }
 
 function buildFooter(settings){
@@ -2303,8 +2324,7 @@ function buildFooter(settings){
   const pal = tonePalette(settings);
   // 꼬리말은 항상 낮은 위계의 미니멀 서명으로 출력한다.
   const footerColor = pal.footerText;
-  // 선은 없애되 기존 여백은 유지해 본문과 너무 가까워지지 않게 한다.
-  const { marginTop, paddingTop:topPadding } = footerSpacing(settings);
+  const topPadding = footerSpacing(settings);
   // 작은 꼬리말 크기 유지
   const footerFontSize = 10.5;
   // 모바일 Safari와 게시판의 링크 자동 확대가 상속 글자 크기를 따로 키우지 못하도록
@@ -2316,7 +2336,7 @@ function buildFooter(settings){
     ? toolText
     : `<a href="https://mosaic-log.github.io/" target="_blank" rel="noopener noreferrer" style="${linkStyle}">${toolText}</a>`;
   const authorText = author ? ` <span data-mosaic-footer-author="true" style="color:${footerColor}; -webkit-text-fill-color:${footerColor}; ${fixedTextStyle}">©${MosaicParser.processInline(author, settings.emphasisColor)}</span>` : '';
-  return `    <div data-mosaic-footer="true" style="margin-top:${marginTop}px; padding-top:${topPadding}px; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
+  return `    <div data-mosaic-footer="true" style="margin-top:0; padding-top:${topPadding}; text-align:center; color:${footerColor}; font-size:${footerFontSize}px; line-height:1.5; letter-spacing:0.3px; font-family:${fontStack(settings.narrFont)}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${toolLink}${authorText}</div>\n`;
 }
 
 function buildCreditLink(contentHTML, rawUrl, color){
@@ -2451,7 +2471,6 @@ function buildCommentBlock(comment, settings){
 }
 
 function placeCoverDividerBeforeLeadingComment(html, settings){
-  if(MosaicState.settingFlagOn(settings.titleMinimal)) return html;
   const template = document.createElement('template');
   template.innerHTML = html;
   const sections = Array.from(template.content.children);
@@ -2459,12 +2478,13 @@ function placeCoverDividerBeforeLeadingComment(html, settings){
     section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
   );
   if(firstBodyIndex < 0 || !sections[firstBodyIndex].hasAttribute('data-mosaic-comment-index')) return html;
-  const titleIndex = sections.findIndex(section => section.hasAttribute('data-mosaic-title'));
-  if(titleIndex < 0 || titleIndex >= firstBodyIndex) return html;
-  const boundary = sections.slice(titleIndex, firstBodyIndex).filter(section =>
+  const boundary = sections.slice(0, firstBodyIndex).filter(section =>
     section.hasAttribute('data-mosaic-title') || section.hasAttribute('data-mosaic-profile')
   ).pop();
   if(!boundary) return html;
+  const kind = boundary.hasAttribute('data-mosaic-profile') ? 'profile' : 'title';
+  if(kind === 'profile' && boundary.dataset.mosaicProfileDividerAvailable === 'false') return html;
+  if(!coverSectionDividerEnabled(settings, kind)) return html;
   boundary.style.setProperty('border-bottom', '0');
   appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
   return template.innerHTML;
@@ -2500,12 +2520,17 @@ function addCoverCardGapAfterIntro(html, settings, standaloneTopProfile = false)
     coverCardGap:extra,
     standaloneTopProfile
   });
-  if(adjustedMargin === bottomMargin && !flattenProfile) return html;
+  const profileDivider = profileBoundary && !standaloneTopProfile && adjustedMargin > 0
+    && coverSectionDividerEnabled(settings, 'profile');
+  if(adjustedMargin === bottomMargin && !flattenProfile && !profileDivider) return html;
   boundary.style.setProperty('margin-bottom', `${adjustedMargin}px`);
   if(flattenProfile){
     boundary.style.setProperty('border-bottom', '0');
     boundary.style.setProperty('border-bottom-left-radius', '0');
     boundary.style.setProperty('border-bottom-right-radius', '0');
+  }
+  if(profileDivider && !hasCoverEdgeLine(boundary, 'bottom')){
+    appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
   }
   // 프로필은 이미 독립 카드의 하단선과 모서리를 가진다. 표제·이미지가 마지막이면
   // 벌어진 간격 위에서 카드가 열린 채 끝나지 않도록 하단 경계를 마무리한다.
@@ -2573,14 +2598,19 @@ function applyUnifiedCardLayout(html, settings){
   const introBoundary = introCandidates.length
     ? introCandidates[introCandidates.length - 1]
     : null;
-  const hasUnifiedTitle = introCandidates.some(section => section.hasAttribute('data-mosaic-title'));
+  const unifiedTitle = introCandidates.find(section => section.hasAttribute('data-mosaic-title')) || null;
+  const hasUnifiedTitle = Boolean(unifiedTitle);
+  const titleHasPhotoProfile = Boolean(unifiedTitle?.nextElementSibling
+    && resolveCoverProfileBoundary(unifiedTitle, unifiedTitle.nextElementSibling, settings).titleDividerUnavailable);
   const imageTitleTouchesBody = firstBodyIndex > 0
     && sections[firstBodyIndex - 1] === introBoundary
     && introBoundary.hasAttribute('data-mosaic-image-background')
     // 이어보기 사진 표제는 양수 간격도 본문 안쪽 패딩이다. 실제 바깥 틈은 없다.
     // 사진 프로필의 기존 간격·접기 배치는 별도 하단 경계 정책을 그대로 따른다.
     && (introBoundary.hasAttribute('data-mosaic-title') || coverCardGapPx(settings) === 0);
-  const showIntroBoundary = hasUnifiedTitle && !MosaicState.settingFlagOn(settings.titleMinimal)
+  // 접기 본문의 여백은 기존 표제 기준을 유지한다. 선의 표시 여부와 분리한다.
+  const introDividerSpacing = hasUnifiedTitle
+    && (titleHasPhotoProfile || coverSectionDividerEnabled(settings, 'title'))
     && !imageTitleTouchesBody;
   sections.forEach((section, index) => {
     const first = index === 0;
@@ -2633,9 +2663,14 @@ function applyUnifiedCardLayout(html, settings){
       if(first) section.style.setProperty('border-top', `1px solid ${borderColor}`);
       if(last) section.style.setProperty('border-bottom', `1px solid ${borderColor}`);
     }
-    // 일반 표제는 표지 묶음의 마지막 요소 아래 선으로 본문과 구분한다.
-    // 표제 미니멀을 켜면 그 선도 함께 없애 표지와 본문을 여백만으로 잇는다.
-    if(showIntroBoundary && section === introBoundary){
+    // 이어보기에서도 각 영역의 아래 선은 그 영역의 기본·미니멀 설정을 따른다.
+    const introKind = section.hasAttribute('data-mosaic-profile') ? 'profile'
+      : section.hasAttribute('data-mosaic-title') ? 'title' : null;
+    const showSectionDivider = introKind && index < firstBodyIndex
+      && !(introKind === 'profile' && section.dataset.mosaicProfileDividerAvailable === 'false')
+      && coverSectionDividerEnabled(settings, introKind)
+      && !(section === introBoundary && imageTitleTouchesBody);
+    if(showSectionDivider){
       // 일반 보기의 표지·첫 카드 연결선과 같은 내부 구분선 색을 사용한다.
       const length = coverDividerLengthPercent(settings);
       if(length === 100) section.style.setProperty('border-bottom', `1px solid ${pal.divider}`);
@@ -2683,7 +2718,7 @@ function applyUnifiedCardLayout(html, settings){
       previousKind:sectionKind(previous), nextKind:sectionKind(sections[index + 1]),
       cardGap:cardGapPx(settings),
       unifiedBottomSpace:unifiedBottomSpacePx(settings),
-      introDivider:showIntroBoundary && previous === introBoundary,
+      introDivider:introDividerSpacing && previous === introBoundary,
       afterImageWithoutTitle:!hasUnifiedTitle && !!(previous && previous.hasAttribute('data-mosaic-cover-image')),
       afterImageBackedTitle:!!(previous && previous.hasAttribute('data-mosaic-title') && previous.hasAttribute('data-mosaic-image-background')),
       introGap:index === firstBodyIndex && introBoundary ? coverCardGapPx(settings) : 0
@@ -2882,15 +2917,21 @@ function resolveCoverProfileBoundary(first, second, settings){
     + Math.max(0, Number.parseFloat(second.style.marginTop) || 0);
   // 이어보기의 본문 안쪽 패딩은 사진 아래의 바깥 틈이 아니다. 프로필 끝까지
   // 사진인 면이 실제로 붙으면 선만 지우고, 사진끼리의 접합선은 그대로 둔다.
-  const removePhotoProfileSeam = first.hasAttribute('data-mosaic-photo-profile')
+  const seamlessPhotoProfile = first.hasAttribute('data-mosaic-photo-profile')
     && (nextIsBody || second.hasAttribute('data-mosaic-title') || isProfile(second))
-    && !isPhotoCover(second) && !second.hasAttribute('data-mosaic-photo-profile') && marginGap === 0
+    && !isPhotoCover(second) && !second.hasAttribute('data-mosaic-photo-profile') && marginGap === 0;
+  // 단색 표제 바로 아래까지 프로필 사진이 차면 선과 표제 구분선 조작을 생략한다.
+  const titleBeforePhotoProfile = first.hasAttribute('data-mosaic-title')
+    && second.hasAttribute('data-mosaic-photo-profile-top') && marginGap === 0;
+  const removePhotoProfileSeam = seamlessPhotoProfile
     && (hasCoverEdgeLine(first, 'bottom') || hasCoverEdgeLine(second, 'top')
       || hasCoverEdgeLine(second.querySelector(':scope > summary, :scope > [data-mosaic-card-title="true"]'), 'top'));
   return {
     photo:joinPhoto ? (profileFirst ? second : first) : null,
     photoEdge:profileFirst ? 'top' : 'bottom',
     removePhotoProfileSeam,
+    titleDividerUnavailable:titleBeforePhotoProfile,
+    profileDividerUnavailable:isProfile(first) && (seamlessPhotoProfile || joinPhoto),
     removeImageSeam:shouldRemoveImageTitleBodySeam({
       imageBackedTitle:first.hasAttribute('data-mosaic-title') && first.hasAttribute('data-mosaic-image-background'),
       nextExists:true, gap:marginGap
@@ -3009,8 +3050,7 @@ function specialThemeOutput(html, mode, settings){
   });
   if(mode === 'document'){
     const palette = tonePalette(settings);
-    // 카드 외곽선과 별개로, 일반 표제의 본문 연결선은 보존한다.
-    const title = template.content.querySelector('[data-mosaic-title]');
+    // 카드 외곽선과 별개로, 표제·프로필의 연결선은 각 영역의 표현 설정을 따른다.
     template.content.querySelectorAll('[data-mosaic-card-index], [data-mosaic-profile], [data-mosaic-credit]').forEach(el => {
       // 각진 테마도 외곽선 토글이 켜져 있으면 프로필의 바깥선을 보존한다.
       if(!el.style.backgroundImage.includes('url(')) el.style.setProperty('background-image', 'none', 'important');
@@ -3046,41 +3086,40 @@ function specialThemeOutput(html, mode, settings){
     template.content.querySelectorAll('[data-mosaic-quote]').forEach(el => {
       el.style.setProperty('background-color', palette.boxBg, 'important');
     });
-    // 각진 카드의 표지선은 개별/이어보기 모두 실제 선 요소로 그린다.
-    // 배경 이미지와 border는 각진 테마의 장식 정리에서 제거되므로 여기서 최종 경계를 정한다.
-    if(title && !MosaicState.settingFlagOn(settings.titleMinimal)){
-      const sections = Array.from(template.content.children);
-      const titleIndex = sections.indexOf(title);
-      const firstBodyIndex = sections.findIndex(section =>
-        section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
-      );
-      const imageTitleTouchesBody = firstBodyIndex === titleIndex + 1
-        && title.hasAttribute('data-mosaic-image-background')
-        && sections[firstBodyIndex].hasAttribute('data-mosaic-card-index')
-        && (Math.max(0, Number.parseFloat(title.style.marginBottom) || 0)
-          + Math.max(0, Number.parseFloat(sections[firstBodyIndex].style.marginTop) || 0)) === 0;
-      if(firstBodyIndex > titleIndex && !imageTitleTouchesBody){
-        const firstBody = sections[firstBodyIndex];
-        const attachedProfile = sections.slice(titleIndex + 1, firstBodyIndex)
-          .filter(section => section.hasAttribute('data-mosaic-profile')).pop();
-        const unified = firstBody.hasAttribute('data-mosaic-unified-item');
-        const commentFirst = firstBody.hasAttribute('data-mosaic-comment-index');
-        const boundary = unified || commentFirst
-          ? (attachedProfile || title)
-          : (attachedProfile || firstBody);
-        const edge = unified || commentFirst ? 'bottom' : 'top';
-        boundary.style.setProperty(`border-${edge}`, '0', 'important');
-        if(boundary.style.backgroundImage.includes('linear-gradient') && !boundary.style.backgroundImage.includes('url(')){
-          boundary.style.setProperty('background-image', 'none', 'important');
-        }
-        // 닫힌 details는 summary 이외의 자식을 숨긴다. 표지선을 details에
-        // 덧붙이면 미니멀 해제 후에도 선이 보이지 않으므로 항상 보이는 제목에 둔다.
-        const lineHost = edge === 'top' && boundary === firstBody && firstBody.tagName === 'DETAILS'
-          ? (firstBody.querySelector(':scope > summary') || firstBody)
-          : boundary;
-        appendCoverDividerLine(lineHost, edge, settings, palette.divider);
-      }
-    }
+    // 각진 테마가 지운 배경 구분선을 복원한다. 다음 영역의 위쪽에 그리는
+    // 개별 보기와 현재 영역 아래에 그리는 이어보기가 같은 판정을 공유한다.
+    const sections = Array.from(template.content.children);
+    const firstBodyIndex = sections.findIndex(section =>
+      section.hasAttribute('data-mosaic-card-index') || section.hasAttribute('data-mosaic-comment-index')
+    );
+    sections.slice(0, Math.max(0, firstBodyIndex)).forEach((section, index) => {
+      const kind = section.hasAttribute('data-mosaic-profile') ? 'profile'
+        : section.hasAttribute('data-mosaic-title') ? 'title' : null;
+      if(!kind || !coverSectionDividerEnabled(settings, kind)) return;
+      if(kind === 'profile' && section.dataset.mosaicProfileDividerAvailable === 'false') return;
+      const next = sections[index + 1];
+      if(!next) return;
+      const nextIsBody = next.hasAttribute('data-mosaic-card-index');
+      const marginGap = Math.max(0, Number.parseFloat(section.style.marginBottom) || 0)
+        + Math.max(0, Number.parseFloat(next.style.marginTop) || 0);
+      const imageTitleTouchesBody = nextIsBody && section.hasAttribute('data-mosaic-image-background')
+        && marginGap === 0;
+      if(imageTitleTouchesBody) return;
+      const below = next.hasAttribute('data-mosaic-unified-item')
+        || next.hasAttribute('data-mosaic-comment-index')
+        || marginGap > 0
+        || hasCoverEdgeLine(section, 'bottom')
+        || (!nextIsBody && !next.hasAttribute('data-mosaic-profile'));
+      const boundary = below ? section : next;
+      const edge = below ? 'bottom' : 'top';
+      boundary.style.setProperty(`border-${edge}`, '0', 'important');
+      removeCoverEdgeBackgroundLine(boundary, edge);
+      // 닫힌 details에서도 보이도록 구분선은 항상 표시되는 제목에 둔다.
+      const lineHost = edge === 'top' && nextIsBody && boundary.tagName === 'DETAILS'
+        ? (boundary.querySelector(':scope > summary') || boundary) : boundary;
+      removeCoverEdgeBackgroundLine(lineHost, edge);
+      appendCoverDividerLine(lineHost, edge, settings, palette.divider);
+    });
   }
   return template.innerHTML;
 }
@@ -3139,9 +3178,17 @@ function finalizeCoverProfileBoundaries(html, settings){
   const finalSections = Array.from(template.content.children).filter(section =>
     !section.hidden && section.getAttribute('aria-hidden') !== 'true'
   );
-  boundaries.forEach(({ removeImageSeam, removePhotoProfileSeam }, index) => {
-    if(!removeImageSeam && !removePhotoProfileSeam) return;
+  boundaries.forEach(({ removeImageSeam, removePhotoProfileSeam, profileDividerUnavailable, titleDividerUnavailable }, index) => {
     const upper = finalSections[index], lower = finalSections[index + 1];
+    if(profileDividerUnavailable) upper.setAttribute('data-mosaic-profile-divider-available', 'false');
+    if(titleDividerUnavailable){
+      upper.setAttribute('data-mosaic-title-divider-available', 'false');
+      // 생략된 선을 위한 여백 축소는 적용하지 않는다. 사진 배경 표제의 높이는 그대로 둔다.
+      if(!upper.hasAttribute('data-mosaic-image-background')){
+        upper.style.setProperty('padding-bottom', `${titleBottomPaddingPx(false, false, spacingMult(settings), coverVerticalSpacePx(settings))}px`);
+      }
+    }
+    if(!removeImageSeam && !removePhotoProfileSeam && !titleDividerUnavailable) return;
     clearCoverEdge(upper, 'bottom');
     if(removeImageSeam) upper.style.setProperty('background-clip', 'border-box', 'important');
     clearCoverEdge(lower, 'top');
@@ -3272,10 +3319,7 @@ function buildCardUncached(settings, sourceCards){
 
   const foldDividerMinimal = MosaicState.settingFlagOn(settings.foldDividerMinimal);
   const cardInlinePadding = cardInlinePaddingCss(settings);
-  const titledBodyTopPadding = foldDividerMinimal
-    ? cardBodyTopPaddingCss(12, 2.5, 16, settings)
-    : cardBodyTopPaddingCss(20, 4, 24, settings);
-  const plainBodyTopPadding = cardBodyTopPaddingCss(20, 4, 26, settings);
+  const bodyTopPadding = cardBodyTopPaddingCss(settings);
   const cardGap = cardGapPx(settings);
   const coverCardGap = coverCardGapPx(settings);
   const imageTitleTouchesBody = hasTitle && !hasAttachedProfile
@@ -3307,9 +3351,9 @@ function buildCardUncached(settings, sourceCards){
       cardBodyCenter: card.bodyCenter === true,
       bodyFoldTitleCenter: card.bodyCenter === true || settings.bodyFoldTitleCenter
     });
-    const bodyHTML = assembleBody(card.lines, bodySettings);
+    const bodyHTML = trimCardBodyEdgeMargins(assembleBody(card.lines, bodySettings));
     const footer = isLast ? buildFooter(settings) : '';
-    const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings, Boolean(footer));
+    const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings);
     const marginCss = isFirst ? '0 auto' : `${cardGap}px auto 0 auto`;
     // 연결된 첫 카드는 위 모서리를 각지게 해서 이미지와 하나의 틀처럼 이어지게 함
     const cardRadius = cardCornerRadiusPx(settings);
@@ -3318,8 +3362,9 @@ function buildCardUncached(settings, sourceCards){
     const radius = `${topRadius}px ${topRadius}px ${bottomRadius}px ${bottomRadius}px`;
     const W = parseInt(settings.cardWidth) || 750;
     // 대표 이미지나 사진 배경 표제가 본문에 바로 붙으면 접합선 없이 한 면으로 잇는다.
-    const noTopLine = connected && ((hasTitle && settings.titleMinimal)
-      || (hasImg && !hasTitle) || imageTitleTouchesBody);
+    const noTopLine = connected && (hasAttachedProfile
+      ? !coverSectionDividerEnabled(settings, 'profile')
+      : !hasTitle || !coverSectionDividerEnabled(settings, 'title') || imageTitleTouchesBody);
     const showOuterBorder = settings.cardBorderOn !== false;
     // 표제 밴드와 본문 카드가 하나의 카드처럼 보이도록 외곽선은
     // 모두 표제·이미지에 쓰는 옅은 보조색 외곽선으로 통일한다.
@@ -3329,14 +3374,14 @@ function buildCardUncached(settings, sourceCards){
       if(joinedAbove || noTopLine){
         borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor};`;
       }else if(connected){
-        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; ${coverDividerTopCss(settings, pal.divider)}`;
+        borderCss = `border-left:1px solid ${shellOuterColor}; border-right:1px solid ${shellOuterColor}; border-bottom:1px solid ${shellOuterColor}; ${coverDividerCss(settings, pal.divider)}`;
       }else{
         borderCss = `border:1px solid ${shellOuterColor};`;
       }
       if(joinedBelow) borderCss += ' border-bottom:0;';
     } else if(connected && !noTopLine){
       // 이미지·표제와 카드 사이의 선은 외곽선이 아니라 내부 경계이므로 유지한다.
-      borderCss = coverDividerTopCss(settings, pal.divider);
+      borderCss = coverDividerCss(settings, pal.divider);
     }
     const shellStyle = `width:100%; max-width:${W}px; box-sizing:border-box; margin:${marginCss}; ${borderCss} border-radius:${radius}; background-color:${pal.cardBg}; padding:0; overflow:hidden; overflow-wrap:anywhere; word-break:break-word;`;
     // 테마 후처리에서 본문 안쪽 제목만 정렬한다. 이 편집 메타데이터는 출력 시 제거한다.
@@ -3366,7 +3411,7 @@ function buildCardUncached(settings, sourceCards){
         ? ''
         : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${foldOrnamentColor}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const foldBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
-      const foldBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
+      const foldBodyPadding = `${bodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
       return `<details data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}"><summary data-mosaic-fold-title="true" style="box-sizing:border-box; width:100%; height:auto; min-height:0; margin:0; cursor:pointer; display:flex; align-items:center; justify-content:center; column-gap:14px; list-style:none; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${foldLeftOrnament}${foldTitleHTML}${foldRightOrnament}</summary>
   <div data-mosaic-fold-body="true" style="${foldBodyBorder} padding:${foldBodyPadding};">
 ${bodyHTML}${footer}  </div>
@@ -3383,7 +3428,7 @@ ${bodyHTML}${footer}  </div>
         ? ''
         : `<span data-mosaic-generated="true" style="flex:0 0 auto; color:${pal.ornament}; opacity:${cardOrnamentOpacity}; font-size:12px; line-height:1;">✦</span>`;
       const cardBodyBorder = foldDividerStyle(foldDividerMinimal, pal, settings);
-      const cardBodyPadding = `${titledBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
+      const cardBodyPadding = `${bodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding}`;
       return `<div data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}">
   <div data-mosaic-card-title="true" style="display:flex; align-items:center; justify-content:center; column-gap:14px; padding:${cardTitlePaddingPx(settings)}px ${cardInlinePadding}; text-align:center; font-size:${settings.foldTitleSize}px; font-weight:${settings.foldTitleBold ? 700 : 500}; color:${pal.heading[2]}; line-height:1.35; letter-spacing:-0.2px; font-family:${fontStack(settings.narrFont)};">${cardLeftOrnament}${cardTitleHTML}${cardRightOrnament}</div>
   <div style="box-sizing:border-box; ${cardBodyBorder} padding:${cardBodyPadding};">
@@ -3391,7 +3436,7 @@ ${bodyHTML}${footer}  </div>
 </div>`;
     }
     return `<div data-mosaic-card-index="${card.sourceIndex}"${bodyCenterAttr} style="${shellStyle}">
-  <div style="box-sizing:border-box; padding:${plainBodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding};">
+  <div style="box-sizing:border-box; padding:${bodyTopPadding} ${cardInlinePadding} ${cardBodyBottomPadding};">
 ${bodyHTML}${footer}  </div>
 </div>`;
   });
@@ -3478,7 +3523,7 @@ function cachedParagraph(cache, line, settings, options){
 }
 
 return Object.freeze({
-...Object.freeze({assembleBody,
+assembleBody,
 bodyRenderGroups,
 buildCard,
 buildParagraph,
@@ -3494,7 +3539,7 @@ parseBodyImageLine,
 repairLegacyPhotoBackgrounds,
 splitDialogueLineForOutput,
 statusLineContent,
-stripEditorOutputMetadata}),
+stripEditorOutputMetadata,
 fontStack,
 parseOutputBodyImage,
 rememberProfileImageSize,

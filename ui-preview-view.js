@@ -49,14 +49,37 @@ const PREVIEW_CONTROL_GAP = 6;
 
 const PREVIEW_CONTROL_SIZE = 27;
 
-function createPreviewControlButton(className, text, title){
+const PREVIEW_CONTROL_ICONS = Object.freeze({
+  copy:'<path d="M10 5V2H2v8h3"/><rect x="5" y="5" width="8" height="8" rx=".5"/>',
+  check:'<path d="m3 8 3 3 7-7"/>',
+  error:'<path d="M8 3v6 M8 12h.01"/>',
+  up:'<path d="M8 13V3 M4.5 6.5 8 3l3.5 3.5"/>',
+  down:'<path d="M8 3v10 M4.5 9.5 8 13l3.5-3.5"/>',
+  divider:'<path d="M3 8h10"/>',
+  dividerOmitted:'<path d="M3 8h10 M5 12l6-8"/>',
+  circle:'<circle cx="8" cy="8" r="4.5"/>',
+  circleSlash:'<circle cx="8" cy="8" r="4.5"/><path d="m4.8 11.2 6.4-6.4"/>'
+});
+
+function setPreviewControlIcon(button, icon){
+  const size = icon === 'divider' || icon === 'dividerOmitted' ? 12 : 14;
+  const className = `previewControlIcon${icon === 'dividerOmitted' ? ' previewDividerOmittedIcon' : ''}`;
+  button.dataset.previewIcon = icon;
+  button.innerHTML = `<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${PREVIEW_CONTROL_ICONS[icon]}</svg>`;
+}
+
+function createPreviewControlButton(className, icon, title){
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `${className} previewFloatingControl`;
-  button.textContent = text;
+  setPreviewControlIcon(button, icon);
   button.title = title;
   button.setAttribute('aria-label', title);
   return button;
+}
+
+function createPreviewDividerToggleButton(visible, title){
+  return createPreviewControlButton('previewOptionToggleBtn', visible ? 'divider' : 'dividerOmitted', title);
 }
 
 function previewElementRect(element, positioningRoot){
@@ -75,6 +98,11 @@ function previewControlGeometry(button, positioningRoot){
   const target = button._mosaicCopyTarget || button._mosaicProfileTarget || button._mosaicOptionTarget;
   const anchor = button._mosaicOptionAnchor || target;
   if(!target || !anchor || !target.isConnected || !anchor.isConnected) return null;
+  if(button._mosaicHideWhenCardClosed){
+    const closed = anchor.tagName === 'DETAILS' && !anchor.open;
+    button.style.display = closed ? 'none' : '';
+    if(closed) return null;
+  }
   const targetRect = previewElementRect(target, positioningRoot);
   const anchorRect = previewElementRect(anchor, positioningRoot);
   const buttonWidth = button.offsetWidth || PREVIEW_CONTROL_SIZE;
@@ -83,18 +111,48 @@ function previewControlGeometry(button, positioningRoot){
   const priority = button.classList.contains('previewBlockCopyBtn')
     ? 0
     : (button.classList.contains('previewProfilePlacementBtn') ? 1 : 2);
+  let desiredTop = targetRect.top + PREVIEW_CONTROL_INSET;
+  if(button._mosaicDividerAtBottom){
+    desiredTop = targetRect.top + targetRect.height - buttonHeight / 2;
+  }else if(button._mosaicFooterAtCardEnd){
+    desiredTop = anchorRect.top + anchorRect.height - PREVIEW_CONTROL_INSET - buttonHeight;
+  }else if(button._mosaicFooterTextCenter){
+    const style = getComputedStyle(target);
+    const topInset = parseFloat(style.paddingTop) + parseFloat(style.borderTopWidth);
+    const bottomInset = parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth);
+    desiredTop = targetRect.top + (targetRect.height + topInset - bottomInset - buttonHeight) / 2;
+  }
   return {
     button,
     priority,
-    desiredTop:button._mosaicFooterAtCardEnd
-      ? anchorRect.top + anchorRect.height - PREVIEW_CONTROL_INSET - buttonHeight
-      : targetRect.top + PREVIEW_CONTROL_INSET,
+    atDivider:button._mosaicDividerAtBottom === true,
+    desiredTop,
     // 왼쪽/오른쪽 카드 조작 버튼은 대상 카드의 가장자리를 따라간다.
     left:mirrored
-      ? anchorRect.left - PREVIEW_CONTROL_INSET - buttonWidth
-      : anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET,
+      ? anchorRect.left + anchorRect.width + PREVIEW_CONTROL_INSET
+      : anchorRect.left - PREVIEW_CONTROL_INSET - buttonWidth,
     height:buttonHeight
   };
+}
+
+// 구분선 버튼의 위치를 먼저 확보하고 다른 조작 버튼을 겹치지 않게 배치한다.
+function positionPreviewControls(controls, minTop){
+  const sameColumn = (a, b) => Math.abs(a.left - b.left) < 2;
+  const placeDown = (control, obstacles) => {
+    let top = Math.max(control.desiredTop, minTop);
+    obstacles.filter(previous => sameColumn(previous, control))
+      .sort((a, b) => a.top - b.top).forEach(previous => {
+        const overlaps = top < previous.bottom + PREVIEW_CONTROL_GAP
+          && top + control.height + PREVIEW_CONTROL_GAP > previous.top;
+        if(overlaps) top = previous.bottom + PREVIEW_CONTROL_GAP;
+      });
+    return {...control, top, bottom:top + control.height};
+  };
+  const fixed = controls.filter(control => control.atDivider)
+    .map(control => ({...control, top:control.desiredTop, bottom:control.desiredTop + control.height}));
+  const flow = [];
+  controls.filter(control => !control.atDivider).forEach(control => flow.push(placeDown(control, fixed.concat(flow))));
+  return fixed.concat(flow);
 }
 
 function layoutPreviewFloatingButtons(){
@@ -105,24 +163,10 @@ function layoutPreviewFloatingButtons(){
     .map(button => previewControlGeometry(button, root))
     .filter(Boolean)
     .sort((a, b) => a.desiredTop - b.desiredTop || a.priority - b.priority);
-  const placed = [];
-  controls.forEach(control => {
-    let top = control.desiredTop;
-    // 버튼 종류나 대상 DOM의 깊이와 관계없이 같은 열에서 겹치는 모든 버튼을
-    // 복사 → 이동 → 옵션 순서로 한 번만 쌓는다.
-    placed.forEach(previous => {
-      const sameColumn = Math.abs(previous.left - control.left) < 2;
-      const overlaps = top < previous.bottom + PREVIEW_CONTROL_GAP
-        && top + control.height + PREVIEW_CONTROL_GAP > previous.top;
-      if(sameColumn && overlaps) top = previous.bottom + PREVIEW_CONTROL_GAP;
-    });
-    control.button.style.top = `${Math.round(top)}px`;
+  const minTop = previewElementRect(host.uiElements.preview, root).top - PREVIEW_CONTROL_INSET;
+  positionPreviewControls(controls, minTop).forEach(control => {
+    control.button.style.top = `${Math.round(control.top)}px`;
     control.button.style.left = `${Math.round(control.left)}px`;
-    placed.push({
-      top,
-      bottom:top + control.height,
-      left:control.left
-    });
   });
   host.previewInteractions.layoutOutputRuleMarkers();
 }
@@ -280,14 +324,14 @@ function previewCopyGroups(){
 function addPreviewCopyButton(target, label, getHTML, successMessage){
   if(!target) return;
   const previewWrap = document.getElementById('previewWrap');
-  const button = createPreviewControlButton('previewBlockCopyBtn', '⧉', `${label} HTML 복사`);
+  const button = createPreviewControlButton('previewBlockCopyBtn', 'copy', `${label} HTML 복사`);
   button._mosaicCopyTarget = target;
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
     const html = getHTML();
     if(!html){
-      button.textContent = '!';
+      setPreviewControlIcon(button, 'error');
       button.classList.add('isError');
       host.showNoticeToast(`${label} HTML을 찾지 못했습니다.`);
       return;
@@ -295,7 +339,7 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
     copyPreviewCardText(html).then(done => {
       button.classList.toggle('isCopied', done);
       button.classList.toggle('isError', !done);
-      button.textContent = done ? '✓' : '!';
+      setPreviewControlIcon(button, done ? 'check' : 'error');
       button.title = done ? `${label} HTML 복사 완료` : '클립보드 권한을 확인해 주세요';
       host.showNoticeToast(done
         ? successMessage
@@ -303,7 +347,7 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
       setTimeout(() => {
         if(!button.isConnected) return;
         button.classList.remove('isCopied', 'isError');
-        button.textContent = '⧉';
+        setPreviewControlIcon(button, 'copy');
         button.title = `${label} HTML 복사`;
       }, 1600);
     });
@@ -339,7 +383,7 @@ function decoratePreviewProfilePlacementButton(){
   if(!placement) return;
   const atTop = placement.value === 'top';
   const title = atTop ? '프로필을 표지 아래로 이동' : '프로필을 최상단 독립으로 이동';
-  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? 'down' : 'up', title);
   button._mosaicProfileTarget = profile;
   button.addEventListener('click', event => {
     event.preventDefault();
@@ -362,7 +406,7 @@ function decoratePreviewCreditPlacementButton(){
   if(!placement || placement.disabled) return;
   const atTop = MosaicState.normalizeCreditPlacement(placement.value) === 'top';
   const title = atTop ? '크레딧을 최하단으로 이동' : '크레딧을 최상단으로 이동';
-  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? '↓' : '↑', title);
+  const button = createPreviewControlButton('previewProfilePlacementBtn', atTop ? 'down' : 'up', title);
   button._mosaicProfileTarget = credit;
   button.addEventListener('click', event => {
     event.preventDefault();
@@ -378,14 +422,16 @@ function decoratePreviewCreditPlacementButton(){
   document.getElementById('previewWrap').appendChild(button);
 }
 
-function addPreviewMinimalToggleButton(target, anchor, inputId, label){
+function addPreviewOptionToggleButton(target, anchor, inputId, label){
   const input = document.getElementById(inputId);
   if(!target || !input) return;
-  const title = input.checked ? `${label} 미니멀 해제` : `${label} 미니멀 적용`;
-  const button = createPreviewControlButton('previewOptionToggleBtn', input.checked ? '•' : '○', title);
+  const title = `${label} 구분선 ${input.checked ? '표시' : '숨김'}`;
+  const button = createPreviewDividerToggleButton(!input.checked, title);
   button.setAttribute('aria-pressed', String(input.checked));
+  button.dataset.previewOption = inputId;
   button._mosaicOptionTarget = target;
   button._mosaicOptionAnchor = anchor || target;
+  button._mosaicDividerAtBottom = true;
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
@@ -393,7 +439,8 @@ function addPreviewMinimalToggleButton(target, anchor, inputId, label){
     const enabled = !input.checked;
     input.checked = enabled;
     input.dispatchEvent(new Event('input', { bubbles:true }));
-    host.showUndoToast(`${label} 미니멀을 ${enabled ? '적용' : '해제'}했습니다.`);
+    input.dispatchEvent(new Event('change', { bubbles:true }));
+    host.showUndoToast(`${label} 구분선을 ${enabled ? '숨겼습니다.' : '표시했습니다.'}`);
   });
   document.getElementById('previewWrap').appendChild(button);
 }
@@ -401,11 +448,10 @@ function addPreviewMinimalToggleButton(target, anchor, inputId, label){
 function addPreviewFooterVisibilityButton(){
   const input = document.getElementById('footerOn');
   if(!input) return;
-  // 접힌 details 안의 꼬리말은 DOM에 있어도 화면에는 보이지 않는다.
-  // 보이는 꼬리말만 좌표 대상으로 삼아 숨은 요소의 0 좌표를 사용하지 않는다.
-  const footer = previewVisibleFooterElement();
   const cards = previewParts().cards;
   const lastCard = cards[cards.length - 1] || null;
+  // 닫힌 카드에서는 버튼을 숨긴다. 펼친 뒤에는 같은 꼬리말 DOM으로 위치를 계산한다.
+  const footer = lastCard?.querySelector('[data-mosaic-footer="true"]') || null;
   const anchor = footer ? (footer.closest('[data-mosaic-card-index]') || lastCard) : lastCard;
   if(!anchor) return;
 
@@ -413,13 +459,15 @@ function addPreviewFooterVisibilityButton(){
   const title = visible ? '꼬리말 숨기기' : '꼬리말 다시 표시';
   const button = createPreviewControlButton(
     'previewOptionToggleBtn',
-    visible ? '○' : '⊘',
+    visible ? 'circle' : 'circleSlash',
     title
   );
   button.setAttribute('aria-pressed', String(!visible));
   button._mosaicOptionTarget = footer || anchor;
   button._mosaicOptionAnchor = anchor;
   button._mosaicFooterAtCardEnd = !footer;
+  button._mosaicFooterTextCenter = Boolean(footer);
+  button._mosaicHideWhenCardClosed = true;
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
@@ -438,10 +486,11 @@ function addPreviewCardDividerToggleButton(cardEl, titleEl){
   const title = divider.checked
     ? '모든 카드 제목 구분선 숨기기'
     : '모든 카드 제목 구분선 표시';
-  const button = createPreviewControlButton('previewOptionToggleBtn', divider.checked ? '○' : '•', title);
+  const button = createPreviewDividerToggleButton(divider.checked, title);
   button.setAttribute('aria-pressed', String(!divider.checked));
   button._mosaicOptionTarget = titleEl;
   button._mosaicOptionAnchor = cardEl;
+  button._mosaicDividerAtBottom = true;
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
@@ -458,22 +507,31 @@ function addPreviewCardDividerToggleButton(cardEl, titleEl){
 
 function decoratePreviewOptionButtons(){
   const parts = previewParts();
-  addPreviewMinimalToggleButton(parts.title, parts.title, 'titleMinimal', '표제');
-  addPreviewMinimalToggleButton(parts.profile, parts.profile, 'profileMinimal', '프로필');
+  if(parts.title && !parts.title.hasAttribute('data-mosaic-image-background')
+    && parts.title.dataset.mosaicTitleDividerAvailable !== 'false'){
+    addPreviewOptionToggleButton(parts.title, parts.title, 'titleMinimal', '표제');
+  }
+  const nextProfileSection = parts.profile?.nextElementSibling;
+  if(parts.profile?.dataset.mosaicProfileDividerAvailable !== 'false'
+    && nextProfileSection?.matches('[data-mosaic-title], [data-mosaic-cover-image], [data-mosaic-profile], [data-mosaic-card-index], [data-mosaic-comment-index]')){
+    addPreviewOptionToggleButton(parts.profile, parts.profile, 'profileDividerMinimal', '프로필');
+  }
   addPreviewFooterVisibilityButton();
-  host.previewInteractions.previewCardContexts().forEach(({ cardEl }) => {
+  for(const { cardEl } of host.previewInteractions.previewCardContexts()){
     const titleEl = cardEl.tagName === 'DETAILS'
       ? cardEl.querySelector(':scope > summary')
       : cardEl.querySelector(':scope > [data-mosaic-card-title="true"]');
+    if(!titleEl) continue;
     addPreviewCardDividerToggleButton(cardEl, titleEl);
-  });
+    break;
+  }
 }
 
 function bindPreviewLayoutEvents(){
   host.bindUIFeatureEvents('preview-layout', () => {
     window.addEventListener('resize', () => requestAnimationFrame(layoutPreviewFloatingButtons));
     // 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
-    // 달라지는 경우에도 외곽 복사 버튼을 해당 카드 오른쪽에 다시 맞춘다.
+    // 달라지는 경우에도 외곽 복사 버튼을 해당 카드 바깥쪽에 다시 맞춘다.
     if(typeof ResizeObserver === 'function'){
       const observer = new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons));
       observer.observe(host.uiElements.preview);

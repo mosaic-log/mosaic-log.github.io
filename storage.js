@@ -3,9 +3,7 @@
 // Dependencies: MosaicState
 globalThis.MosaicStorage = (() => {
 'use strict';
-// 조각로그 v1.9.0 렌더링·HTML 출력 모듈.
-
-// 조각로그 v1.9.0 HTML 출력과 복원 메타데이터 코덱.
+// HTML 출력에 포함하는 복원 메타데이터 코덱.
 const RESTORE_META_PREFIX = '<!--MOSAIC_LOG_STATE_V1:';
 
 const RESTORE_META_SUFFIX = '-->';
@@ -276,7 +274,10 @@ function prepareDraftRestore(d){
     if(!['boolean','string','number'].includes(typeof d[id])) return null;
     booleans[id] = MosaicState.settingFlagOn(d[id]);
   }
+  if(d.profileCommonOn !== undefined && !['boolean','string','number'].includes(typeof d.profileCommonOn)) return null;
+  Object.assign(booleans, MosaicState.savedProfileCommonVisibility(d));
   booleans.profileImageBackgroundOn = MosaicState.savedProfileImageBackgroundOn(d);
+  booleans.profileDividerMinimal = MosaicState.savedProfileDividerMinimal(d);
   let style = null;
   if(d.style !== undefined && d.style !== null){
     if(typeof d.style !== 'object' || Array.isArray(d.style)) return null;
@@ -462,8 +463,8 @@ function writeDraftRaw(raw, expected){
 function removeDraftRaw(){ localStorage.removeItem(MosaicState.DRAFT_KEY); }
 
 return Object.freeze({
-...Object.freeze({loadProtectedPresetList,
-saveProtectedPresetList}),
+loadProtectedPresetList,
+saveProtectedPresetList,
 CREDIT_PRESET_KEY,
 DETAIL_PRESET_KEY,
 MAX_ARCHIVE_BYTES,
@@ -479,14 +480,10 @@ draftSaveConflictReason,
 draftUpdatedAtFromRaw,
 encodeRestoreState,
 isRetiredDefaultDraft,
-get lastPresetReadRaw(){ return lastPresetReadRaw; },
-get lastSlotReadRaw(){ return lastSlotReadRaw; },
 loadPresets,
 loadSlots,
 makeSlotId,
 prepareDraftRestore,
-get presetSaveFailure(){ return presetSaveFailure; },
-get protectedPresetFailure(){ return protectedPresetFailure; },
 readDraftRaw,
 removeDraftRaw,
 restoreStoredValue,
@@ -494,9 +491,13 @@ sanitizeDetailPresetList,
 savePresets,
 saveSlots,
 slotExportPayload,
-get slotReadIssue(){ return slotReadIssue; },
-get slotSaveFailure(){ return slotSaveFailure; },
 validSlotId,
-writeDraftRaw
+writeDraftRaw,
+get lastPresetReadRaw(){ return lastPresetReadRaw; },
+get lastSlotReadRaw(){ return lastSlotReadRaw; },
+get presetSaveFailure(){ return presetSaveFailure; },
+get protectedPresetFailure(){ return protectedPresetFailure; },
+get slotReadIssue(){ return slotReadIssue; },
+get slotSaveFailure(){ return slotSaveFailure; }
 });
 })();
