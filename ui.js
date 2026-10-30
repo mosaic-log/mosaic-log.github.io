@@ -915,8 +915,9 @@ const POSITION_SYNC_KEY = 'mosaicPositionSync_v1';
 const positionSyncInput = document.getElementById('positionSyncOn');
 
 function positionSyncEnabled(){
-  // 전체화면 편집 중의 일시 중지는 사용자의 스위치나 저장값을 바꾸지 않는다.
+  // 모바일 세로 배치와 전체 화면의 일시 중지는 PC용 스위치·저장값을 바꾸지 않는다.
   return !!(positionSyncInput && positionSyncInput.checked)
+    && !previewLayout.isStackedLayout()
     && document.getElementById('fsOverlay').style.display !== 'block';
 }
 
@@ -936,6 +937,14 @@ function syncPositionSyncFloatingUi(){
 
 function bindPositionSyncEvents(){
   bindUIFeatureEvents('position-sync', () => {
+    let stacked = previewLayout.isStackedLayout();
+    window.addEventListener('resize', () => {
+      const next = previewLayout.isStackedLayout();
+      if(next === stacked) return;
+      stacked = next;
+      cancelPendingPositionSync();
+      syncPositionSyncFloatingUi();
+    });
     positionSyncInput.addEventListener('change', () => {
       cancelPendingPositionSync();
       syncPositionSyncFloatingUi();

@@ -4575,18 +4575,63 @@
   :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 68%, white);
   }
-  /* Safari 15는 color-mix를 지원하지 않는다. ON 손잡이와 비활성 손잡이를 보존한다. */
+  /* var()가 든 비지원 color-mix는 계산 시 무효가 된다. 원래 상태 선택자와
+     같은 우선순위로 대체하고, 헤더의 색 혼합은 반투명 장식층으로 표현한다. */
   @supports not (color: color-mix(in srgb, black, white)) {
     #tabDesign .advancedDesignGroup > summary.foldHead {
       --advanced-off-ink: var(--help-ink);
       background: var(--bg-subtle);
     }
-    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+    #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead,
+    #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead:hover,
+    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead,
+    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead:hover,
+    #tabBody .bodyEditorFold > summary.foldHead,
+    #tabBody .bodyEditorFold > summary.foldHead:hover,
+    #tabBody .bodyEditorFold[open] > summary.foldHead {
+      position: relative;
+      isolation: isolate;
+      background: var(--bg-panel);
+    }
+    #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead::before,
+    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead::before,
+    #tabBody .bodyEditorFold > summary.foldHead::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: var(--accent);
+      opacity: .07;
+      pointer-events: none;
+    }
+    #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead:hover::before,
+    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead:hover::before,
+    #tabBody .bodyEditorFold > summary.foldHead:hover::before,
+    #tabBody .bodyEditorFold[open] > summary.foldHead::before { opacity: .11; }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack,
+    :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack,
+    :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
       border-color: var(--accent);
       background: var(--bg-field);
     }
-    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after,
+    :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after,
+    :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
       background: var(--accent);
+    }
+    :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack {
+      border-color: var(--line-strong);
+      background: var(--bg-muted);
+    }
+    :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:not(:checked):not(:disabled) + .coverVisibilitySwitchTrack::after {
+      background: var(--ink-faint);
+    }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack {
+      border-color: var(--line-strong);
+    }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:disabled + .coverVisibilitySwitchTrack::after {
+      background: var(--ink-faint);
     }
     #tabDesign .advancedDesignGroup #advancedOn:not(:checked) + .coverVisibilitySwitchTrack::after {
       background: var(--ink-faint);
@@ -6329,6 +6374,22 @@
 .expressionTransparentChoice input { flex:none; width:14px; height:14px; margin:0; }
 .expressionTransparentChoice input:checked + span { color:var(--accent); }
 #tabTheme > .expressionThemeGroup { margin-top:18px; padding:16px 14px; border-radius:10px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 55%,transparent); }
+@supports not (color: color-mix(in srgb, black, white)) {
+  #tabTheme > .expressionThemeGroup { position:relative; box-shadow:none; }
+  #tabTheme > .expressionThemeGroup::before {
+    content:''; position:absolute; inset:0; border-radius:inherit;
+    box-shadow:inset 0 0 0 1px var(--line); opacity:.55; pointer-events:none;
+  }
+  .expressionThemeOptions button { position:relative; isolation:isolate; }
+  .expressionThemeOptions button:hover,
+  .expressionThemeOptions button.active { background:transparent; }
+  .expressionThemeOptions button::before {
+    content:''; position:absolute; inset:0; z-index:-1;
+    background:var(--accent); opacity:0; pointer-events:none;
+  }
+  .expressionThemeOptions button:hover::before { opacity:.03; }
+  .expressionThemeOptions button.active::before { opacity:.1; }
+}
 #tabTheme > .expressionThemeGroup + .themeFold { padding-top:16px; border-top:0; }
 .paletteUnavailable #comboList { opacity:.4; }
 

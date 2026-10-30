@@ -193,6 +193,8 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 
 스위치의 체크박스는 투명하게 두고 라벨 전체를 덮습니다. 장식 트랙은 `pointer-events: none`으로 두어 실제 체크박스가 터치와 키보드를 처리합니다. `color-mix` 미지원 환경에서는 `@supports` 대체 스타일로 손잡이와 포커스 표시를 유지합니다.
 
+대체 CSS는 원래 ON/OFF 선택자와 같은 우선순위로 적용합니다. `var()`가 포함된 비지원 함수는 계산 시 무효가 되어 더 낮은 우선순위의 대체 선언을 가릴 수 있습니다. 항목 헤더의 강조 배경과 테마 카드 모양 영역의 테두리·선택 배경은 의사 요소로 색과 불투명도를 표현하며, 장식층은 터치를 가로채지 않습니다. 호환성을 모사할 때는 `color-mix()`를 비지원 함수 이름으로 바꿔 검사합니다. 관련 선언을 삭제하는 검사만으로는 이 문제를 재현할 수 없습니다.
+
 테마의 호버 미리보기는 `ui-library.js`의 `bindThemeHoverPreviewList`에서 마우스 `pointerover`·`pointerout`만 처리합니다. 터치에서 발생하는 합성 `mouseover`로 미리보기를 다시 그리지 않습니다. 추천 팔레트는 Safari의 버튼 내부 flex 배치에서도 폭이 줄지 않도록 자식 폭을 명시합니다.
 
 전체 화면 아이콘은 카드 편집의 `cardFullscreenIcon`, 미리보기·코드 보기의 `fullscreenIcon` SVG입니다. 동일한 네 모서리 경로를 사용하고 크기는 `styles.css`에서 조정합니다. 미리보기 위쪽 버튼의 SVG는 13px이며, 버튼의 flex 정렬로 좌우 전환 아이콘과 높이를 맞춥니다. 카드 도구모음의 전체 화면 SVG는 PC 10px, 680px 이하에서는 13px이며 누르는 영역은 유지합니다.
@@ -200,6 +202,8 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 카드 도구모음의 복제 아이콘은 `.duplicateCardBtn .cardActionIcon`의 글자 크기로 조정합니다. PC는 13px, 680px 이하 모바일 배치는 16px이며 버튼 영역과 간격은 유지합니다.
 
 ## 모바일 입력과 화면 위치
+
+`ui.js`의 `positionSyncEnabled()`는 `createPreviewLayout().isStackedLayout()`을 공유하여 680px 이하에서 자동 위치 연동을 중지합니다. 화면 폭이 이 경계를 넘으면 예약된 자동 이동을 취소하고 표시 상태를 갱신합니다. PC의 `positionSyncOn` 체크값과 `mosaicPositionSync_v1` 저장값은 변경하지 않으며, PC 폭으로 돌아오면 기존 설정을 적용합니다. 모바일의 위·아래 이동 버튼과 미리보기 편집 내용의 반영은 유지합니다.
 
 이탈 저장은 `app.js`의 `saveDraftBeforeLeaving()`이 담당합니다. `visibilitychange`의 숨김 상태·`pagehide`·`beforeunload`에서 `MosaicUI.preview.commitActiveEdit()`로 현재 미리보기 편집을 확정한 뒤 기존 초안 저장을 호출합니다. UI 부품의 `commitActiveDirectEdit()`는 평소 blur 경로를 사용합니다. 복원용 `discardActiveDirectEdit()`와 혼용하지 않습니다.
 
