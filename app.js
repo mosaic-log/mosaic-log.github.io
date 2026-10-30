@@ -68,6 +68,16 @@ function saveDraft(force = true){
   }
 }
 
+function saveDraftBeforeLeaving(){
+  try { MosaicUI.preview.commitActiveEdit(); }
+  catch(e){
+    draftDirty = true;
+    MosaicUI.setDraftStatus('저장 실패', 'error');
+    return false;
+  }
+  return saveDraft(false);
+}
+
 function restoreDraft(){
   draftReadRaw = undefined;
   try {
@@ -404,30 +414,99 @@ function setSidebarWidth(px, save){
 }
 
 // ---------- 보관함 오버레이 ----------
+let archiveScrollLock = null;
+let archiveScrollRestoreFrame = null;
+
+function workspaceUsesPageScroll(){
+  return window.matchMedia('(max-width: 680px)').matches;
+}
+
+function syncArchiveScrollLock(){
+  const body = document.body;
+  const lock = !document.getElementById('archiveDrawer').hidden && workspaceUsesPageScroll();
+  const properties = ['--archive-scroll-top','--archive-scroll-left'];
+  if(lock && !archiveScrollLock){
+    if(archiveScrollRestoreFrame !== null) cancelAnimationFrame(archiveScrollRestoreFrame);
+    archiveScrollRestoreFrame = null;
+    archiveScrollLock = {x:window.scrollX,y:window.scrollY,
+      previous:properties.map(name => [body.style.getPropertyValue(name),body.style.getPropertyPriority(name)])};
+    body.style.setProperty(properties[0], -archiveScrollLock.y + 'px');
+    body.style.setProperty(properties[1], -archiveScrollLock.x + 'px');
+    body.classList.add('archiveScrollLocked');
+    document.documentElement.classList.add('archiveScrollLocked');
+  } else if(!lock && archiveScrollLock){
+    const previous = archiveScrollLock;
+    archiveScrollLock = null;
+    body.classList.remove('archiveScrollLocked');
+    document.documentElement.classList.remove('archiveScrollLocked');
+    properties.forEach((name,index) => {
+      const [value,priority] = previous.previous[index];
+      if(value) body.style.setProperty(name,value,priority);
+      else body.style.removeProperty(name);
+    });
+    const restore = () => window.scrollTo({left:previous.x,top:previous.y,behavior:'auto'});
+    restore();
+    // 고정 해제와 버튼 포커스 처리가 끝난 다음에도 같은 위치를 유지한다.
+    archiveScrollRestoreFrame = requestAnimationFrame(() => {
+      archiveScrollRestoreFrame = null;
+      if(document.getElementById('archiveDrawer').hidden && workspaceUsesPageScroll()
+        && !body.classList.contains('fsLock') && !body.classList.contains('previewFullscreen')) restore();
+    });
+  }
+}
+
 function setArchiveDrawerOpen(open){
   const drawer = document.getElementById('archiveDrawer');
   const button = document.getElementById('archiveOpenBtn');
   drawer.hidden = !open;
   drawer.setAttribute('aria-hidden', String(!open));
   button.setAttribute('aria-expanded', String(open));
+  syncArchiveScrollLock();
   if(open){
     MosaicUI.renderSlotList();
-    requestAnimationFrame(() => document.getElementById('archiveCloseBtn').focus());
+    requestAnimationFrame(() => {
+      if(!drawer.hidden) document.getElementById('archiveCloseBtn').focus({preventScroll:true});
+    });
   }else{
     MosaicUI.closeSlotExportMenu();
-    button.focus();
+    button.focus({preventScroll:true});
   }
 }
 
 // ---------- 탭 전환 ----------
 // 탭별 스크롤 위치를 기억해서, 오갈 때 보던 자리로 돌아오게 함.
-// 사이드바 스크롤을 상시 추적해두면, 버튼 클릭으로 브라우저가 스크롤을 건드려도
+// 화면 배치에 맞는 스크롤을 추적해두면, 버튼 클릭으로 브라우저가 스크롤을 건드려도
 // 마지막으로 사용자가 보고 있던 위치가 남는다.
-const tabScroll = {};
+const tabScroll = {page:Object.create(null),sidebar:Object.create(null)};
 
 let activeTabId = document.querySelector('.tabBtn.active')?.dataset.tab || 'tabBody';
 
 let tabSwitching = false;
+
+function tabScrollOwner(){
+  return workspaceUsesPageScroll() ? 'page' : 'sidebar';
+}
+
+function rememberTabScroll(){
+  if(tabSwitching || !document.getElementById('archiveDrawer').hidden) return;
+  const owner = tabScrollOwner();
+  tabScroll[owner][activeTabId] = owner === 'page'
+    ? window.scrollY : document.getElementById('sidebar').scrollTop;
+}
+
+function restoreTabScroll(){
+  const owner = tabScrollOwner();
+  const target = tabScroll[owner][activeTabId] || 0;
+  const sidebar = document.getElementById('sidebar');
+  if(owner === 'sidebar'){
+    sidebar.scrollTop = target;
+    return;
+  }
+  // 짧은 탭으로 바꿔도 설정 영역이 화면 위로 사라져 미리보기에 남지 않게 한다.
+  const bottom = window.scrollY + sidebar.getBoundingClientRect().bottom;
+  const max = Math.max(0, bottom - window.innerHeight);
+  window.scrollTo({top:Math.min(target,max),left:window.scrollX,behavior:'auto'});
+}
 
 // ---------- 본문 글자수/문단수/읽기시간 카운터 ----------
 function updateCounter(allCards = MosaicUI.cards.all(), settings = MosaicUI.getSettings()){
@@ -1149,9 +1228,13 @@ MosaicUI.init();
 function bindApplicationEvents(){
 
 
-// 짧은 저장 지연 중 창을 닫아도 마지막 입력이 빠지지 않게 함.
+// 모바일 앱 전환은 beforeunload 없이 종료될 수 있다. 숨겨질 때 먼저 보존한다.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') saveDraftBeforeLeaving();
+});
+window.addEventListener('pagehide', saveDraftBeforeLeaving);
 window.addEventListener('beforeunload', event => {
-  if(!(draftDirty || draftSaveTimer) || saveDraft(false)) return;
+  if(saveDraftBeforeLeaving()) return;
   // 충돌·저장소 오류로 현재 작업을 보존하지 못했으면 브라우저의 기본 이탈 확인을 띄운다.
   event.preventDefault();
   event.returnValue = '';
@@ -1400,6 +1483,7 @@ document.getElementById('archiveOpenBtn').addEventListener('click', () => {
 });
 
 document.getElementById('archiveCloseBtn').addEventListener('click', () => setArchiveDrawerOpen(false));
+window.addEventListener('resize', syncArchiveScrollLock);
 
 document.getElementById('archiveDrawer').addEventListener('keydown', e => {
   if(e.key === 'Escape'){
@@ -1409,13 +1493,12 @@ document.getElementById('archiveDrawer').addEventListener('keydown', e => {
   }
 });
 
-document.getElementById('sidebar').addEventListener('scroll', () => {
-  if(!tabSwitching) tabScroll[activeTabId] = document.getElementById('sidebar').scrollTop;
-});
+document.getElementById('sidebar').addEventListener('scroll', rememberTabScroll);
+window.addEventListener('scroll', rememberTabScroll, {passive:true});
 
 document.querySelectorAll('.tabBtn').forEach(btn => {
   btn.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
+    rememberTabScroll();
     tabSwitching = true; // 전환 중 스크롤 변화는 기록하지 않음
     document.querySelectorAll('.tabBtn').forEach(b => {
       b.classList.remove('active');
@@ -1430,10 +1513,9 @@ document.querySelectorAll('.tabBtn').forEach(btn => {
     document.getElementById(activeTabId).classList.add('active');
     // 패널이 바뀌면 사이드바 높이도 바뀌므로, 레이아웃이 확정된 뒤에 스크롤을 복원해야
     // 브라우저가 값을 잘라버리지(clamp) 않음
-    const target = tabScroll[activeTabId] || 0;
     requestAnimationFrame(() => {
-      sidebar.scrollTop = target;
-      requestAnimationFrame(() => { tabSwitching = false; });
+      restoreTabScroll();
+      requestAnimationFrame(() => { tabSwitching = false; rememberTabScroll(); });
     });
   });
 });

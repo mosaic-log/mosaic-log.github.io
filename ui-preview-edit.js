@@ -7,6 +7,10 @@ function createPreviewInteractions(host){
 const previewEditState = {
   drag:null,
   selection:null,
+  selectionTimer:null,
+  selectionReveal:false,
+  selectionMouseDown:false,
+  selectionPointerType:'mouse',
   block:null,
   ready:false,
   committing:false
@@ -388,17 +392,26 @@ function bindOutputRuleInteractions(){
     window.addEventListener('resize',hideOutputRulePopover);
     document.querySelectorAll('#selToolbar [data-rule-action]').forEach(button => {
       button.addEventListener('mousedown',event => event.preventDefault());
-      button.addEventListener('click',() => changeOutputRuleOccurrences(outputRulePreviewState.selection
-        .filter(target => target.item.excluded === (button.dataset.ruleAction === 'apply')),button.dataset.ruleAction === 'exclude'));
+      button.addEventListener('click',() => {
+        if(!syncSelectionForAction()) return;
+        changeOutputRuleOccurrences(outputRulePreviewState.selection
+          .filter(target => target.item.excluded === (button.dataset.ruleAction === 'apply')),button.dataset.ruleAction === 'exclude');
+      });
     });
     document.querySelectorAll('#selToolbar [data-parallel-action]').forEach(button=>{
       button.addEventListener('mousedown',event=>event.preventDefault());
-      button.addEventListener('click',()=>changeParallelOccurrences(parallelPreviewState.selection.filter(target=>target.excluded===(button.dataset.parallelAction==='apply')),button.dataset.parallelAction==='exclude'));
+      button.addEventListener('click',()=>{
+        if(!syncSelectionForAction()) return;
+        changeParallelOccurrences(parallelPreviewState.selection.filter(target=>target.excluded===(button.dataset.parallelAction==='apply')),button.dataset.parallelAction==='exclude');
+      });
     });
   });
 }
 
 function hideSelToolbar(){
+  clearTimeout(previewEditState.selectionTimer);
+  previewEditState.selectionTimer = null;
+  previewEditState.selectionReveal = false;
   const bar = document.getElementById('selToolbar');
   bar.style.display = 'none';
   bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
@@ -1395,6 +1408,13 @@ function discardActiveDirectEdit(){
   finally { delete descriptor.discardOnBlur; }
 }
 
+// 앱이 숨겨지기 전에도 평소 blur와 같은 검증·원문 반영 경로를 사용한다.
+function commitActiveDirectEdit(){
+  const active = document.activeElement;
+  const descriptor = previewDirectEditDescriptors.get(active);
+  if(descriptor && !descriptor.discardOnBlur) active.blur();
+}
+
 function enablePreviewDirectEditor(el, descriptor, label){
   if(!el) return;
   if(el.dataset.previewDirectEdit === 'true'){
@@ -1922,82 +1942,134 @@ function decoratePreviewCardTitlePositionLinks(){
   });
 }
 
+function readPreviewSelection(){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed || !sel.rangeCount)return null;
+  const picked = previewTextSelectionRange(sel.getRangeAt(0));
+  if(!picked || !picked.text)return null;
+  const { range, text } = picked;
+  const directEditor = range.startContainer.parentElement.closest('[data-preview-direct-edit="true"]');
+  const directDescriptor = directEditor ? previewDirectEditDescriptors.get(directEditor) : null;
+  // 직접 편집 본문은 렌더 순서를 다시 추정하지 않고, 편집 요소에 저장한 정확한 카드·원문 줄을 사용한다.
+  const src = directDescriptor && directDescriptor.type === 'body'
+    ? { ta:directDescriptor.ta, raw:directDescriptor.raw, block:directEditor }
+    : findBlockSource(range.startContainer);
+  if(!src || picked.selected.some(item => !src.block.contains(item.node)))return null;
+  if(src.block.hasAttribute('data-mosaic-inline-comment'))return null;
+  // 블록 안에서 선택 앞쪽 글자 수를 세어, 같은 글자가 여러 번 나올 때 몇 번째인지 판별
+  let occurrenceRoot = src.block;
+  if(src.block.querySelector(':scope > [data-mosaic-speaker-label="true"]')){
+    let child = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    while(child && child.parentElement !== src.block) child = child.parentElement;
+    if(child && child.parentElement === src.block && child.contains(range.endContainer)) occurrenceRoot = child;
+  }
+  const pre = range.cloneRange();
+  pre.selectNodeContents(occurrenceRoot);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const occurrence = previewRangeText(pre).split(text).length - 1;
+
+  // 이미 걸려 있는 서식 감지 (선택 지점을 감싸는 <strong>/<em> 찾기)
+  const active = {};
+  Object.keys(FMT_TAG).forEach(fmt => {
+    const el = activeFormatEl(range.startContainer, FMT_TAG[fmt], src.block);
+    active[fmt] = el && el.contains(range.endContainer) ? el.textContent : null;
+  });
+  const sourceDescriptor = directDescriptor && directDescriptor.type === 'body'
+    ? directDescriptor
+    : src;
+  const resolved = host.sourceMap.descriptorSelectionSource(sourceDescriptor, text, occurrence);
+  if(!resolved)return null;
+  // [BR] 문단의 가운데 정렬은 결합 문단 전체를 제어하므로 첫 원문 줄을 기준으로 한다.
+  const centerRaw = sourceDescriptor.softBreak ? sourceDescriptor.raw : resolved.raw;
+  const centerLine = src.ta.value.split('\n')[centerRaw] || '';
+  active.center = CENTER_RE.test(centerLine) ? 'on' : null;
+
+  return {ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active,
+    sourceRange:resolved.range, sourceValue:src.ta.value, range, block:src.block,
+    sourceOccurrence:resolved.occurrence, sourceBounds:resolved.sourceBounds, segmented:resolved.segmented};
+}
+
+function syncPreviewSelection(reveal = false){
+  if(previewEditState.drag) return false;
+  const picked = readPreviewSelection();
+  if(!picked){
+    // 키보드로 도구 버튼에 포커스를 옮긴 경우에는 직전 선택을 유지한다.
+    const previous = previewEditState.selection;
+    if(document.activeElement?.closest('#selToolbar') && window.getSelection()?.isCollapsed
+      && previous?.ta.isConnected && previous.ta.value === previous.sourceValue) return true;
+    hideSelToolbar();
+    return false;
+  }
+  const {range,block,...selection} = picked;
+  const focused = document.activeElement;
+  if(focused?.closest('#sidebar')) focused.blur();
+  if(!block.isConnected || selection.ta.value !== selection.sourceValue){ hideSelToolbar(); return false; }
+  document.body.classList.remove('sidebarFieldActive');
+  previewEditState.selection = selection;
+  if(reveal && host.positionSyncEnabled()) host.revealInEditor(
+    selection.ta, selection.raw, selection.text, selection.sourceOccurrence,
+    selection.sourceBounds, selection.segmented
+  );
+  const bar = document.getElementById('selToolbar');
+  syncSelectionOutputRuleActions(range,block);
+  bar.querySelectorAll('button').forEach(button => {
+    button.classList.toggle('active', !!selection.active[button.dataset.fmt]);
+  });
+  const r = range.getBoundingClientRect();
+  bar.style.display = 'flex';
+  const bw = bar.offsetWidth || 100;
+  bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
+  const above = r.top - bar.offsetHeight - 8;
+  const vertical = above > 8 ? above : r.bottom + 8;
+  bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, vertical)) + 'px';
+  return true;
+}
+
+function schedulePreviewSelection(reveal = false){
+  if(previewEditState.drag || previewEditState.selectionMouseDown) return;
+  previewEditState.selectionReveal = previewEditState.selectionReveal || reveal;
+  if(previewEditState.selectionTimer !== null) return;
+  previewEditState.selectionTimer = setTimeout(() => {
+    previewEditState.selectionTimer = null;
+    const reveal = previewEditState.selectionReveal;
+    previewEditState.selectionReveal = false;
+    syncPreviewSelection(reveal);
+  }, 0);
+}
+
+function syncSelectionForAction(){
+  const previous = previewEditState.selection;
+  if(!previous?.ta.isConnected || previous.ta.value !== previous.sourceValue){
+    hideSelToolbar();
+    return false;
+  }
+  return syncPreviewSelection();
+}
+
 function bindPreviewSelectionEvents(){
   host.bindUIFeatureEvents('preview-selection', () => {
+const inToolbar = target => target.closest?.('#selToolbar, #blockToolbar, #outputRulePopover, .previewRuleDeletion');
+document.addEventListener('pointerdown', event => {
+  previewEditState.selectionPointerType = event.pointerType;
+  if(inToolbar(event.target)) return;
+  previewEditState.selectionMouseDown = event.pointerType === 'mouse';
+});
+document.addEventListener('pointerup', event => {
+  previewEditState.selectionMouseDown = false;
+  if(event.pointerType !== 'mouse' && !inToolbar(event.target)) schedulePreviewSelection();
+});
+document.addEventListener('pointercancel', () => { previewEditState.selectionMouseDown = false; });
+document.addEventListener('selectionchange', () => schedulePreviewSelection());
+document.addEventListener('touchend', event => {
+  if(!inToolbar(event.target)) schedulePreviewSelection();
+}, {passive:true});
 document.addEventListener('mouseup', event => {
-  if(event.target.closest && event.target.closest('#selToolbar, #blockToolbar, #outputRulePopover, .previewRuleDeletion')) return;
-  // 블록 드래그 이동 중에는 무시
-  if(previewEditState.drag) return;
-  // 문장 끝의 바깥 여백에서 놓아도 처리한다. 대상은 포커스가 아닌 실제 선택 글자다.
-  setTimeout(() => {
-    const sel = window.getSelection();
-    if(!sel || sel.isCollapsed || !sel.rangeCount){ hideSelToolbar(); return; }
-    const picked = previewTextSelectionRange(sel.getRangeAt(0));
-    if(!picked || !picked.text){ hideSelToolbar(); return; }
-    const { range, text } = picked;
-    const directEditor = range.startContainer.parentElement.closest('[data-preview-direct-edit="true"]');
-    const directDescriptor = directEditor ? previewDirectEditDescriptors.get(directEditor) : null;
-    // 직접 편집 본문은 렌더 순서를 다시 추정하지 않고, 편집 요소에 저장한 정확한 카드·원문 줄을 사용한다.
-    const src = directDescriptor && directDescriptor.type === 'body'
-      ? { ta:directDescriptor.ta, raw:directDescriptor.raw, block:directEditor }
-      : findBlockSource(range.startContainer);
-    if(!src || picked.selected.some(item => !src.block.contains(item.node))){ hideSelToolbar(); return; }
-    if(src.block.hasAttribute('data-mosaic-inline-comment')){ hideSelToolbar(); return; }
-    // 블록 안에서 선택 앞쪽 글자 수를 세어, 같은 글자가 여러 번 나올 때 몇 번째인지 판별
-    let occurrenceRoot = src.block;
-    if(src.block.querySelector(':scope > [data-mosaic-speaker-label="true"]')){
-      let child = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-      while(child && child.parentElement !== src.block) child = child.parentElement;
-      if(child && child.parentElement === src.block && child.contains(range.endContainer)) occurrenceRoot = child;
-    }
-    const pre = range.cloneRange();
-    pre.selectNodeContents(occurrenceRoot);
-    pre.setEnd(range.startContainer, range.startOffset);
-    const occurrence = previewRangeText(pre).split(text).length - 1;
-
-    // 이미 걸려 있는 서식 감지 (선택 지점을 감싸는 <strong>/<em> 찾기)
-    const active = {};
-    Object.keys(FMT_TAG).forEach(fmt => {
-      const el = activeFormatEl(range.startContainer, FMT_TAG[fmt], src.block);
-      active[fmt] = el && el.contains(range.endContainer) ? el.textContent : null;
-    });
-    const sourceDescriptor = directDescriptor && directDescriptor.type === 'body'
-      ? directDescriptor
-      : src;
-    const resolved = host.sourceMap.descriptorSelectionSource(sourceDescriptor, text, occurrence);
-    if(!resolved){ hideSelToolbar(); return; }
-    // [BR] 문단의 가운데 정렬은 결합 문단 전체를 제어하므로 첫 원문 줄을 기준으로 한다.
-    const centerRaw = sourceDescriptor.softBreak ? sourceDescriptor.raw : resolved.raw;
-    const centerLine = src.ta.value.split('\n')[centerRaw] || '';
-    active.center = CENTER_RE.test(centerLine) ? 'on' : null;
-
-    // 문단 바깥에서 선택을 시작하면 입력칸 포커스가 남을 수 있다. 유효한 본문
-    // 선택만 포커스를 해제해 sidebarFieldActive의 도구막대 숨김 규칙을 걷어낸다.
-    const focused = document.activeElement;
-    if(focused && focused.closest && focused.closest('#sidebar')) focused.blur();
-    document.body.classList.remove('sidebarFieldActive');
-    previewEditState.selection = { ta:src.ta, raw:resolved.raw, centerRaw, text, occurrence, active, sourceRange:resolved.range };
-    if(host.positionSyncEnabled()) host.revealInEditor(
-      src.ta,
-      resolved.raw,
-      text,
-      resolved.occurrence,
-      resolved.sourceBounds,
-      resolved.segmented
-    );
-    const bar = document.getElementById('selToolbar');
-    syncSelectionOutputRuleActions(range,src.block);
-    bar.querySelectorAll('button').forEach(b => {
-      b.classList.toggle('active', !!active[b.dataset.fmt]);
-    });
-    const r = range.getBoundingClientRect();
-    bar.style.display = 'flex';
-    const bw = bar.offsetWidth || 100;
-    bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2)) + 'px';
-    const above = r.top - bar.offsetHeight - 8;
-    const vertical = above > 8 ? above : r.bottom + 8;
-    bar.style.top = Math.max(8, Math.min(window.innerHeight - bar.offsetHeight - 8, vertical)) + 'px';
-  }, 0);
+  previewEditState.selectionMouseDown = false;
+  if(!inToolbar(event.target)) schedulePreviewSelection(previewEditState.selectionPointerType === 'mouse');
+});
+// 터치에서도 클릭은 유지하고 버튼 포커스 이동으로 선택이 풀리는 것만 막는다.
+document.getElementById('selToolbar').addEventListener('pointerdown', event => {
+  if(event.target.closest('button')) event.preventDefault();
 });
 
 document.addEventListener('mousedown', (e) => {
@@ -2009,7 +2081,7 @@ document.addEventListener('mousedown', (e) => {
 document.querySelectorAll('#selToolbar button[data-fmt]').forEach(btn => {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
-    if(!previewEditState.selection) return;
+    if(!syncSelectionForAction()) return;
     const { ta, raw, centerRaw = raw, text, occurrence, active, sourceRange:capturedRange } = previewEditState.selection;
     const fmt = btn.dataset.fmt;
     const wrap = FMT_WRAP[fmt];
@@ -2464,6 +2536,7 @@ bindBlockToolbarEvents,
 bindOutputRuleInteractions,
 bindPreviewSelectionEvents,
 commentDisplayEntries,
+commitActiveDirectEdit,
 decorateOutputRuleOccurrences,
 decorateParallelOccurrences,
 decoratePreviewCardTitlePositionLinks,

@@ -274,6 +274,14 @@
     box-shadow:10px 0 28px rgba(35,32,28,.10);
   }
   #archiveDrawer[hidden] { display:none; }
+  /* iOS 15처럼 overscroll-behavior가 없어도 보관함 뒤 문서는 움직이지 않는다. */
+  :root.archiveScrollLocked { overflow: hidden; }
+  body.archiveScrollLocked {
+    position: fixed;
+    top: var(--archive-scroll-top);
+    left: var(--archive-scroll-left);
+    width: 100%;
+  }
   body.layoutMirrored #archiveDrawer {
     inset: 0 0 0 auto;
     border-right: 0;
@@ -1713,6 +1721,7 @@
   .comboCard {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 5px;
     width: 100%;
     padding: 11px 12px 12px 12px;
@@ -1928,7 +1937,8 @@
   /* 글자형 아이콘도 일반 작업 버튼의 글자 크기와 분리해 같은 비율로 줄인다. */
   .cardActionMenu .cardActionIcon { width: 14px; height: 14px; font-size: 10px; }
   .cardActionMenu .fsBtn .cardActionIcon { font-size: 11px; }
-  .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size: 12px; }
+  .cardActionMenu .cardFullscreenIcon { display:block; width:10px; height:10px; pointer-events:none; }
+  .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size: 13px; }
   .cardActionMenu .cardDeleteIcon::before,
   .cardActionMenu .cardDeleteIcon::after { width: 10px; }
   .cardActionMenu button:hover:not(:disabled), .cardActionMenu button:focus-visible, .cardActionMenu button[aria-pressed="true"] {
@@ -3498,10 +3508,31 @@
     line-height:1;
     cursor:pointer;
   }
+  .previewFullscreenBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .previewFullscreenBtn:hover,
   .layoutMirrorBtn:hover {
     background:color-mix(in srgb, var(--accent) 10%, var(--bg-panel));
     color:var(--accent);
+  }
+  .fullscreenIcon {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    pointer-events: none;
+  }
+  .previewFullscreenBtn .fullscreenIcon {
+    width: 13px;
+    height: 13px;
   }
   .layoutMirrorBtn.active {
     color: var(--accent);
@@ -4469,12 +4500,13 @@
   }
   :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
   }
   :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack {
     position: relative;
@@ -4484,6 +4516,7 @@
     border-radius: 999px;
     background: var(--bg-field);
     transition: border-color .14s ease, background .14s ease;
+    pointer-events: none;
   }
   :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitchTrack::after {
     content: '';
@@ -4541,6 +4574,27 @@
   }
   :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
     background: color-mix(in srgb, var(--accent) 68%, white);
+  }
+  /* Safari 15는 color-mix를 지원하지 않는다. ON 손잡이와 비활성 손잡이를 보존한다. */
+  @supports not (color: color-mix(in srgb, black, white)) {
+    #tabDesign .advancedDesignGroup > summary.foldHead {
+      --advanced-off-ink: var(--help-ink);
+      background: var(--bg-subtle);
+    }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {
+      border-color: var(--accent);
+      background: var(--bg-field);
+    }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack::after {
+      background: var(--accent);
+    }
+    #tabDesign .advancedDesignGroup #advancedOn:not(:checked) + .coverVisibilitySwitchTrack::after {
+      background: var(--ink-faint);
+    }
+    :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:focus-visible + .coverVisibilitySwitchTrack {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
   }
   :is(#profileGroup, #advancedDesignGroup) .profileResetIconBtn {
     width: 28px;
@@ -5070,6 +5124,9 @@
     gap: 6px;
     border-radius: 8px;
   }
+  /* 구형 WebKit의 button 안쪽 익명 상자에서도 팔레트가 내용 폭으로 줄지 않게 한다. */
+  #tabTheme #comboList .compactPresetHead,
+  #tabTheme #comboList .comboPalette { width: 100%; }
   #tabTheme #comboList .comboPalette {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -5248,7 +5305,8 @@
     .cardActionMenu .cardMoveGlyph { display:none; }
     .cardActionMenu .cardMoveIcon { display:block; width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
     .cardActionMenu .fsBtn .cardActionIcon { font-size:14px; }
-    .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size:15px; }
+    .cardActionMenu .cardFullscreenIcon { width:13px; height:13px; }
+    .cardActionMenu .duplicateCardBtn .cardActionIcon { font-size:16px; }
     .cardActionMenu .cardSplitIcon,
     .cardActionMenu .cardBodyCenterIcon { width:14px; height:14px; }
     .cardActionMenu .autoExpandIcon { width:16px; height:16px; }

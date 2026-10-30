@@ -3331,6 +3331,7 @@ preview:Object.freeze({
     setFullscreenSearchOpen:fullscreen.setFsSearchOpen,
     clearFullscreenSearch:fullscreen.fsClearSearch,
     hideSelectionToolbar:previewInteractions.hideSelToolbar,
+    commitActiveEdit:previewInteractions.commitActiveDirectEdit,
     revision:() => previewRenderState.revision,
     setDirectEditReady:ready => { previewInteractions.setReady(!!ready); }
   }),

@@ -191,6 +191,24 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 
 기존 `MosaicUI.FMT_RE`는 유지하지만 구형 Safari에서는 강조 후보를 찾는 대체 정규식이 제공됩니다. 새 코드에서 `.source`를 재컴파일하지 말고 `formatMatches`로 실제 서식 범위를 구합니다. PC의 모바일 화면 검사와 Safari 문법 호환성 검사는 별도로 진행합니다.
 
+스위치의 체크박스는 투명하게 두고 라벨 전체를 덮습니다. 장식 트랙은 `pointer-events: none`으로 두어 실제 체크박스가 터치와 키보드를 처리합니다. `color-mix` 미지원 환경에서는 `@supports` 대체 스타일로 손잡이와 포커스 표시를 유지합니다.
+
+테마의 호버 미리보기는 `ui-library.js`의 `bindThemeHoverPreviewList`에서 마우스 `pointerover`·`pointerout`만 처리합니다. 터치에서 발생하는 합성 `mouseover`로 미리보기를 다시 그리지 않습니다. 추천 팔레트는 Safari의 버튼 내부 flex 배치에서도 폭이 줄지 않도록 자식 폭을 명시합니다.
+
+전체 화면 아이콘은 카드 편집의 `cardFullscreenIcon`, 미리보기·코드 보기의 `fullscreenIcon` SVG입니다. 동일한 네 모서리 경로를 사용하고 크기는 `styles.css`에서 조정합니다. 미리보기 위쪽 버튼의 SVG는 13px이며, 버튼의 flex 정렬로 좌우 전환 아이콘과 높이를 맞춥니다. 카드 도구모음의 전체 화면 SVG는 PC 10px, 680px 이하에서는 13px이며 누르는 영역은 유지합니다.
+
+카드 도구모음의 복제 아이콘은 `.duplicateCardBtn .cardActionIcon`의 글자 크기로 조정합니다. PC는 13px, 680px 이하 모바일 배치는 16px이며 버튼 영역과 간격은 유지합니다.
+
+## 모바일 입력과 화면 위치
+
+이탈 저장은 `app.js`의 `saveDraftBeforeLeaving()`이 담당합니다. `visibilitychange`의 숨김 상태·`pagehide`·`beforeunload`에서 `MosaicUI.preview.commitActiveEdit()`로 현재 미리보기 편집을 확정한 뒤 기존 초안 저장을 호출합니다. UI 부품의 `commitActiveDirectEdit()`는 평소 blur 경로를 사용합니다. 복원용 `discardActiveDirectEdit()`와 혼용하지 않습니다.
+
+선택 도구막대는 `ui-preview-edit.js`의 `readPreviewSelection()`에서 원문 범위를 읽고 `syncPreviewSelection()`에서 화면에 반영합니다. `schedulePreviewSelection()`은 선택 변경·터치·마우스 종료를 모으며, 서식·치환 제외·병행 제외는 `syncSelectionForAction()`으로 현재 선택과 원문을 다시 확인합니다. 터치 선택 손잡이의 이동을 `mouseup`만으로 처리하지 않습니다.
+
+탭별 스크롤은 `app.js`의 `rememberTabScroll()`·`restoreTabScroll()`이 관리합니다. `workspaceUsesPageScroll()`의 680px 경계를 기준으로 모바일은 문서, PC는 사이드바 위치를 따로 기억합니다. 짧은 탭을 선택해도 설정 영역이 화면 위로 사라지지 않게 복원 범위를 제한합니다.
+
+보관함의 배경 잠금은 `syncArchiveScrollLock()`과 `styles.css`의 `archiveScrollLocked`가 처리합니다. 모바일에서는 문서 루트의 스크롤을 막고 body를 이전 위치에 고정합니다. 목록 자체의 스크롤은 유지합니다. 닫거나 PC 폭으로 바꾸면 위치·CSS 변수를 복원하며, 다시 열 때 이전 복귀 프레임을 취소합니다. 이 상태와 전체 화면의 `fsLock`을 합치지 않습니다.
+
 ## 모바일 화면 이동 수정하기
 
 `createMobilePanelNavigation()`은 세로 배치에서 우하단 이동 버튼과 임시 스크롤 위치를 관리합니다. 680px 분기는 기존 `createPreviewLayout().isStackedLayout()`을 공유합니다. `ui.js`는 이벤트 등록·세로 배치 판정·화면 요소·미확정 렌더 반영만 주입합니다.

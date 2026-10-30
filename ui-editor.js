@@ -808,7 +808,7 @@ function createEditorShell(type, visible){
     fsBtn = document.createElement('button');
     fsBtn.type = 'button';
     fsBtn.className = 'miniCtl fsBtn';
-    fsBtn.textContent = '⛶';
+    fsBtn.innerHTML = '<svg class="cardFullscreenIcon" viewBox="0 0 16 16" fill="none" focusable="false"><path d="M6 2H2v4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="square" stroke-linejoin="miter"/></svg>';
     fsBtn.title = '이 카드를 전체 화면으로 크게 편집';
     fsBtn.setAttribute('aria-label', '카드 전체 화면 편집');
     fsBtn.dataset.cardAction = 'fullscreen';
@@ -919,11 +919,11 @@ function createCardEditor(value){
   centerButton.innerHTML = '<span class="cardActionIcon" aria-hidden="true"><svg class="cardBodyCenterIcon" viewBox="0 0 14 14" fill="none" focusable="false"><path d="M1 3h12 M4 7h6 M1 11h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>';
   // 아이콘만 한 줄로 배치한다. 기존 title·aria-label은 안내와 접근성을 위해 유지한다.
   [[upBtn, '↑'], [downBtn, '↓'], [autoExpandBtn, ''],
-   [fsBtn, '⛶'], [duplicateBtn, '⧉'], [del, '']].forEach(([button, glyph]) => {
+   [fsBtn, ''], [duplicateBtn, '⧉'], [del, '']].forEach(([button, glyph]) => {
     const icon = document.createElement('span');
     icon.className = 'cardActionIcon';
     icon.setAttribute('aria-hidden', 'true');
-    if(button === autoExpandBtn) icon.appendChild(button.querySelector('svg'));
+    if(button === autoExpandBtn || button === fsBtn) icon.appendChild(button.querySelector('svg'));
     else if(button === del) icon.classList.add('cardDeleteIcon');
     else if(button === upBtn || button === downBtn){
       const path = button === upBtn ? 'M10 17V3 M5 8l5-5 5 5' : 'M10 3v14 M5 12l5 5 5-5';

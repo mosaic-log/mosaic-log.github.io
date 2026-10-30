@@ -1041,13 +1041,15 @@ function registerThemeHoverPreviewCard(card, key, values){
 }
 
 // 프리셋 카드는 필터·선택 때마다 새 DOM으로 교체된다. 고정된 목록 요소에서
-// mouseover/out을 받아 새로 만들어진 카드에도 항상 호버 미리보기가 작동하게 한다.
+// 실제 마우스의 pointerover/out만 받는다. iOS의 합성 mouseover가 미리보기를
+// 바꾸면 이어지는 첫 탭의 click이 취소될 수 있으므로 터치는 호버로 처리하지 않는다.
 function bindThemeHoverPreviewList(containerId, cardSelector, manageSensitive = false){
   const container = document.getElementById(containerId);
   if(!container) return;
   const cardFrom = target => target && target.closest ? target.closest(cardSelector) : null;
 
-  container.addEventListener('mouseover', e => {
+  container.addEventListener('pointerover', e => {
+    if(e.pointerType !== 'mouse') return;
     const card = cardFrom(e.target);
     if(!card || !container.contains(card) || (e.relatedTarget && card.contains(e.relatedTarget))) return;
     if(manageSensitive && presetManageMode) return;
@@ -1055,7 +1057,8 @@ function bindThemeHoverPreviewList(containerId, cardSelector, manageSensitive = 
     if(preview) beginThemeHoverPreview(preview.key, preview.values);
   });
 
-  container.addEventListener('mouseout', e => {
+  container.addEventListener('pointerout', e => {
+    if(e.pointerType !== 'mouse') return;
     const card = cardFrom(e.target);
     if(!card || !container.contains(card) || (e.relatedTarget && card.contains(e.relatedTarget))) return;
     const preview = themeHoverPreviewCards.get(card);

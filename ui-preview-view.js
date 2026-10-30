@@ -750,7 +750,8 @@ function setPreviewFullscreen(on){
     syncDesktopPreviewWidth();
   }
   previewFullscreenBtn.setAttribute('aria-pressed', String(!!on));
-  previewFullscreenBtn.textContent = on ? '×' : '⛶';
+  previewFullscreenBtn.querySelector('.fullscreenIcon path')?.setAttribute('d',
+    on ? 'M3 3l10 10 M13 3 3 13' : 'M6 2H2v4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4');
   previewFullscreenBtn.title = on ? '전체화면 미리보기 닫기 (Esc)' : '전체화면 미리보기';
   previewFullscreenBtn.setAttribute('aria-label', previewFullscreenBtn.title);
   // 폭 전환이나 출력 HTML의 인라인 효과가 이미 시작됐더라도 즉시 정지시킨다.
