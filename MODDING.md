@@ -14,6 +14,9 @@ HTML·CSS·JS를 수정하고 `index.html`을 다시 열면 됩니다. 설치·�
 | 작업 화면의 모양 | `styles.css`, `index.html` |
 | 카드 입력·추가·삭제·이동·커서 분할 | `ui-editor.js` → `createCardEditors`, `splitCardAtCursor` |
 | 카드 분할의 원문·제외 범위 계산 | `ui-source.js` → `planCardSplit` |
+| 접힌 본문 입력의 카드·코멘트 개수 | `ui-editor.js` → `syncBodyInputCount`, `renumberCards` |
+| 이름·키워드 규칙의 직접 수정 | `ui.js` → `createOutputRuleEditing`, `renderReplacementRuleItems` |
+| 접힌 카드 구성의 요약 | `ui.js` → `syncDesignSummaryText` |
 | 전체 화면 입력·찾기 | `ui-editor.js` → `createFullscreenEditor` |
 | 미리보기 찾기·바꾸기 | `ui-preview-view.js` → `createPreviewSearch` |
 | 미리보기 클릭·직접 편집·선택 서식 | `ui-preview-edit.js` → `createPreviewInteractions` |
@@ -59,6 +62,24 @@ UI 부품 5개는 생성 함수 묶음만 `MosaicUIParts`에 등록합니다. `u
 본문 입력 제목의 강조 배경은 `styles.css`의 `#tabBody .bodyEditorFold > summary.foldHead`에서 정합니다. 접힘·펼침 모두 UI 강조색 14%, 호버 18%를 사용합니다. color-mix 미지원 환경의 `::before` 불투명도도 같은 값으로 맞춥니다. 다른 그룹의 배경과 글자·테두리·여백은 유지합니다.
 
 예전 기본 표지 URL의 복원 처리는 `state.js`의 `normalizeRetiredCoverImageFields()`에서 정합니다. 초안과 작업 복원에서 함께 사용하며, 작성 내용·다른 이미지·보관함 원본을 지우지 않습니다.
+
+## 접힌 그룹의 요약
+
+본문 입력의 `bodyInputSummary`는 `ui-editor.js`의 `renumberCards()`에서 카드·코멘트를 따로 셉니다. 빈 카드와 출력에서 숨긴 카드도 포함하고, 코멘트가 없으면 코멘트 개수는 생략합니다. `clearCardEditors()`에서도 개수를 비웁니다. 저장 필드를 추가하거나 출력용 글자 수 카운터와 섞지 않습니다.
+
+카드 구성의 `layoutDesignSummary`는 `syncDesignSummaryText()`에서 폭·외곽선·이어보기 순서로 표시합니다. 폭은 `680px`처럼 쓰고, 나머지는 켜진 항목만 표시합니다. 펼친 상태의 본문 폭 선택지 이름은 유지합니다. 두 요약은 그룹이 접혔을 때만 표시하고, 좁은 화면에서는 끝을 생략해 제목과 접기 버튼을 남깁니다.
+
+## 이름·키워드 규칙 수정
+
+`ui.js`의 `createOutputRuleEditing(host)`가 임시 입력·검증·확정·취소를 관리합니다. `renderReplacementRuleItems()`는 두 종류의 규칙에 같은 편집 동작을 연결합니다. 문구를 누르거나 키보드로 선택해 Enter를 누르면 편집하고, Enter·다른 곳 클릭으로 적용하며 Esc로 취소합니다. 한글 조합 중 Enter는 확정하지 않습니다.
+
+이름은 앞뒤 공백을 정리하고 두 문구를 모두 요구합니다. 키워드는 공백을 보존하고 바꿀 문구가 비어 있으면 삭제 규칙으로 처리합니다. 각 문구는 80자까지이며 중복 찾을 문구와 같은 문구로의 치환은 거절합니다. 잘못된 값을 Enter로 확정하면 안내하고 계속 편집하며, 다른 곳을 누르면 이전 값으로 복구합니다.
+
+규칙 목록에서 빈 결과는 `삭제 처리`, 공백만 있는 결과는 `공백 N칸`으로 표시합니다. 두 안내는 `.replacementRuleTo.isEmptyResult`의 10.5px·`--help-ink` 색으로 통일합니다. 실제 글자 `삭제`로 치환하는 규칙은 일반 문구의 크기·색을 유지합니다. 안내 문구는 화면 표시만 담당하며, 편집·저장·출력에는 원래의 빈 문자열이나 공백을 사용합니다.
+
+확정은 기존 스냅샷·`uiUpdateEffects.committedChange()` 경로를 사용합니다. 규칙 ID·순서·적용 상태와 본문 원문은 유지합니다. 부분 제외 내역도 삭제하지 않으며 기존처럼 ID·원래 문구·바꿀 문구가 일치할 때 적용합니다. 문구가 달라진 규칙으로 제외 범위를 자동 이전하지 않습니다.
+
+확정할 때는 `saveNameRules(rules, false)`·`saveKeywordRules(rules, false)`로 값을 쓰고 해당 행만 갱신합니다. 목록 전체를 다시 만들면 다음 문구·스위치·제거 버튼을 누르는 클릭을 잃을 수 있습니다. 검증 안내는 새 입력을 시작하면 지워 같은 문제를 막습니다. 전체 작업 복원과 목록 재생성 전에는 `discard()`로 미확정 입력을 버립니다. 모바일 이탈 시에는 확정 후 기존 초안 저장 경로를 사용합니다. 임시 편집 상태와 요약 개수는 저장하지 않습니다.
 
 ## 디자인 기본값 바꾸기
 

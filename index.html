@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=effbdadbeb0d">
+<link rel="stylesheet" href="./styles.css?v=900f37b5456b">
 </head>
 <body>
 
@@ -403,7 +403,7 @@
 <div class="tabPanel active" id="tabBody" role="tabpanel" aria-labelledby="tabBtnBody">
 
   <details class="group foldGroup bodyFold bodyEditorFold" id="bodyInputGroup" open>
-    <summary class="group-title foldHead"><span class="bodyFoldTitle">본문 입력</span><span class="foldArrow" aria-hidden="true"></span></summary>
+    <summary class="group-title foldHead"><span class="bodyFoldTitle">본문 입력</span><span class="bodyFoldMeta" id="bodyInputSummary" aria-live="polite"></span><span class="foldArrow" aria-hidden="true"></span></summary>
     <div class="foldBody">
     <div class="bodyEditorOptions" role="group" aria-label="본문 보기">
       <p class="group-desc bodyEditorDesc">카드 단위 작성·편집</p>
@@ -557,6 +557,7 @@
       <details class="helpFold">
         <summary>도움말</summary>
         <p class="hint">추가 버튼 또는 Enter로 규칙 추가 · 본문과 이름 입력값은 그대로 보존</p>
+        <p class="hint">규칙의 문구를 눌러 수정 · Enter 또는 다른 곳 클릭으로 적용 · Esc로 취소</p>
         <p class="hint">스위치를 끄거나 ×로 규칙을 제거하면 출력에서 원문이 다시 표시됨</p>
         <p class="hint">은/는·이/가·을/를·과/와 자동 변환 · 인물 색상 유지</p>
       </details>
@@ -588,6 +589,7 @@
       <details class="helpFold">
         <summary>도움말</summary>
         <p class="hint">추가 버튼 또는 Enter로 규칙 추가 · 본문 입력·저장은 원문 유지</p>
+        <p class="hint">규칙의 문구를 눌러 수정 · Enter 또는 다른 곳 클릭으로 적용 · Esc로 취소</p>
         <p class="hint">삭제는 빈 문자열로 처리 · 바꿀 키워드에 띄어쓰기를 입력하면 공백으로 치환</p>
         <p class="hint">여러 규칙의 결과가 같아도 허용 · 스위치를 끄거나 ×로 출력 적용 해제</p>
         <p class="hint">모든 카드 적용 · 대소문자를 구분해 입력한 문구와 정확히 일치하는 부분만 변경</p>
@@ -1491,11 +1493,11 @@
 <script src="./parser.js?v=10a1bd9e2f0e" defer></script>
 <script src="./renderer.js?v=6a3586dbe5fe" defer></script>
 <script src="./ui-source.js?v=1bb03ab77f56" defer></script>
-<script src="./ui-editor.js?v=e71ff566ccaf" defer></script>
+<script src="./ui-editor.js?v=12326b52df92" defer></script>
 <script src="./ui-preview-edit.js?v=735f99646e45" defer></script>
 <script src="./ui-preview-view.js?v=050a216ad97b" defer></script>
 <script src="./ui-library.js?v=1de3e7abca75" defer></script>
-<script src="./ui.js?v=2fbeb4e00140" defer></script>
+<script src="./ui.js?v=16ad8d095c95" defer></script>
 <script src="./storage.js?v=94d5f67a8dcf" defer></script>
 <script src="./app.js?v=76a352f665d8" defer></script>
 

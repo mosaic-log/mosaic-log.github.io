@@ -515,6 +515,111 @@ syncRenderInputs
 });
 }
 
+// 규칙의 임시 입력은 이 기능만 관리한다. 확정 전에는 저장 원본을 바꾸지 않는다.
+function createOutputRuleEditing(host){
+  let active = null;
+  let errorKind = null;
+
+  function clearError(){
+    if(errorKind) host.setStatus(errorKind, '');
+    errorKind = null;
+  }
+
+  function editResult(kind, original, field, value){
+    const rules = host.readRules(kind);
+    const rule = rules.find(item => item.id === original.id);
+    if(!rule || rule.from !== original.from || rule.to !== original.to) return {stale:true};
+    const next = {...rule, [field]:kind === 'name' ? value.trim() : value};
+    if(!next.from || (kind === 'name' && !next.to)){
+      return {error:kind === 'name' ? '현재 이름과 새 이름을 모두 입력해 주세요.' : '찾을 키워드를 입력해 주세요.'};
+    }
+    if(next.from.length > 80 || next.to.length > 80) return {error:'규칙의 문구는 각각 80자까지 입력할 수 있습니다.'};
+    if(next.from === next.to) return {error:'바꾸기 전후의 문구를 다르게 입력해 주세요.'};
+    if(rules.some(item => item.id !== rule.id && item.from === next.from)) return {error:'같은 찾을 문구의 규칙이 있습니다.'};
+    return {rules, rule, next, changed:next.from !== rule.from || next.to !== rule.to};
+  }
+
+  function bindText(node, original, field, kind, refresh){
+    const label = kind === 'name' ? '이름' : '키워드';
+    const fieldLabel = field === 'from' ? '찾을 문구' : '바꿀 문구';
+    node.tabIndex = 0;
+    node.setAttribute('role', 'button');
+    node.setAttribute('aria-label', `${label} 규칙 ${fieldLabel} 수정`);
+    function start(){
+      if(active) active.finish(false);
+      if(!node.isConnected) return;
+      clearError();
+      const initial = {...original};
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'replacementRuleInput';
+      input.maxLength = 80;
+      input.value = initial[field];
+      input.setAttribute('aria-label', `${label} 규칙 ${fieldLabel}`);
+      input.title = 'Enter 적용 · Esc 취소';
+      let finished = false;
+      function finish(cancel, keepInvalid = false, returnFocus = false){
+        if(finished) return;
+        const result = !cancel && input.isConnected ? editResult(kind, initial, field, input.value) : {};
+        if(result.error){
+          if(keepInvalid){
+            errorKind = kind;
+            host.setStatus(kind, result.error);
+            input.setAttribute('aria-invalid', 'true');
+            return;
+          }
+        }
+        finished = true;
+        active = null;
+        if(input.isConnected) input.replaceWith(node);
+        if(result.changed){
+          host.snapshot();
+          Object.assign(result.rule, result.next);
+          host.writeRules(kind, result.rules);
+          Object.assign(original, result.next);
+          refresh();
+          host.changed();
+          host.feedback(`${label} 규칙 수정 · 입력 원문 유지.`);
+        }
+        if(cancel) clearError();
+        if(returnFocus && node.isConnected) node.focus();
+      }
+      active = {input, finish};
+      node.replaceWith(input);
+      input.addEventListener('blur', () => finish(false));
+      input.addEventListener('input', () => {
+        clearError();
+        input.removeAttribute('aria-invalid');
+      });
+      input.addEventListener('keydown', event => {
+        if(event.isComposing || event.keyCode === 229) return;
+        if(event.key === 'Enter' || event.key === 'Escape'){
+          event.preventDefault();
+          event.stopPropagation();
+          finish(event.key === 'Escape', true, true);
+        }
+      });
+      input.focus();
+      input.select();
+    }
+    node.addEventListener('click', start);
+    node.addEventListener('keydown', event => {
+      if(event.key === 'Enter' || event.key === ' '){ event.preventDefault(); start(); }
+    });
+  }
+
+  function discard(root){
+    if(active && (!root || root.contains(active.input))) active.finish(true);
+    if(!root) clearError();
+  }
+  // 모바일 앱 전환에서도 확정한 뒤 기존 초안 저장 경로를 사용한다.
+  window.addEventListener('pagehide', () => { if(active) active.finish(false); });
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden' && active) active.finish(false);
+  });
+  return {bindText, discard};
+}
+
 // ---------- 카드·미리보기·검색·전체 화면 ----------
 const core = (() => {
 const settingsReader = createSettingsReader({
@@ -1583,7 +1688,11 @@ function syncDesignSummaryText(){
   const dialogue = selectedControlText('dlgStyle');
   const cardWidthSelect = document.getElementById('cardWidth');
   const cardWidth = parseInt(cardWidthSelect.value, 10) || 750;
-  const width = cardWidthSelect.selectedOptions[0]?.textContent.trim() || `${cardWidth}px`;
+  const width = [
+    `${cardWidth}px`,
+    document.getElementById('cardBorderOn').checked ? '외곽선' : '',
+    MosaicState.normalizeCardLayout(document.getElementById('cardLayout').value) === 'unified' ? '이어보기' : ''
+  ].filter(Boolean).join(' · ');
   previewLayout.syncDesktopPreviewWidth();
   previewLayout.syncPreviewToolbarLabel();
   document.getElementById('typographyDesignSummary').textContent =
@@ -2407,6 +2516,7 @@ function captureDraftUiState(){
 // 저장된 값과 입력 UI를 복원한다. 출력 렌더링과 초안 저장은 완료 단계에서 수행한다.
 function applyWorkState(data){
   previewInteractions.discardActiveDirectEdit();
+  outputRuleEditing.discard();
   mobilePanelNavigation.reset();
   controlSync.invalidateControlSync();
   const savedFields = data.fields || {};
@@ -2799,13 +2909,22 @@ function scrollCardIntoSidebar(ed, anchorTop = null, {alignStart = false} = {}){
 
 const NAME_RULE_LIMIT_MESSAGE = `이름 규칙은 최대 ${MosaicState.NAME_RULE_LIMIT}개까지 추가할 수 있습니다.`;
 
+const outputRuleEditing = createOutputRuleEditing({
+  readRules:kind => kind === 'name' ? nameRules() : keywordRules(),
+  writeRules:(kind, rules) => kind === 'name' ? saveNameRules(rules, false) : saveKeywordRules(rules, false),
+  snapshot:() => appCommands.snapshotCards(),
+  changed:() => uiUpdateEffects.committedChange(),
+  feedback:message => showUndoToast(message),
+  setStatus:(kind, message) => { document.getElementById(kind === 'name' ? 'nameStatus' : 'keywordStatus').textContent = message; }
+});
+
 function nameRules(){
   return MosaicState.normalizeOutputRules(document.getElementById('nameRules').value, 'name');
 }
 
-function saveNameRules(rules){
+function saveNameRules(rules, renderList = true){
   document.getElementById('nameRules').value = JSON.stringify(rules);
-  renderNameRuleList();
+  if(renderList) renderNameRuleList();
   uiUpdateEffects.saveLater();
 }
 
@@ -2822,6 +2941,7 @@ function toggleOutputRule(id, enabled, kind){
 }
 
 function renderReplacementRuleItems(list, rules, label, undoRule, kind){
+  outputRuleEditing.discard(list);
   list.replaceChildren();
   rules.forEach(rule => {
     const row = document.createElement('div');
@@ -2845,17 +2965,12 @@ function renderReplacementRuleItems(list, rules, label, undoRule, kind){
     text.className = 'keywordRuleText';
     const from = document.createElement('span');
     from.className = 'replacementRuleFrom';
-    from.textContent = rule.from;
-    from.title = rule.from;
     const arrow = document.createElement('span');
     arrow.className = 'replacementRuleArrow';
     arrow.textContent = '→';
     arrow.setAttribute('aria-hidden', 'true');
     const to = document.createElement('span');
     to.className = 'replacementRuleTo';
-    to.classList.toggle('isEmptyResult', rule.to === '' || /^\s+$/.test(rule.to));
-    to.textContent = rule.to === '' ? '삭제' : /^\s+$/.test(rule.to) ? `공백 ${rule.to.length}칸` : rule.to;
-    to.title = to.textContent;
     text.append(from, arrow, to);
     const undo = document.createElement('button');
     undo.type = 'button';
@@ -2864,6 +2979,18 @@ function renderReplacementRuleItems(list, rules, label, undoRule, kind){
     undo.title = '규칙 제거';
     undo.setAttribute('aria-label', `${rule.from} ${label} 규칙 제거`);
     undo.addEventListener('click', () => undoRule(rule.id));
+    const refresh = () => {
+      from.textContent = rule.from;
+      from.title = `${rule.from} · 클릭하여 수정`;
+      to.classList.toggle('isEmptyResult', rule.to === '' || /^\s+$/.test(rule.to));
+      to.textContent = rule.to === '' ? '삭제 처리' : /^\s+$/.test(rule.to) ? `공백 ${rule.to.length}칸` : rule.to;
+      to.title = `${to.textContent} · 클릭하여 수정`;
+      enabled.setAttribute('aria-label', `${rule.from} ${label} 규칙 적용`);
+      undo.setAttribute('aria-label', `${rule.from} ${label} 규칙 제거`);
+    };
+    refresh();
+    outputRuleEditing.bindText(from, rule, 'from', kind, refresh);
+    outputRuleEditing.bindText(to, rule, 'to', kind, refresh);
     row.append(switchLabel, text, undo);
     list.appendChild(row);
   });
@@ -2945,9 +3072,9 @@ function keywordRules(){
   return MosaicState.normalizeOutputRules(document.getElementById('keywordRules').value);
 }
 
-function saveKeywordRules(rules){
+function saveKeywordRules(rules, renderList = true){
   document.getElementById('keywordRules').value = JSON.stringify(rules);
-  renderKeywordRuleList();
+  if(renderList) renderKeywordRuleList();
   uiUpdateEffects.saveLater();
 }
 

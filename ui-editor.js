@@ -369,6 +369,7 @@ function clearCardEditors(){
   const container = host.uiElements.cardEditors;
   Array.from(container.children).forEach(disposeCardEditor);
   container.replaceChildren();
+  syncBodyInputCount(0, 0);
   syncBriefViewButton();
 }
 
@@ -416,6 +417,12 @@ function getCards(){
   return Array.from(document.querySelectorAll('#cardEditors .cardEditor')).map(readEditorCard);
 }
 
+function syncBodyInputCount(cardCount, commentCount){
+  const summary = document.getElementById('bodyInputSummary');
+  const text = `카드 ${cardCount}개${commentCount ? ` · 코멘트 ${commentCount}개` : ''}`;
+  if(summary && summary.textContent !== text) summary.textContent = text;
+}
+
 function renumberCards(){
   const editors = Array.from(document.querySelectorAll('#cardEditors .cardEditor'));
   const cardEditors = editors.filter(ed => ed.dataset.blockType !== 'comment');
@@ -433,6 +440,7 @@ function renumberCards(){
     if(deleteButton) deleteButton.style.display = isComment || cardEditors.length > 1 ? '' : 'none';
   });
   // 카드 구조가 바뀐 시점에만 코멘트 배치 버튼의 활성 여부를 갱신한다.
+  syncBodyInputCount(cardNumber, commentNumber);
   host.syncParagraphSettingsUI();
   syncBriefViewButton();
 }
