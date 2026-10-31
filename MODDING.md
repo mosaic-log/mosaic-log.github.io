@@ -201,7 +201,8 @@ if (work.cards.length < MosaicState.MAX_WORK_BLOCKS) {
 
 - 병행 대사의 표시와 원문 위치는 `parser.js`의 `parallelDisplayParts`를 공유합니다. 보조 대사를 감싸는 바깥 큰따옴표만 생략하고, 내부 인용·입력 원문·나레이션·속마음은 보존합니다. 표시 순서를 바꿔도 같은 규칙을 적용합니다.
 - 자동·이어쓰기·아래쓰기 판정은 `MosaicParser.parallelTranslationPlacement()`를 출력과 편집 투영이 함께 사용합니다. 괄호 안 공백과 숨긴 구분자의 원문 위치도 함께 보존합니다.
-- 아카라이브 PC·모바일의 출력 색·크기 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.
+- 아카라이브 PC·모바일의 출력 색·크기·본문 줄간격 보호는 `renderer.js`의 `lockOutputTypographyForArca()`에서 처리합니다. 병행 묶음의 부모 스타일만 믿지 말고 자식에 직접 적용되는 외부 CSS도 검사합니다. 필요한 `!important`와 번역 보조색·축소 크기·내부 강조를 유지합니다.
+- 줄간격은 내부 `lockBodyLineHeightTree()`가 본문 카드에서만 처리합니다. 명시된 값은 그대로 잠그고 그 아래 요소에는 `line-height:inherit !important`를 넣어 자식에게 직접 적용되는 외부 CSS를 막습니다. 작은 번역 문장·서식·소제목·메모 등에 별도 줄간격이 있으면 해당 값을 우선하며, 기본값 1.6으로 일괄 치환하지 않습니다. 코멘트 카드·표지·프로필·크레딧의 기존 처리와 저장값은 유지합니다.
 - 크레딧 항목 구분선의 색은 `buildCredit()`의 `creditDivider`(`#e9e9e9`)에서 정합니다. `transparentOutput()`은 이 색과 본문 `[HR]`의 원래 색·농도를 보존하며, HR2·HR3·HR4는 기존 투명 규칙을 유지합니다.
 - 프로필 줄바꿈은 `renderer.js`의 `buildProfileBlock()`에서 정합니다. 3인 한 줄과 5인 2+3은 `PROFILE_THREE_COLUMN_CARD_BREAKPOINT`의 카드 전체 폭 680px 기준입니다. `profileHorizontalInset`이 좌우 패딩·테두리를 빼서 실제 안쪽 경계를 계산합니다. 2열→1열은 `PROFILE_TWO_COLUMN_CONTENT_BREAKPOINT`의 안쪽 폭 400px 기준입니다. `styles.css`의 638·640·678·680px 컨테이너 조건도 함께 맞춥니다. 일반/붙임형·외곽선 여부에 따라 620px에서 3인 2+1·5인 2+2+1, 679px에서 2열, 680px에서 3인 한 줄·5인 2+3인지 확인합니다. 사진 접합선·모서리와 미리보기·출력 HTML도 비교합니다.
 - 프로필은 기본 표현만 사용합니다. 미니·클래식의 인물 배경은 `buildProfileBlock()`의 `profileCardBg`에서 결정하며, 사진 배경과 포트레이트의 기존 규칙은 유지합니다. 프로필 구분선은 `profileDividerMinimal`, 표제 구분선은 `titleMinimal`로 결정하고 UI에는 구분선 — 표시/숨김으로 표시합니다.

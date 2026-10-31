@@ -74,6 +74,17 @@ function lockOutputTypographyForArca(html){
       lockArcaStyleProperty(element.style, property, element.style.getPropertyValue(property));
     });
   };
+  // 부모의 잠금은 자식에게 직접 지정된 CSS를 막지 못한다.
+  // 본문의 명시한 줄간격을 보존하고, 그 아래 요소의 상속도 각각 보호한다.
+  const lockBodyLineHeightTree = (element, inheritsLineHeight = false) => {
+    if(!element.style || element.hasAttribute('data-mosaic-comment-index')) return;
+    const declared = element.style.getPropertyValue('line-height').trim();
+    const hasLineHeight = !!declared || inheritsLineHeight;
+    if(hasLineHeight) lockArcaStyleProperty(element.style, 'line-height', declared || 'inherit');
+    Array.from(element.children).forEach(child => {
+      if(!['BR','IMG','HR'].includes(child.tagName)) lockBodyLineHeightTree(child, hasLineHeight);
+    });
+  };
   const lockTextColorAndSizeTree = (element, inheritedColor = '', inheritedSize = '') => {
     if(!element || !element.style) return;
     const declaredColor = element.style.getPropertyValue('color').trim();
@@ -178,6 +189,9 @@ function lockOutputTypographyForArca(html){
       const inherited = nearestConcreteTypography(pair.parentElement);
       lockTextColorAndSizeTree(pair, inherited.color, inherited.size);
     });
+    const bodyCards = [...element.querySelectorAll('[data-mosaic-card-index]')];
+    if(element.hasAttribute('data-mosaic-card-index')) bodyCards.unshift(element);
+    bodyCards.forEach(card => lockBodyLineHeightTree(card));
   });
   return template.innerHTML;
 }
