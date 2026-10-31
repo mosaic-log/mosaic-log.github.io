@@ -526,7 +526,7 @@ function cardInlinePaddingCss(settings){
 
 function cardBodyTopSpacePx(settings){
   const number = Number(settings.cardBodyTopSpace);
-  return Number.isFinite(number) ? Math.max(0, Math.min(40, number)) : 0;
+  return Number.isFinite(number) ? Math.max(-44, Math.min(40, number)) : 0;
 }
 
 // 본문 바깥과 꼬리말 앞 간격은 공통 세로 기준에 배율을 적용하며 문단 여백을 중복하지 않는다.
@@ -545,7 +545,7 @@ function cardBodyTopPaddingCss(settings){
 
 function cardBodyBottomSpacePx(settings){
   const number = Number(settings.cardBodyBottomSpace);
-  return Number.isFinite(number) ? Math.max(-28, Math.min(40, number)) : 0;
+  return Number.isFinite(number) ? Math.max(-44, Math.min(40, number)) : 0;
 }
 
 function headingSpacePx(value){
@@ -2697,7 +2697,7 @@ function applyUnifiedCardLayout(html, settings){
     // 제목 높이를 직접 조절한 카드에서는 이어보기의 여백 정리가 제목 패딩을 지우지 않는다.
     if(edge === 'top' && wrapper.hasAttribute('data-mosaic-card-title') && cardTitlePaddingPx(settings) !== 26) return;
     wrapper.style.setProperty(`padding-${edge}`, edge === 'top' && !wrapper.hasAttribute('data-mosaic-card-title')
-      ? `${cardBodyTopSpacePx(settings)}px`
+      ? `${Math.max(0, cardBodyTopSpacePx(settings))}px`
       : edge === 'bottom' ? `${hasFooter ? 0 : Math.max(0, cardBodyBottomSpacePx(settings))}px` : '0');
     let content = edge === 'top' ? wrapper.firstElementChild : wrapper.lastElementChild;
     if(wrapper.hasAttribute('data-mosaic-card-title')) return;

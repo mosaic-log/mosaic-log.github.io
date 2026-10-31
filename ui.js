@@ -1471,8 +1471,8 @@ function bindRangeEditorEvents(){
           ? Math.min(Number(range.max), Math.max(Number(range.min), value))
           : Number(range.value);
         range.value = String(safeValue);
-        editor.value = String(range.id === 'cardInlinePadding' || range.id === 'footerBodyGap'
-          ? Number(range.value) + base : Math.max(0, Number(range.value) + base));
+        editor.value = String(range.id === 'profileItemGap'
+          ? Math.max(0, Number(range.value) + base) : Number(range.value) + base);
         range.dispatchEvent(new Event('input', { bubbles:true }));
       });
     });

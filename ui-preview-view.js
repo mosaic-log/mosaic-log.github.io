@@ -135,7 +135,8 @@ function previewControlGeometry(button, positioningRoot){
   };
 }
 
-// 구분선 버튼의 위치를 먼저 확보하고 다른 조작 버튼을 겹치지 않게 배치한다.
+// 복사는 카드 상단에 고정한다. 구분선은 원래 경계를 우선하되 복사와
+// 겹칠 때만 아래로 옮기고, 나머지 조작 버튼은 확보된 자리를 피한다.
 function positionPreviewControls(controls, minTop){
   const sameColumn = (a, b) => Math.abs(a.left - b.left) < 2;
   const placeDown = (control, obstacles) => {
@@ -148,11 +149,18 @@ function positionPreviewControls(controls, minTop){
       });
     return {...control, top, bottom:top + control.height};
   };
-  const fixed = controls.filter(control => control.atDivider)
-    .map(control => ({...control, top:control.desiredTop, bottom:control.desiredTop + control.height}));
+  const fixed = controls.filter(control => control.priority === 0)
+    .map(control => {
+      const top = Math.max(control.desiredTop, minTop);
+      return {...control, top, bottom:top + control.height};
+    });
+  const dividers = [];
+  controls.filter(control => control.atDivider)
+    .forEach(control => dividers.push(placeDown(control, fixed.concat(dividers))));
   const flow = [];
-  controls.filter(control => !control.atDivider).forEach(control => flow.push(placeDown(control, fixed.concat(flow))));
-  return fixed.concat(flow);
+  controls.filter(control => control.priority !== 0 && !control.atDivider)
+    .forEach(control => flow.push(placeDown(control, fixed.concat(dividers, flow))));
+  return fixed.concat(dividers, flow);
 }
 
 function layoutPreviewFloatingButtons(){
