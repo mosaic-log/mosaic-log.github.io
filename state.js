@@ -130,8 +130,8 @@ const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 const DEFAULT_STYLE = Object.freeze({
   parallelDialogueOn:true, parallelNarrationOn:false,
   parallelTranslationOrder:'original', parallelTranslationBrackets:'show',
-  textFont: 'pretendard', narrSize: '13.5', narrLine: '1.6', narrColor: '#555555',
-  dlgStyle: 'softlight', dlgSize: '13.5', dlgLine: '1.6', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
+  textFont: 'pretendard', narrSize: '14', narrLine: '1.6', narrColor: '#555555',
+  dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.6', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
   titleSize: '21', titleBold: true, foldTitleSize: '16', foldTitleBold: true, foldTitleDecorationOn: true, foldDividerOn: true, foldTitleAutoNumber: false,
   charColor: '#222222', userColor: '#707070', emphasisColor: '#747474',
   outputTheme: 'solid', cardLayout: 'separate', spacingMode: 'normal', cardWidth: '750', cardBorderOn: true, bgColor: '#ffffff',
