@@ -11,6 +11,7 @@ const {createCardEditors,createFullscreenEditor} = parts.editor;
 const {createPreviewInteractions} = parts.previewEdit;
 const {createPreviewLayout,createPreviewSearch,createMobilePanelNavigation} = parts.previewView;
 const {createCredit,createLibrary} = parts.library;
+const PARAGRAPH_CENTER_IDS = Object.freeze(['narrCenter','dialogueCenter','memoCenter','quoteCenter','headingCenter','bodyFoldTitleCenter']);
 
 // DEFAULT_STYLE is the single source for fresh controls and design resets.
 // Run before feature setup; restoring a draft later keeps its saved values.
@@ -321,7 +322,7 @@ function syncRenderInputs(cards){
   syncUIControlsWhenChanged('preview-style', () => uiControlValues(['cardLayout','cardBorderOn']),
     host.syncPreviewCardStyles);
   syncUIControlsWhenChanged('paragraph', () => [
-    uiControlValues(['narrIndent','commentWidth','commentAlign']),
+    uiControlValues(['narrIndent',...PARAGRAPH_CENTER_IDS,'commentWidth','commentAlign']),
     host.hasMarkdownCardContent(), host.hasMemoCardContent(), host.hasQuoteCardContent(), host.hasBodyFoldTitleContent(),
     Boolean(document.querySelector('#cardEditors .commentEditor'))
   ], host.syncParagraphSettingsUI);
@@ -2212,6 +2213,14 @@ function syncParagraphSettingsUI(){
   );
   const commentWidth = MosaicState.normalizeCommentWidth(document.getElementById('commentWidth').value);
   const commentAlign = MosaicState.normalizeCommentAlign(document.getElementById('commentAlign').value);
+  const summary = document.getElementById('paragraphSettingsSummary');
+  const summaryText = [
+    narrIndent ? '들여쓰기' : '',
+    PARAGRAPH_CENTER_IDS.some(id => document.getElementById(id).checked) ? '가운데' : '',
+    commentWidth !== 'default' || commentAlign !== 'left' ? '코멘트' : ''
+  ].filter(Boolean).join(' · ');
+  summary.hidden = !summaryText;
+  if(summary.textContent !== summaryText) summary.textContent = summaryText;
   press('commentWidthDefault', commentWidth === 'default');
   press('commentWidthCard', commentWidth === 'card');
   press('commentAlignLeft', commentAlign === 'left');
@@ -2940,7 +2949,15 @@ function toggleOutputRule(id, enabled, kind){
   showUndoToast(`${kind === 'name' ? '이름' : '키워드'} 규칙 ${enabled ? '켜기' : '끄기'}.`);
 }
 
+function syncOutputRuleSummary(kind, rules){
+  const summary = document.getElementById(kind === 'name' ? 'nameRuleSummary' : 'keywordRuleSummary');
+  const text = rules.length ? `활성 규칙 ${rules.filter(rule => rule.enabled).length}개` : '';
+  summary.hidden = rules.length === 0;
+  if(summary.textContent !== text) summary.textContent = text;
+}
+
 function renderReplacementRuleItems(list, rules, label, undoRule, kind){
+  syncOutputRuleSummary(kind, rules);
   outputRuleEditing.discard(list);
   list.replaceChildren();
   rules.forEach(rule => {

@@ -69,6 +69,10 @@ UI 부품 5개는 생성 함수 묶음만 `MosaicUIParts`에 등록합니다. `u
 
 카드 구성의 `layoutDesignSummary`는 `syncDesignSummaryText()`에서 폭·외곽선·이어보기 순서로 표시합니다. 폭은 `680px`처럼 쓰고, 나머지는 켜진 항목만 표시합니다. 펼친 상태의 본문 폭 선택지 이름은 유지합니다. 두 요약은 그룹이 접혔을 때만 표시하고, 좁은 화면에서는 끝을 생략해 제목과 접기 버튼을 남깁니다.
 
+이름 바꾸기·키워드 치환의 `nameRuleSummary`·`keywordRuleSummary`도 같은 `bodyFoldMeta` 표시를 사용합니다. `renderReplacementRuleItems()`에서 `syncOutputRuleSummary()`로 정규화된 규칙 중 켜진 수를 셉니다. 규칙이 없으면 숨기고, 모두 OFF면 `활성 규칙 0개`로 표시합니다. 실제 본문에 일치하는 문구가 있는지와 관계없이 스위치 상태를 기준으로 하며, 켜진 삭제·공백 규칙도 포함합니다. 추가·삭제·스위치 전환·실행 취소·복원은 기존 목록 갱신 경로를 사용하고 개수를 별도 저장하지 않습니다.
+
+문단 설정의 `paragraphSettingsSummary`는 `syncParagraphSettingsUI()`에서 선택값을 읽어 `들여쓰기 · 가운데 · 코멘트` 순서로 표시합니다. 들여쓰기 ON, `PARAGRAPH_CENTER_IDS` 중 하나 이상 ON, 코멘트 폭 또는 정렬이 기본값과 다른 경우에 각각 해당 단어를 넣습니다. 종류별로 한 번만 표시하고 모두 기본이면 숨깁니다. 관련 본문이 없어 일시적으로 비활성화된 항목도 저장된 선택값을 기준으로 합니다. 가운데 정렬의 여섯 필드는 컨트롤 동기화 캐시에도 포함해 변경·복원 직후 요약을 갱신합니다. 기존 `bodyFoldMeta` 스타일을 사용해 펼쳤을 때는 숨기고 별도 저장 필드는 추가하지 않습니다.
+
 ## 이름·키워드 규칙 수정
 
 `ui.js`의 `createOutputRuleEditing(host)`가 임시 입력·검증·확정·취소를 관리합니다. `renderReplacementRuleItems()`는 두 종류의 규칙에 같은 편집 동작을 연결합니다. 문구를 누르거나 키보드로 선택해 Enter를 누르면 편집하고, Enter·다른 곳 클릭으로 적용하며 Esc로 취소합니다. 한글 조합 중 Enter는 확정하지 않습니다.
