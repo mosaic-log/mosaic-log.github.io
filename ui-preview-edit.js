@@ -42,6 +42,7 @@ const CENTER_RE = /^(>\s?)?\[C\]\s*/i;
 
 // 줄 맨 앞 또는 인용 뒤의 [C]
 const previewDirectEditDescriptors = new WeakMap();
+let pendingCompositionEdit = null;
 
 const outputRulePreviewState = {spans:new WeakMap(),blocks:new WeakMap(),markers:[],selection:[],menu:null};
 
@@ -1417,19 +1418,38 @@ function previewPasteWithinParallelPart(el){
 // A restored work replaces the pending preview edit. End it before changing its
 // source so blur cannot commit into the new work or reenter HTML replacement.
 function discardActiveDirectEdit(){
+  if(pendingCompositionEdit) pendingCompositionEdit.cancel();
   const active = document.activeElement;
   const descriptor = previewDirectEditDescriptors.get(active);
   if(!descriptor) return;
+  if(descriptor.cancelEdit) descriptor.cancelEdit();
   descriptor.discardOnBlur = true;
   try { active.blur(); }
   finally { delete descriptor.discardOnBlur; }
 }
 
 // 앱이 숨겨지기 전에도 평소 blur와 같은 검증·원문 반영 경로를 사용한다.
-function commitActiveDirectEdit(){
+function commitActiveDirectEdit({forceComposition = false} = {}){
+  if(pendingCompositionEdit){
+    if(!forceComposition) return false;
+    pendingCompositionEdit.finish();
+  }
   const active = document.activeElement;
   const descriptor = previewDirectEditDescriptors.get(active);
-  if(descriptor && !descriptor.discardOnBlur) active.blur();
+  if(descriptor && !descriptor.discardOnBlur){
+    descriptor.forceCompositionCommit = forceComposition;
+    try { active.blur(); }
+    finally { delete descriptor.forceCompositionCommit; }
+  }
+  return !pendingCompositionEdit;
+}
+
+function hasUncommittedDirectEdit(){
+  if(previewEditState.committing) return false;
+  if(pendingCompositionEdit) return true;
+  const active = document.activeElement;
+  return !!(previewDirectEditDescriptors.has(active)
+    && (host.isComposing() || active.dataset.previewEditChanged === 'true'));
 }
 
 function enablePreviewDirectEditor(el, descriptor, label){
@@ -1463,6 +1483,8 @@ function enablePreviewDirectEditor(el, descriptor, label){
 
   el.addEventListener('focus', () => {
   let cancelled = false;
+  let composing = false;
+  let compositionCommitTimer = null;
   let focusValue = '';
   let parallelSnapshot = null;
   let parallelPastePending = false;
@@ -1474,6 +1496,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   };
   const onFocus = () => {
+    cancelled = false;
     focusValue = previewEditableText(el, preservesLineBreaks);
     parallelSnapshot = descriptor.type==='body' ? previewParallelEditSnapshot(el) : null;
     parallelPastePending = false;
@@ -1481,7 +1504,22 @@ function enablePreviewDirectEditor(el, descriptor, label){
     syncDirectEditPosition(el, descriptor);
   };
   el.addEventListener('focus', onFocus);
+  const cancelEdit = () => {
+    cancelled = true;
+    clearTimeout(compositionCommitTimer);
+    compositionCommitTimer = null;
+    if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;
+  };
+  descriptor.cancelEdit = cancelEdit;
+  el.addEventListener('compositionstart', () => { composing = true; });
+  el.addEventListener('compositionend', () => {
+    composing = false;
+    if(pendingCompositionEdit?.element !== el) return;
+    clearTimeout(compositionCommitTimer);
+    compositionCommitTimer = setTimeout(finishEdit, 0);
+  });
   el.addEventListener('beforeinput', e => {
+    if(composing || e.isComposing || host.isComposing()) return;
     if(previewBoundaryDeleteBlocked(el, e.inputType || '')){
       e.preventDefault();
       return;
@@ -1547,7 +1585,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   });
   el.addEventListener('keydown', e => {
-    if(e.isComposing || e.keyCode === 229) return;
+    if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()) return;
     if(e.key === 'Backspace' || e.key === 'Delete'){
       const inputType = e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
       if(previewBoundaryDeleteBlocked(el, inputType)){
@@ -1588,27 +1626,40 @@ function enablePreviewDirectEditor(el, descriptor, label){
       host.uiUpdateEffects.renderNow();
     }
   });
+  function finishEdit(){
+    clearTimeout(compositionCommitTimer);
+    compositionCommitTimer = null;
+    if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;
+    try {
+      if(cancelled || descriptor.discardOnBlur || !el.isConnected) return;
+      const editHints=parallelSnapshot ? previewParallelEditHints(el,parallelSnapshot) : null;
+      if(parallelPastePending && !editHints && parallelSnapshot.anchors.some(anchor=>!el.contains(anchor.node))){
+        // 구획 자체가 지워져 재연결도 실패하면 원문·번역 위치를 문자열로 추측하지 않는다.
+        host.uiUpdateEffects.renderNow();
+        host.showNoticeToast('원문·번역 구획이 사라져 저장하지 않았습니다. 다시 붙여넣거나 본문 입력에서 수정해 주세요.');
+        return;
+      }
+      // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
+      // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
+      if(previewEditableText(el, preservesLineBreaks) === focusValue && !editHints?.some(hint=>hint.hunks.length)){
+        if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true') host.discardUndoSnapshot();
+        delete el.dataset.previewCreditStaged;
+        delete el.dataset.previewEditChanged;
+        return;
+      }
+      descriptor.parallelEditHints = editHints;
+      try{commitPreviewDirectEdit(el, descriptor);}
+      finally{delete descriptor.parallelEditHints;}
+      delete el.dataset.previewEditChanged;
+    } finally { host.resumeDeferredRender(); }
+  }
   el.addEventListener('blur', () => {
     if(cancelled || descriptor.discardOnBlur) return;
-    const editHints=parallelSnapshot ? previewParallelEditHints(el,parallelSnapshot) : null;
-    if(parallelPastePending && !editHints && parallelSnapshot.anchors.some(anchor=>!el.contains(anchor.node))){
-      // 구획 자체가 지워져 재연결도 실패하면 원문·번역 위치를 문자열로 추측하지 않는다.
-      host.uiUpdateEffects.renderNow();
-      host.showNoticeToast('원문·번역 구획이 사라져 저장하지 않았습니다. 다시 붙여넣거나 본문 입력에서 수정해 주세요.');
+    if(composing && !descriptor.forceCompositionCommit){
+      pendingCompositionEdit = {element:el, finish:finishEdit, cancel:cancelEdit};
       return;
     }
-    // 클릭·선택·위치 연동만으로는 원문을 다시 쓰지 않는다. 실제 입력이나 삭제로
-    // 보이는 내용이 달라진 경우에만 저장해 문장 복제와 잘못된 덮어쓰기를 막는다.
-    if(previewEditableText(el, preservesLineBreaks) === focusValue && !editHints?.some(hint=>hint.hunks.length)){
-      if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true') host.discardUndoSnapshot();
-      delete el.dataset.previewCreditStaged;
-      delete el.dataset.previewEditChanged;
-      return;
-    }
-    descriptor.parallelEditHints = editHints;
-    try{commitPreviewDirectEdit(el, descriptor);}
-    finally{delete descriptor.parallelEditHints;}
-    delete el.dataset.previewEditChanged;
+    finishEdit();
   });
 
   // 일부 브라우저의 선택 메뉴는 beforeinput/input 없이 DOM 태그만 삽입한다.
@@ -1616,7 +1667,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   if(descriptor.type === 'body' && typeof MutationObserver === 'function'){
     const knownNodes = new WeakSet([el, ...el.querySelectorAll('*')]);
     const observer = new MutationObserver(() => {
-      if(previewEditState.committing || !el.isConnected) return;
+      if(previewEditState.committing || composing || host.isComposing() || !el.isConnected) return;
       const candidates = Array.from(el.querySelectorAll('b, strong, i, em, span[style]'));
       const added = candidates.find(node => !knownNodes.has(node));
       candidates.forEach(node => knownNodes.add(node));
@@ -2557,6 +2608,7 @@ bindOutputRuleInteractions,
 bindPreviewSelectionEvents,
 commentDisplayEntries,
 commitActiveDirectEdit,
+hasUncommittedDirectEdit,
 decorateOutputRuleOccurrences,
 decorateParallelOccurrences,
 decoratePreviewCardTitlePositionLinks,

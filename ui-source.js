@@ -17,7 +17,7 @@ function parallelCardCandidates(ta,settings=host.getSettings()){
   return MosaicParser.parallelOutputCandidates(ta.value,{...settings,parallelBodyOnly:true,outputRuleExclusions:editorOutputRuleExclusions(ta),parallelExclusions:editorParallelExclusions(ta)});
 }
 
-function maskInlineFormatMarkers(value, mask){
+function maskInlineFormatMarkers(value, mask, onPair = null){
   const normalized = String(value);
   [
     { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
@@ -28,11 +28,13 @@ function maskInlineFormatMarkers(value, mask){
     while((match = re.exec(normalized)) !== null){
       mask(match.index, match.index + width);
       mask(match.index + match[0].length - width, match.index + match[0].length);
+      if(onPair) onPair(match.index, match.index + match[0].length, width);
     }
   });
   for(const match of MosaicState.emphasisMatches(normalized)){
     mask(match.index, match.index + 1);
     mask(match.index + match[0].length - 1, match.index + match[0].length);
+    if(onPair) onPair(match.index, match.index + match[0].length, 1);
   }
 }
 
@@ -503,6 +505,40 @@ function inlineEditProjection(value){
   return chars.join('');
 }
 
+// 수정 범위가 서식의 한쪽 마커만 삼키면 짝이 화면에 노출된다. 내용이 모두
+// 바뀐 서식은 양쪽을 함께 지우고, 남은 내용의 서식은 수정 경계에서 닫거나 연다.
+function replaceInlineSourceRange(raw, start, end, text){
+  const pairs = [], combined = new Set();
+  maskInlineFormatMarkers(raw, () => {}, (from,to,width) => {
+    if(width === 3) combined.add(`${from+1}:${to-1}`);
+    if(width !== 2 || !combined.has(`${from}:${to}`)) pairs.push({from,to,width});
+  });
+  let expanded;
+  do {
+    expanded = false;
+    for(const pair of pairs){
+      const open = start <= pair.from && end >= pair.from + pair.width;
+      const close = start <= pair.to - pair.width && end >= pair.to;
+      if(open && !close && end >= pair.to - pair.width){
+        end = pair.to; expanded = true;
+      }else if(close && !open && start <= pair.from + pair.width){
+        start = pair.from; expanded = true;
+      }
+    }
+  } while(expanded);
+  const before = [], after = [];
+  for(const pair of pairs){
+    const open = start <= pair.from && end >= pair.from + pair.width;
+    const close = start <= pair.to - pair.width && end >= pair.to;
+    if(open && !close) after.push(pair);
+    if(close && !open) before.push(pair);
+  }
+  const marker = pair => raw.slice(pair.from,pair.from + pair.width);
+  const closing = before.sort((a,b)=>b.from-a.from).map(marker).join('');
+  const opening = after.sort((a,b)=>a.from-b.from).map(marker).join('');
+  return raw.slice(0,start) + closing + text + opening + raw.slice(end);
+}
+
 // 보이는 글자만 비교해 바뀐 구간을 원문에 되돌린다.
 // [C], >, #, 화자, 색상, 굵게·강조 마커처럼 화면에 안 보이는 문법은 그대로 둔다.
 function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preserveLineBreaks = false, editHint = null){
@@ -556,7 +592,7 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preser
   const replaceEnd = oldEnd > prefix && visibleIndexes[oldEnd - 1] !== undefined
     ? visibleEnds[oldEnd - 1]
     : replaceStart;
-  return (raw.slice(0, replaceStart) + inserted + raw.slice(replaceEnd))
+  return replaceInlineSourceRange(raw, replaceStart, replaceEnd, inserted)
     .replace(/____/g, '')
     .replace(/\*\*\*\*/g, '');
 }
@@ -602,7 +638,7 @@ function replaceParallelVisibleSource(raw,next,projection,editHint = null){
   }
   replacements.sort((a,b)=>b.from-a.from);
   if(replacements.some((item,index)=>index>0 && item.to>replacements[index-1].from))return raw;
-  return replacements.reduce((value,item)=>value.slice(0,item.from)+item.text+value.slice(item.to),raw)
+  return replacements.reduce((value,item)=>replaceInlineSourceRange(value,item.from,item.to,item.text),raw)
     .replace(/____/g,'').replace(/\*\*\*\*/g,'');
 }
 

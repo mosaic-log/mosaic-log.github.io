@@ -13,6 +13,9 @@ let draftBaseUpdatedAt = 0;
 
 let draftReadRaw;
 
+// 복구까지 실패한 중간 화면은 정상 초안을 덮어쓰지 않는다.
+let workRestoreBlocked = false;
+
 function storedDraftUpdatedAt(){
   try { return MosaicStorage.draftUpdatedAtFromRaw(MosaicStorage.readDraftRaw()); }
   catch(e){ return 0; }
@@ -35,6 +38,10 @@ function scheduleDraftSave(){
 function saveDraft(force = true){
   clearTimeout(draftSaveTimer);
   draftSaveTimer = null;
+  if(workRestoreBlocked){
+    MosaicUI.setDraftStatus('복원 실패 · 저장 중지', 'error');
+    return false;
+  }
   if(!force && !draftDirty) return true;
   try {
     const currentRaw = MosaicStorage.readDraftRaw();
@@ -69,7 +76,7 @@ function saveDraft(force = true){
 }
 
 function saveDraftBeforeLeaving(){
-  try { MosaicUI.preview.commitActiveEdit(); }
+  try { MosaicUI.preview.commitActiveEdit({forceComposition:true}); }
   catch(e){
     draftDirty = true;
     MosaicUI.setDraftStatus('저장 실패', 'error');
@@ -136,7 +143,21 @@ function styleStateEqual(a, b){
 }
 
 function cloneHistoryValue(value){
-  return JSON.parse(JSON.stringify(value));
+  // 작업 원본은 문자열·불리언·숫자·배열·일반 객체다. 변경 가능한 묶음만
+  // 복제하고 불변 문자열은 공유해 긴 본문을 JSON으로 재인코딩하지 않는다.
+  if(Array.isArray(value)) return value.map(cloneHistoryValue);
+  if(value && typeof value === 'object'){
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cloneHistoryValue(item)]));
+  }
+  return value;
+}
+
+function historyValueEqual(a, b){
+  if(a === b) return true;
+  if(!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a), otherKeys = Object.keys(b);
+  return keys.length === otherKeys.length
+    && keys.every((key, index) => key === otherKeys[index] && historyValueEqual(a[key], b[key]));
 }
 
 function captureActionState(label){
@@ -152,7 +173,7 @@ function captureActionState(label){
 function actionStateEqual(a, b){
   if(!a || !b) return false;
   return styleStateEqual(a.style, b.style)
-    && JSON.stringify(a.work) === JSON.stringify(b.work);
+    && historyValueEqual(a.work, b.work);
 }
 
 function pushActionState(state, label){
@@ -198,6 +219,10 @@ function recordCompletedAction(label){
 function commitStyleHistory(immediate){
   cancelStyleHistoryCommit();
   const doCommit = () => {
+    if(MosaicUI.editing.isComposing()){
+      styleCommitTimer = setTimeout(doCommit, 350);
+      return;
+    }
     styleCommitTimer = null;
     const after = captureActionState('디자인 변경');
     if(actionIndex < 0){ pushActionState(after, '초기 상태'); return; }
@@ -218,22 +243,30 @@ function commitStyleHistory(immediate){
 }
 
 function goActionHistory(delta){
+  // 조합 중에는 원문·포커스를 교체하지 않는다. 미확정 직접 편집은 먼저
+  // 평소 확정 경로로 기록해야 이번 편집부터 한 단계씩 되돌릴 수 있다.
+  if(MosaicUI.editing.isComposing()) return;
   // 슬라이더의 묶음 기록이 아직 대기 중이면 먼저 확정한다. 빠르게 되돌려도
   // 디자인보다 앞선 카드 작업을 건너뛰어 취소하지 않게 한다.
   if(styleCommitTimer !== null) commitStyleHistory(true);
+  if(!MosaicUI.editing.commitActive()) return;
   const target = actionIndex + delta;
   if(target < 0 || target >= actionHistory.length) return;
-  actionIndex = target;
-  const state = actionHistory[actionIndex];
-  undoSnapshot = null;
-  imageHistorySession = null;
-  MosaicUI.feedback.dismiss();
-  replaceWork({
-    ...cloneHistoryValue(state.work),
-    style: cloneHistoryValue(state.style),
-    editorIds: state.editorIds
-  }, {resetTheme:true});
-  updateHistoryButtons();
+  const state = actionHistory[target];
+  try {
+    const saved = replaceWork({
+      ...cloneHistoryValue(state.work),
+      style: cloneHistoryValue(state.style),
+      editorIds: state.editorIds
+    }, {resetTheme:true});
+    // 화면 적용에 성공한 뒤에만 기록 위치를 이동한다. 저장 실패 시에도
+    // 현재 화면은 적용된 작업이므로 기록 위치와 화면을 일치시킨다.
+    actionIndex = target;
+    undoSnapshot = null;
+    imageHistorySession = null;
+    MosaicUI.feedback.dismiss();
+    return saved;
+  } finally { updateHistoryButtons(); }
 }
 
 // 되돌린 상태에서 새 편집이 시작되면 기존 redo 분기는 더 이상 안전하지 않다.
@@ -1195,9 +1228,38 @@ const changes = Object.freeze({
 // HTML·보관함·작업 히스토리는 같은 적용 → 선택 상태 정리 → 완료 순서를 쓴다.
 // applyState는 DOM 복원만, 이 명령은 그 결과의 렌더와 저장까지 책임진다.
 function replaceWork(data, {resetTheme = false} = {}){
-  MosaicUI.work.applyState(data);
-  if(resetTheme) MosaicUI.resetThemeSelection();
-  return changes.committedChange();
+  const before = captureActionState('복원 전');
+  const context = MosaicUI.work.captureRestoreContext();
+  const previousDirty = draftDirty;
+  const pendingSave = draftSaveTimer !== null;
+  const previousBlocked = workRestoreBlocked;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+  try {
+    MosaicUI.work.applyState(data);
+    MosaicUI.preview.renderWithCount();
+    if(resetTheme) MosaicUI.resetThemeSelection();
+  } catch(error){
+    workRestoreBlocked = true;
+    undoSnapshot = null;
+    try {
+      MosaicUI.work.applyState({...before.work, style:before.style, editorIds:before.editorIds});
+      MosaicUI.preview.renderWithCount();
+      MosaicUI.work.restoreContext(context);
+      workRestoreBlocked = previousBlocked;
+      draftDirty = previousDirty;
+      if(pendingSave && !workRestoreBlocked) scheduleDraftSave();
+    } catch(rollbackError){
+      draftDirty = true;
+      MosaicUI.setDraftStatus('복원 실패 · 저장 중지', 'error');
+      throw new Error('작업 복원과 이전 화면 복구에 실패했습니다. 초안을 덮어쓰지 않도록 자동저장을 중지했습니다. ' + rollbackError.message);
+    }
+    throw new Error('작업을 불러오지 못해 이전 작업으로 되돌렸습니다. ' + error.message);
+  }
+  workRestoreBlocked = false;
+  // 저장 실패는 화면 적용 실패와 구분한다. 편집 가능한 새 작업을 유지하고
+  // 기존 저장 실패·충돌 표시와 재시도 경로를 사용한다.
+  return saveDraft();
 }
 
 function cancelStyleHistoryCommit(){ clearTimeout(styleCommitTimer); styleCommitTimer = null; }

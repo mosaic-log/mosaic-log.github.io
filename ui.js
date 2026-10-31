@@ -548,6 +548,7 @@ function createOutputRuleEditing(host){
     node.setAttribute('aria-label', `${label} 규칙 ${fieldLabel} 수정`);
     function start(){
       if(active) active.finish(false);
+      if(active) return; // 조합 중인 이전 입력이 끝나기 전에 새 편집기로 교체하지 않는다.
       if(!node.isConnected) return;
       clearError();
       const initial = {...original};
@@ -559,8 +560,18 @@ function createOutputRuleEditing(host){
       input.setAttribute('aria-label', `${label} 규칙 ${fieldLabel}`);
       input.title = 'Enter 적용 · Esc 취소';
       let finished = false;
-      function finish(cancel, keepInvalid = false, returnFocus = false){
+      let composing = false;
+      let pendingFinish = null;
+      let finishTimer = null;
+      function finish(cancel, keepInvalid = false, returnFocus = false, forceComposition = false){
         if(finished) return;
+        if(!cancel && composing && !forceComposition){
+          pendingFinish = [false, keepInvalid, returnFocus];
+          return;
+        }
+        clearTimeout(finishTimer);
+        finishTimer = null;
+        pendingFinish = null;
         const result = !cancel && input.isConnected ? editResult(kind, initial, field, input.value) : {};
         if(result.error){
           if(keepInvalid){
@@ -587,13 +598,20 @@ function createOutputRuleEditing(host){
       }
       active = {input, finish};
       node.replaceWith(input);
+      input.addEventListener('compositionstart', () => { composing = true; });
+      input.addEventListener('compositionend', () => {
+        composing = false;
+        if(finished || !pendingFinish) return;
+        const args = pendingFinish;
+        finishTimer = setTimeout(() => finish(...args), 0);
+      });
       input.addEventListener('blur', () => finish(false));
       input.addEventListener('input', () => {
         clearError();
         input.removeAttribute('aria-invalid');
       });
       input.addEventListener('keydown', event => {
-        if(event.isComposing || event.keyCode === 229) return;
+        if(event.isComposing || event.keyCode === 229 || host.isComposing()) return;
         if(event.key === 'Enter' || event.key === 'Escape'){
           event.preventDefault();
           event.stopPropagation();
@@ -614,11 +632,16 @@ function createOutputRuleEditing(host){
     if(!root) clearError();
   }
   // 모바일 앱 전환에서도 확정한 뒤 기존 초안 저장 경로를 사용한다.
-  window.addEventListener('pagehide', () => { if(active) active.finish(false); });
+  window.addEventListener('pagehide', () => { if(active) active.finish(false, false, false, true); });
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'hidden' && active) active.finish(false);
+    if(document.visibilityState === 'hidden' && active) active.finish(false, false, false, true);
   });
-  return {bindText, discard};
+  function commit(){
+    if(host.isComposing()) return false;
+    if(active) active.finish(false);
+    return !active;
+  }
+  return {bindText, discard, commit};
 }
 
 // ---------- 카드·미리보기·검색·전체 화면 ----------
@@ -731,6 +754,7 @@ function schedulePreviewFocusAfterRender(){
 
 const previewRenderState = {
   frame:0,
+  deferred:false,
   revision:0,
   sourceHTML:'',
   countPending:false,
@@ -738,6 +762,11 @@ const previewRenderState = {
 };
 
 function performRender(){
+  if(previewInteractions.hasUncommittedDirectEdit()){
+    previewRenderState.deferred = true;
+    return;
+  }
+  previewRenderState.deferred = false;
   previewRenderState.revision += 1;
   const cards = cardEditors.getCards();
   controlSync.syncRenderInputs(cards);
@@ -772,6 +801,10 @@ function scheduleRender(beforeFrame = null){
     if(check && check() === false) return;
     performRender();
   });
+}
+
+function resumeDeferredRender(){
+  if(previewRenderState.deferred && !previewInteractions.hasUncommittedDirectEdit()) scheduleRender();
 }
 
 // UI는 렌더 예약과 DOM을 소유한다. 변경 후 렌더·카운터·저장 순서는
@@ -812,10 +845,41 @@ function syncSidebarFieldActive(){
   }
 }
 
+let composingWorkInput = null;
+let compositionSettledTimer = null;
+
+function isWorkInputComposing(){
+  return !!composingWorkInput?.isConnected;
+}
+
+function commitActiveWorkEdit(){
+  if(isWorkInputComposing()) return false;
+  if(!outputRuleEditing.commit()) return false;
+  return previewInteractions.commitActiveDirectEdit();
+}
+
 function bindGlobalUIEvents(){
   bindUIFeatureEvents('global', () => {
+    document.addEventListener('compositionstart', event => {
+      clearTimeout(compositionSettledTimer);
+      compositionSettledTimer = null;
+      composingWorkInput = event.target;
+    }, true);
+    document.addEventListener('compositionend', event => {
+      if(composingWorkInput !== event.target) return;
+      clearTimeout(compositionSettledTimer);
+      // compositionend 다음의 최종 input까지 같은 입력 작업으로 보호한다.
+      compositionSettledTimer = setTimeout(() => {
+        compositionSettledTimer = null;
+        composingWorkInput = null;
+        resumeDeferredRender();
+      }, 0);
+    }, true);
     document.addEventListener('focusin', syncSidebarFieldActive);
-    document.addEventListener('focusout', () => requestAnimationFrame(syncSidebarFieldActive));
+    document.addEventListener('focusout', () => requestAnimationFrame(() => {
+      syncSidebarFieldActive();
+      resumeDeferredRender();
+    }));
 
     window.addEventListener('error', event => {
       const bar = document.getElementById('errorBar');
@@ -2522,8 +2586,119 @@ function captureDraftUiState(){
   };
 }
 
+// 복원 실패에만 쓰는 화면 문맥이다. DOM 경로·카드 식별자는 저장 자료에 넣지 않는다.
+function restoreNodePath(root, node){
+  const path = [];
+  while(node && node !== root){
+    path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes, node));
+    node = node.parentNode;
+  }
+  return node === root ? path : null;
+}
+
+function nodeAtRestorePath(root, path){
+  return path && path.reduce((node, index) => node?.childNodes[index], root);
+}
+
+function captureWorkRestoreContext(){
+  const editors = Array.from(uiElements.cardEditors.children);
+  const active = cardEditors.activeTextarea();
+  const focused = document.activeElement;
+  const focusEditor = focused?.closest('.cardEditor');
+  const focusRoot = focusEditor || (uiElements.preview.contains(focused) ? uiElements.preview : null);
+  const selection = window.getSelection();
+  const range = focusRoot && focused?.hasAttribute('contenteditable') && selection?.rangeCount
+    ? selection.getRangeAt(0) : null;
+  return {
+    activeEditor: (active?.__mirror || active)?.closest('.cardEditor')?.dataset.editorIdentity,
+    fullscreen: fullscreen.captureFullscreenContext(),
+    focus: {
+      editor:focusEditor?.dataset.editorIdentity, root:focusRoot === uiElements.preview ? 'preview' : null,
+      path:focusRoot ? restoreNodePath(focusRoot, focused) : null, id:focusRoot ? null : focused?.id,
+      start:focused?.selectionStart, end:focused?.selectionEnd, direction:focused?.selectionDirection,
+      pendingHTML:focused?.hasAttribute('contenteditable') ? focused.innerHTML : null,
+      range:range && focused.contains(range.startContainer) && focused.contains(range.endContainer)
+        ? {start:restoreNodePath(focused,range.startContainer), startOffset:range.startOffset,
+          end:restoreNodePath(focused,range.endContainer), endOffset:range.endOffset} : null
+    },
+    editors:editors.map(editor => {
+      const textarea = editor.querySelector('textarea');
+      return {id:editor.dataset.editorIdentity, collapsed:editor.classList.contains('isCollapsed'),
+        start:textarea.selectionStart, end:textarea.selectionEnd, direction:textarea.selectionDirection,
+        top:textarea.scrollTop, left:textarea.scrollLeft};
+    }),
+    folds:Array.from(uiElements.preview.querySelectorAll('details'), detail => detail.open),
+    scroll:['sidebar','previewArea','fsTextarea'].map(id => {
+      const element = document.getElementById(id);
+      return {id, top:element.scrollTop, left:element.scrollLeft};
+    }),
+    page:{x:window.scrollX, y:window.scrollY},
+    theme:library.captureThemeSelection()
+  };
+}
+
+let workRestoreScrollFrame = 0;
+
+function restoreWorkRestoreContext(context){
+  library.restoreThemeSelection(context.theme);
+  const editors = new Map(Array.from(uiElements.cardEditors.children, editor => [editor.dataset.editorIdentity, editor]));
+  context.editors.forEach(state => {
+    const editor = editors.get(state.id);
+    if(!editor) return;
+    if(editor.classList.contains('isCollapsed') !== state.collapsed) editor.querySelector('.collapseCtl').click();
+    editor.querySelector('textarea').setSelectionRange(state.start, state.end, state.direction);
+  });
+  uiElements.preview.querySelectorAll('details').forEach((detail, index) => { detail.open = !!context.folds[index]; });
+  previewLayout.syncPreviewFoldControls();
+  if(context.fullscreen){
+    const editor = editors.get(context.fullscreen.id);
+    if(editor && document.getElementById('fsOverlay').style.display !== 'block'){
+      fullscreen.openFullscreen(editor.querySelector('textarea'), editor.querySelector('.cardNum')?.textContent || '본문', editor);
+    }
+    fullscreen.restoreFullscreenContext(context.fullscreen);
+  }
+  const focus = context.focus;
+  const focusRoot = focus.editor ? editors.get(focus.editor) : (focus.root ? uiElements.preview : null);
+  const focused = focusRoot ? nodeAtRestorePath(focusRoot, focus.path) : document.getElementById(focus.id);
+  if(focused?.isConnected){
+    focused.focus({preventScroll:true});
+    if(Number.isInteger(focus.start) && typeof focused.setSelectionRange === 'function'){
+      focused.setSelectionRange(focus.start, focus.end, focus.direction);
+    }
+    if(focus.pendingHTML !== null && focused.hasAttribute('contenteditable')){
+      focused.innerHTML = focus.pendingHTML;
+      focused.dispatchEvent(new Event('input', {bubbles:true}));
+      const start = focus.range && nodeAtRestorePath(focused, focus.range.start);
+      const end = focus.range && nodeAtRestorePath(focused, focus.range.end);
+      if(start && end){
+        const range = document.createRange();
+        range.setStart(start, focus.range.startOffset); range.setEnd(end, focus.range.endOffset);
+        const selection = window.getSelection();
+        selection.removeAllRanges(); selection.addRange(range);
+      }
+    }
+  }
+  const activeEditor = editors.get(context.activeEditor);
+  cardEditors.setActiveTextarea(context.fullscreen ? document.getElementById('fsTextarea') : activeEditor?.querySelector('textarea'));
+  const restoreScroll = () => {
+    context.editors.forEach(state => {
+      const textarea = editors.get(state.id)?.querySelector('textarea');
+      if(textarea){ textarea.scrollTop = state.top; textarea.scrollLeft = state.left; }
+    });
+    context.scroll.forEach(state => {
+      const element = document.getElementById(state.id);
+      element.scrollTop = state.top; element.scrollLeft = state.left;
+    });
+    window.scrollTo(context.page.x, context.page.y);
+  };
+  restoreScroll();
+  workRestoreScrollFrame = requestAnimationFrame(() => { workRestoreScrollFrame = 0; restoreScroll(); });
+}
+
 // 저장된 값과 입력 UI를 복원한다. 출력 렌더링과 초안 저장은 완료 단계에서 수행한다.
 function applyWorkState(data){
+  cancelAnimationFrame(workRestoreScrollFrame);
+  workRestoreScrollFrame = 0;
   previewInteractions.discardActiveDirectEdit();
   outputRuleEditing.discard();
   mobilePanelNavigation.reset();
@@ -2571,7 +2746,7 @@ function finishWorkRestore(){
 
 // HTML·보관함 불러오기는 적용과 완료를 한 번에 수행한다.
 function applyWork(data){
-  appCommands.replaceWork(data);
+  return appCommands.replaceWork(data);
 }
 
 function dismissToast(){
@@ -2919,6 +3094,7 @@ function scrollCardIntoSidebar(ed, anchorTop = null, {alignStart = false} = {}){
 const NAME_RULE_LIMIT_MESSAGE = `이름 규칙은 최대 ${MosaicState.NAME_RULE_LIMIT}개까지 추가할 수 있습니다.`;
 
 const outputRuleEditing = createOutputRuleEditing({
+  isComposing:isWorkInputComposing,
   readRules:kind => kind === 'name' ? nameRules() : keywordRules(),
   writeRules:(kind, rules) => kind === 'name' ? saveNameRules(rules, false) : saveKeywordRules(rules, false),
   snapshot:() => appCommands.snapshotCards(),
@@ -3247,7 +3423,7 @@ function initUI(){
 }
 
 
-const plainPreviewState = {key:null,template:null};
+const plainPreviewState = {key:null,template:null,signatures:new WeakMap()};
 
 function plainPreviewKey(input){
   if(!input || previewSearch.isOpen() || uiElements.preview.contains(document.activeElement)
@@ -3270,13 +3446,22 @@ function patchPlainPreview(html,input){
   if(!previous || previousKey !== key) return false;
   const before=Array.from(previous.content.children), after=Array.from(next.content.children), actual=Array.from(uiElements.preview.children);
   if(before.length !== after.length || after.length !== actual.length) return false;
-  const signature=node=>node.nodeType===Node.TEXT_NODE ? node.nodeValue : node.outerHTML;
+  // 이 노드들은 화면에 붙이지 않는 비교용 템플릿이며 생성 후 변경하지 않는다.
+  // 지난 문단의 직렬화를 재사용하되 원문 연결은 아래에서 매번 갱신한다.
+  const signature = node => {
+    let value = plainPreviewState.signatures.get(node);
+    if(value === undefined){
+      value = node.nodeType === Node.TEXT_NODE ? node.nodeValue : node.outerHTML;
+      plainPreviewState.signatures.set(node, value);
+    }
+    return value;
+  };
   const attributes=element=>Array.from(element.attributes).map(a=>[a.name,a.value]);
   const plans=[];
   for(let i=0;i<after.length;i++){
     const oldRoot=before[i],newRoot=after[i],liveRoot=actual[i];
     if(!newRoot.hasAttribute('data-mosaic-card-index')){
-      if(oldRoot.outerHTML!==newRoot.outerHTML || liveRoot.tagName!==newRoot.tagName) return false;
+      if(signature(oldRoot)!==signature(newRoot) || liveRoot.tagName!==newRoot.tagName) return false;
       continue;
     }
     if(newRoot.tagName!=='DIV' || JSON.stringify(attributes(oldRoot))!==JSON.stringify(attributes(newRoot))) return false;
@@ -3408,6 +3593,8 @@ replacePreviewBodyLine:sourceMap.replacePreviewBodyLine
 });
 
 const previewInteractions = createPreviewInteractions({
+isComposing:isWorkInputComposing,
+resumeDeferredRender,
 sourceEdits:previewSourceEdits,
 snapshotCards:(...args)=>appCommands.snapshotCards(...args),
 setCreditItems:(...args)=>credit.setStoredCreditItems(...args),
@@ -3519,6 +3706,8 @@ work:Object.freeze({
     collectSlot:collectSlotWork,
     apply:applyWork,
     applyState:applyWorkState,
+    captureRestoreContext:captureWorkRestoreContext,
+    restoreContext:restoreWorkRestoreContext,
     finishRestore:finishWorkRestore
   }),
 feedback:Object.freeze({
@@ -3541,6 +3730,7 @@ controls:Object.freeze({
     selectedText:selectedControlText
   }),
 workspace:Object.freeze({ setInert:fullscreen.setWorkspaceInert }),
+editing:Object.freeze({ isComposing:isWorkInputComposing, commitActive:commitActiveWorkEdit }),
 FMT_RE:previewInteractions.FMT_RE,
 IS_MAC,
 MOD_KEY,
@@ -3588,6 +3778,7 @@ return Object.freeze({
  feedback:core.feedback,
  controls:core.controls,
  workspace:core.workspace,
+ editing:core.editing,
  FMT_RE:core.FMT_RE,
  IS_MAC:core.IS_MAC,
  MOD_KEY:core.MOD_KEY,

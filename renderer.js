@@ -1429,17 +1429,17 @@ function bodyRenderGroups(lines, settings){
 }
 
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (일부 접기 포함)
-function assembleBody(lines, settings){
+function assembleBody(lines, settings, trimEdges = false){
   const paragraphCache = paragraphCacheFor(settings);
   const renderLines = bodyRenderGroups(lines, settings).flatMap(group => group.renderLines);
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
-  let bodyHTML = '';
+  const bodyChunks = [];
   let manualBuf = null, manualTitle = '', manualForceCenter = false;   // [접기 제목] ... [/접기]
 
   const push = (html) => {
     if(manualBuf !== null) manualBuf += html;
-    else bodyHTML += html;
+    else if(html) bodyChunks.push(html);
   };
   const closeManual = () => {
     if(manualBuf === null) return;
@@ -1505,7 +1505,7 @@ function assembleBody(lines, settings){
     // 원문의 첫 줄이 아니라 실제로 출력되는 첫 요소를 기준으로 한다. 카드 앞에 빈 줄이나
     // 무시되는 닫기 마커가 있어도 첫 소제목의 위 여백이 다시 커지지 않게 한다.
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
-    const isFirst = bodyHTML === '' && manualBuf === null;
+    const isFirst = bodyChunks.length === 0 && manualBuf === null;
     const isLast = i === renderLines.length - 1;
     push(cachedParagraph(paragraphCache, line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, charUserBoundary, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
       prevIsHeading:isHeadingLine(renderLines[i - 1]), nextIsHeading:isHeadingLine(renderLines[i + 1]),
@@ -1515,14 +1515,20 @@ function assembleBody(lines, settings){
 
   // 닫는 마커 없이 끝났으면 카드 끝에서 닫는다.
   closeManual();
-  return bodyHTML;
+  if(trimEdges && bodyChunks.length){
+    if(bodyChunks.length === 1) return trimCardBodyEdgeMargins(bodyChunks[0]);
+    bodyChunks[0] = trimCardBodyEdgeMargins(bodyChunks[0], ['top']);
+    const last = bodyChunks.length - 1;
+    bodyChunks[last] = trimCardBodyEdgeMargins(bodyChunks[last], ['bottom']);
+  }
+  return bodyChunks.join('');
 }
 
 // 카드 바깥 여백은 래퍼가 맡는다. 내부 문단 간격과 접기 안쪽 여백은 유지한다.
-function trimCardBodyEdgeMargins(html){
+function trimCardBodyEdgeMargins(html, edges = ['top', 'bottom']){
   const template = document.createElement('template');
   template.innerHTML = html;
-  ['top', 'bottom'].forEach(edge => {
+  edges.forEach(edge => {
     let element = edge === 'top' ? template.content.firstElementChild : template.content.lastElementChild;
     while(element){
       element.style.setProperty(`margin-${edge}`, '0');
@@ -2748,20 +2754,26 @@ function applyUnifiedCardLayout(html, settings){
 // 미리보기의 카드-입력창 연결과 반응형 보정에만 쓰는 data-mosaic-* 표식은
 // 아카라이브 게시글이나 개별 복사본에는 필요 없다. 미리보기 원본에는 보존하고,
 // 실제 배포 HTML을 만들 때만 제거해 편집기 내부 상태가 출력물에 새지 않게 한다.
+let lastStrippedOutput = null;
+
 function stripEditorOutputMetadata(html){
+  const source = String(html || '');
+  if(lastStrippedOutput?.source === source) return lastStrippedOutput.output;
   const template = document.createElement('template');
-  template.innerHTML = String(html || '');
+  template.innerHTML = source;
   normalizeLegacyPhotoBackgrounds(template.content);
   template.content.querySelectorAll('*').forEach(element => {
     Array.from(element.attributes).forEach(attribute => {
       if(attribute.name.startsWith('data-mosaic-')) element.removeAttribute(attribute.name);
     });
-    if(element.style){
+    if(/--mosaic-profile-(?:top|bottom)-radius\s*:/.test(element.getAttribute('style') || '')){
       element.style.removeProperty('--mosaic-profile-top-radius');
       element.style.removeProperty('--mosaic-profile-bottom-radius');
     }
   });
-  return template.innerHTML;
+  const output = template.innerHTML;
+  lastStrippedOutput = source.length + output.length <= 6000000 ? {source, output} : null;
+  return output;
 }
 
 function shouldRemoveImageTitleBodySeam({imageBackedTitle, nextExists, gap}){
@@ -3365,7 +3377,7 @@ function buildCardUncached(settings, sourceCards){
       cardBodyCenter: card.bodyCenter === true,
       bodyFoldTitleCenter: card.bodyCenter === true || settings.bodyFoldTitleCenter
     });
-    const bodyHTML = trimCardBodyEdgeMargins(assembleBody(card.lines, bodySettings));
+    const bodyHTML = assembleBody(card.lines, bodySettings, true);
     const footer = isLast ? buildFooter(settings) : '';
     const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings);
     const marginCss = isFirst ? '0 auto' : `${cardGap}px auto 0 auto`;

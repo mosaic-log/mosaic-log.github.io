@@ -1787,6 +1787,18 @@ function initializeThemeSelection(){
 }
 
 function resetThemeSelection(){ currentPresetName = null; currentComboName = null; renderPresetList(); renderComboList(); }
+
+function captureThemeSelection(){
+  return {preset:currentPresetName, combo:currentComboName, family:currentComboFamily};
+}
+
+function restoreThemeSelection(selection){
+  currentPresetName = selection.preset;
+  currentComboName = selection.combo;
+  currentComboFamily = selection.family;
+  renderPresetList();
+  renderComboList();
+}
 function bindFeatureEvents(){
 // 조각로그 v1.9.0 HTML 복원·파일 저장·로그 보관함 모듈.
 
@@ -2422,6 +2434,8 @@ renderCurrentThemePalette,
 renderPresetList,
 renderSlotList,
 resetThemeSelection,
+captureThemeSelection,
+restoreThemeSelection,
 savedTimeLabel,
 setDraftStatus,
 stepSelectOption,

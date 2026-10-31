@@ -258,12 +258,16 @@ function previewTopLevelCopyLabel(element, visibleCardNumbers, visibleCommentNum
 // 검색 강조·직접 편집용 속성이 들어간 화면 DOM은 복사하지 않고, 같은 순서의 순수 출력
 // 노드를 복사한다. 대표 이미지 인식용 숨김 노드는 최상단 프로필을 건너뛰고
 // 실제 대표 이미지 블록과 함께 보존한다.
-function previewCopySegments(){
+function previewCopySegments(includeHTML = true, selection = null){
   const preview = host.uiElements.preview;
   if(!host.currentPreviewSourceHTML() || !preview) return [];
-  const sourceDocument = new DOMParser().parseFromString(host.currentPreviewSourceHTML(), 'text/html');
-  const sourceChildren = Array.from(sourceDocument.body.children);
   const previewChildren = Array.from(preview.children);
+  const start = selection ? previewChildren.indexOf(selection.startElement) : 0;
+  const end = selection ? previewChildren.indexOf(selection.endElement) : previewChildren.length - 1;
+  if(start < 0 || end < start) return [];
+  const sourceChildren = includeHTML
+    ? Array.from(new DOMParser().parseFromString(host.currentPreviewSourceHTML(), 'text/html').body.children)
+    : previewChildren;
   const visibleCardNumbers = new Map(
     host.previewInteractions.previewCardContexts().map((context, index) => [context.sourceIndex, index + 1])
   );
@@ -288,30 +292,29 @@ function previewCopySegments(){
     const keepHiddenForCoverImage = pendingHiddenElements.length
       && coverImageIndex >= 0
       && index < coverImageIndex;
-    const sourceHTML = keepHiddenForCoverImage
+    const html = includeHTML && index >= start && index <= end ? MosaicRenderer.stripEditorOutputMetadata(keepHiddenForCoverImage
       ? sourceElement.outerHTML
-      : [...pendingHiddenElements.map(element => element.outerHTML), sourceElement.outerHTML].join('\n');
-    const html = MosaicRenderer.stripEditorOutputMetadata(
-      sourceHTML
-    );
+      : [...pendingHiddenElements.map(element => element.outerHTML), sourceElement.outerHTML].join('\n')) : '';
     if(!keepHiddenForCoverImage) pendingHiddenElements = [];
     segments.push({
+      sourceIndex:index,
       startElement:previewElement,
       endElement:previewElement,
       labels:[previewTopLevelCopyLabel(sourceElement, visibleCardNumbers, visibleCommentNumbers)],
       html
     });
   });
-  if(pendingHiddenElements.length && segments.length){
+  if(includeHTML && pendingHiddenElements.length && segments.length
+    && segments[segments.length - 1].sourceIndex >= start && segments[segments.length - 1].sourceIndex <= end){
     const lastSegment = segments[segments.length - 1];
     lastSegment.html += `\n${MosaicRenderer.stripEditorOutputMetadata(pendingHiddenElements.map(element => element.outerHTML).join('\n'))}`;
   }
   return segments;
 }
 
-function previewCopyGroups(){
+function previewCopyGroups(includeHTML = true){
   const groups = [];
-  previewCopySegments().forEach(segment => {
+  previewCopySegments(includeHTML).forEach(segment => {
     const previous = groups[groups.length - 1];
     if(previous && previewCopyElementsAreAttached(previous.endElement, segment.startElement)){
       previous.endElement = segment.endElement;
@@ -364,7 +367,11 @@ function addPreviewCopyButton(target, label, getHTML, successMessage){
 }
 
 function decoratePreviewCopyButtons(){
-  previewCopyGroups().forEach(group => {
+  // 버튼 배치에는 화면의 최상위 표식만 필요하다. 순수 출력의 파싱·메타데이터
+  // 정리는 실제 복사 때 수행해 일반 입력마다 같은 본문을 다시 처리하지 않는다.
+  let copiedCharacters = 0;
+  previewCopyGroups(false).forEach(group => {
+    let copiedHTML = null;
     const unified = group.startElement.dataset.mosaicUnifiedItem === 'true'
       && group.endElement.dataset.mosaicUnifiedItem === 'true';
     const label = unified ? '이어진 카드' : previewCopyLabel(group.labels);
@@ -372,8 +379,18 @@ function decoratePreviewCopyButtons(){
       group.startElement,
       label,
       () => {
-        const html = group.htmlParts.filter(Boolean).join('\n');
-        return html ? `${html}\n<br>` : '';
+        if(copiedHTML !== null) return copiedHTML;
+        const segments = previewCopySegments(true, group);
+        const start = segments.findIndex(segment => segment.startElement === group.startElement);
+        const end = segments.findIndex(segment => segment.endElement === group.endElement);
+        const html = start >= 0 && end >= start
+          ? segments.slice(start, end + 1).map(segment => segment.html).filter(Boolean).join('\n') : '';
+        const result = html ? `${html}\n<br>` : '';
+        if(result && copiedCharacters + result.length <= 6000000){
+          copiedHTML = result;
+          copiedCharacters += result.length;
+        }
+        return result;
       },
       previewCopySuccessMessage(label)
     );
