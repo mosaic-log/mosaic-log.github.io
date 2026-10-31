@@ -56,6 +56,8 @@ UI 부품 5개는 생성 함수 묶음만 `MosaicUIParts`에 등록합니다. `u
 
 첫 화면은 `index.html`의 본문 탭 활성 표시로 정합니다. `app.js`는 활성 탭을 읽어 탭별 스크롤을 관리합니다. 본문 입력은 펼치되 자동 포커스는 주지 않습니다. 기본 표지 URL과 표시 체크값은 비어 있는 상태로 시작합니다.
 
+본문 입력 제목의 강조 배경은 `styles.css`의 `#tabBody .bodyEditorFold > summary.foldHead`에서 정합니다. 접힘·펼침 모두 UI 강조색 14%, 호버 18%를 사용합니다. color-mix 미지원 환경의 `::before` 불투명도도 같은 값으로 맞춥니다. 다른 그룹의 배경과 글자·테두리·여백은 유지합니다.
+
 예전 기본 표지 URL의 복원 처리는 `state.js`의 `normalizeRetiredCoverImageFields()`에서 정합니다. 초안과 작업 복원에서 함께 사용하며, 작성 내용·다른 이미지·보관함 원본을 지우지 않습니다.
 
 ## 디자인 기본값 바꾸기

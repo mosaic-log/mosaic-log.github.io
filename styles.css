@@ -4376,13 +4376,14 @@
   #tabBody .bodyFold .foldArrow { flex:0 0 auto; }
   #tabBody .bodyFold .foldBody { padding:0 10px 4px; }
   #tabBody > .bodyEditorFold:first-child { padding-top:18px; }
-  #tabBody .bodyEditorFold > summary.foldHead {
-    background:color-mix(in srgb,var(--accent) 7%,var(--bg-panel));
+  /* 본문 입력은 접힘 상태와 관계없이 다른 보조 설정보다 한 단계 강조한다. */
+  #tabBody .bodyEditorFold > summary.foldHead,
+  #tabBody .bodyEditorFold[open] > summary.foldHead {
+    background:color-mix(in srgb,var(--accent) 14%,var(--bg-panel));
     box-shadow:none;
   }
-  #tabBody .bodyEditorFold > summary.foldHead:hover,
-  #tabBody .bodyEditorFold[open] > summary.foldHead {
-    background:color-mix(in srgb,var(--accent) 11%,var(--bg-panel));
+  #tabBody .bodyEditorFold > summary.foldHead:hover {
+    background:color-mix(in srgb,var(--accent) 18%,var(--bg-panel));
     box-shadow:none;
   }
   /* 표지의 실제 내용 입력칸은 값이 생기면 흰 배경으로 조용히 강조한다.
@@ -4642,9 +4643,9 @@
       pointer-events: none;
     }
     #tabCover .coverFold:not(.isCoverInactive) > summary.foldHead:hover::before,
-    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead:hover::before,
-    #tabBody .bodyEditorFold > summary.foldHead:hover::before,
-    #tabBody .bodyEditorFold[open] > summary.foldHead::before { opacity: .11; }
+    #tabDesign .advancedDesignGroup:not(.isAdvancedInactive) > summary.foldHead:hover::before { opacity: .11; }
+    #tabBody .bodyEditorFold > summary.foldHead::before { opacity: .14; }
+    #tabBody .bodyEditorFold > summary.foldHead:hover::before { opacity: .18; }
     :is(#tabCover,#tabDesign,#tabBody) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack,
     :is(#tabCover > .coverFold,#tabDesign > .advancedDesignGroup) > summary.foldHead .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack,
     :is(#profileGroup .profileSubActions,#tabBody .keywordRuleList) .coverVisibilitySwitch input:checked + .coverVisibilitySwitchTrack {

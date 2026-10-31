@@ -896,7 +896,7 @@ function createCardEditor(value){
   const foldCheckMark = document.createElement('span');
   foldCheckMark.className = 'cardFoldCheck';
   foldCheckMark.setAttribute('aria-hidden', 'true');
-  foldLabel.appendChild(document.createTextNode('접기 카드'));
+  foldLabel.appendChild(document.createTextNode('카드 접기'));
   foldLabel.append(foldChk, foldCheckMark);
   const del = createEditorDeleteButton('card');
 
