@@ -451,7 +451,8 @@ function processBodyInline(text, emphasisColor, options){
 // 원문 범위를 함께 만든다. 뒤 규칙은 앞 규칙의 결과에 추가 순서대로 적용한다.
 function hasBatchim(word){
   const normalized = (word || '').trim();
-  if(/^(?:char|user)$/i.test(normalized)) return false;
+  // 이름 치환용 자리표시자는 중괄호 유무와 관계없이 받침 없는 발음으로 본다.
+  if(/^(?:char|user|\{\{(?:char|user)\}\})$/i.test(normalized)) return false;
   // 단일 알파벳의 한글 이름만 판정한다. L/M/N/R은 엘/엠/엔/알 기준이며
   // Avatar 같은 단어·약어의 끝 글자에는 이 발음 규칙을 적용하지 않는다.
   if(/^[a-z]$/i.test(normalized)) return /^[lmnr]$/i.test(normalized);
