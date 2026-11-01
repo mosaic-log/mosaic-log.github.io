@@ -806,16 +806,26 @@ function parseOutputBodyImage(line){
   return parseBodyImageLine(MosaicParser.normalizeQuotes(String(line)));
 }
 
+// 인용·메모가 연속되면 경계 여백을 앞 상자 아래에만 두어 네 조합을 같은 간격으로 맞춘다.
+function quoteMemoSpacing(settings, opts){
+  const sm = spacingMult(settings);
+  const gap = Math.round(paragraphGapPx(settings) * sm);
+  const bottom = gap + Math.round(8 * sm);
+  return {
+    top:opts.prevIsQuoteOrMemo ? 0 : opts.extraTop ? Math.round(36*sm)
+      : opts.isFirst ? 0 : opts.prevIsNarration ? gap + Math.round(6*sm) : gap,
+    bottom:opts.isLast ? 0 : opts.nextIsQuoteOrMemo ? Math.round(bottom / 2)
+      : opts.extraBottom ? Math.round(36*sm) : bottom
+  };
+}
+
 function buildParagraph(rawLine, settings, opts){
   opts = opts || {};
   const comment = MosaicParser.parseBodyCommentLine(rawLine);
   if(comment){
     if(!comment.content.trim()) return '';
-    const pal = tonePalette(settings), sm = spacingMult(settings);
-    const gap = Math.round(paragraphGapPx(settings) * sm);
-    // 인용과 같은 간격을 쓴다. 앞 문단 종류·카드 끝·구분선 인접 보정도 동일하게 맞춘다.
-    const top = opts.extraTop ? Math.round(36*sm) : opts.isFirst ? 0 : (opts.prevIsNarration ? gap + Math.round(6*sm) : gap);
-    const bottom = opts.isLast ? 0 : opts.extraBottom ? Math.round(36*sm) : gap + Math.round(8*sm);
+    const pal = tonePalette(settings);
+    const {top, bottom} = quoteMemoSpacing(settings, opts);
     // 메모만 일반 내부선보다 진하게 구분한다. 카드 외곽선·인용·사진 경계색은 그대로 둔다.
     const borderColor = mixHex(pal.divider, pal.caption, 0.4);
     const centered = settings.memoCenter === true || settings.cardBodyCenter === true || /^\s*\[C\]/i.test(rawLine);
@@ -952,12 +962,8 @@ function buildParagraph(rawLine, settings, opts){
     let qInner = quoteMatch[1].trim();
     if(/^\[C\]\s*/i.test(qInner)){ forceCenter = true; qInner = qInner.replace(/^\[C\]\s*/i, ''); }
     const qSize = Math.max(9, (parseFloat(settings.narrSize) || 13.5) - 0.5);
-    // 인용은 앞뒤로 넉넉히 띄워 본문과 확실히 분리 (구분선 인접 시엔 HR 여백 우선)
-    const quoteNarrationGap = baseParagraphGap + Math.round(6 * sm);
-    // 카드의 마지막 인용문은 카드 자체의 아래 패딩만 남겨 여백이 중복되지 않게 한다.
-    // 뒤에 다른 내용이 있으면 기존 문단 간격을 유지한다.
-    const qMb = opts.isLast ? 0 : (opts.extraBottom ? Math.round(36*sm) : baseParagraphGap + Math.round(8 * sm));
-    const qMt = opts.extraTop ? Math.round(36*sm) : (opts.isFirst ? 0 : (opts.prevIsNarration ? quoteNarrationGap : baseParagraphGap));
+    // 일반 본문·구분선·카드 끝의 기존 여백은 유지하고, 연속 인용·메모 사이만 좁힌다.
+    const {top:qMt, bottom:qMb} = quoteMemoSpacing(settings, opts);
     const quoteAlign = (forceCenter || settings.quoteCenter) ? 'center' : 'left';
     const sourceColor = safeHexColor(settings.narrColor, pal.caption);
     const softQuoteText = softBodyTextColor(settings, sourceColor);
@@ -1434,6 +1440,11 @@ function bodyRenderGroups(lines, settings){
 function assembleBody(lines, settings, trimEdges = false){
   const paragraphCache = paragraphCacheFor(settings);
   const renderLines = bodyRenderGroups(lines, settings).flatMap(group => group.renderLines);
+  const quoteOrMemoLines = renderLines.map(raw => {
+    const text = String(raw).trim().replace(/^\[C\]\s*/i, '');
+    return (text[0] === ':' && !!MosaicParser.parseBodyCommentLine(raw))
+      || (text[0] === '>' && /^>(?!>)\s?.+/.test(text));
+  });
   // GAP은 자체 높이와 일반 문단 여백만 사용하고, 보이는 구분 요소만 HR 전용 여백을 더한다.
   const isSep = (l) => { const u = l.toUpperCase(); return u === '[HR]' || u === '[HR2]' || u === '[HR3]'; };
   const bodyChunks = [];
@@ -1512,6 +1523,8 @@ function assembleBody(lines, settings, trimEdges = false){
     push(cachedParagraph(paragraphCache, line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, charUserBoundary, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
       prevIsHeading:isHeadingLine(renderLines[i - 1]), nextIsHeading:isHeadingLine(renderLines[i + 1]),
       prevIsNarration:isNarrationLine(renderLines[i - 1]),
+      prevIsQuoteOrMemo:quoteOrMemoLines[i] && !!quoteOrMemoLines[i - 1],
+      nextIsQuoteOrMemo:quoteOrMemoLines[i] && !!quoteOrMemoLines[i + 1],
       }));
   });
 
