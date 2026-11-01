@@ -502,7 +502,6 @@ function narrDialogueGapPx(settings){
 // 카드 좌우 여백은 선택 항목을 늘리지 않고 모바일부터 데스크톱까지 한 기본값으로 쓴다.
 const CARD_INLINE_PADDING = 'clamp(20px,calc(4.5vw + 2px),26px)';
 const CARD_BODY_PADDING_OFFSET = -5;
-const FOOTER_SPACING_OFFSET = -10;
 
 function advancedOpaqueOpacity(value){
   return Math.min(1, MosaicState.advancedPercent(value) / 50);
@@ -572,8 +571,10 @@ function profileItemGapDeltaPx(settings){
   return Number.isFinite(number) ? Math.max(-10, Math.min(40, number)) : 0;
 }
 
-function cardBodyBottomPaddingCss(settings){
-  return cardBodyVerticalPaddingCss(cardBodyBottomSpacePx(settings) + CARD_BODY_PADDING_OFFSET);
+function cardBodyBottomPaddingCss(settings, hasFooter = false){
+  // 꼬리말 아래의 기본 여백만 절반으로 줄이고 사용자 추가값은 같은 px 단위로 유지한다.
+  const scale = hasFooter ? 0.5 : 1;
+  return cardBodyVerticalPaddingCss(cardBodyBottomSpacePx(settings) + CARD_BODY_PADDING_OFFSET * scale, scale);
 }
 
 function cardGapPx(settings){
@@ -2333,7 +2334,8 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
 function footerSpacing(settings){
   const number = Number(settings.footerBodyGap);
   const extra = Number.isFinite(number) ? Math.max(-60, Math.min(80, number)) : 0;
-  return cardBodyVerticalPaddingCss(extra + FOOTER_SPACING_OFFSET, spacingMult(settings) * 1.5);
+  // 본문 위와 같은 기본 여백을 쓰고, 꼬리말 간격의 사용자 추가값은 독립적으로 적용한다.
+  return cardBodyVerticalPaddingCss(extra + CARD_BODY_PADDING_OFFSET);
 }
 
 function buildFooter(settings){
@@ -3379,7 +3381,7 @@ function buildCardUncached(settings, sourceCards){
     });
     const bodyHTML = assembleBody(card.lines, bodySettings, true);
     const footer = isLast ? buildFooter(settings) : '';
-    const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings);
+    const cardBodyBottomPadding = cardBodyBottomPaddingCss(settings, !!footer);
     const marginCss = isFirst ? '0 auto' : `${cardGap}px auto 0 auto`;
     // 연결된 첫 카드는 위 모서리를 각지게 해서 이미지와 하나의 틀처럼 이어지게 함
     const cardRadius = cardCornerRadiusPx(settings);
