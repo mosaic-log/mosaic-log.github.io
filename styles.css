@@ -3233,11 +3233,12 @@
   body.resizingSidebar { cursor: col-resize; user-select: none; }
 
   /* ---------- 미리보기 ---------- */
+  /* 양쪽 조작 여유를 같게 두어 설정 패널을 제외한 미리보기 영역의 중앙에 맞춘다. */
   #previewArea {
     flex: 1;
     min-width: 0;
     height: 100vh;
-    padding: 36px 32px 72px 52px;
+    padding: 36px 42px 72px;
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -3248,7 +3249,6 @@
     color: #212529;
     color-scheme: light;
   }
-  body.layoutMirrored #previewArea { padding: 36px 52px 72px 32px; }
   #previewWrap {
     position: relative;
     width: 100%;
@@ -5483,8 +5483,9 @@
     #fsFoldTitle { flex:1 1 0; width:0; min-width:0; }
     #fsCloseBtn { flex:0 0 32px; }
     .editorToolbar .tbGroup { flex: none; }
+    /* 왼쪽 조작 버튼 공간만큼 오른쪽도 확보해 카드 자체를 화면 가운데에 둔다. */
     #previewArea,
-    body.layoutMirrored #previewArea { padding: 22px 12px 52px 48px; }
+    body.layoutMirrored #previewArea { padding: 22px 48px 52px; }
     /* 마지막 카드의 조작 버튼을 고정 목차·화면 이동 버튼 위까지 스크롤할 수 있게 한다. */
     #previewArea { --mobile-preview-tool-clearance: 124px; }
     body:not(.previewFullscreen) #previewArea {
