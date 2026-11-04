@@ -560,6 +560,8 @@ function bindPreviewLayoutEvents(){
     if(typeof ResizeObserver === 'function'){
       const observer = new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons));
       observer.observe(host.uiElements.preview);
+      // 카드 폭이 고정되어 있어도 설정 패널 조절로 바깥 영역의 폭은 달라진다.
+      observer.observe(host.uiElements.previewArea);
       observer.observe(document.getElementById('pvSearchBox'));
       previewLayoutState.observers.push(observer);
     }
