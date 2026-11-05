@@ -2639,4 +2639,68 @@ function onBlockDragEnd(){
   block.style.opacity = '';
   block.style.cursor = 'grab';
   if(marker.parentNode) marker.remove();
-  prev
+  previewEditState.drag = null;
+
+  if(!previewBlockContextCurrent(ctx)) return;
+  if(!moved || destIndex === null) return;
+  if(destIndex === srcIndex || destIndex === srcIndex + 1) return; // 제자리
+
+  const srcRaw = map[srcIndex].startRaw;
+  const destInfo = destIndex < map.length ? map[destIndex] : null;
+  const destRaw = destInfo ? destInfo.startRaw : null;
+  const splitMove = (type === 'hr' || type === 'hr2')
+    ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, host.getSettings())
+    : null;
+  const nextText = splitMove === null
+    ? moveLineInText(ta.value, srcRaw, destRaw, comment)
+    : splitMove;
+  if(nextText === ta.value) return;
+  host.snapshotCards();
+  ta.value = nextText;
+  host.uiUpdateEffects.committedChange();
+  host.showUndoToast(splitMove === null ? `${label} 위치 변경.` : `${label} 위치 변경 · 원문 자동 분리.`);
+}
+
+function isCommitting(){ return previewEditState.committing; }
+
+function setReady(ready){ previewEditState.ready = !!ready; }
+return Object.freeze({
+CENTER_RE,
+FMT_RE,
+FMT_WRAP,
+bindBlockToolbarEvents,
+bindOutputRuleInteractions,
+bindPreviewSelectionEvents,
+commentDisplayEntries,
+commentRenderedEntries,
+commitActiveDirectEdit,
+hasUncommittedDirectEdit,
+decorateOutputRuleOccurrences,
+decorateParallelOccurrences,
+decoratePreviewCardTitlePositionLinks,
+decoratePreviewCoverImageNavigation,
+decoratePreviewCreditEditors,
+decoratePreviewFooterEditor,
+decoratePreviewDirectEditors,
+decoratePreviewProfileEditors,
+discardActiveDirectEdit,
+enableBlockDrag,
+enablePreviewDirectEditor,
+findBlockSource,
+hideBlockToolbar,
+hideOutputRulePopover,
+hideSelToolbar,
+isCommitting,
+layoutOutputRuleMarkers,
+previewCardBody,
+previewCardContexts,
+previewCommentContexts,
+previewEditableText,
+previewSourceBlocks,
+previewSourceMatches,
+setReady
+});
+}
+
+return Object.freeze({createPreviewInteractions});
+})();
