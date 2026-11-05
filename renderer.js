@@ -1556,7 +1556,7 @@ function trimCardBodyEdgeMargins(html, edges = ['top', 'bottom']){
 
 // 로그 표제 밴드: 번호/제목/부제 — 대표 이미지 바로 아래, 첫 카드 위에 붙는 표지 영역.
 // 카드 밖에 있어서 첫 카드를 접어도 이미지와 함께 항상 보임.
-function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelow = false){
+function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelow = false, terminal = false){
   if(!settings.logTitleOn) return '';
   const num = (settings.logNumber || '').trim();
   const title = (settings.logTitle || '').trim();
@@ -1600,12 +1600,17 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
   const topEdge = hasImg
     ? ``
     : `${showOuterBorder && !connectedAbove ? `border-top:1px solid ${outerBorderColor};` : ''} border-radius:${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px ${connectedAbove ? 0 : cardCornerRadiusPx(settings)}px 0 0;`;
+  // 뒤에 이어질 영역이 없으면 표제 자체가 카드의 끝이다. 내부 구분선 대신
+  // 기존 외곽선 설정으로 테두리를 닫고 아래 모서리만 마무리한다.
+  const bottomEdge = terminal
+    ? ` ${showOuterBorder ? `border-bottom:1px solid ${outerBorderColor}; ` : ''}border-bottom-left-radius:${cardCornerRadiusPx(settings)}px; border-bottom-right-radius:${cardCornerRadiusPx(settings)}px;`
+    : '';
   // 단색 미니멀 표제는 하단 여백을 줄이되, 사진 배경 표제는 기본·미니멀의
   // 중심축을 같게 유지한다. 사진 높이는 같아도 하단 패딩이 달라지면 라벨이 움직인다.
   const extraVerticalSpace = coverVerticalSpacePx(settings);
   const padTop = Math.round(22*sm) + extraVerticalSpace;
   const padBottom = titleBottomPaddingPx(
-    MosaicState.settingFlagOn(settings.titleMinimal), imageBackground, sm, extraVerticalSpace
+    !terminal && MosaicState.settingFlagOn(settings.titleMinimal), imageBackground, sm, extraVerticalSpace
   );
   const inlinePadding = cardInlinePaddingCss(settings);
   const W = parseInt(settings.cardWidth) || 750;
@@ -1627,7 +1632,7 @@ function buildTitleBlock(settings, hasImg, connectedAbove = false, connectedBelo
     ? `<div data-mosaic-photo-overlay="true" style="box-sizing:border-box; width:100%; padding:${padTop}px ${inlinePadding} ${padBottom}px; background-color:rgba(0,0,0,.56);"><div style="box-sizing:border-box; width:100%; height:${Math.max(0, imageHeight - padTop - padBottom)}px; display:table; table-layout:fixed;"><div style="display:table-cell; vertical-align:${textVerticalAlign}; text-align:center;">${inner}</div></div></div>`
     : inner;
   const titlePadding = imageBackground ? '0' : `${padTop}px ${inlinePadding} ${padBottom}px`;
-  return `<div data-mosaic-title="true" ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge} ${seamlessBottom} padding:${titlePadding}; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
+  return `<div data-mosaic-title="true"${terminal ? ' data-mosaic-title-divider-available="false"' : ''} ${imageBackground ? 'data-mosaic-image-background="true"' : ''} style="font-family:${fontStack(settings.narrFont)}; width:100%; max-width:${W}px; box-sizing:border-box; margin:0 auto; ${imageStyle} ${sideBorders} ${topEdge}${bottomEdge} ${seamlessBottom} padding:${titlePadding}; text-align:center; overflow-wrap:anywhere; word-break:break-word;">${titleContent}</div>
 `;
 }
 
@@ -3389,6 +3394,9 @@ function buildCardUncached(settings, sourceCards){
   const visibleComments = sourceCards
     .map((comment, sourceIndex) => ({ ...comment, sourceIndex }))
     .filter(comment => comment.type === 'comment' && comment.visible !== false && String(comment.body || '').trim());
+  if(hasTitle && !hasAttachedProfile && cardList.length === 0 && visibleComments.length === 0){
+    titleBand = buildTitleBlock(settings, hasImg, joinTopProfile && !hasImg, false, true);
+  }
   const firstBodySourceIndex = unifiedLayout
     ? (cardList.length ? cardList[0].sourceIndex : Number.POSITIVE_INFINITY)
     : Math.min(
