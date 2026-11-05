@@ -278,7 +278,7 @@ function bindCardEditorDelegatedEvents(){
   }, true);
 }
 
-const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','insertCommentBtn','insertQuoteBtn','insertFoldBtn'];
+const BODY_ONLY_TOOL_IDS = ['tidyBtn','insertHrBtn','insertCommentBtn','insertQuoteBtn'];
 
 function syncBodyOnlyToolbarAvailability(event){
   const focused = event && event.target && event.target.matches('#cardEditors textarea')
@@ -286,7 +286,7 @@ function syncBodyOnlyToolbarAvailability(event){
     : cardEditorState.activeTextarea;
   const commentActive = !!(focused && focused.closest && focused.closest('.commentEditor'));
   const toolbar = document.getElementById('bodyEditorToolbar');
-  // 이미지는 코멘트에서도 쓸 수 있으므로 도구모음 전체를 비활성으로 표시하지 않는다.
+  // 이미지와 부분접기는 코멘트에서도 쓸 수 있으므로 도구모음 전체를 비활성으로 표시하지 않는다.
   if(toolbar) toolbar.setAttribute('aria-disabled', 'false');
   BODY_ONLY_TOOL_IDS.forEach(id => {
     const button = document.getElementById(id);
@@ -294,6 +294,8 @@ function syncBodyOnlyToolbarAvailability(event){
   });
   const imageButton = document.getElementById('insertImgBtn');
   if(imageButton) imageButton.disabled = false;
+  const foldButton = document.getElementById('insertFoldBtn');
+  if(foldButton) foldButton.disabled = false;
 }
 
 // 일반 본문·대사·인용문·메모 안에서 Shift+Enter를 누르면 저장 원문에 [BR]을 남긴다.
@@ -333,28 +335,6 @@ function handleSoftBreakKeydown(e){
 
 // 코멘트에는 카드 구조 문법이 없으므로 구조 줄 판별 없이 [BR] 줄바꿈만 허용한다.
 // 빈 줄과 여러 줄 선택은 일반 Enter 동작을 유지해 예기치 않은 범위 치환을 막는다.
-function handleCommentSoftBreakKeydown(e){
-  if(e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
-  const ta = e.currentTarget;
-  if(!ta || typeof ta.selectionStart !== 'number') return;
-  const value = ta.value;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  if(value.slice(start, end).includes('\n')) return;
-  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-  const currentLine = value.slice(lineStart, start).replace(/\[BR\]\s*$/i, '');
-  if(!currentLine.trim()) return;
-  e.preventDefault();
-  ta.focus();
-  ta.setSelectionRange(start, end);
-  let inserted = false;
-  try { inserted = document.execCommand('insertText', false, '[BR]\n'); } catch(err){ inserted = false; }
-  if(!inserted){
-    ta.setRangeText('[BR]\n', start, end, 'end');
-    ta.dispatchEvent(new Event('input', { bubbles:true }));
-  }
-}
-
 // 카드 입력창에 붙인 관찰자를 정리한 뒤 DOM을 비워, 반복 불러오기·초기화 시
 // 제거된 카드가 메모리에 남거나 뒤늦은 크기 콜백이 실행되지 않게 한다.
 function disposeCardEditor(ed){
@@ -1148,7 +1128,6 @@ function createCommentEditor(value){
     afterEditorLiveInput();
     if(ta.classList.contains('isAutoExpanded')) requestAnimationFrame(resizeAutoExpanded);
   });
-  ta.addEventListener('keydown', handleCommentSoftBreakKeydown);
   host.bindEditorPositionSyncEvents(ta);
   ta.addEventListener('focus', () => { cardEditorState.activeTextarea = ta; });
   collapseBtn.addEventListener('click', () => {

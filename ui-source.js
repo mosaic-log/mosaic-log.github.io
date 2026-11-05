@@ -972,8 +972,7 @@ function planCommentChange(body, descriptor, next){
   const lines = body.split('\n');
   if(lines[descriptor.raw] === undefined) return null;
   const end = Math.max(descriptor.raw, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : descriptor.raw);
-  const group = next.split('\n').join('[BR]\n');
-  return replaceLines(body,lines,descriptor.raw,end,group ? group.split('\n') : [],'미리보기에서 코멘트 수정.');
+  return replaceLines(body,lines,descriptor.raw,end,next ? next.split('\n') : [],'미리보기에서 코멘트 수정.');
 }
 
 function planMemoChange(body, descriptor, next){

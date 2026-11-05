@@ -650,9 +650,30 @@ function previewCommentContexts(){
   }).filter(ctx => ctx.ta);
 }
 
-// 코멘트의 [BR] 연결 구간은 미리보기에서 하나의 <p>가 되므로 같은 원문 범위와 연결한다.
+// 코멘트의 연속된 글줄은 하나의 <p>에서 줄바꿈하므로 같은 원문 범위와 연결한다.
 function commentDisplayEntries(ta){
   return MosaicRenderer.commentParagraphEntries(ta.value);
+}
+
+// 접기 안팎의 문단·이미지를 같은 원문 구조에 연결한다. 이미지 캡션은 별도 문단으로 세지 않는다.
+function commentRenderedEntries(ctx){
+  const rendered = [];
+  const visit = (entries, parent, nested) => {
+    const blocks = Array.from(parent.children).filter(block => block.tagName !== 'SUMMARY');
+    if(entries.length !== blocks.length) return false;
+    for(let index = 0; index < entries.length; index++){
+      const entry = entries[index], block = blocks[index];
+      if(entry.children){
+        if(block.tagName !== 'DETAILS') return false;
+        rendered.push({entry:{raw:entry.raw, rawEnd:entry.raw, parts:[entry.title]}, block:block.firstElementChild, nested});
+        if(!visit(entry.children, block, true)) return false;
+      }else{
+        rendered.push({entry, block, nested});
+      }
+    }
+    return true;
+  };
+  return visit(commentDisplayEntries(ctx.ta), ctx.commentEl, false) ? rendered : null;
 }
 
 function previewCardBody(cardEl){
@@ -721,6 +742,7 @@ function previewEditableText(el, preserveLineBreaks, trim = true){
     .forEach(node => node.before(document.createTextNode(' ')));
   if(preserveLineBreaks){
     clone.querySelectorAll('br').forEach(node => node.replaceWith(document.createTextNode('\n')));
+    if(el.closest('[data-mosaic-comment-index]')) return clone.textContent.replace(/\u00a0/g, ' ');
     const text = clone.textContent
       .replace(/\u00a0/g, ' ')
       .replace(/[ \t]*\n[ \t]*/g, '\n');
@@ -1488,6 +1510,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   let focusValue = '';
   let parallelSnapshot = null;
   let parallelPastePending = false;
+  let commentEnter = null;
   const syncChangedHighlight = () => {
     if(previewEditableText(el, preservesLineBreaks) !== focusValue){
       el.dataset.previewEditChanged = 'true';
@@ -1497,6 +1520,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   };
   const onFocus = () => {
     cancelled = false;
+    commentEnter = null;
     focusValue = previewEditableText(el, preservesLineBreaks);
     parallelSnapshot = descriptor.type==='body' ? previewParallelEditSnapshot(el) : null;
     parallelPastePending = false;
@@ -1506,19 +1530,45 @@ function enablePreviewDirectEditor(el, descriptor, label){
   el.addEventListener('focus', onFocus);
   const cancelEdit = () => {
     cancelled = true;
+    commentEnter = null;
     clearTimeout(compositionCommitTimer);
     compositionCommitTimer = null;
     if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;
   };
   descriptor.cancelEdit = cancelEdit;
+  // 한글 조합이 끝나도 누른 키의 의도를 유지한다. 후속 beforeinput으로
+  // 같은 Enter를 다시 실행하거나 insertLineBreak를 Shift+Enter로 추측하지 않는다.
+  const applyCommentEnter = () => {
+    if(!commentEnter || commentEnter.handled || composing || host.isComposing()) return;
+    if(!el.isConnected || document.activeElement !== el) return;
+    commentEnter.handled = true;
+    if(commentEnter.softBreak){
+      if(insertPreviewSoftBreak(el)) syncChangedHighlight();
+    }else{
+      el.blur();
+    }
+  };
+  const scheduleCompositionFinish = () => {
+    clearTimeout(compositionCommitTimer);
+    compositionCommitTimer = setTimeout(() => {
+      compositionCommitTimer = null;
+      if(pendingCompositionEdit?.element === el) finishEdit();
+      else applyCommentEnter();
+    }, 0);
+  };
   el.addEventListener('compositionstart', () => { composing = true; });
   el.addEventListener('compositionend', () => {
     composing = false;
-    if(pendingCompositionEdit?.element !== el) return;
-    clearTimeout(compositionCommitTimer);
-    compositionCommitTimer = setTimeout(finishEdit, 0);
+    if(pendingCompositionEdit?.element === el || (commentEnter && !commentEnter.handled)) scheduleCompositionFinish();
   });
   el.addEventListener('beforeinput', e => {
+    if(descriptor.type === 'comment' && (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak')){
+      e.preventDefault();
+      // 키다운이 없는 가상 키보드의 Enter도 저장으로 처리한다.
+      if(!commentEnter) commentEnter = {softBreak:false, handled:false};
+      if(!commentEnter.handled) scheduleCompositionFinish();
+      return;
+    }
     if(composing || e.isComposing || host.isComposing()) return;
     if(previewBoundaryDeleteBlocked(el, e.inputType || '')){
       e.preventDefault();
@@ -1585,6 +1635,20 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   });
   el.addEventListener('keydown', e => {
+    if(descriptor.type === 'comment'){
+      // 일부 한글 IME는 key=Process·keyCode=229로 보내므로 실제 Enter 코드도 확인한다.
+      if(e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter'){
+        commentEnter = {softBreak:!!e.shiftKey, handled:false};
+        if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()){
+          scheduleCompositionFinish();
+          return;
+        }
+        e.preventDefault();
+        applyCommentEnter();
+        return;
+      }
+      if(commentEnter?.handled) commentEnter = null;
+    }
     if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()) return;
     if(e.key === 'Backspace' || e.key === 'Delete'){
       const inputType = e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
@@ -1627,6 +1691,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   });
   function finishEdit(){
+    commentEnter = null;
     clearTimeout(compositionCommitTimer);
     compositionCommitTimer = null;
     if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;
@@ -1944,12 +2009,9 @@ function decoratePreviewDirectEditors(){
   // 코멘트도 미리보기 문단을 원문 범위와 연결해 직접 수정한다. 본문 서식·문법
   // 도구는 연결하지 않으며, 편집 속성은 복사 HTML이 아닌 미리보기 DOM에만 붙는다.
   previewCommentContexts().forEach(ctx => {
-    const paragraphs = Array.from(ctx.commentEl.querySelectorAll(':scope > p'));
-    const entries = commentDisplayEntries(ctx.ta).filter(entry => !entry.image);
-    paragraphs.forEach((paragraph, index) => {
-      const entry = entries[index];
-      if(!entry) return;
-      enablePreviewDirectEditor(paragraph, {
+    (commentRenderedEntries(ctx) || []).forEach(({entry, block}) => {
+      if(entry.image || block.tagName !== 'P') return;
+      enablePreviewDirectEditor(block, {
         type:'comment',
         ta:ctx.ta,
         raw:entry.raw,
@@ -2380,28 +2442,31 @@ function bindImageBlockInteraction(block, dragCtx, menuCtx, refreshContext = nul
 function commentImageInteractionContexts(seed){
   const ctx = previewCommentContexts().find(context => context.ta === seed.ta);
   if(!ctx) return null;
-  const entries = commentDisplayEntries(ctx.ta), blocks = Array.from(ctx.commentEl.children);
-  if(entries.length !== blocks.length) return null;
+  const rendered = commentRenderedEntries(ctx);
+  if(!rendered) return null;
   const lines = ctx.ta.value.split('\n');
-  const images = entries.filter(entry => entry.image);
-  if(JSON.stringify(images.map(entry => lines[entry.raw])) !== seed.imageSequence) return null;
-  const entry = images[seed.imageIndex];
-  if(!entry) return null;
-  const index = entries.indexOf(entry), block = blocks[index];
+  const images = rendered.filter(item => item.entry.image);
+  if(JSON.stringify(images.map(item => lines[item.entry.raw])) !== seed.imageSequence) return null;
+  const image = images[seed.imageIndex];
+  if(!image) return null;
+  const {entry, block, nested} = image;
   if(!block.matches('[data-mosaic-comment-image]') || !block.querySelector('img')) return null;
+  const entries = commentDisplayEntries(ctx.ta), blocks = Array.from(ctx.commentEl.children);
+  const index = blocks.indexOf(block);
   const sourceValue = ctx.ta.value;
   return {
     menuCtx:{block,ta:ctx.ta,raw:entry.raw,type:'img',comment:true,sourceValue},
-    dragCtx:{block,blocks,map:entries.map(item => ({startRaw:item.raw})),ta:ctx.ta,
+    dragCtx:nested ? null : {block,blocks,map:entries.map(item => ({startRaw:item.raw})),ta:ctx.ta,
       srcIndex:index,label:'코멘트 이미지',type:'img',comment:true,sourceValue}
   };
 }
 
 function enableCommentImageInteractions(){
   previewCommentContexts().forEach(ctx => {
-    const entries = commentDisplayEntries(ctx.ta), lines = ctx.ta.value.split('\n');
-    const imageSequence = JSON.stringify(entries.filter(entry => entry.image).map(entry => lines[entry.raw]));
-    entries.filter(entry => entry.image).forEach((entry, imageIndex) => {
+    const images = (commentRenderedEntries(ctx) || []).filter(item => item.entry.image);
+    const lines = ctx.ta.value.split('\n');
+    const imageSequence = JSON.stringify(images.map(item => lines[item.entry.raw]));
+    images.forEach((item, imageIndex) => {
       const refresh = () => commentImageInteractionContexts({ta:ctx.ta,imageIndex,imageSequence});
       const contexts = refresh();
       if(contexts) bindImageBlockInteraction(contexts.menuCtx.block, contexts.dragCtx, contexts.menuCtx, refresh);
@@ -2574,67 +2639,4 @@ function onBlockDragEnd(){
   block.style.opacity = '';
   block.style.cursor = 'grab';
   if(marker.parentNode) marker.remove();
-  previewEditState.drag = null;
-
-  if(!previewBlockContextCurrent(ctx)) return;
-  if(!moved || destIndex === null) return;
-  if(destIndex === srcIndex || destIndex === srcIndex + 1) return; // 제자리
-
-  const srcRaw = map[srcIndex].startRaw;
-  const destInfo = destIndex < map.length ? map[destIndex] : null;
-  const destRaw = destInfo ? destInfo.startRaw : null;
-  const splitMove = (type === 'hr' || type === 'hr2')
-    ? moveSeparatorIntoSplitLine(ta.value, srcRaw, destInfo, host.getSettings())
-    : null;
-  const nextText = splitMove === null
-    ? moveLineInText(ta.value, srcRaw, destRaw, comment)
-    : splitMove;
-  if(nextText === ta.value) return;
-  host.snapshotCards();
-  ta.value = nextText;
-  host.uiUpdateEffects.committedChange();
-  host.showUndoToast(splitMove === null ? `${label} 위치 변경.` : `${label} 위치 변경 · 원문 자동 분리.`);
-}
-
-function isCommitting(){ return previewEditState.committing; }
-
-function setReady(ready){ previewEditState.ready = !!ready; }
-return Object.freeze({
-CENTER_RE,
-FMT_RE,
-FMT_WRAP,
-bindBlockToolbarEvents,
-bindOutputRuleInteractions,
-bindPreviewSelectionEvents,
-commentDisplayEntries,
-commitActiveDirectEdit,
-hasUncommittedDirectEdit,
-decorateOutputRuleOccurrences,
-decorateParallelOccurrences,
-decoratePreviewCardTitlePositionLinks,
-decoratePreviewCoverImageNavigation,
-decoratePreviewCreditEditors,
-decoratePreviewFooterEditor,
-decoratePreviewDirectEditors,
-decoratePreviewProfileEditors,
-discardActiveDirectEdit,
-enableBlockDrag,
-enablePreviewDirectEditor,
-findBlockSource,
-hideBlockToolbar,
-hideOutputRulePopover,
-hideSelToolbar,
-isCommitting,
-layoutOutputRuleMarkers,
-previewCardBody,
-previewCardContexts,
-previewCommentContexts,
-previewEditableText,
-previewSourceBlocks,
-previewSourceMatches,
-setReady
-});
-}
-
-return Object.freeze({createPreviewInteractions});
-})();
+  prev

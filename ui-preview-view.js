@@ -772,7 +772,7 @@ function bindPreviewFoldEvents(){
 function capturePreviewFoldState(){
   // 입력 카드의 DOM 정체성으로 보관해 순서 변경·삭제 후 다른 카드에 상태가 옮겨가지 않는다.
   const states = new Map();
-  host.uiElements.preview.querySelectorAll(':scope > [data-mosaic-card-index]').forEach(card => {
+  host.uiElements.preview.querySelectorAll(':scope > [data-mosaic-card-index], :scope > [data-mosaic-comment-index]').forEach(card => {
     if(card._mosaicFoldEditor?.isConnected){
       states.set(card._mosaicFoldEditor, {
         cardOpen:card.tagName === 'DETAILS' && card.open,
@@ -784,7 +784,11 @@ function capturePreviewFoldState(){
 }
 
 function restorePreviewFoldState(states){
-  host.previewInteractions.previewCardContexts().forEach(ctx => {
+  const contexts = [
+    ...host.previewInteractions.previewCardContexts(),
+    ...host.previewInteractions.previewCommentContexts().map(ctx => ({cardEl:ctx.commentEl, ed:ctx.ed}))
+  ];
+  contexts.forEach(ctx => {
     ctx.cardEl._mosaicFoldEditor = ctx.ed;
     const state = states.get(ctx.ed);
     if(ctx.cardEl.tagName === 'DETAILS' && state?.cardOpen) ctx.cardEl.open = true;

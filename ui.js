@@ -1184,8 +1184,8 @@ function previewPositionPairs(ta){
   if(comment){
     const ctx = previewInteractions.previewCommentContexts().find(item => item.ta === ta);
     if(!ctx) return [];
-    const entries = previewInteractions.commentDisplayEntries(ta), blocks = Array.from(ctx.commentEl.children);
-    return entries.length === blocks.length ? entries.map((entry,index) => ({element:blocks[index],entry,comment:true})) : [];
+    return (previewInteractions.commentRenderedEntries(ctx) || [])
+      .map(({entry,block}) => ({element:block,entry,comment:true}));
   }
   const ctx = previewInteractions.previewCardContexts().find(item => item.ta === ta);
   if(!ctx) return [];
@@ -1236,7 +1236,8 @@ function previewPositionCharacters(ta, pair){
     let display;
     if(pair.comment){
       const text = entry.parts[raw-entry.raw] || '', offset = Math.max(0,line.indexOf(text));
-      display = {text,map:Array.from({length:text.length},(_,i) => offset+i),ends:Array.from({length:text.length},(_,i) => offset+i+1)};
+      const projection = MosaicRenderer.commentTextProjection(text);
+      display = {text:projection.text,map:projection.map.map(at => offset+at),ends:projection.ends.map(at => offset+at)};
     }else{
       const renderedLine = entry.softBreak && raw !== rawLines.at(-1) ? line.replace(/\[BR\]\s*$/i,'') : line;
       display = sourceMap.outputSourceDisplayProjectionMap(renderedLine,sourceMap.outputRuleLineSettings(ta,raw));
@@ -1254,7 +1255,9 @@ function previewPositionCharacters(ta, pair){
       at += char.length;
     }
   }
-  const expected = MosaicParser.normalizeQuotes(pair.comment ? entry.parts.join('') : entry.projection || '').replace(/\s/g,'');
+  const expected = MosaicParser.normalizeQuotes(pair.comment
+    ? entry.parts.map(part => MosaicRenderer.commentTextProjection(part).text).join('')
+    : entry.projection || '').replace(/\s/g,'');
   if(!expected) return null;
   const text = characters.map(item => item.char).join('');
   const at = text.indexOf(expected);
@@ -2807,10 +2810,11 @@ function insertIntoBody(prefix, suffix, placeholder, label){
   // 마지막으로 포커스했던 카드에 삽입 (없으면 첫 카드)
   let ta = cardEditors.activeTextarea();
   const imageInsertion = !suffix && !placeholder && !!MosaicRenderer.parseBodyImageLine(prefix);
+  const foldInsertion = prefix === '[접기 제목]\n\n' && suffix === '\n\n[/접기]';
   const commentInsertion = prefix === ': ' && !suffix && !placeholder;
-  // 코멘트에는 이미지 삽입만 허용하고 나머지 본문 전용 문법은 계속 차단한다.
+  // 코멘트에는 이미지·부분접기 삽입만 허용하고 나머지 본문 전용 문법은 계속 차단한다.
   const sourceTextarea = ta && (ta.__mirror || ta);
-  if(sourceTextarea && sourceTextarea.closest('.commentEditor') && !imageInsertion) return;
+  if(sourceTextarea && sourceTextarea.closest('.commentEditor') && !imageInsertion && !foldInsertion) return;
   ta = ta || document.querySelector('#cardEditors .cardEditor:not(.commentEditor) textarea');
   if(!ta) return;
   cardEditors.setActiveTextarea(ta);

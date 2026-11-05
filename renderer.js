@@ -2454,41 +2454,75 @@ function buildCredit(settings){
   return `<div data-mosaic-credit="true" style="box-sizing:border-box; width:100%; max-width:${creditWidth}px; margin:${creditMargin}; padding:${creditPadding}; border:${MosaicState.settingFlagOn(settings.creditBorderOn) ? `1px solid ${creditBorder}` : '0'}; border-radius:0; background-color:${creditBg}; color:${valueColor}; font-family:${font}; -webkit-text-size-adjust:100%; text-size-adjust:100%;">${rows}</div>\n`;
 }
 
-// 코멘트에서는 독립된 [IMG] 줄과 Shift+Enter의 줄 끝 [BR]만 해석한다.
-// 나머지 글자와 이미지 캡션은 escapeTextHTML을 거쳐 다른 본문 문법/HTML을 실행하지 않는다.
+// 코멘트는 줄바꿈·독립된 이미지·부분접기만 해석하고 나머지는 일반 글자로 보존한다.
 function commentParagraphEntries(value){
-  const lines = String(value || '').split('\n');
+  const source = String(value || '').replace(/\r\n?/g, '\n');
+  if(!source.trim()) return [];
+  const lines = source.split('\n');
   const entries = [];
+  let fold = null, paragraph = null;
   for(let raw = 0; raw < lines.length; raw++){
-    let rawEnd = raw;
-    let current = String(lines[rawEnd]).trim();
-    if(!current) continue;
-    const image = parseBodyImageLine(current);
-    if(image){
-      entries.push({raw, rawEnd, parts:[current], image});
+    const current = lines[raw].trim();
+    const open = current.match(/^\[접기(?:\s+(.+?))?\]$/);
+    if(open && !fold){
+      fold = {raw, rawEnd:lines.length - 1, title:(open[1] || '접기').trim(), children:[]};
+      entries.push(fold);
+      paragraph = null;
       continue;
     }
-    const parts = [];
-    while(/\[BR\]\s*$/i.test(current) && rawEnd + 1 < lines.length){
-      parts.push(current.replace(/\[BR\]\s*$/i, '').trim());
-      const next = String(lines[rawEnd + 1]).trim();
-      // [BR] 연결도 독립된 이미지 줄을 삼키지 않는다.
-      if(parseBodyImageLine(next)){ current = null; break; }
-      rawEnd++;
-      current = next;
+    if(current === '[/접기]'){
+      if(fold) fold.rawEnd = raw;
+      fold = null;
+      paragraph = null;
+      continue;
     }
-    if(current !== null) parts.push(current);
-    entries.push({ raw, rawEnd, parts });
-    raw = rawEnd;
+    const target = fold ? fold.children : entries;
+    const image = parseBodyImageLine(current);
+    if(image){
+      target.push({raw, rawEnd:raw, parts:[current], image});
+      paragraph = null;
+      continue;
+    }
+    if(!paragraph){
+      paragraph = {raw, rawEnd:raw, parts:[]};
+      target.push(paragraph);
+    }
+    // 이전 버전의 줄 끝 [BR]도 받되, 입력한 엔터와 빈 줄은 각각 그대로 보존한다.
+    paragraph.parts.push(lines[raw].replace(/\[BR\]\s*$/i, ''));
+    paragraph.rawEnd = raw;
   }
   return entries;
 }
 
+const COMMENT_BR_PATTERN = /<br\s*\/?>/gi;
+
+function commentTextProjection(value){
+  const source = String(value), map = [], ends = [];
+  let text = '', cursor = 0;
+  const append = end => {
+    while(cursor < end){ text += source[cursor]; map.push(cursor); ends.push(++cursor); }
+  };
+  for(const match of source.matchAll(COMMENT_BR_PATTERN)){
+    append(match.index);
+    text += '\n'; map.push(match.index); ends.push(match.index + match[0].length);
+    cursor = match.index + match[0].length;
+  }
+  append(source.length);
+  return {text, map, ends};
+}
+
+function commentTextHTML(text){
+  // 속성 없는 br만 줄바꿈으로 받는다. 다른 태그는 기존처럼 글자로 출력한다.
+  return String(text).split(COMMENT_BR_PATTERN).map(MosaicParser.escapeTextHTML).join('<br>');
+}
+
 function buildCommentBlock(comment, settings){
   const paragraphStyle = settings.commentAlign === 'center' ? ' style="text-align:center;"' : '';
-  const entries = commentParagraphEntries(comment.body);
-  const paragraphs = entries.map((entry, index) => {
-    if(!entry.image) return `<p${paragraphStyle}>${entry.parts.map(MosaicParser.escapeTextHTML).join('<br>')}</p>`;
+  const renderEntries = entries => entries.map((entry, index) => {
+    if(entry.children){
+      return `<details><summary>${commentTextHTML(entry.title)}</summary>\n${renderEntries(entry.children).join('\n')}</details>`;
+    }
+    if(!entry.image) return `<p${paragraphStyle}>${entry.parts.map(commentTextHTML).join('<br>')}</p>`;
     const {src, width, caption} = entry.image;
     const imageSrc = src.startsWith('//') ? 'https:' + src : src;
     const align = settings.commentAlign === 'center' ? 'center' : 'left';
@@ -2496,6 +2530,7 @@ function buildCommentBlock(comment, settings){
     const captionHTML = caption ? `<p style="width:${width}%; max-width:100%; margin:7px ${sideMargin} 0; text-align:${align}; font-size:11.5px; line-height:1.5;">${MosaicParser.escapeTextHTML(caption)}</p>` : '';
     return `<div data-mosaic-comment-image="true" style="margin:${index === 0 ? 0 : 16}px 0 ${index === entries.length - 1 ? 0 : 16}px; line-height:0; font-size:0; text-align:${align};"><img src="${MosaicParser.escapeAttr(imageSrc)}" alt="${MosaicParser.escapeAttr(caption)}" class="fr-fic fr-dib" style="width:${width}%; max-width:100%; height:auto; display:block; margin:0 ${sideMargin};">${captionHTML}</div>`;
   });
+  const paragraphs = renderEntries(commentParagraphEntries(comment.body));
   if(!paragraphs.length) return '';
   // 카드 디자인과 섞이지 않도록 배경·외곽선은 두지 않는다. 기본·가운데는
   // 아카라이브 게시글 폭 전체를, 카드 폭만 현재 설정의 max-width를 사용한다.
@@ -3103,9 +3138,11 @@ function specialThemeOutput(html, mode, settings){
         : safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
     template.content.querySelectorAll('summary, [data-mosaic-fold-body]').forEach(el => {
+      if(el.closest('[data-mosaic-comment-index]')) return;
       el.style.setProperty('background-color', safeHexColor(settings.bgColor, '#faf9f5'), 'important');
     });
     template.content.querySelectorAll('summary').forEach(el => {
+      if(el.closest('[data-mosaic-comment-index]')) return;
       const card = el.closest('[data-mosaic-card-index]');
       const centeredBodyTitle = card?.getAttribute('data-mosaic-body-center') === 'true'
         && el.parentElement !== card;
@@ -3571,6 +3608,7 @@ buildCard,
 buildParagraph,
 combineSoftBreakPair,
 commentParagraphEntries,
+commentTextProjection,
 expandDialogueLinesForOutput,
 findChar,
 formatStatusContent,
