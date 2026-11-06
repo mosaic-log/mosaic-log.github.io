@@ -3627,4 +3627,13 @@ isStatusBodyLine,
 isStructuralBodyLine,
 parseBodyHeading,
 parseBodyImageLine,
-repairLegacyPho
+repairLegacyPhotoBackgrounds,
+splitDialogueLineForOutput,
+statusLineContent,
+stripEditorOutputMetadata,
+fontStack,
+parseOutputBodyImage,
+rememberProfileImageSize,
+stripSpeaker
+});
+})();
