@@ -3394,16 +3394,18 @@ function buildCardUncached(settings, sourceCards){
   const visibleComments = sourceCards
     .map((comment, sourceIndex) => ({ ...comment, sourceIndex }))
     .filter(comment => comment.type === 'comment' && comment.visible !== false && String(comment.body || '').trim());
-  // 코멘트는 카드 밖의 별도 영역이므로, 표제 뒤에 코멘트만 있어도 카드 하단을 닫는다.
-  if(hasTitle && !hasAttachedProfile && cardList.length === 0){
-    titleBand = buildTitleBlock(settings, hasImg, joinTopProfile && !hasImg, false, true);
-  }
   const firstBodySourceIndex = unifiedLayout
     ? (cardList.length ? cardList[0].sourceIndex : Number.POSITIVE_INFINITY)
     : Math.min(
         cardList.length ? cardList[0].sourceIndex : Number.POSITIVE_INFINITY,
         visibleComments.length ? visibleComments[0].sourceIndex : Number.POSITIVE_INFINITY
       );
+  // 코멘트는 카드 밖의 별도 영역이다. 개별 배치에서 코멘트가 본문보다 먼저
+  // 출력되면 표제 카드를 여기서 닫고, 이어보기의 표제·본문 연결은 유지한다.
+  if(hasTitle && !hasAttachedProfile && (cardList.length === 0
+    || (!unifiedLayout && cardList[0].sourceIndex !== firstBodySourceIndex))){
+    titleBand = buildTitleBlock(settings, hasImg, joinTopProfile && !hasImg, false, true);
+  }
 
   const foldDividerMinimal = MosaicState.settingFlagOn(settings.foldDividerMinimal);
   const cardInlinePadding = cardInlinePaddingCss(settings);
@@ -3625,13 +3627,4 @@ isStatusBodyLine,
 isStructuralBodyLine,
 parseBodyHeading,
 parseBodyImageLine,
-repairLegacyPhotoBackgrounds,
-splitDialogueLineForOutput,
-statusLineContent,
-stripEditorOutputMetadata,
-fontStack,
-parseOutputBodyImage,
-rememberProfileImageSize,
-stripSpeaker
-});
-})();
+repairLegacyPho
