@@ -2559,7 +2559,7 @@ function placeCoverDividerBeforeLeadingComment(html, settings){
   ).pop();
   if(!boundary) return html;
   const kind = boundary.hasAttribute('data-mosaic-profile') ? 'profile' : 'title';
-  if(kind === 'profile' && boundary.dataset.mosaicProfileDividerAvailable === 'false') return html;
+  if(boundary.getAttribute(`data-mosaic-${kind}-divider-available`) === 'false') return html;
   if(!coverSectionDividerEnabled(settings, kind)) return html;
   boundary.style.setProperty('border-bottom', '0');
   appendCoverDividerLine(boundary, 'bottom', settings, tonePalette(settings).divider);
@@ -3394,7 +3394,8 @@ function buildCardUncached(settings, sourceCards){
   const visibleComments = sourceCards
     .map((comment, sourceIndex) => ({ ...comment, sourceIndex }))
     .filter(comment => comment.type === 'comment' && comment.visible !== false && String(comment.body || '').trim());
-  if(hasTitle && !hasAttachedProfile && cardList.length === 0 && visibleComments.length === 0){
+  // 코멘트는 카드 밖의 별도 영역이므로, 표제 뒤에 코멘트만 있어도 카드 하단을 닫는다.
+  if(hasTitle && !hasAttachedProfile && cardList.length === 0){
     titleBand = buildTitleBlock(settings, hasImg, joinTopProfile && !hasImg, false, true);
   }
   const firstBodySourceIndex = unifiedLayout
