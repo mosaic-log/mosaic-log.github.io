@@ -141,3 +141,33 @@ UI 생성 함수 등록 공간은 `MosaicUIParts` 하나만 사용합니다. `ui
 - `index.html`의 `defer` 순서와 참조 파일을 확인합니다. ZIP이 최신 배포 폴더와 일치하고 실행 파일·문서를 모두 포함하는지 확인합니다. 기본 표지 이미지 파일은 배포하지 않습니다.
 
 이 지침은 현재 코드가 모든 항목을 이미 만족한다는 뜻은 아닙니다. 컨트롤 동기화·작업 복원 조율, 긴 미리보기 상호작용·출력 함수, 보관함·테마의 큰 이벤트 등록 함수에는 추가 정리 여지가 있습니다.
+
+- 따옴표 안 끝 괄호 번역 인식·괄호 앞 공백 무시·나레이션 병행 기본 ON 수정본은 `outputs/mosaic-log-v1.9.9-parallel-inner-2026-11-13/`에 보존한다. 검증 기록은 `outputs/parallel-inner-2026-11-13/`에 보존한다. 명시적으로 저장된 OFF는 유지한다.
+
+- 번역 이어쓰기 간격을 한 칸으로 통일하고 스크롤바 호버 두께를 고정한 최신 수정본은 `outputs/mosaic-log-v1.9.9-parallel-gap-2026-11-13/`이다. 이전 원본 `outputs/mosaic-log-v1.9.9-parallel-inner-2026-11-13/`와 ZIP은 유지하고, 검증 기록은 `outputs/parallel-gap-2026-11-13/`에 보존한다.
+
+- 외부 스크롤바만 보이는 두께 8px로 확대한 최신 수정본은 `outputs/mosaic-log-v1.9.9-outer-scrollbar-8px-2026-11-13/`이다. 카드 내부는 기존 6px, 호버는 두께 고정·색 농도 25%→35%를 유지한다. 기준은 `outputs/mosaic-log-v1.9.9-parallel-gap-2026-11-13/`이며 검증 기록은 `outputs/outer-scrollbar-8px-2026-11-13/`에 보존한다.
+
+- 폭 조절 경계 호버·드래그·키보드 포커스 강조 수정본은 `outputs/mosaic-log-v1.9.9-resizer-hover-2026-11-13/`이다. 경계 강조선은 5px와 테마 강조색을 사용한다. 기준 `outputs/mosaic-log-v1.9.9-outer-scrollbar-8px-2026-11-13/`와 ZIP은 보존하며 검증 기록은 `outputs/resizer-hover-2026-11-13/`에 보존한다.
+
+- 폭 조절 경계 강조선을 3px로 줄이고 위아래 모서리를 각지게 바꾼 최신본은 `outputs/mosaic-log-v1.9.9-resizer-3px-2026-11-14/`이다. 이전 5px 수정본과 ZIP은 보존하며 검증은 `outputs/resizer-3px-2026-11-14/`에 기록한다.
+
+- 외부 스크롤 호버 농도 45%·양옆 여유 3px, 메모·인용 높이와 메모 테두리를 조정한 최신본은 `outputs/mosaic-log-v1.9.9-outer-hover-darker-2026-11-14/`이다. 기준 `outputs/mosaic-log-v1.9.9-resizer-3px-2026-11-14/`와 ZIP은 보존하며 검증 기록은 `outputs/outer-hover-darker-2026-11-14/`에 보존한다.
+
+- 외부 스크롤 두께·여백을 유지하고 호버 색 농도만 55%로 올린 최신본은 `outputs/mosaic-log-v1.9.9-outer-hover-color-only-2026-11-14/`이다. 기준은 `outputs/mosaic-log-v1.9.9-outer-hover-darker-2026-11-14/`이며 검증 기록은 `outputs/outer-hover-color-only-2026-11-14/`에 보존한다.
+
+- 외부 스크롤 호버 배경 단축 선언이 padding-box를 초기화하여 여백까지 칠하던 버그를 고친 최신본은 `outputs/mosaic-log-v1.9.9-outer-hover-width-fix-2026-11-14/`이다. 기준 `outputs/mosaic-log-v1.9.9-outer-hover-color-only-2026-11-14/`와 ZIP은 보존한다. 검증 기록은 `outputs/outer-hover-width-fix-2026-11-14/`에 보존한다.
+
+- 첨부 사진 기준으로 외부 스크롤 기본색 #e4e4e5·호버색 #585a5b를 적용한 최신본은 `outputs/mosaic-log-v1.9.9-outer-scrollbar-reference-colors-2026-11-14/`이다. 이전 두께 수정본과 ZIP은 보존하며 검증은 `outputs/outer-scrollbar-reference-colors-2026-11-14/`에 기록한다.
+
+- 사용자 선택 웜그레이 외부 스크롤 기본색 #d8d5cf·호버색 #96928a를 적용한 최신본은 `outputs/mosaic-log-v1.9.9-outer-scrollbar-warm-2026-11-14/`이다. 기준 사진색 버전과 ZIP은 보존하며 검증 기록은 `outputs/outer-scrollbar-warm-2026-11-14/`에 보존한다.
+
+- 내부 스크롤도 외부와 같은 웜그레이로 통일한 최신본은 `outputs/mosaic-log-v1.9.9-scrollbar-warm-unified-2026-11-14/`이다. 내부6px·외부8px·호버 색상만 변경을 유지한다. 기준 외부 웜그레이 버전과 ZIP은 보존하며 검증은 `outputs/scrollbar-warm-unified-2026-11-14/`에 기록한다.
+
+- 본문·코멘트 이미지를 %로 편집하고 출력 사본만 현재 미리보기 폭의 px로 고정하는 최신본은 `outputs/mosaic-log-v1.9.9-image-export-px-2026-11-14/`이다. 기준 `outputs/mosaic-log-v1.9.9-scrollbar-warm-unified-2026-11-14/`와 ZIP은 보존한다. 검증 기록은 `outputs/image-export-px-2026-11-14/`에 보존한다.
+
+- 원문 병행 정밀 검사에서 내부 괄호 형식의 개별 제외 시 따옴표 위치가 바뀌던 오류와 빈 번역 괄호 오인식을 수정한 최신본은 `outputs/mosaic-log-v1.9.9-parallel-audit-2026-11-14/`이다. 기준 이미지 출력 px 버전과 ZIP은 보존하며 검사 기록은 `outputs/parallel-audit-2026-11-14/`에 보존한다.
+
+- 최초1.9.9 대비 전체 변경 코드 검사 후 이미지 코드 보기 폭 갱신·코멘트 이미지 캡션 폭·고대비 스크롤 처리를 보완한 최신본은 `outputs/mosaic-log-v1.9.9-full-audit-2026-11-14/`이다. 기준 원문 병행 검사본과 최초1.9.9 및 ZIP은 보존하며 검사 기록은 `outputs/full-audit-2026-11-14/`에 보존한다. 이미지 실측은 UI 모듈이 담당한다.
+
+- 사용자 결정(2026-11-14): 이미지 px 변환을 제거한 최신 기준은 `outputs/mosaic-log-v1.9.9-image-percent-rollback-2026-11-14/`와 전체 ZIP이다. 입력·미리보기·HTML 전체/개별 복사·저장 모두 기존 %를 유지한다. 이미지 기준 통일 작업도 적용하지 않는다. 직전 전체 검사본과 ZIP은 보존하며 나머지 검사 완료 수정은 유지한다. 검증 기록은 `outputs/image-percent-rollback-2026-11-14/`에 보존한다.

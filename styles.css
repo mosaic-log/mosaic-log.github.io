@@ -106,6 +106,99 @@
     --bg-preview-night:#3e3c38;
   }
   * { box-sizing: border-box; }
+  /* 스크롤 가능한 영역의 막대는 항상 연하게 표시하고 배경 장식은 두지 않는다. */
+  :root,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d8d5cf transparent;
+  }
+  :root:hover,
+  *:hover {
+    scrollbar-color: #96928a transparent;
+  }
+  ::-webkit-scrollbar,
+  ::-webkit-scrollbar:hover {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 0;
+    border-radius: 999px;
+    background: #d8d5cf;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: #96928a; }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button { display: none; }
+  /* 표준 색상 선언이 막대 자체의 WebKit 호버 스타일을 덮지 않게 한다. */
+  @supports selector(::-webkit-scrollbar) {
+    :root,
+    :root:hover,
+    *,
+    *:hover { scrollbar-color: auto; scrollbar-width: auto; }
+    /* 표준 thin이 차지하던 여유는 남기고 실제 막대만 얇게 그린다. */
+    @supports (scrollbar-width: thin) {
+      ::-webkit-scrollbar,
+      ::-webkit-scrollbar:hover { width: 11px; height: 11px; }
+      ::-webkit-scrollbar-thumb,
+      ::-webkit-scrollbar-thumb:hover {
+        border: 2.5px solid transparent;
+        background-clip: padding-box;
+      }
+    }
+  }
+  /* 외부 막대만 두껍게 하고 카드 내부의 기존 두께는 유지한다. */
+  :is(:root, body, #sidebar, #previewArea) {
+    scrollbar-color: #d8d5cf transparent;
+  }
+  :is(:root, body, #sidebar, #previewArea):hover {
+    scrollbar-color: #96928a transparent;
+  }
+  @supports selector(::-webkit-scrollbar) {
+    :is(:root, body, #sidebar, #previewArea),
+    :is(:root, body, #sidebar, #previewArea):hover { scrollbar-color: auto; }
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb {
+      background-color: #d8d5cf;
+    }
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb:hover {
+      /* 색만 바꿔 padding-box 잘림을 보존한다. background 단축형은 쓰지 않는다. */
+      background-color: #96928a;
+    }
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar,
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar:hover {
+      width: 8px;
+      height: 8px;
+    }
+    @supports (scrollbar-width: thin) {
+      /* 막대는 8px로 유지하고 양옆에 3px씩 여유를 둔다. */
+      :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar,
+      :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar:hover {
+        width: 14px;
+        height: 14px;
+      }
+      :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb,
+      :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb:hover {
+        border-width: 3px;
+      }
+    }
+  }
+  @media (forced-colors: active) {
+    :root,
+    :root:hover,
+    *,
+    *:hover { scrollbar-color: auto; scrollbar-width: auto; }
+    :is(:root, body, #sidebar, #previewArea),
+    :is(:root, body, #sidebar, #previewArea):hover { scrollbar-color: auto; }
+    ::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-thumb:hover,
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb,
+    :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb:hover {
+      background-color: CanvasText;
+    }
+  }
   input[type="checkbox"] { accent-color: var(--accent); }
   body {
     margin: 0;
@@ -3220,12 +3313,16 @@
     content: "";
     position: absolute;
     inset: 0 4px;
-    border-radius: 2px;
+    border-radius: 0;
     background: transparent;
-    transition: background .12s ease;
+    transition: background .12s ease, inset .12s ease;
   }
   #sidebarResizer:hover::after,
-  #sidebarResizer.dragging::after { background: var(--line-strong); }
+  #sidebarResizer.dragging::after,
+  #sidebarResizer:focus-visible::after {
+    inset: 0 3px;
+    background: var(--accent);
+  }
   body.layoutMirrored #sidebarResizer {
     left: auto;
     right: calc(var(--sidebar-w, 460px) - 4px);

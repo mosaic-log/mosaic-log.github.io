@@ -280,7 +280,8 @@ function prepareMixedParallelTranslations(line, settings, color, options = {}){
   const segments = MosaicParser.parallelSegments(source,settings).filter(segment =>
     MosaicParser.parallelKindEnabled(segment.kind,settings) && (segment.kind !== 'narration' || options.narration)
     && (!options.thoughtsOnly || segment.original.startsWith("'"))
-  ).map(segment=>options.narration ? MosaicParser.resolveParallelSegment(segment,settings) : segment);
+  ).map(segment=>options.narration ? MosaicParser.resolveParallelSegment(segment,settings) : segment)
+    .filter(segment=>!segment.innerTranslation || !segment.excluded);
   if(!segments.length) return { line:source, tokens:[] };
   const tokens = [];
   let primaryMarker='\uE102';
@@ -832,7 +833,7 @@ function buildParagraph(rawLine, settings, opts){
     const size = Math.max(10, (parseFloat(settings.narrSize) || 14) - 1);
     const content = MosaicParser.processBodyInline(comment.content.trim(), settings.emphasisColor,
       {softBreakSpacing:settings.softBreakSpacing,literalText:true});
-    return `    <p data-mosaic-inline-comment="true" style="box-sizing:border-box; margin:${top}px 0 ${bottom}px; padding:12px 16px; border:1.5px solid ${borderColor}; border-radius:8px; background-color:transparent; color:${pal.caption}; font-size:${size}px; font-weight:400; font-style:normal; line-height:${settings.narrLine}; text-align:${centered ? 'center' : 'left'}; text-indent:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
+    return `    <p data-mosaic-inline-comment="true" style="box-sizing:border-box; margin:${top}px 0 ${bottom}px; padding:10px 16px; border:1px solid ${borderColor}; border-radius:8px; background-color:transparent; color:${pal.caption}; font-size:${size}px; font-weight:400; font-style:normal; line-height:${settings.narrLine}; text-align:${centered ? 'center' : 'left'}; text-indent:0; overflow-wrap:anywhere; word-break:break-word; font-family:${fontStack(settings.narrFont)};">${content}</p>\n`;
   }
   let line = MosaicParser.normalizeStandaloneHr(MosaicParser.normalizeQuotes(rawLine.trim()));
   if(!line) return '';
@@ -974,7 +975,7 @@ function buildParagraph(rawLine, settings, opts){
       ? mixHex(pal.cardBg, darkBackground ? '#ffffff' : '#000000', darkBackground ? 0.12 : 0.08)
       : pal.boxBg;
     const quoteText = strongerQuote ? mixHex(softQuoteText, sourceColor, 0.25) : softQuoteText;
-    return `    <div data-mosaic-quote="true" style="margin:${qMt}px 0 ${qMb}px 0; padding:13px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${renderQuoteContent(qInner, settings)}</div>\n`;
+    return `    <div data-mosaic-quote="true" style="margin:${qMt}px 0 ${qMb}px 0; padding:11px 16px; background-color:${quoteBg}; border-radius:8px; text-align:${quoteAlign}; color:${quoteText}; font-size:${qSize}px; font-weight:400; line-height:${settings.narrLine}; letter-spacing:0.1px; font-family:${fontStack(settings.narrFont)};">${renderQuoteContent(qInner, settings)}</div>\n`;
   }
 
   let overrideColor = null;
@@ -996,8 +997,11 @@ function buildParagraph(rawLine, settings, opts){
   const detectedParallel = settings.parallelTranslationSoft ? MosaicParser.parallelDialogueParts(line) : null;
   // 속마음은 아래 혼합 문단 경로에서 한 번만 예외를 소비한다. 여기서 먼저
   // 소비하면 뒤의 실제 렌더가 해당 쌍의 병행 제외 상태를 찾지 못한다.
-  const parallelDialogue = detectedParallel?.original.startsWith('"')
+  const resolvedParallel = detectedParallel?.original.startsWith('"')
     ? MosaicParser.resolveParallelSegment({...detectedParallel,kind:'dialogue'},settings) : null;
+  // 내부 괄호 형식을 개별 제외하면 원래 닫는 따옴표와 괄호 위치도 보존한다.
+  const parallelDialogue = resolvedParallel?.innerTranslation && resolvedParallel.excluded
+    ? null : resolvedParallel;
   const isDialogueParallel = parallelDialogue && parallelDialogue.original.startsWith('"');
   const isDialogue = (line.startsWith('"') && MosaicParser.quotedTextRanges(line).some(quote=>quote.closed && quote.quote==='"' && quote.start===0 && quote.end===line.length)) || Boolean(isDialogueParallel);
 

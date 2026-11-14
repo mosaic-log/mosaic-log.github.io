@@ -718,9 +718,9 @@ const uiElements = Object.freeze({
 // 조각로그 v1.9.0 미리보기 렌더 조정기.
 function renderOutputViews(settings, cards){
   const previewHTML = MosaicRenderer.buildCard(settings, cards);
+  renderPreview(previewHTML, {settings,cards});
   const html = generateHTML(false, previewHTML);
   document.getElementById('codeBox').value = html;
-  renderPreview(previewHTML, {settings,cards});
   controlSync.syncPreviewPalette();
 }
 
@@ -3626,6 +3626,7 @@ uiUpdateEffects
 
 
 const previewLayout = createPreviewLayout({
+refreshOutputCode:()=>{document.getElementById('codeBox').value = generateHTML();},
 isDesktopLayoutMirrored:(...args)=>appCommands.isDesktopLayoutMirrored(...args),
 snapshotCards:(...args)=>appCommands.snapshotCards(...args),
 setPreviewArcaTheme:(...args)=>appCommands.setPreviewArcaTheme(...args),

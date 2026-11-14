@@ -371,7 +371,7 @@ function decoratePreviewCopyButtons(){
   // 정리는 실제 복사 때 수행해 일반 입력마다 같은 본문을 다시 처리하지 않는다.
   let copiedCharacters = 0;
   previewCopyGroups(false).forEach(group => {
-    let copiedHTML = null;
+    let copiedHTML = null, copiedWidth = null;
     const unified = group.startElement.dataset.mosaicUnifiedItem === 'true'
       && group.endElement.dataset.mosaicUnifiedItem === 'true';
     const label = unified ? '이어진 카드' : previewCopyLabel(group.labels);
@@ -379,7 +379,11 @@ function decoratePreviewCopyButtons(){
       group.startElement,
       label,
       () => {
-        if(copiedHTML !== null) return copiedHTML;
+        const currentWidth = host.uiElements.preview.clientWidth;
+        if(copiedHTML !== null && copiedWidth === currentWidth) return copiedHTML;
+        if(copiedHTML !== null) copiedCharacters -= copiedHTML.length;
+        copiedHTML = null;
+        copiedWidth = currentWidth;
         const segments = previewCopySegments(true, group);
         const start = segments.findIndex(segment => segment.startElement === group.startElement);
         const end = segments.findIndex(segment => segment.endElement === group.endElement);
@@ -558,7 +562,15 @@ function bindPreviewLayoutEvents(){
     // 웹폰트 적용, 프로필 줄바꿈, 본문 편집처럼 창 크기 변화 없이 미리보기 높이가
     // 달라지는 경우에도 외곽 복사 버튼을 해당 카드 바깥쪽에 다시 맞춘다.
     if(typeof ResizeObserver === 'function'){
-      const observer = new ResizeObserver(() => requestAnimationFrame(layoutPreviewFloatingButtons));
+      let lastCodeWidth = null;
+      const observer = new ResizeObserver(() => requestAnimationFrame(() => {
+        layoutPreviewFloatingButtons();
+        const width = host.uiElements.preview.clientWidth;
+        if(width !== lastCodeWidth && document.getElementById('outputAdvanced').open){
+          lastCodeWidth = width;
+          host.refreshOutputCode();
+        }
+      }));
       observer.observe(host.uiElements.preview);
       // 카드 폭이 고정되어 있어도 설정 패널 조절로 바깥 영역의 폭은 달라진다.
       observer.observe(host.uiElements.previewArea);

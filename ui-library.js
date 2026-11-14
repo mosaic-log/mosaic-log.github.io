@@ -1210,7 +1210,7 @@ function applyStyleValues(v){
   values.parallelTranslationOrder = values.parallelTranslationOrder === 'translation' ? 'translation' : 'original';
   values.parallelTranslationBrackets = values.parallelTranslationBrackets === 'hide' ? 'hide' : 'show';
   values.parallelDialogueOn = values.parallelDialogueOn === undefined ? true : MosaicState.settingFlagOn(values.parallelDialogueOn);
-  values.parallelNarrationOn = values.parallelNarrationOn === undefined ? false : MosaicState.settingFlagOn(values.parallelNarrationOn);
+  values.parallelNarrationOn = values.parallelNarrationOn === undefined ? MosaicState.DEFAULT_STYLE.parallelNarrationOn : MosaicState.settingFlagOn(values.parallelNarrationOn);
   if(values.narrDialogueGap === undefined) values.narrDialogueGap = values.paragraphGap;
   if(values.softBreakSpacing === undefined) values.softBreakSpacing = MosaicState.DEFAULT_STYLE.softBreakSpacing;
   ['hrVerticalSpace','hr2VerticalSpace','hr3VerticalSpace'].forEach(id => {

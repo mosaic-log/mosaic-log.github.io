@@ -203,7 +203,7 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
 function sourceDisplayProjectionMap(line, settings = host.getSettings()){
   const projection = lineSearchProjection(line, settings);
   const extended = settings.parallelTranslationOrder === 'translation' || settings.parallelTranslationBrackets === 'hide'
-    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle) || MosaicParser.parallelKindEnabled('dialogue',settings);
+    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle) || MosaicParser.parallelKindEnabled('dialogue',settings) || MosaicParser.parallelKindEnabled('narration',settings);
   if(extended && (sourceProjectionMeta(line,settings).maskInlineSpeakers || /^\s*(?:\[C\]\s*)?>(?!>)/.test(line))){
     const parallel = MosaicParser.parallelTextProjection(line,{...settings,
       hideDialogueQuotes:MosaicState.isMessengerDialogueStyle(settings.dlgStyle) && sourceProjectionMeta(line,settings).maskInlineSpeakers});

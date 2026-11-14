@@ -150,8 +150,20 @@ function parallelDialogueSegments(line){
   let cursor=0;
   for(const quote of quotedTextRanges(source)){
     if(!quote.closed || quote.start<cursor) continue;
+    // 따옴표 안에서는 마지막 괄호만 번역으로 받는다. 괄호 뒤에 대사가
+    // 더 있으면 부가 설명일 수 있으므로 병기로 분리하지 않는다.
+    const inner=/^(.+?)([\t ]*)([（(])([^()（）\r\n]+)([)）])$/.exec(source.slice(quote.start+1,quote.end-1));
+    if(inner && inner[1].trim() && inner[4].trim() && (inner[3]==='(' ? inner[5]===')' : inner[5]==='）')){
+      segments.push({start:quote.start,end:quote.end,
+        original:source[quote.start]+inner[1]+source[quote.end-1],
+        betweenOriginalAndGroup:'',translationGroup:inner[3]+inner[4]+inner[5],
+        innerTranslation:true,groupOffset:1+inner[1].length+inner[2].length,
+        originalContentEnd:1+inner[1].length});
+      cursor=quote.end;
+      continue;
+    }
     const group=/^([\t ]*)([（(])([^()（）\r\n]+)([)）])/.exec(source.slice(quote.end));
-    if(!group || (group[2]==='(' ? group[4]!==')' : group[4]!=='）')) continue;
+    if(!group || !group[3].trim() || (group[2]==='(' ? group[4]!==')' : group[4]!=='）')) continue;
     const end=quote.end+group[0].length;
     segments.push({start:quote.start,end,original:source.slice(quote.start,quote.end),
       betweenOriginalAndGroup:group[1],translationGroup:group[2]+group[3]+group[4]});
@@ -176,7 +188,7 @@ function dialogueQuoteRanges(value, settings = {}, options = {}){
   const pairs=settings.parallelTranslationSoft || narrationParallel ? parallelDialogueSegments(source) : [];
   for(const quote of quotedTextRanges(source)){
     if(!quote.closed || quote.quote!=='"') continue;
-    const insideTranslation=pairs.some(pair=>quote.start>=pair.start+pair.original.length+pair.betweenOriginalAndGroup.length && quote.end<=pair.end);
+    const insideTranslation=pairs.some(pair=>quote.start>=pair.start+(pair.groupOffset ?? pair.original.length+pair.betweenOriginalAndGroup.length) && quote.end<=pair.end);
     const before=source.slice(0,quote.start).trim(),after=source.slice(quote.end).trim();
     // 화면의 독립 번역 괄호는 인용부호를 보여 준다. 원문 편집 범위를 넓힐 때는
     // 같은 모양의 원문에서 실제 대사로 분리된 인용부호까지 함께 처리해야 한다.
@@ -229,7 +241,7 @@ function parallelSegments(value, settings = {}, options = {}){
     if(/^[>#\[]/.test(line.slice(contentStart))){base+=sourceLength+1;return;}
     for(const boundary of boundaries){
       const ending = /([（(])([^()（）\r\n]+)([)）])[ \t]*$/.exec(line.slice(0,boundary));
-      if(ending && ((ending[1] === '(' && ending[3] === ')') || (ending[1] === '（' && ending[3] === '）'))){
+      if(ending && ending[2].trim() && ((ending[1] === '(' && ending[3] === ')') || (ending[1] === '（' && ending[3] === '）'))){
         let start=contentStart;
         const end = ending.index+ending[0].trimEnd().length;
         // 문장 안의 작은따옴표 속마음은 나레이션의 일부다. 그 뒤로 시작점을
@@ -310,7 +322,7 @@ function parallelDisplayParts(segment, settings = {}){
     ? quotedTextRanges(rawTranslation).find(range=>range.closed && range.quote==='"' && range.start===0 && range.end===rawTranslation.length)
     : null;
   const translation = wrapper ? rawTranslation.slice(1,-1) : rawTranslation;
-  const open = segment.start+segment.original.length+segment.betweenOriginalAndGroup.length;
+  const open = segment.start+(segment.groupOffset ?? segment.original.length+segment.betweenOriginalAndGroup.length);
   const leading = inner.length-inner.trimStart().length;
   const translationStart = open+1+leading+(wrapper ? 1 : 0);
   const translationGroup = wrapper
@@ -319,7 +331,7 @@ function parallelDisplayParts(segment, settings = {}){
   return {reverse,hide,quote,original,translation,translationStart,open,translationQuoted:!!wrapper,
     primary:reverse ? quote+translation+quote : segment.original,
     secondary:reverse ? segment.translationGroup[0]+original+segment.translationGroup.at(-1) : translationGroup,
-    between:reverse || hide ? ' ' : segment.betweenOriginalAndGroup};
+    between:enabled ? ' ' : segment.betweenOriginalAndGroup};
 }
 
 // 출력 순서를 뒤집어도 원문 인덱스는 그대로 남긴다. 새 서술 문법은 인식하지 않는다.
@@ -335,9 +347,9 @@ function parallelTextProjection(value, settings = {}){
     if(segment.excluded) return;
     const parts = parallelDisplayParts(segment,settings), key='pair'+index;
     // 직접 편집에서는 원문 우선 메신저의 숨긴 대사 구분자도 같은 좌표로 보호한다.
-    if(!parts.reverse && !parts.hide && !parts.translationQuoted && !settings.parallelEditProjection) return;
+    if(!segment.innerTranslation && !parts.reverse && !parts.hide && !parts.translationQuoted && parts.between===segment.betweenOriginalAndGroup && !settings.parallelEditProjection) return;
     copy(cursor,segment.start);
-    const original=[segment.start+(parts.quote ? 1 : 0),segment.start+segment.original.length-(parts.quote ? 1 : 0),key+':original'];
+    const original=[segment.start+(parts.quote ? 1 : 0),segment.start+(segment.originalContentEnd ?? segment.original.length-(parts.quote ? 1 : 0)),key+':original'];
     const translation=[parts.translationStart,parts.translationStart+parts.translation.length,key+':translation'];
     const first=parts.reverse?translation:original, second=parts.reverse?original:translation;
     const showQuote=parts.quote && !(parallelHidesDialogueQuotes(settings) && parts.quote==='"');
@@ -354,7 +366,7 @@ function parallelTextProjection(value, settings = {}){
       copy(parts.open+1,parts.translationStart-(parts.translationQuoted ? 1 : 0),key+':shell',false);
     copy(...second);
     if(!parts.reverse && !parts.hide)
-      copy(parts.translationStart+parts.translation.length+(parts.translationQuoted ? 1 : 0),segment.end-1,key+':shell',false);
+      copy(parts.translationStart+parts.translation.length+(parts.translationQuoted ? 1 : 0),segment.end-(segment.innerTranslation ? 2 : 1),key+':shell',false);
     if(!parts.hide)generated(segment.translationGroup.at(-1),second[1],second[1],key+':shell');
     cursor=segment.end;
   });
@@ -366,7 +378,7 @@ function parallelSourceBounds(value,bounds,settings = {}){
   const result={...bounds};
   for(const segment of parallelSegments(value,settings).filter(segment=>parallelKindEnabled(segment.kind,settings))){
     const parts=parallelDisplayParts(segment,settings);
-    if(!parts.reverse && !parts.hide && !parts.translationQuoted) continue;
+    if(!segment.innerTranslation && !parts.reverse && !parts.hide && !parts.translationQuoted && parts.between===segment.betweenOriginalAndGroup) continue;
     if(result.start<=segment.start+(parts.quote ? 1 : 0) && result.end>=parts.translationStart+parts.translation.length){
       result.start=Math.min(result.start,segment.start);
       result.end=Math.max(result.end,segment.end);

@@ -128,7 +128,7 @@ const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 
 
 const DEFAULT_STYLE = Object.freeze({
-  parallelDialogueOn:true, parallelNarrationOn:false,
+  parallelDialogueOn:true, parallelNarrationOn:true,
   parallelTranslationOrder:'original', parallelTranslationBrackets:'show',
   textFont: 'pretendard', narrSize: '14', narrLine: '1.6', narrColor: '#555555',
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.6', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',

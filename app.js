@@ -661,7 +661,7 @@ let codePrevFocus = null;
 
 function openCodeFullscreen(){
   const area = document.getElementById('codeFsArea');
-  area.value = document.getElementById('codeBox').value;
+  area.value = MosaicUI.generateHTML();
   codePrevFocus = document.activeElement;
   const overlay = document.getElementById('codeOverlay');
   overlay.style.display = 'block';
@@ -1720,6 +1720,12 @@ document.getElementById('copyBtn').addEventListener('click', () => {
     }
   } catch(e){
     status.textContent = '복사 중 오류: ' + e.message;
+  }
+});
+
+document.getElementById('outputAdvanced').addEventListener('toggle', () => {
+  if(document.getElementById('outputAdvanced').open){
+    document.getElementById('codeBox').value = MosaicUI.generateHTML();
   }
 });
 
