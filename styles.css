@@ -118,8 +118,8 @@
   }
   ::-webkit-scrollbar,
   ::-webkit-scrollbar:hover {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
@@ -145,12 +145,12 @@
       ::-webkit-scrollbar:hover { width: 11px; height: 11px; }
       ::-webkit-scrollbar-thumb,
       ::-webkit-scrollbar-thumb:hover {
-        border: 2.5px solid transparent;
+        border: 3.5px solid transparent;
         background-clip: padding-box;
       }
     }
   }
-  /* 외부 막대만 두껍게 하고 카드 내부의 기존 두께는 유지한다. */
+  /* 보이는 두께는 외부 6px·내부 4px로 구분하고 조작 영역은 유지한다. */
   :is(:root, body, #sidebar, #previewArea) {
     scrollbar-color: #d8d5cf transparent;
   }
@@ -169,11 +169,11 @@
     }
     :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar,
     :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar:hover {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
     @supports (scrollbar-width: thin) {
-      /* 막대는 8px로 유지하고 양옆에 3px씩 여유를 둔다. */
+      /* 조작 영역 14px 안에 막대 6px·투명 여유 4px씩을 둔다. */
       :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar,
       :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar:hover {
         width: 14px;
@@ -181,7 +181,7 @@
       }
       :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb,
       :is(:root, body, #sidebar, #previewArea)::-webkit-scrollbar-thumb:hover {
-        border-width: 3px;
+        border-width: 4px;
       }
     }
   }
