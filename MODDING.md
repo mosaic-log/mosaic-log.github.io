@@ -192,7 +192,7 @@ if (work.cards.length < MosaicState.MAX_WORK_BLOCKS) {
 
 보조 도구모음은 같은 카드 안에서 본문·제목을 편집해도 유지합니다. 바깥 클릭·포커스 판정은 열린 카드 전체를 기준으로 하며, 본문 입력·선택·커서 이동·한글 조합 중 분할 버튼 상태를 갱신합니다. `styles.css`의 `.cardActionMenu`가 PC의 일반 도구 폭 24px와 간격 2px를 정합니다. 순서 이동 버튼은 28px 폭·2px 간격·왼쪽 여백 8px로 헤더의 `− ○`와 중심을 맞추며, 구분선도 같은 위치에 놓습니다. 화살표 글자 크기는 바꾸지 않습니다. 삭제 버튼과 화살표 옆 구분선은 같은 의사 요소 스타일을 공유합니다. 최소 사이드바 폭 340px와 모바일 폭 320px에서 실제 버튼 영역이 잘리거나 넘치지 않는지 확인합니다.
 
-680px 이하에서는 `--mobile-card-control-size`로 위·아래 화살표의 크기와 전체 도구 높이를 헤더 버튼에 맞춥니다. 560px 이하에서는 36px, 그보다 넓은 세로 배치에서는 28px입니다. 나머지 도구 너비는 `--mobile-card-tool-width`로 실제 도구모음 안쪽 폭에서 계산하며 26~32px 범위를 사용합니다. 화살표 묶음과 두 구분선 주변의 여백을 먼저 빼고 6개 도구에 나누므로, 화면이 좁아져도 가로 스크롤 없이 들어가야 합니다. 나머지 모바일 도구 아이콘 크기는 14~16px이며 PC 크기와 구분합니다.
+620px 이하에서는 `--mobile-card-control-size`로 위·아래 화살표의 크기와 전체 도구 높이를 헤더 버튼에 맞춥니다. 560px 이하에서는 36px, 그보다 넓은 세로 배치에서는 28px입니다. 나머지 도구 너비는 `--mobile-card-tool-width`로 실제 도구모음 안쪽 폭에서 계산하며 26~32px 범위를 사용합니다. 화살표 묶음과 두 구분선 주변의 여백을 먼저 빼고 6개 도구에 나누므로, 화면이 좁아져도 가로 스크롤 없이 들어가야 합니다. 나머지 모바일 도구 아이콘 크기는 14~16px이며 PC 크기와 구분합니다.
 
 카드 순서 이동 화살표는 모바일에서 12px·선 두께 1.2의 SVG(`.cardMoveIcon`)를 사용합니다. 누르는 영역과 정렬은 유지하며, PC에서는 기존 문자 화살표(`.cardMoveGlyph`)를 표시합니다.
 
@@ -264,13 +264,13 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 
 테마의 호버 미리보기는 `ui-library.js`의 `bindThemeHoverPreviewList`에서 마우스 `pointerover`·`pointerout`만 처리합니다. 터치에서 발생하는 합성 `mouseover`로 미리보기를 다시 그리지 않습니다. 추천 팔레트는 Safari의 버튼 내부 flex 배치에서도 폭이 줄지 않도록 자식 폭을 명시합니다.
 
-전체 화면 아이콘은 카드 편집의 `cardFullscreenIcon`, 미리보기·코드 보기의 `fullscreenIcon` SVG입니다. 동일한 네 모서리 경로를 사용하고 크기는 `styles.css`에서 조정합니다. 미리보기 위쪽 버튼의 SVG는 13px이며, 버튼의 flex 정렬로 좌우 전환 아이콘과 높이를 맞춥니다. 카드 도구모음의 전체 화면 SVG는 PC 10px, 680px 이하에서는 13px이며 누르는 영역은 유지합니다.
+전체 화면 아이콘은 카드 편집의 `cardFullscreenIcon`, 미리보기·코드 보기의 `fullscreenIcon` SVG입니다. 동일한 네 모서리 경로를 사용하고 크기는 `styles.css`에서 조정합니다. 미리보기 위쪽 버튼의 SVG는 13px이며, 버튼의 flex 정렬로 좌우 전환 아이콘과 높이를 맞춥니다. 카드 도구모음의 전체 화면 SVG는 PC 10px, 620px 이하에서는 13px이며 누르는 영역은 유지합니다.
 
-카드 도구모음의 복제 아이콘은 `.duplicateCardBtn .cardActionIcon`의 글자 크기로 조정합니다. PC는 13px, 680px 이하 모바일 배치는 16px이며 버튼 영역과 간격은 유지합니다.
+카드 도구모음의 복제 아이콘은 `.duplicateCardBtn .cardActionIcon`의 글자 크기로 조정합니다. PC는 13px, 620px 이하 모바일 배치는 16px이며 버튼 영역과 간격은 유지합니다.
 
 ## 모바일 입력과 화면 위치
 
-`ui.js`의 `positionSyncEnabled()`는 `createPreviewLayout().isStackedLayout()`을 공유하여 680px 이하에서 자동 위치 연동을 중지합니다. 화면 폭이 이 경계를 넘으면 예약된 자동 이동을 취소하고 표시 상태를 갱신합니다. PC의 `positionSyncOn` 체크값과 `mosaicPositionSync_v1` 저장값은 변경하지 않으며, PC 폭으로 돌아오면 기존 설정을 적용합니다. 모바일의 위·아래 이동 버튼과 미리보기 편집 내용의 반영은 유지합니다.
+`ui.js`의 `positionSyncEnabled()`는 `createPreviewLayout().isStackedLayout()`을 공유하여 620px 이하에서 자동 위치 연동을 중지합니다. 화면 폭이 이 경계를 넘으면 예약된 자동 이동을 취소하고 표시 상태를 갱신합니다. PC의 `positionSyncOn` 체크값과 `mosaicPositionSync_v1` 저장값은 변경하지 않으며, PC 폭으로 돌아오면 기존 설정을 적용합니다. 모바일의 위·아래 이동 버튼과 미리보기 편집 내용의 반영은 유지합니다.
 
 이탈 저장은 `app.js`의 `saveDraftBeforeLeaving()`이 담당합니다. `visibilitychange`의 숨김 상태·`pagehide`·`beforeunload`에서 `MosaicUI.preview.commitActiveEdit()`로 현재 미리보기 편집을 확정한 뒤 기존 초안 저장을 호출합니다. UI 부품의 `commitActiveDirectEdit()`는 평소 blur 경로를 사용합니다. 복원용 `discardActiveDirectEdit()`와 혼용하지 않습니다.
 
@@ -282,13 +282,13 @@ iOS 15.8 Safari는 정규식 lookbehind를 지원하지 않습니다. 이 문법
 
 ## 모바일 화면 이동 수정하기
 
-`createMobilePanelNavigation()`은 세로 배치에서 우하단 이동 버튼과 임시 스크롤 위치를 관리합니다. 680px 분기는 기존 `createPreviewLayout().isStackedLayout()`을 공유합니다. `ui.js`는 이벤트 등록·세로 배치 판정·화면 요소·미확정 렌더 반영만 주입합니다.
+`createMobilePanelNavigation()`은 세로 배치에서 우하단 이동 버튼과 임시 스크롤 위치를 관리합니다. 620px 분기는 기존 `createPreviewLayout().isStackedLayout()`을 공유합니다. `ui.js`는 이벤트 등록·세로 배치 판정·화면 요소·미확정 렌더 반영만 주입합니다.
 
 `editorOffset`과 `previewOffset`은 각 구역 시작점에 대한 상대 스크롤 위치입니다. 버튼을 누를 때 떠나는 구역의 위치를 기록하고, 반대 구역에서 직전에 보던 위치로 이동합니다. 탭 전환·본문 입력 펼치기·특정 카드 이동은 하지 않습니다. 구역 위쪽이 화면 안에 남아 있는 경우도 복원하도록 음수 상대 위치를 보존합니다. 원문·위치 연동 체크값·저장 형식은 바꾸지 않습니다. 전체 작업을 바꾸면 `applyWorkState()`가 이동 예약과 이전 위치를 초기화하며, 돌아온 입력창에 자동 포커스를 주지 않습니다.
 
 PC 일반 미리보기는 `#previewArea`의 좌우 바깥 여백을 각각 42px로 맞춰, 설정 패널을 제외한 미리보기 영역의 중앙에 카드를 둡니다. 기존 52px+32px의 총합 84px를 유지하여 카드가 사용할 수 있는 가로 폭은 바꾸지 않습니다. 좌우 반전에서도 같은 대칭 여백을 사용하며, 조작 버튼은 기존처럼 카드의 해당 측면에 배치합니다.
 
-모바일 세로 배치의 일반 미리보기는 `styles.css`의 680px 이하 규칙에서 좌우 바깥 여백을 각각 48px로 맞춥니다. 왼쪽 조작 버튼을 위한 공간만큼 오른쪽도 확보하여 카드 자체가 화면 중앙에 오도록 합니다. 좌우 반전 상태에도 같은 규칙을 적용하며, 조작 버튼의 위치·크기와 카드 내부 여백·저장한 폭·출력 HTML은 유지합니다.
+모바일 세로 배치의 일반 미리보기는 `styles.css`의 620px 이하 규칙에서 좌우 바깥 여백을 각각 48px로 맞춥니다. 왼쪽 조작 버튼을 위한 공간만큼 오른쪽도 확보하여 카드 자체가 화면 중앙에 오도록 합니다. 좌우 반전 상태에도 같은 규칙을 적용하며, 조작 버튼의 위치·크기와 카드 내부 여백·저장한 폭·출력 HTML은 유지합니다.
 
 모바일의 `--mobile-preview-tool-clearance`는 560px 이하에서 116px, 561~680px에서 124px입니다. 고정 목차와 화면 이동 버튼의 높이·하단 위치에 12px 여유를 더한 값입니다. 일반 미리보기의 바깥 아래 패딩과 조작 버튼의 `scroll-margin-bottom`에 safe-area와 함께 적용해, 짧은 마지막 카드에서도 꼬리말 버튼을 고정 도구 위로 스크롤할 수 있게 합니다. 전체 화면과 게시용 HTML의 여백에는 적용하지 않습니다.
 

@@ -5491,7 +5491,7 @@
   }
 
   /* 모바일 최종 보정 — 기본 규칙 뒤에 두어 데스크톱 값을 확실히 덮어씀 */
-  @media (max-width: 680px) {
+  @media (max-width: 620px) {
     .cardEditor { --mobile-card-control-size:28px; }
     .cardActionMenu {
       /* 이동 묶음·6개 도구·구분 여백을 실제 안쪽 폭 안에 배치한다. */
@@ -5630,7 +5630,7 @@
     .settingsForm { --settings-label-w: 68px; --settings-row-gap: 8px; }
   }
 
-  @media (max-width: 680px) and (hover: hover) {
+  @media (max-width: 620px) and (hover: hover) {
     .mobilePanelSwitch:hover { color:var(--ink); }
   }
 
@@ -5876,7 +5876,7 @@
   body.labFocus #bodyInputGroup > .foldBody > .counterRow,
   body.labFocus #tabBody > .bodyFold:not(#bodyInputGroup) { display:none !important; }
   body.labFocus #sidebar { border-right: 1px solid var(--line); }
-  @media (min-width: 681px) {
+  @media (min-width: 621px) {
     body.layoutMirrored.labFocus #sidebar { border-right:0; border-left:1px solid var(--line); }
   }
   body.labFocus #focusModeBtn { color: var(--accent); border-color: var(--accent); }

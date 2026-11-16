@@ -909,9 +909,9 @@ function previewParts(){
 }
 
 // 세로 배치(모바일)에서는 미리보기로 스크롤하면 입력창이 화면 밖으로 밀려 편집이 불가능해짐.
-// CSS의 680px 분기와 같은 기준으로 판단.
+// CSS의 620px 분기와 같은 기준으로 판단.
 function isStackedLayout(){
-  return window.matchMedia('(max-width: 680px)').matches;
+  return window.matchMedia('(max-width: 620px)').matches;
 }
 
 function syncDesktopPreviewWidth(){

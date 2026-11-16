@@ -392,7 +392,7 @@ const layoutMirrorBtn = document.getElementById('layoutMirrorBtn');
 
 function isDesktopLayoutMirrored(){
   return document.body.classList.contains('layoutMirrored')
-    && window.matchMedia('(min-width: 681px)').matches;
+    && window.matchMedia('(min-width: 621px)').matches;
 }
 
 function syncLayoutMirrorUi(){
@@ -433,14 +433,27 @@ const SIDEBAR_DEFAULT = 460;
 const SIDEBAR_MIN = 340;
 
 const SIDEBAR_MAX = 760;
+const PREVIEW_MIN_WIDTH = 320;
+let preferredSidebarWidth = SIDEBAR_DEFAULT;
+
+function sidebarViewportWidth(){
+  return document.documentElement.clientWidth || window.innerWidth;
+}
+
+function sidebarMaxWidth(){
+  if(!window.matchMedia('(min-width: 621px)').matches) return SIDEBAR_MAX;
+  return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, sidebarViewportWidth() - PREVIEW_MIN_WIDTH));
+}
 
 function setSidebarWidth(px, save){
-  const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.round(px)));
+  const requested = Number.isFinite(Number(px)) ? Math.round(Number(px)) : SIDEBAR_DEFAULT;
+  preferredSidebarWidth = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, requested));
+  const w = Math.min(preferredSidebarWidth, sidebarMaxWidth());
   document.documentElement.style.setProperty('--sidebar-w', w + 'px');
   const handle = document.getElementById('sidebarResizer');
   if(handle){
     handle.setAttribute('aria-valuemin', String(SIDEBAR_MIN));
-    handle.setAttribute('aria-valuemax', String(SIDEBAR_MAX));
+    handle.setAttribute('aria-valuemax', String(sidebarMaxWidth()));
     handle.setAttribute('aria-valuenow', String(w));
   }
   if(save){ try { localStorage.setItem(SIDEBAR_KEY, String(w)); } catch(e){} }
@@ -451,7 +464,7 @@ let archiveScrollLock = null;
 let archiveScrollRestoreFrame = null;
 
 function workspaceUsesPageScroll(){
-  return window.matchMedia('(max-width: 680px)').matches;
+  return window.matchMedia('(max-width: 620px)').matches;
 }
 
 function syncArchiveScrollLock(){
@@ -1482,7 +1495,7 @@ try { setLayoutMirrored(localStorage.getItem(LAYOUT_MIRROR_KEY) === 'on', false)
 catch(e){ setLayoutMirrored(false, false); }
 
 layoutMirrorBtn.addEventListener('click', () => {
-  if(!window.matchMedia('(min-width: 681px)').matches) return;
+  if(!window.matchMedia('(min-width: 621px)').matches) return;
   setLayoutMirrored(!document.body.classList.contains('layoutMirrored'), true);
 });
 
@@ -1491,6 +1504,8 @@ layoutMirrorBtn.addEventListener('click', () => {
   try { const v = parseInt(localStorage.getItem(SIDEBAR_KEY), 10); if(v) saved = v; } catch(e){}
   setSidebarWidth(saved, false);
 })();
+
+window.addEventListener('resize', () => setSidebarWidth(preferredSidebarWidth, false));
 
 (function initSidebarResizer(){
   const bar = document.getElementById('sidebarResizer');
@@ -1504,11 +1519,14 @@ layoutMirrorBtn.addEventListener('click', () => {
     activePointerId = null;
     bar.classList.remove('dragging');
     document.body.classList.remove('resizingSidebar');
-    const w = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10);
-    setSidebarWidth(w, true);
+    if(window.matchMedia('(min-width: 621px)').matches){
+      const w = parseInt(getComputedStyle(document.getElementById('sidebar')).width, 10);
+      setSidebarWidth(w, true);
+    }
   };
 
   bar.addEventListener('pointerdown', (e) => {
+    if(!window.matchMedia('(min-width: 621px)').matches) return;
     if(e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     dragging = true;
@@ -1520,7 +1538,8 @@ layoutMirrorBtn.addEventListener('click', () => {
 
   bar.addEventListener('pointermove', (e) => {
     if(!dragging || e.pointerId !== activePointerId) return;
-    const width = isDesktopLayoutMirrored() ? window.innerWidth - e.clientX : e.clientX;
+    if(!window.matchMedia('(min-width: 621px)').matches){finishDrag();return;}
+    const width = isDesktopLayoutMirrored() ? sidebarViewportWidth() - e.clientX : e.clientX;
     setSidebarWidth(width, false);
   });
 
