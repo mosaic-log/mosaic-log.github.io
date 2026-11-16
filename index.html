@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.9.9 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.9.10 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=4101845d7c01">
+<link rel="stylesheet" href="./styles.css?v=efddd4c83a57">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.9 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.9</a></span></h1>
+      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.10 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.10</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -1298,7 +1298,8 @@
           <button type="button" class="previewStyleToggle" id="previewCollapseAllBtn" aria-controls="preview" title="미리보기 접기 영역 모두 접기" disabled>모두 접기</button>
         </span>
       </span>
-      <span class="previewTools">
+      <button type="button" id="previewOptionsBtn" class="previewOptionsBtn" aria-label="미리보기 설정" aria-expanded="false" aria-controls="previewOptionsPanel" title="미리보기 설정">⋯</button>
+      <span class="previewTools" id="previewOptionsPanel" role="group" aria-label="미리보기 설정">
         <span class="previewStyleControls">
           <button type="button" class="previewStyleToggle" id="previewProfileBtn" aria-pressed="false" title="프로필 표시">프로필</button>
           <button type="button" class="previewStyleToggle" id="previewCreditBtn" aria-pressed="false" title="크레딧 표시">크레딧</button>
@@ -1324,8 +1325,8 @@
             </span>
           </span>
           <span class="previewActionControls">
-            <button type="button" class="layoutMirrorBtn" id="layoutMirrorBtn" aria-pressed="false" title="설정과 미리보기 좌우 반전">⇄</button>
-            <button type="button" class="previewFullscreenBtn" id="previewFullscreenBtn" aria-pressed="false" title="전체화면 미리보기"><svg class="fullscreenIcon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 2H2v4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4"/></svg></button>
+            <button type="button" class="layoutMirrorBtn" id="layoutMirrorBtn" aria-pressed="false" title="설정과 미리보기 좌우 반전">⇄<span class="previewOptionLabel">좌우 반전</span></button>
+            <button type="button" class="previewFullscreenBtn" id="previewFullscreenBtn" aria-pressed="false" title="전체화면 미리보기"><svg class="fullscreenIcon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 2H2v4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4"/></svg><span class="previewOptionLabel">전체 화면</span></button>
           </span>
         </span>
       </span>
@@ -1491,13 +1492,13 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=20f269c4140b" defer></script>
+<script src="./state.js?v=c77a05d2c87f" defer></script>
 <script src="./parser.js?v=2607577d33c7" defer></script>
 <script src="./renderer.js?v=06742f6239ba" defer></script>
 <script src="./ui-source.js?v=271a30d6fb38" defer></script>
 <script src="./ui-editor.js?v=afa6c062c09f" defer></script>
 <script src="./ui-preview-edit.js?v=872cbe8c4d56" defer></script>
-<script src="./ui-preview-view.js?v=bdf1a8674a1f" defer></script>
+<script src="./ui-preview-view.js?v=b0a72c42d4fc" defer></script>
 <script src="./ui-library.js?v=6a69c9a8b3fb" defer></script>
 <script src="./ui.js?v=daf69ec87ef4" defer></script>
 <script src="./storage.js?v=94d5f67a8dcf" defer></script>

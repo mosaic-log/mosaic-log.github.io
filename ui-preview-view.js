@@ -921,22 +921,79 @@ function syncDesktopPreviewWidth(){
   document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
 }
 
+function setPreviewOptionsOpen(open, restoreFocus = false){
+  const toolbar = host.uiElements.previewToolbar;
+  const button = document.getElementById('previewOptionsBtn');
+  const expanded = !!open && toolbar.classList.contains('previewToolbarCompact');
+  toolbar.classList.toggle('previewOptionsOpen', expanded);
+  button.setAttribute('aria-expanded', String(expanded));
+  if(expanded) syncPreviewOptionsPlacement();
+  if(restoreFocus) button.focus({preventScroll:true});
+}
+
+function syncPreviewOptionsPlacement(){
+  const toolbar = host.uiElements.previewToolbar;
+  if(!toolbar.classList.contains('previewOptionsOpen')) return;
+  const rect = toolbar.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const top = viewport?.offsetTop || 0;
+  const bottom = top + (viewport?.height || window.innerHeight);
+  const below = bottom - rect.bottom - 12, above = rect.top - top - 12;
+  const upwards = below < 300 && above > below;
+  toolbar.classList.toggle('previewOptionsAbove', upwards);
+  toolbar.style.setProperty('--preview-options-max-height', `${Math.max(80, Math.floor(upwards ? above : below))}px`);
+}
+
 function syncPreviewToolbarRows(toolbar){
-  // 현재 줄 배치와 무관하게 같은 한 줄 상태를 측정한다. 글꼴·버튼·접기 표시가
-  // 바뀌어도 고정 폭 기준 없이 판단하고, 두 줄 상태의 축소된 폭을 다시 재지 않는다.
+  // 配置に関係なく同じボタンの自然幅を比較する。接기 조작은 복제하지 않는다.
   const wasStacked = toolbar.classList.contains('previewToolbarStacked');
-  toolbar.classList.remove('previewToolbarStacked');
+  const wasCompact = toolbar.classList.contains('previewToolbarCompact');
+  const active = document.activeElement;
+  const header = toolbar.querySelector('.previewHeaderLeft');
+  const panel = document.getElementById('previewOptionsPanel');
+  const foldControls = host.uiElements.previewFoldControls;
+  toolbar.classList.remove('previewToolbarStacked', 'previewToolbarCompact');
+  toolbar.classList.add('previewToolbarMeasuring');
   const style = getComputedStyle(toolbar);
   const availableWidth = toolbar.clientWidth
     - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
-  const headerWidth = toolbar.querySelector('.previewHeaderLeft').getBoundingClientRect().width;
-  const toolsWidth = toolbar.querySelector('.previewTools').getBoundingClientRect().width;
-  const requiredWidth = Math.ceil(headerWidth + toolsWidth + (parseFloat(style.columnGap) || 0));
-  // 숨겨진 창처럼 아직 치수를 얻을 수 없는 상태에서는 기존 배치를 유지한다.
-  const stacked = availableWidth > 0 && headerWidth > 0 && toolsWidth > 0
-    ? requiredWidth > availableWidth : wasStacked;
+  const width = selector => toolbar.querySelector(selector).getBoundingClientRect().width;
+  const labelWidth = width('#previewLabel'), foldWidth = foldControls.getBoundingClientRect().width;
+  const styleWidth = width('.previewStyleControls'), viewWidth = width('.previewViewControls');
+  // 접기 조작이 메뉴 안에 있어도 기존 일반 배치의 필요 폭으로 판단한다.
+  const headerWidth = labelWidth + (foldWidth ? foldWidth + (parseFloat(getComputedStyle(header).columnGap) || 0) : 0);
+  const toolsWidth = styleWidth + viewWidth + (parseFloat(getComputedStyle(panel).columnGap) || 0);
+  const gap = parseFloat(style.columnGap) || 0;
+  const requiredWidth = Math.ceil(headerWidth + toolsWidth + gap);
+  const compactRequiredWidth = Math.ceil(Math.max(labelWidth, foldWidth) + Math.max(viewWidth, styleWidth) + gap);
+  toolbar.classList.remove('previewToolbarMeasuring');
+  const measurable = availableWidth > 0 && headerWidth > 0 && toolsWidth > 0;
+  const stacked = measurable ? requiredWidth > availableWidth : wasStacked;
+  const compact = measurable ? stacked && compactRequiredWidth > availableWidth : wasCompact;
   toolbar.classList.toggle('previewToolbarStacked', stacked);
-  return {requiredWidth, measurable:availableWidth > 0 && headerWidth > 0 && toolsWidth > 0};
+  toolbar.classList.toggle('previewToolbarCompact', compact);
+  // 같은 요소를 옮겨 기존 이벤트·접힘 상태·disabled 상태를 공유한다.
+  const foldParent = compact ? panel : header;
+  const movedFolds = foldControls.parentElement !== foldParent;
+  if(movedFolds){
+    if(compact) panel.insertBefore(foldControls, panel.firstChild);
+    else header.appendChild(foldControls);
+  }
+  if(compact !== wasCompact){
+    const optionsButton = document.getElementById('previewOptionsBtn');
+    setPreviewOptionsOpen(false);
+    if(compact && !toolbar.classList.contains('previewToolbarRevealed') && panel.contains(active)){
+      optionsButton.focus({preventScroll:true});
+    } else if(!compact && active === optionsButton){
+      document.getElementById('previewProfileBtn').focus({preventScroll:true});
+    }
+  }
+  if(movedFolds && foldControls.contains(active) && active !== document.activeElement
+    && !active.disabled && active.getClientRects().length){
+    active.focus({preventScroll:true});
+  }
+  syncPreviewOptionsPlacement();
+  return {requiredWidth, compactRequiredWidth, measurable};
 }
 
 function syncPreviewToolbarLabel({immediate = false} = {}){
@@ -1000,6 +1057,21 @@ function schedulePreviewToolbarSync(){
 
 function bindPreviewToolbarLayoutEvents(){
   host.bindUIFeatureEvents('preview-toolbar-layout', () => {
+    const toolbar = host.uiElements.previewToolbar;
+    const button = document.getElementById('previewOptionsBtn');
+    const panel = document.getElementById('previewOptionsPanel');
+    button.addEventListener('click', () => {
+      setPreviewOptionsOpen(!toolbar.classList.contains('previewOptionsOpen'));
+    });
+    document.addEventListener('pointerdown', event => {
+      if(!panel.contains(event.target) && !button.contains(event.target)) setPreviewOptionsOpen(false);
+    });
+    document.addEventListener('focusin', event => {
+      if(!panel.contains(event.target) && event.target !== button) setPreviewOptionsOpen(false);
+    });
+    host.uiElements.previewArea.addEventListener('scroll', syncPreviewOptionsPlacement, {passive:true});
+    window.addEventListener('scroll', syncPreviewOptionsPlacement, {passive:true});
+
     if(typeof ResizeObserver === 'function'){
       const observer = new ResizeObserver(schedulePreviewToolbarSync);
       observer.observe(host.uiElements.previewArea);
@@ -1030,8 +1102,11 @@ function finishPreviewToolbarHide(){
   state.entryFrame = null;
   state.closing = false;
   const wasFloating = toolbar.classList.contains('previewToolbarRevealed');
-  toolbar.classList.remove('previewToolbarRevealed', 'previewToolbarEntering', 'previewToolbarClosing');
-  if(wasFloating) syncPreviewToolbarRows(toolbar);
+  toolbar.classList.remove('previewToolbarRevealed', 'previewToolbarEntering', 'previewToolbarClosing', 'previewToolbarMenuOnly');
+  if(wasFloating){
+    setPreviewOptionsOpen(false);
+    syncPreviewToolbarRows(toolbar);
+  }
   host.uiElements.previewToolbarAnchor.style.removeProperty('height');
 }
 
@@ -1106,22 +1181,35 @@ function syncPreviewToolbarReveal(){
   toolbar.style.setProperty('--preview-reveal-top', `${top + handleHeight - 2}px`);
   toolbar.style.setProperty('--preview-reveal-left', `${center}px`);
   toolbar.style.setProperty('--preview-reveal-width', `${width}px`);
+  toolbar.style.setProperty('--preview-reveal-max-height', `${Math.max(32, Math.floor(bottom - top - handleHeight - 24))}px`);
   if(floating){
+    const active = document.activeElement;
     // 스크롤마다 줄 배치를 다시 뜯지 않는다. 폭·버튼 문구가 바뀔 때만 잰다.
     if(state.fitWidth !== width){
       state.fit = syncPreviewToolbarRows(toolbar);
       state.fitWidth = width;
     }
     const popupStacked = toolbar.classList.contains('previewToolbarStacked');
+    const popupCompact = toolbar.classList.contains('previewToolbarCompact');
     const flowWidth = parseFloat(toolbar.style.getPropertyValue('--preview-toolbar-width')) || width;
     const flowStacked = state.fit.measurable ? state.fit.requiredWidth > flowWidth : popupStacked;
-    // 확대된 화면에서는 임시 툴바만 더 좁을 수 있다. 빈 자리는 임시 툴바가
-    // 아닌 원래 툴바의 줄 배치 높이로 유지해 본문이 밀리지 않게 한다.
-    if(flowStacked !== popupStacked) toolbar.classList.toggle('previewToolbarStacked', flowStacked);
+    const flowCompact = state.fit.measurable
+      ? flowStacked && state.fit.compactRequiredWidth > flowWidth : popupCompact;
+    // 목록 팝업의 높이가 본문 자리를 늘리지 않도록 원래 도구모음으로 측정한다.
+    toolbar.classList.remove('previewToolbarMenuOnly');
+    toolbar.classList.toggle('previewToolbarStacked', flowStacked);
+    toolbar.classList.toggle('previewToolbarCompact', flowCompact);
     const style = getComputedStyle(toolbar);
     state.naturalHeight = toolbar.getBoundingClientRect().height - (parseFloat(style.paddingTop) || 0)
       - (parseFloat(style.paddingBottom) || 0) + state.padding;
-    if(flowStacked !== popupStacked) toolbar.classList.toggle('previewToolbarStacked', popupStacked);
+    toolbar.classList.toggle('previewToolbarStacked', popupStacked);
+    toolbar.classList.toggle('previewToolbarCompact', popupCompact);
+    toolbar.classList.toggle('previewToolbarMenuOnly', popupCompact);
+    // 측정 중 잠시 숨겨진 항목의 포커스는 보이는 목록 안에서만 복구한다.
+    if(popupCompact && toolbar.contains(active) && active !== document.activeElement
+      && active.getClientRects().length){
+      active.focus({preventScroll:true});
+    }
     const flowMargin = parseFloat(style.getPropertyValue('--preview-toolbar-flow-margin'));
     if(Number.isFinite(flowMargin)) state.margin = flowMargin;
     anchor.style.height = `${Math.max(0, state.naturalHeight + state.margin)}px`;
@@ -1166,7 +1254,11 @@ function openPreviewToolbarReveal(pin = false, focus = false){
   state.pinned = state.pinned || pin;
   host.uiElements.previewToolbarHandle.setAttribute('aria-expanded', 'true');
   host.uiElements.previewToolbarHandle.setAttribute('aria-label', '미리보기 도구 닫기');
-  if(focus) toolbar.querySelector('button:not(:disabled)')?.focus({preventScroll:true});
+  if(focus){
+    const first = Array.from(toolbar.querySelectorAll('button:not(:disabled)'))
+      .find(button => button.getClientRects().length > 0);
+    first?.focus({preventScroll:true});
+  }
 }
 
 function previewToolbarHasInteraction(){
@@ -1237,7 +1329,15 @@ function bindPreviewToolbarRevealEvents(){
       closePreviewToolbarReveal();
     });
     document.addEventListener('keydown', event => {
-      if(event.key !== 'Escape' || !state.open) return;
+      if(event.key !== 'Escape') return;
+      if(toolbar.classList.contains('previewOptionsOpen')
+        && !toolbar.classList.contains('previewToolbarMenuOnly')){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setPreviewOptionsOpen(false, true);
+        return;
+      }
+      if(!state.open) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       closePreviewToolbarReveal(true);

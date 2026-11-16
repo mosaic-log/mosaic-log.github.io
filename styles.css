@@ -3401,13 +3401,16 @@
     border-radius: 5px;
   }
   #previewToolbar.previewToolbarRevealed {
+    /* 장식 여백을 버튼 폭 밖에 더해 일반 배치와 같은 안쪽 폭을 유지한다. */
+    box-sizing: content-box;
+    --preview-reveal-side-space: 20px;
     position: fixed;
     top: var(--preview-reveal-top);
     left: var(--preview-reveal-left);
     z-index: 60;
     width: var(--preview-reveal-width);
     margin-bottom: 0;
-    padding: 6px 20px;
+    padding: 6px var(--preview-reveal-side-space);
     background: var(--bg-app);
     box-shadow: 0 3px 8px rgba(0, 0, 0, .025);
     opacity: 1;
@@ -3428,7 +3431,7 @@
   #previewToolbar.previewToolbarRevealed.previewToolbarEntering { transition: none; }
   #previewToolbar.previewToolbarRevealed.previewToolbarClosing { pointer-events: none; }
   @media (max-width: 560px) {
-    #previewToolbar.previewToolbarRevealed { padding-left: 12px; padding-right: 12px; }
+    #previewToolbar.previewToolbarRevealed { --preview-reveal-side-space: 12px; }
   }
   @media (hover: none), (pointer: coarse) {
     .previewToolbarHandle { height: 44px; }
@@ -3665,7 +3668,7 @@
     max-width:980px;
     padding-top:64px;
   }
-  body.previewFullscreen #previewWrap:has(> #previewToolbar.previewToolbarStacked) {
+  body.previewFullscreen #previewWrap:has(> #previewToolbar.previewToolbarStacked:not(.previewToolbarCompact)) {
     padding-top:110px;
   }
   body.previewFullscreen #previewWrap > .previewFloatingControl,
@@ -6728,3 +6731,225 @@ body .uiPaletteCurrent { border-radius: 50% !important; }
 }
 :root.uiNight[data-ui-palette="gray"] :is(#copyBtn, #archiveDrawer #saveSlotBtn, #savePresetBtn, #selToolbar button.active, #blockToolbar button.active) { color:#1d1d1d; }
 :root.uiNight[data-ui-palette="gray"] #undoToast { background:#363636; color:#f5f5f5; }
+
+/* 좁은 미리보기의 설정 메뉴. 출력 카드와 넓은 화면의 기존 배치는 유지한다. */
+.previewOptionsBtn,
+.previewOptionLabel { display:none; }
+#previewToolbar.previewToolbarCompact {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto;
+  grid-template-rows:30px;
+  grid-template-areas:"label more";
+  gap:6px 8px;
+  z-index:62;
+}
+#previewToolbar.previewToolbarCompact .previewHeaderLeft { display:contents; }
+#previewToolbar.previewToolbarCompact .previewFoldControls {
+  align-self:stretch;
+  justify-content:space-between;
+  padding:0 10px 6px;
+  margin:0 0 6px;
+  border-bottom:1px solid var(--line);
+}
+#previewToolbar.previewToolbarCompact .previewFoldControls .previewStyleToggle {
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  justify-content:center;
+  padding:0;
+}
+#previewToolbar.previewToolbarCompact .previewFoldControls .previewStyleToggle::after { display:none; }
+#previewToolbar.previewToolbarCompact .previewOptionsBtn {
+  grid-area:more;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:30px;
+  height:30px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:var(--ink-soft);
+  font-size:20px;
+  line-height:1;
+}
+#previewToolbar.previewToolbarCompact .previewOptionsBtn:is(:hover, :focus-visible, [aria-expanded="true"]) {
+  color:var(--accent);
+  background:var(--bg-muted);
+}
+#previewToolbar.previewToolbarCompact .previewTools {
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  display:none;
+  box-sizing:border-box;
+  width:min(240px, 100%);
+  max-height:var(--preview-options-max-height, 65vh);
+  padding:6px;
+  overflow:auto;
+  flex-direction:column;
+  align-items:stretch;
+  flex-wrap:nowrap;
+  gap:0;
+  background:var(--bg-panel);
+  color:var(--ink);
+  border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.08);
+  z-index:1;
+}
+/* 떠 있는 배경의 바깥 여백은 메뉴 폭·오른쪽 기준에서도 제외한다. */
+#previewToolbar.previewToolbarRevealed.previewToolbarCompact .previewTools {
+  right:var(--preview-reveal-side-space);
+  width:min(240px, calc(100% - var(--preview-reveal-side-space) - var(--preview-reveal-side-space)));
+}
+#previewToolbar.previewToolbarCompact.previewOptionsOpen .previewTools { display:flex; }
+#previewToolbar.previewToolbarCompact.previewOptionsAbove .previewTools { top:auto; bottom:calc(100% + 6px); }
+#previewToolbar.previewToolbarCompact :is(.previewStyleControls, .previewViewControls) {
+  width:100%;
+  max-width:none;
+  overflow:visible;
+  margin:0;
+}
+#previewToolbar.previewToolbarCompact .previewStyleControls {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:0;
+}
+#previewToolbar.previewToolbarCompact .previewStyleToggle {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  height:32px;
+  padding:0 10px;
+  color:var(--ink-soft);
+  font-size:12px;
+  line-height:1.4;
+  text-align:left;
+}
+#previewToolbar.previewToolbarCompact .previewStyleToggle::after {
+  content:"";
+  position:static;
+  width:14px;
+  height:auto;
+  background:transparent;
+  color:var(--accent);
+  font-size:13px;
+  line-height:1;
+  opacity:1;
+}
+#previewToolbar.previewToolbarCompact .previewStyleToggle[aria-pressed="true"] { color:var(--ink); }
+#previewToolbar.previewToolbarCompact .previewStyleToggle[aria-pressed="true"]::after { content:"✓"; background:transparent; }
+#previewToolbar.previewToolbarCompact .previewViewControls {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:0;
+  margin-top:6px;
+  padding-top:6px;
+  border-top:1px solid var(--line);
+}
+#previewToolbar.previewToolbarCompact .previewStyleDivider { display:none; }
+#previewToolbar.previewToolbarCompact .previewLayoutControls {
+  display:flex;
+  flex-direction:row;
+  align-items:stretch;
+  gap:0;
+}
+#previewToolbar.previewToolbarCompact .previewLayoutControls > .widthToggle {
+  flex:1 1 0;
+  min-width:0;
+}
+#previewToolbar.previewToolbarCompact .widthToggle button {
+  flex:1 1 auto;
+  min-width:0;
+  height:32px;
+  padding:0 10px;
+  margin:0;
+  border:0;
+  background:transparent;
+  color:var(--ink-soft);
+  font-size:11.5px;
+  font-weight:400;
+}
+#previewToolbar.previewToolbarCompact .widthToggle button.active { color:var(--accent); background:var(--bg-field); font-weight:600; }
+#previewToolbar.previewToolbarCompact :is(.previewShapeControl, .previewWidthCycle) button {
+  display:flex;
+  align-items:center;
+}
+#previewToolbar.previewToolbarCompact .previewShapeControl button { justify-content:flex-start; }
+#previewToolbar.previewToolbarCompact .previewWidthCycle button { justify-content:flex-end; }
+#previewToolbar.previewToolbarCompact .previewThemeToggle,
+#previewToolbar.previewToolbarCompact .previewFullscreenWidthToggle { padding:2px 0; }
+#previewToolbar.previewToolbarCompact .previewActionControls {
+  display:flex;
+  flex-direction:row;
+  align-items:stretch;
+  gap:0;
+}
+#previewToolbar.previewToolbarCompact .previewActionControls button {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  height:32px;
+  padding:0 10px;
+  border:0;
+  background:transparent;
+  color:var(--ink-soft);
+  font-size:0;
+}
+#previewToolbar.previewToolbarCompact .previewActionControls .previewFullscreenBtn { justify-content:flex-end; }
+#previewToolbar.previewToolbarCompact .previewActionControls .fullscreenIcon { display:none; }
+#previewToolbar.previewToolbarCompact .previewOptionLabel { display:inline; font-size:12px; white-space:nowrap; }
+#previewToolbar.previewToolbarCompact .previewActionControls button[aria-pressed="true"] { color:var(--ink); }
+#previewToolbar.previewToolbarCompact .layoutMirrorBtn[aria-pressed="true"]::after {
+  content:"✓";
+  margin-left:auto;
+  color:var(--accent);
+  font-size:13px;
+}
+#previewToolbar.previewToolbarCompact .previewTools button:is(:hover, :focus-visible):not(:disabled) { background:var(--bg-field); color:var(--ink); }
+#previewToolbar.previewToolbarCompact .previewTools button:focus-visible { outline:1px solid var(--accent); outline-offset:-2px; }
+body.previewFullscreen #previewToolbar.previewToolbarCompact .previewFullscreenBtn .previewOptionLabel::after { content:" 종료"; }
+@media (max-width:620px) {
+  #previewToolbar.previewToolbarCompact .layoutMirrorBtn { display:none; }
+}
+
+/* 스크롤로 다시 띄운 축약 도구는 제목·더보기 없이 목록을 바로 표시한다. */
+#previewToolbar.previewToolbarRevealed.previewToolbarCompact.previewToolbarMenuOnly {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:0;
+  width:min(240px, var(--preview-reveal-width));
+  max-height:var(--preview-reveal-max-height);
+  padding:6px;
+  overflow:auto;
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.08);
+}
+#previewToolbar.previewToolbarRevealed.previewToolbarCompact.previewToolbarMenuOnly :is(#previewLabel, .previewOptionsBtn) { display:none; }
+#previewToolbar.previewToolbarRevealed.previewToolbarCompact.previewToolbarMenuOnly .previewTools {
+  position:static;
+  display:flex;
+  width:100%;
+  max-height:none;
+  padding:0;
+  overflow:visible;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+
+#previewToolbar.previewToolbarMeasuring :is(.previewTools, .previewViewControls, .previewStyleControls, .previewLayoutControls, .previewActionControls) {
+  flex:0 0 auto !important;
+  width:max-content !important;
+  max-width:none !important;
+  flex-wrap:nowrap !important;
+  overflow:visible !important;
+}
