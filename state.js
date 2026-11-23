@@ -5,7 +5,7 @@ globalThis.MosaicState = (() => {
 'use strict';
 // 조각로그 v1.9.0 상태 스키마.
 // 필드 이름·기본값·수집 규칙을 한곳에 두어 저장, 복원, 히스토리가 같은 계약을 사용한다.
-const APP_VERSION = '1.9.10';
+const APP_VERSION = '1.10.0';
 
 // 여러 런타임 모듈이 함께 쓰는 값 정규화는 가장 먼저 로드되는 상태 계층이 소유한다.
 // UI에 두면 parser/renderer/storage가 화면 모듈의 전역 함수에 역으로 의존하게 된다.
@@ -128,7 +128,7 @@ const WORK_BOOLEAN_FIELDS = Object.freeze(Object.keys(WORK_BOOLEAN_DEFAULTS));
 
 
 const DEFAULT_STYLE = Object.freeze({
-  parallelDialogueOn:true, parallelNarrationOn:true,
+  parallelDialogueOn:true, parallelNarrationOn:true, parallelRecognitionMode:'bracket',
   parallelTranslationOrder:'original', parallelTranslationBrackets:'show',
   textFont: 'pretendard', narrSize: '14', narrLine: '1.6', narrColor: '#555555',
   dlgStyle: 'softlight', dlgSize: '14', dlgLine: '1.6', paragraphGap: '20', narrDialogueGap: '20', softBreakSpacing: '0',
@@ -141,8 +141,14 @@ const DEFAULT_STYLE = Object.freeze({
   narrIndent: false, narrCenter: false, headingCenter: false, dialogueCenter: false, memoCenter: false, quoteCenter: false, bodyFoldTitleCenter: false, commentWidth: 'default', commentAlign: 'left', parallelTranslationLayout: 'auto', charSpeakerOn: false, userSpeakerOn: false
 });
 
+function parallelRecognitionKind(settings = {}){
+  const value = settings.parallelRecognitionMode ?? DEFAULT_STYLE.parallelRecognitionMode;
+  return ['off','bracket','paragraph'].includes(value) ? value : 'off';
+}
+
 const STYLE_FIELDS = Object.freeze(Object.keys(DEFAULT_STYLE));
 const STYLE_SCHEMA = Object.freeze({
+  parallelRecognitionMode:Object.freeze({type:'select',tagName:'SELECT',min:'',max:'',options:['off','bracket','paragraph']}),
   outputTheme:Object.freeze({"type":"select","tagName":"SELECT","min":"","max":"","options":["solid","document","transparent","document-transparent"]}),
   textFont:Object.freeze({"type":"select","tagName":"SELECT","min":"","max":"","options":["pretendard","notoSans","notoSerif"]}),
   narrSize:Object.freeze({"type":"range","tagName":"INPUT","min":"9","max":"24","options":[]}),
@@ -691,9 +697,29 @@ function sanitizeExtraCharList(value){
 // 외부 프리셋 파일의 값을 실제 컨트롤 형식과 범위에 맞는지 확인한다.
 // 알 수 없는 필드는 버리고, 누락된 최신 필드는 기본값으로 채운다.
 // 알려진 필드 하나라도 잘못되면 해당 프리셋을 거부한다.
+function validStoredName(value, limit){
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= limit
+    && !/[\u0000-\u001F\u007F]/.test(value);
+}
+
+function validSlotId(id){
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+}
+
+// 저장된 자료와 외부 JSON이 같은 항목 규칙을 사용한다. ID 생성은 저장 계층이 담당한다.
+function inspectSlotRecord(slot, fallbackTime){
+  if(!slot || !validStoredName(slot.name,100)) return {issue:'name'};
+  let data;
+  try { data = sanitizeImportedWork(slot.data); } catch(error){ data = null; }
+  if(!data) return {issue:'work'};
+  if(slot.id !== undefined && slot.id !== '' && !validSlotId(slot.id)) return {issue:'id'};
+  const savedAt = Number(slot.savedAt);
+  return {value:{id:slot.id || '',name:slot.name.trim(),
+    savedAt:Number.isFinite(savedAt) && savedAt>0 ? savedAt : fallbackTime,data}};
+}
+
 function sanitizeImportedPreset(preset){
-  if(!preset || typeof preset.name !== 'string' || !preset.name.trim() || preset.name.length > 80
-     || /[\u0000-\u001F\u007F]/.test(preset.name)
+  if(!preset || !validStoredName(preset.name, 80)
      || !preset.values || typeof preset.values !== 'object' || Array.isArray(preset.values)) return null;
   const clean = { ...DEFAULT_STYLE };
   // 나레이션·대사 폰트가 따로 저장돼 있으면 나레이션 값을 우선해 전체 폰트로 읽는다.
@@ -752,8 +778,6 @@ function sanitizeImportedPreset(preset){
       const value = String(raw);
       if(el.options.includes(value)){
         clean[id] = value;
-      } else if(id === 'parallelTranslationLayout' && value === 'off'){
-        clean[id] = 'auto';
       } else if(id === 'dlgStyle' && value === 'split'){
         // 저장된 split 표현은 이름 배지 방식으로 읽는다.
         clean[id] = 'badge';
@@ -774,16 +798,19 @@ function sanitizeImportedPreset(preset){
     }
     found++;
   }
-  // 알려진 필드의 타입 검증을 마친 뒤 옛 전역 OFF를 새 범위 설정에 옮긴다.
-  if(sourceValues.parallelTranslationLayout === 'off'){
-    clean.parallelDialogueOn = false;
-    clean.parallelNarrationOn = false;
-  }
   return found ? { name: preset.name.trim(), values: clean } : null;
 }
 // A shared migration runs before either draft hydration or imported-data validation.
 function migrateStyleValues(input, strict = false){
   const values = {...input};
+  if(values.parallelTranslationSoft !== undefined && strict && typeof values.parallelTranslationSoft !== 'boolean') return null;
+  // 현재 방식이 있으면 우선한다. 옛 OFF 값은 현재의 미적용 방식으로만 옮긴다.
+  if(values.parallelRecognitionMode === undefined){
+    const legacyOff = values.parallelTranslationLayout === 'off'
+      || (values.parallelTranslationSoft !== undefined && !settingFlagOn(values.parallelTranslationSoft));
+    values.parallelRecognitionMode = legacyOff ? 'off' : DEFAULT_STYLE.parallelRecognitionMode;
+  }
+  if(values.parallelTranslationLayout === 'off') values.parallelTranslationLayout = 'auto';
   const dialogueStyles = {messenger:'messenger2', split:'badge', quote:'box'};
   if(Object.hasOwn(dialogueStyles, values.dlgStyle)) values.dlgStyle = dialogueStyles[values.dlgStyle];
   for(const [current, legacy] of [['foldTitleDecorationOn','foldTitleMinimal'],['foldDividerOn','foldDividerMinimal']]){
@@ -794,9 +821,7 @@ function migrateStyleValues(input, strict = false){
   }
   if(values.textFont === undefined) values.textFont = values.narrFont !== undefined ? values.narrFont : values.dlgFont;
   if(values.parallelTranslationSoft !== undefined){
-    if(strict && typeof values.parallelTranslationSoft !== 'boolean') return null;
-    if(!settingFlagOn(values.parallelTranslationSoft)) values.parallelTranslationLayout = 'off';
-    else if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
+    if(values.parallelTranslationLayout === undefined) values.parallelTranslationLayout = 'auto';
   }
   if(values.commentWidth === undefined) values.commentWidth = values.commentLayout === 'card' ? 'card' : DEFAULT_STYLE.commentWidth;
   if(values.commentAlign === undefined) values.commentAlign = values.commentLayout === 'center' ? 'center' : DEFAULT_STYLE.commentAlign;
@@ -849,6 +874,7 @@ THEME_COLOR_FIELDS,
 advancedPercent,
 composeOutputTheme,
 migrateStyleValues,
+parallelRecognitionKind,
 normalizeCardLayout,
 normalizeCreditItems,
 normalizeCreditPlacement,
@@ -864,6 +890,9 @@ sanitizeCreditPresetList,
 sanitizeExtraCharList,
 sanitizeImportedPreset,
 sanitizeImportedWork,
-softBreakSpacingControlValue
+softBreakSpacingControlValue,
+validStoredName,
+validSlotId,
+inspectSlotRecord
 });
 })();

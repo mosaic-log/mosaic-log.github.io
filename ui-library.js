@@ -443,19 +443,40 @@ function createLibrary(host){
 
 
 const SLOT_EXPORT_CHUNK_SIZE = 10;
+let restoreFileReadRevision = 0;
 
-function showSlotReadError(){
+function showJSONImportIssue(kind, issue){
+  const archive=kind==='archive', status=document.getElementById(archive?'slotImportStatus':'importStatus');
+  const messages = archive ? {
+    size:`보관함 파일이 너무 큽니다. (최대 ${MosaicStorage.MAX_ARCHIVE_BYTES/1024/1024}MB)`,
+    json:'파일 읽기 실패. JSON 형식을 확인.',
+    list:`조각로그 보관함 파일이 아니거나 항목이 너무 많습니다. (최대 ${MosaicStorage.MAX_IMPORTED_SLOTS}개)`,
+    item:'보관함 블록이나 필드 형식이 올바르지 않음.',
+    duplicateId:'보관함 파일 안에 중복된 항목 ID가 있습니다.',
+    duplicateName:'ID가 없는 보관함 항목의 이름이 중복되어 가져오지 않았습니다.',
+    read:'파일을 읽지 못했습니다.'
+  } : {
+    size:`프리셋 파일이 너무 큽니다. (최대 ${MosaicStorage.MAX_PRESET_BYTES/1024}KB)`,
+    json:'파일 읽기 실패. JSON 형식을 확인.',
+    list:`이 도구의 프리셋 파일이 아니거나 항목이 너무 많습니다. (최대 ${MosaicStorage.MAX_IMPORTED_PRESETS}개)`,
+    item:'프리셋 값이나 색상 형식이 올바르지 않음.',
+    duplicateName:'프리셋 파일 안에 중복된 이름이 있습니다.',
+    read:'프리셋 파일을 읽지 못했습니다.'
+  };
+  host.setStatus(status, messages[issue] || messages.item, 'error');
+}
+
+function showSlotReadError(issue){
   const status = document.getElementById('slotImportStatus');
-  status.style.color = '#c0392b';
-  status.textContent = `${MosaicStorage.slotReadIssue || '기존 보관함을 읽지 못했습니다.'} 저장 데이터는 변경하지 않았습니다. 원본 백업을 먼저 보관해 주세요.`;
+  host.setStatus(status, `${issue || '기존 보관함을 읽지 못했습니다.'} 저장 데이터는 변경하지 않았습니다. 내보내기로 원본 백업을 시도할 수 있습니다.`, 'error');
+  slotReadStatusText = status.textContent;
 }
 
 function collectValidatedSlotWork(){
   const data = MosaicState.sanitizeImportedWork(MosaicUI.work.collectSlot());
   if(data) return data;
   const status = document.getElementById('slotImportStatus');
-  status.style.color = '#c0392b';
-  status.textContent = '현재 작업이 보관 한도를 넘었거나 형식이 올바르지 않아 저장하지 않았습니다.';
+  host.setStatus(status, '현재 작업이 보관 한도를 넘었거나 형식이 올바르지 않아 저장하지 않았습니다.', 'error');
   return null;
 }
 
@@ -465,7 +486,7 @@ function fmtDate(ts){
 }
 
 function slotCharacterName(slot){
-  const value = slot && slot.data && slot.data.fields && slot.data.fields.subChar;
+  const value = slot && (slot.characterName !== undefined ? slot.characterName : slot.data && slot.data.fields && slot.data.fields.subChar);
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -478,6 +499,56 @@ let slotSelectionMode = false;
 const selectedSlotIds = new Set();
 
 let slotMatchingIds = [];
+
+let slotRenderRevision = 0;
+
+let displayedSlotRead = {raw:undefined,issue:''};
+
+let slotReadStatusText = '';
+
+let slotLoadRevision = 0;
+
+async function loadCurrentSlot(id){
+  const revision=++slotLoadRevision;
+  const status=document.getElementById('slotImportStatus');
+  const drawer=document.getElementById('archiveDrawer'), drawerWasOpen=!drawer.hidden;
+  let edited=false, closed=false;
+  const markEdited=event=>{
+    if(event.type==='click'){
+      if(drawerWasOpen && event.target.closest?.('#archiveCloseBtn, #archiveOpenBtn') && !drawer.hidden) closed=true;
+    }else if(event.type==='keydown'){
+      if(event.key==='Escape' && drawer.contains(event.target)) closed=true;
+    }else if(!drawer.contains(event.target)) edited=true;
+  };
+  const events=['input','change','compositionstart','click','keydown'];
+  try {
+    const before=JSON.stringify(MosaicUI.work.collectSlot());
+    events.forEach(type=>document.addEventListener(type,markEdited,true));
+    const read=await MosaicStorage.readSlot(id);
+    const list=read.slots;
+    if(revision !== slotLoadRevision || closed || (drawerWasOpen && drawer.hidden)) return;
+    if(edited || before !== JSON.stringify(MosaicUI.work.collectSlot())){
+      host.setStatus(status, '조회 중 작업이 변경되어 불러오기를 취소했습니다. 다시 선택해 주세요.', 'info');
+      return;
+    }
+    if(list === null){ showSlotReadError(read.issue); return; }
+    const slot=list.find(item=>item.id===id);
+    if(!slot){
+      host.setStatus(status, '이미 삭제되었거나 찾을 수 없는 보관함 항목입니다.', 'info');
+      renderSlotList();
+      return;
+    }
+    MosaicUI.cards.snapshot();
+    MosaicUI.work.apply(JSON.parse(JSON.stringify(slot.data)));
+    MosaicUI.feedback.undo(`'${slot.name}' 불러옴.`);
+    host.setArchiveDrawerOpen(false);
+  } catch(error){
+    if(revision !== slotLoadRevision) return;
+    host.setStatus(status, error.message || '보관함을 불러오지 못했습니다. 다시 시도해 주세요.', 'error');
+  } finally {
+    events.forEach(type=>document.removeEventListener(type,markEdited,true));
+  }
+}
 
 // 검색·정렬은 목록과 일괄 선택에서 공유하고, 처음 6개만 보여주는 생략은 제외한다.
 function matchingArchiveSlots(slots){
@@ -492,10 +563,10 @@ function matchingArchiveSlots(slots){
 }
 
 function archiveUsageText(){
-  if(MosaicStorage.lastSlotReadRaw === undefined) return '용량 확인 불가';
-  // localStorage 문자열의 UTF-16 길이만 이용한 추정치다. 다른 저장 키나
-  // 브라우저의 실제 할당량·남은 공간으로 표시하지 않으며 저장소를 수정하지 않는다.
-  const bytes = (MosaicStorage.lastSlotReadRaw || '').length * 2;
+  const bytes = displayedSlotRead.bytes !== undefined ? displayedSlotRead.bytes
+    : displayedSlotRead.raw === undefined ? undefined : (displayedSlotRead.raw || '').length*2;
+  if(bytes === undefined) return '용량 확인 불가';
+  // 로그별 JSON 길이와 배열 구분자의 UTF-16 추정치다. 실제 할당량은 아니다.
   return `약 ${bytes >= 1000000 ? (bytes / 1000000).toFixed(2)+'MB' : (bytes / 1000).toFixed(1)+'KB'}`;
 }
 
@@ -509,8 +580,8 @@ function updateSlotExportSelection(){
   document.getElementById('slotSelectionBar').hidden = !slotSelectionMode;
   document.getElementById('slotSelectionTools').hidden = !slotSelectionMode;
   const hasMore = slotMatchingIds.some(id=>!selectedSlotIds.has(id));
-  document.getElementById('slotSelectTenBtn').disabled = !slotSelectionMode || !!MosaicStorage.slotReadIssue || !hasMore;
-  document.getElementById('slotSelectAllBtn').disabled = !slotSelectionMode || !!MosaicStorage.slotReadIssue || !hasMore;
+  document.getElementById('slotSelectTenBtn').disabled = !slotSelectionMode || !!displayedSlotRead.issue || !hasMore;
+  document.getElementById('slotSelectAllBtn').disabled = !slotSelectionMode || !!displayedSlotRead.issue || !hasMore;
   document.getElementById('slotClearSelectionBtn').disabled = selectedSlotIds.size === 0;
   const searching = !!document.getElementById('slotSearch').value.trim();
   document.getElementById('slotSelectTenBtn').title = `${searching ? '검색 결과의' : '현재 정렬 순서의'} 아직 선택하지 않은 항목을 최대 10개 추가 선택`;
@@ -520,24 +591,38 @@ function updateSlotExportSelection(){
   selectButton.textContent = slotSelectionMode ? '취소' : '선택';
 }
 
-function renderSlotList(){
+async function renderSlotList(){
+  const revision = ++slotRenderRevision;
   const container = document.getElementById('slotList');
   const count = document.getElementById('slotCount');
   const expandBtn = document.getElementById('slotExpandBtn');
+  container.setAttribute('aria-busy', 'true');
+  count.textContent = '목록 확인 중…';
+  const read = await MosaicStorage.readSlotIndex();
+  const slots = read.slots;
+  if(revision !== slotRenderRevision) return;
+  displayedSlotRead = {raw:read.raw,bytes:read.bytes,issue:read.issue};
+  container.setAttribute('aria-busy', 'false');
   container.innerHTML = '';
-  const slots = MosaicStorage.loadSlots(true);
-  document.getElementById('exportSlotsBtn').textContent = MosaicStorage.slotReadIssue ? '원본 백업' : '전체 내보내기';
-  document.getElementById('exportSplitSlotsBtn').disabled = !!MosaicStorage.slotReadIssue;
-  count.title = '보관함 저장 문자열의 UTF-16 크기를 기준으로 한 추정 용량입니다. 초안·프리셋과 브라우저 실제 할당량은 포함하지 않습니다.';
+  document.getElementById('exportSlotsBtn').textContent = displayedSlotRead.issue ? '원본 백업' : '전체 내보내기';
+  document.getElementById('exportSplitSlotsBtn').disabled = !!displayedSlotRead.issue;
+  count.title = '로그 JSON의 UTF-16 크기를 기준으로 한 추정 용량입니다. 목록 정보·이관 전 사본·초안·프리셋과 브라우저 실제 할당량은 포함하지 않습니다.';
   if(slots === null){
     slotMatchingIds = [];
     updateSlotExportSelection();
     count.textContent = `목록 확인 불가 · ${archiveUsageText()}`;
     expandBtn.hidden = true;
-    showSlotReadError();
+    showSlotReadError(read.issue);
     return;
   }
-  if(MosaicStorage.slotReadIssue) showSlotReadError();
+  if(read.issue) showSlotReadError(read.issue);
+  else {
+    const status = document.getElementById('slotImportStatus');
+    if((read.notice && read.notice !== slotReadStatusText) || status.textContent === slotReadStatusText){
+      host.setStatus(status, read.notice, 'info');
+    }
+    slotReadStatusText = read.notice;
+  }
   const existingIds = new Set(slots.map(slot => slot.id));
   for(const id of selectedSlotIds) if(!existingIds.has(id)) selectedSlotIds.delete(id);
   const query = document.getElementById('slotSearch').value.trim().toLocaleLowerCase('ko');
@@ -556,8 +641,9 @@ function renderSlotList(){
   if(!visible.length){
     const empty = document.createElement('div');
     empty.className = 'slotEmpty';
+    empty.dataset.state = displayedSlotRead.issue ? 'error' : 'info';
     empty.textContent = slots.length ? '일치하는 보관함이 없습니다.'
-      : MosaicStorage.slotReadIssue ? '읽을 수 있는 보관함이 없습니다. 원본 백업을 먼저 보관해 주세요.' : '저장된 보관함이 없습니다.';
+      : displayedSlotRead.issue ? '읽을 수 있는 보관함이 없습니다. 원본 백업을 먼저 보관해 주세요.' : '저장된 보관함이 없습니다.';
     container.appendChild(empty);
     return;
   }
@@ -622,62 +708,59 @@ function renderSlotList(){
         select.dispatchEvent(new Event('change'));
         return;
       }
-      MosaicUI.cards.snapshot();
-      MosaicUI.work.apply(JSON.parse(JSON.stringify(slot.data)));
-      MosaicUI.feedback.undo(`'${slot.name}' 불러옴.`);
-      host.setArchiveDrawerOpen(false);
+      loadCurrentSlot(slot.id);
     });
-    over.addEventListener('click', (e) => {
+    over.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const list = MosaicStorage.loadSlots();
-      if(list === null){ showSlotReadError(); return; }
+      const data = collectValidatedSlotWork();
+      if(!data) return;
+      const read = await MosaicStorage.readSlot(slot.id);
+      const list = read.slots;
+      if(list === null){ showSlotReadError(read.issue); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
       if(targetIndex < 0){
-        document.getElementById('slotImportStatus').textContent = '덮어쓸 보관함 항목을 찾지 못했습니다.';
+        host.setStatus('slotImportStatus', '덮어쓸 보관함 항목을 찾지 못했습니다.', 'error');
         renderSlotList();
         return;
       }
-      const data = collectValidatedSlotWork();
-      if(!data) return;
-      const previousStoredSlots = localStorage.getItem(MosaicStorage.SLOT_KEY);
+      const previousStoredSlots = MosaicStorage.slotReadToken(list);
       list[targetIndex].data = data;
       list[targetIndex]._stored = null;
       list[targetIndex].savedAt = Date.now();
-      if(!MosaicStorage.saveSlots(list)){
-        document.getElementById('slotImportStatus').textContent = MosaicStorage.slotSaveFailure;
+      if(!await MosaicStorage.saveSlots(list)){
+        host.setStatus('slotImportStatus', MosaicStorage.slotSaveFailure, 'error');
         return;
       }
-      const writtenStoredSlots = MosaicStorage.lastSlotReadRaw;
+      const writtenStoredSlots = MosaicStorage.slotReadToken(list);
       renderSlotList();
       const status = document.getElementById('slotImportStatus');
-      status.style.color = '';
-      status.textContent = `'${slot.name}'을 현재 작업으로 덮어썼습니다.`;
-      MosaicUI.feedback.undo(`'${slot.name}' 보관함 덮어씀.`, () => {
-        const restored = MosaicStorage.restoreStoredValue(MosaicStorage.SLOT_KEY, previousStoredSlots, writtenStoredSlots);
+      host.setStatus(status, `'${slot.name}'을 현재 작업으로 덮어썼습니다.`, 'success');
+      MosaicUI.feedback.undo(`'${slot.name}' 보관함 덮어씀.`, async () => {
+        const restored = await MosaicStorage.restoreStoredValue(MosaicStorage.SLOT_KEY, previousStoredSlots, writtenStoredSlots);
         const undoStatus = document.getElementById('slotImportStatus');
         if(!restored){
-          undoStatus.style.color = '#c0392b';
-          undoStatus.textContent = '보관함이 그사이 변경되었거나 저장소에 오류가 있어 되돌리지 못했습니다. 목록을 다시 확인해 주세요.';
+          host.setStatus(undoStatus, '보관함이 그사이 변경되었거나 저장소에 오류가 있어 되돌리지 못했습니다. 목록을 다시 확인해 주세요.', 'error');
           return;
         }
-        undoStatus.style.color = '';
-        undoStatus.textContent = `'${slot.name}' 보관함 덮어쓰기를 되돌렸습니다.`;
+        host.setStatus(undoStatus, `'${slot.name}' 보관함 덮어쓰기를 되돌렸습니다.`, 'success');
         renderSlotList();
       });
     });
-    del.addEventListener('click', (e) => {
+    del.addEventListener('click', async (e) => {
       e.stopPropagation();
       if(!confirm(`'${slot.name}' 보관함을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
-      const list = MosaicStorage.loadSlots();
-      if(list === null){ showSlotReadError(); return; }
+      const read = await MosaicStorage.readSlot(slot.id);
+      const list = read.slots;
+      if(list === null){ showSlotReadError(read.issue); return; }
       const targetIndex = list.findIndex(item => item.id === slot.id);
       if(targetIndex < 0) return;
       list.splice(targetIndex, 1);
-      if(!MosaicStorage.saveSlots(list)){
-        document.getElementById('slotImportStatus').textContent = MosaicStorage.slotSaveFailure;
+      if(!await MosaicStorage.saveSlots(list)){
+        host.setStatus('slotImportStatus', MosaicStorage.slotSaveFailure, 'error');
         return;
       }
       renderSlotList();
+      host.setStatus('slotImportStatus', `'${slot.name}' 보관함을 삭제했습니다.`, 'success');
     });
 
     row.appendChild(identity);
@@ -702,77 +785,100 @@ function downloadSlotJSON(list, filename){
   return blob.size;
 }
 
-function exportSlots(selectedOnly = false){
-  const slots = MosaicStorage.loadSlots(selectedOnly);
-  const list = slots === null ? null : slots.filter(slot => !selectedOnly || selectedSlotIds.has(slot.id));
+function downloadJSONParts(list, filename, maxBytes, maxItems, numbered = false){
+  const chunks = MosaicStorage.partitionJSONBackup(list, maxBytes, maxItems);
+  let requested = 0;
+  try {
+    chunks.forEach((chunk,index) => {
+      const name = numbered || chunks.length > 1
+        ? filename.replace(/\.json$/, `_${String(index+1).padStart(2,'0')}.json`) : filename;
+      downloadSlotJSON(chunk,name); requested++;
+    });
+  } catch(error){
+    throw new Error(`내보내기에 실패했습니다.${requested ? ` ${requested}개 파일은 이미 다운로드를 요청했습니다.` : ''}`);
+  }
+  return requested;
+}
+
+async function exportSlots(selectedOnly = false){
+  const selection = new Set(selectedSlotIds);
+  const read = selectedOnly ? await MosaicStorage.readSlotsForIds(selection,true) : await MosaicStorage.readSlots();
+  const slots = read.slots;
+  const list = slots === null ? null : slots.filter(slot => !selectedOnly || selection.has(slot.id));
   if(list === null){
-    if(!selectedOnly) exportRawSlotsBackup();
-    else showSlotReadError();
+    if(!selectedOnly) return exportRawSlotsBackup();
+    else showSlotReadError(read.issue);
     return;
   }
-  if(!selectedOnly && MosaicStorage.slotReadIssue){
-    exportRawSlotsBackup();
-    return;
+  if(!selectedOnly && read.issue){
+    return exportRawSlotsBackup();
   }
   const st = document.getElementById('slotImportStatus');
   if(!list.length){
-    st.style.color = '';
-    st.textContent = selectedOnly ? '내보낼 항목을 선택해 주세요.' : '보관함이 비어 있음. 현재 작업을 먼저 저장.';
+    host.setStatus(st, selectedOnly ? '내보낼 항목을 선택해 주세요.' : '보관함이 비어 있음. 현재 작업을 먼저 저장.', 'info');
     return;
   }
-  downloadSlotJSON(MosaicStorage.slotExportPayload(list), selectedOnly ? '조각로그_보관함_선택.json' : '조각로그_보관함.json');
-  st.style.color = '';
-  st.textContent = `보관함 ${list.length}개 저장됨.`;
+  try {
+    const count = downloadJSONParts(MosaicStorage.slotExportPayload(list), selectedOnly ? '조각로그_보관함_선택.json' : '조각로그_보관함.json', MosaicStorage.MAX_ARCHIVE_BYTES, MosaicStorage.MAX_IMPORTED_SLOTS);
+    host.setStatus(st, `보관함 ${list.length}개 내보내기 요청.${count > 1 ? ` 가져오기 한도에 맞춰 ${count}개 파일로 나눴습니다. 여러 파일 다운로드 허용이 필요할 수 있습니다.` : ''}`, 'success');
+  } catch(error){ host.setStatus(st, error.message, 'error'); }
 }
 
-function exportSplitSlots(){
+async function exportSplitSlots(){
   // 화면의 검색·정렬·선택과 무관하게 전체 목록을 한 번만 읽어 고정한다.
   // 한 항목이라도 읽지 못하면 부분 백업을 전체 백업처럼 내보내지 않는다.
-  const list = MosaicStorage.loadSlots();
-  if(list === null || MosaicStorage.slotReadIssue){ showSlotReadError(); return; }
+  const read = await MosaicStorage.readSlots();
+  const list = read.slots;
+  if(list === null || read.issue){ showSlotReadError(read.issue); return; }
   const status = document.getElementById('slotImportStatus');
   if(!list.length){
-    status.style.color = '';
-    status.textContent = '보관함이 비어 있음. 현재 작업을 먼저 저장.';
+    host.setStatus(status, '보관함이 비어 있음. 현재 작업을 먼저 저장.', 'info');
     return;
   }
-  let requested = 0;
-  let oversized = 0;
+  let requested;
   try {
-    const payload = MosaicStorage.slotExportPayload(list);
-    for(let start = 0; start < payload.length; start += SLOT_EXPORT_CHUNK_SIZE){
-      const part = String(requested + 1).padStart(2, '0');
-      const bytes = downloadSlotJSON(payload.slice(start, start + SLOT_EXPORT_CHUNK_SIZE), `조각로그_보관함_분할_${part}.json`);
-      if(bytes > MosaicStorage.MAX_ARCHIVE_BYTES) oversized++;
-      requested++;
-    }
+    requested = downloadJSONParts(MosaicStorage.slotExportPayload(list), '조각로그_보관함_분할.json', MosaicStorage.MAX_ARCHIVE_BYTES, SLOT_EXPORT_CHUNK_SIZE, true);
   } catch(e){
-    status.style.color = '#c0392b';
-    status.textContent = `분할 내보내기에 실패했습니다.${requested ? ` ${requested}개 파일은 이미 다운로드를 요청했습니다.` : ''} 보관함 원본은 변경하지 않았습니다.`;
+    host.setStatus(status, e.message, 'error');
     return;
   }
-  status.style.color = '';
+
   // a.click()은 다운로드 완료/차단을 알려주지 않으므로 저장 완료라고 표시하지 않는다.
-  status.textContent = `보관함 ${list.length}개를 ${requested}개 JSON 파일로 나누어 내보내기 요청했습니다.${requested > 1 ? ' 여러 파일 다운로드가 차단되면 이 사이트의 자동 다운로드를 허용해 주세요.' : ''}${oversized ? ` ${oversized}개 파일은 기존 파일 가져오기 제한(4MB)을 넘습니다.` : ''}`;
+  host.setStatus(status, `보관함 ${list.length}개를 ${requested}개 JSON 파일로 나누어 내보내기 요청했습니다.${requested > 1 ? ' 여러 파일 다운로드가 차단되면 이 사이트의 자동 다운로드를 허용해 주세요.' : ''}`, 'success');
 }
 
-function exportRawSlotsBackup(){
+async function exportRawSlotsBackup(){
   const st = document.getElementById('slotImportStatus');
-  let raw;
-  try { raw = localStorage.getItem(MosaicStorage.SLOT_KEY); }
-  catch(e){ showSlotReadError(); return; }
-  if(raw === null){ showSlotReadError(); return; }
-  const blob = new Blob([raw], { type:'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '조각로그_보관함_원본백업.txt';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  st.style.color = '';
-  st.textContent = '보관함 저장 데이터를 수정하지 않고 원본 그대로 백업했습니다.';
+  let backup;
+  try { backup = await MosaicStorage.readSlotsBackup(); }
+  catch(e){
+    host.setStatus(st, '보관함과 이전 저장소 사본을 읽지 못해 백업하지 못했습니다. 브라우저 저장소 접근 설정을 확인해 주세요.', 'error');
+    return;
+  }
+  const {raw,source}=backup;
+  if(raw === null){ host.setStatus(st, '백업할 보관함 원본 데이터가 없습니다.', 'info'); return; }
+  let url, link;
+  try {
+    const blob = new Blob([raw], { type:'text/plain;charset=utf-8' });
+    url = URL.createObjectURL(blob);
+    link = document.createElement('a');
+    link.href = url;
+    link.download = source==='legacy' ? '조각로그_보관함_이전저장소_원본백업.txt'
+      : source==='previous' ? '조각로그_보관함_이관전_원본백업.txt'
+      : source==='partial' ? '조각로그_보관함_복구자료.txt' : '조각로그_보관함_원본백업.txt';
+    document.body.appendChild(link);
+    link.click();
+    host.setStatus(st, source==='legacy'
+      ? '현재 보관함을 읽지 못해 이전 저장소 사본만 내보내기 요청했습니다. 최신 변경분은 포함되지 않을 수 있습니다.'
+      : source==='previous' ? '이관 전 사본만 내보내기 요청했습니다. 이관 후 변경분은 포함되지 않습니다.'
+      : source==='partial' ? '현재 읽을 수 있는 저장 레코드를 복구 자료로 내보내기 요청했습니다. 누락·손상된 항목이 있어 완전한 백업이 아닐 수 있습니다.'
+      : '보관함 저장 데이터를 수정하지 않고 원본 백업 내보내기를 요청했습니다.', 'info');
+  } catch(error){
+    host.setStatus(st, '원본 백업을 내보내지 못했습니다. 브라우저의 다운로드 허용 설정을 확인해 주세요.', 'error');
+  } finally {
+    link?.remove();
+    if(url) URL.revokeObjectURL(url);
+  }
 }
 
 function closeSlotExportMenu(restoreFocus = false){
@@ -791,10 +897,12 @@ function openSlotExportMenu(last = false){
   (last ? items.at(-1) : items[0])?.focus();
 }
 
-function selectArchiveSlots(limit){
+async function selectArchiveSlots(limit){
   if(!slotSelectionMode) return;
-  const slots = MosaicStorage.loadSlots();
-  if(slots === null){ showSlotReadError();return; }
+  const read = await MosaicStorage.readSlotIndex();
+  const slots = read.slots;
+  if(!slotSelectionMode) return;
+  if(slots === null){ showSlotReadError(read.issue);return; }
   const existing = new Set(slots.map(slot=>slot.id));
   for(const id of selectedSlotIds) if(!existing.has(id)) selectedSlotIds.delete(id);
   const remaining = matchingArchiveSlots(slots).filter(slot=>!selectedSlotIds.has(slot.id));
@@ -803,34 +911,37 @@ function selectArchiveSlots(limit){
   renderSlotList();
 }
 
-function deleteSelectedSlots(){
-  const list = MosaicStorage.loadSlots();
-  if(list === null){ showSlotReadError(); return; }
-  const removed = list.filter(slot => selectedSlotIds.has(slot.id));
+async function deleteSelectedSlots(){
+  const selection = new Set(selectedSlotIds);
+  const read = await MosaicStorage.readSlotsForIds(selection);
+  const list = read.slots;
+  if(list === null){ showSlotReadError(read.issue); return; }
+  const removed = list.filter(slot => selection.has(slot.id));
   if(!removed.length) return;
   const matching = new Set(matchingArchiveSlots(list).map(slot=>slot.id));
   const outside = removed.filter(slot=>!matching.has(slot.id)).length;
   if(!confirm(`선택한 보관함 ${removed.length}개를 삭제하시겠습니까?${outside ? `\n현재 검색 결과 밖에서 선택한 ${outside}개도 포함됩니다.` : ''}\n필요한 항목은 먼저 내보내기로 백업해 주세요.`)) return;
   const status = document.getElementById('slotImportStatus');
-  if(!MosaicStorage.saveSlots(list.filter(slot => !selectedSlotIds.has(slot.id)))){
-    status.textContent = MosaicStorage.slotSaveFailure;
+  if(!await MosaicStorage.saveSlots(list.filter(slot => !selection.has(slot.id)), list)){
+    host.setStatus(status, MosaicStorage.slotSaveFailure, 'error');
     return;
   }
-  selectedSlotIds.clear();
+  removed.forEach(slot => selectedSlotIds.delete(slot.id));
   renderSlotList();
-  status.textContent = `보관함 ${removed.length}개를 삭제했습니다.`;
-  MosaicUI.feedback.undo(`보관함 ${removed.length}개 삭제됨.`, () => {
-    const current = MosaicStorage.loadSlots();
-    if(current === null){ showSlotReadError(); return; }
+  host.setStatus(status, `보관함 ${removed.length}개를 삭제했습니다.`, 'success');
+  MosaicUI.feedback.undo(`보관함 ${removed.length}개 삭제됨.`, async () => {
+    const read = await MosaicStorage.readSlotIndex();
+    const current = read.slots;
+    if(current === null){ showSlotReadError(read.issue); return; }
     // 삭제 이후 저장한 항목은 유지하고, 사라진 항목만 복원한다.
     const existingIds = new Set(current.map(slot => slot.id));
     const restored = removed.filter(slot => !existingIds.has(slot.id));
-    if(!MosaicStorage.saveSlots(current.concat(restored))){
-      status.textContent = MosaicStorage.slotSaveFailure;
+    if(!await MosaicStorage.saveSlots(current.concat(restored), current)){
+      host.setStatus(status, MosaicStorage.slotSaveFailure, 'error');
       return;
     }
     renderSlotList();
-    status.textContent = `보관함 ${restored.length}개를 복원했습니다.`;
+    host.setStatus(status, `보관함 ${restored.length}개를 복원했습니다.`, 'success');
   });
 }
 
@@ -1199,13 +1310,6 @@ function applyStyleValues(v){
     });
     values.advancedOn = true;
   }
-  // 이전 버전의 `장식/구분선 제거` 값을 긍정형 `표시` 설정으로 변환한다.
-  // 옛 전역 OFF는 제거된 배치 옵션 대신 두 범위 OFF로 복원한다.
-  if(values.parallelTranslationLayout === 'off'){
-    values.parallelTranslationLayout = 'auto';
-    values.parallelDialogueOn = false;
-    values.parallelNarrationOn = false;
-  }
   if(values.paragraphGap === undefined) values.paragraphGap = MosaicState.DEFAULT_STYLE.paragraphGap;
   values.parallelTranslationOrder = values.parallelTranslationOrder === 'translation' ? 'translation' : 'original';
   values.parallelTranslationBrackets = values.parallelTranslationBrackets === 'hide' ? 'hide' : 'show';
@@ -1388,9 +1492,11 @@ function syncCharList(){
   });
 }
 
+const PRESET_READ_ERROR_MESSAGE = '저장한 프리셋을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+
 function showPresetReadError(){
   const status = document.getElementById('presetStatus');
-  if(status) status.textContent = '저장한 프리셋을 읽지 못해 변경하지 않았습니다. 내보낸 백업 파일을 확인해 주세요.';
+  if(status) host.setStatus(status, PRESET_READ_ERROR_MESSAGE, 'error');
 }
 
 // 색 조합 스와치: 배경/나레이션/강조/{{char}}/{{user}} 순서의 소형 컬러칩.
@@ -1444,10 +1550,17 @@ function renderPresetList(){
   container.innerHTML = '';
   if(all === null){
     currentPresetName = null;
+    empty.textContent = '프리셋 목록을 읽지 못했습니다.';
+    empty.dataset.state = 'error';
+    empty.hidden = false;
+    container.hidden = true;
+    container.dataset.state = 'error';
     showPresetReadError();
     updateOverwriteBtn();
     return;
   }
+  const readStatus = document.getElementById('presetStatus');
+  if(readStatus.textContent === PRESET_READ_ERROR_MESSAGE) host.setStatus(readStatus, '');
 
   const query = presetSearchQuery.trim().toLocaleLowerCase('ko');
   let list = all.filter(p => !query || p.name.toLocaleLowerCase('ko').includes(query));
@@ -1457,8 +1570,11 @@ function renderPresetList(){
     list = list.slice().sort((a,b) => (b.lastUsed || 0) - (a.lastUsed || 0));
   }
   count.textContent = query ? `${list.length}/${all.length}` : String(all.length);
+  empty.textContent = query ? '일치하는 프리셋이 없습니다.' : '저장된 프리셋이 없습니다.';
+  empty.dataset.state = 'info';
   empty.hidden = list.length !== 0;
   container.hidden = list.length === 0;
+  container.dataset.state = list.length ? 'ready' : 'empty';
 
   list.forEach(p => {
     const v = p.values;
@@ -1577,18 +1693,19 @@ function renderPresetList(){
           const storedList = MosaicStorage.loadPresets(currentSavedPresetValues());
           if(storedList === null){ showPresetReadError(); input.focus(); return; }
           if(storedList.some(x => x.name.toLowerCase() === name.toLowerCase())){
-            document.getElementById('presetStatus').textContent = '다른 프리셋 이름을 입력하세요.';
+            host.setStatus('presetStatus', '다른 프리셋 이름을 입력하세요.', 'error');
             input.focus();
             return;
           }
           const target = storedList.find(x => x.name === p.name);
           if(target) target.name = name;
           if(!MosaicStorage.savePresets(storedList)){
-            document.getElementById('presetStatus').textContent = MosaicStorage.presetSaveFailure;
+            host.setStatus('presetStatus', MosaicStorage.presetSaveFailure, 'error');
             input.focus();
             return;
           }
           if(currentPresetName === p.name) currentPresetName = name;
+          host.setStatus('presetStatus', target ? `'${name}'으로 이름을 바꿨습니다.` : '이름을 바꿀 프리셋을 찾지 못했습니다.', target ? 'success' : 'info');
         }
         settled = true;
         card.classList.remove('editing');
@@ -1630,22 +1747,25 @@ function renderPresetList(){
       const index = storedList.findIndex(item => item.name === p.name);
       storedList.splice(index + 1, 0, { name, values:{ ...p.values }, lastUsed:0 });
       if(!MosaicStorage.savePresets(storedList)){
-        document.getElementById('presetStatus').textContent = MosaicStorage.presetSaveFailure;
+        host.setStatus('presetStatus', MosaicStorage.presetSaveFailure, 'error');
         return;
       }
+      host.setStatus('presetStatus', `'${name}' 프리셋을 복제했습니다.`, 'success');
       renderPresetList();
     });
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const storedList = MosaicStorage.loadPresets(currentSavedPresetValues());
       if(storedList === null){ showPresetReadError(); return; }
-      if(storedList.length <= 1){ document.getElementById('presetStatus').textContent = '프리셋을 1개 이상 유지하세요.'; return; }
+      if(storedList.length <= 1){ host.setStatus('presetStatus', '프리셋을 1개 이상 유지하세요.', 'error'); return; }
       if(!confirm(`'${p.name}' 프리셋을 삭제하려면 확인을 누르세요.\n삭제 후 되돌릴 수 없습니다.`)) return;
       if(!MosaicStorage.savePresets(storedList.filter(x => x.name !== p.name))){
-        document.getElementById('presetStatus').textContent = MosaicStorage.presetSaveFailure;
+        host.setStatus('presetStatus', MosaicStorage.presetSaveFailure, 'error');
         return;
       }
       if(currentPresetName === p.name) currentPresetName = null;
+      const existed = storedList.some(item => item.name === p.name);
+      host.setStatus('presetStatus', existed ? `'${p.name}' 프리셋을 삭제했습니다.` : '이미 삭제된 프리셋입니다.', existed ? 'success' : 'info');
       renderPresetList();
     });
 
@@ -1723,7 +1843,8 @@ function updateOverwriteBtn(){
     savedActiveName.hidden = source.kind !== 'saved';
     savedActiveName.textContent = source.kind === 'saved' ? `${source.name} · 적용 중` : '';
   }
-  if(savedCountWrap) savedCountWrap.hidden = source.kind === 'saved';
+  if(savedCountWrap) savedCountWrap.hidden = source.kind === 'saved'
+    || document.getElementById('presetList').dataset.state === 'error';
   const styleName = MosaicUI.controls.selectedText('dlgStyle') || '글자 강조';
   if(status) status.textContent = source.kind === 'direct'
     ? `직접 편집 · ${styleName}`
@@ -1799,66 +1920,43 @@ function restoreThemeSelection(selection){
   renderPresetList();
   renderComboList();
 }
-function bindFeatureEvents(){
-// 조각로그 v1.9.0 HTML 복원·파일 저장·로그 보관함 모듈.
-
-// ---------- 출력 HTML에서 작업 복원 ----------
-document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
-  document.getElementById('restoreHtmlFile').click();
-});
-
-document.getElementById('restoreHtmlFile').addEventListener('change', (e) => {
-  const file = e.target.files[0];
+async function restoreHTMLFile(file){
   const status = document.getElementById('restoreHtmlStatus');
   if(!file) return;
-  if(file.size > 12 * 1024 * 1024){
-    status.style.color = '#c0392b';
-    status.textContent = 'HTML 파일이 너무 큽니다. (최대 12MB)';
-    e.target.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    let rawWork;
-    try {
-      rawWork = MosaicStorage.decodeRestoreState(String(reader.result || ''));
-    } catch(err){
-      status.style.color = '#c0392b';
-      status.textContent = err && err.message ? err.message : 'HTML 복원 데이터를 읽지 못했습니다.';
-      return;
-    }
+  const revision = ++restoreFileReadRevision;
+  host.setStatus(status, 'HTML 복원 중…', 'pending');
+  try {
+    const rawWork = await MosaicStorage.readRestoreStateFile(file);
+    if(revision !== restoreFileReadRevision) return;
     if(!rawWork){
-      status.style.color = '#c0392b';
-      status.textContent = '복원 정보가 없는 HTML입니다. 이 기능이 추가된 뒤 저장한 출력물을 선택해 주세요.';
+      host.setStatus(status, '복원 정보가 없는 HTML입니다. 이 기능이 추가된 뒤 저장한 출력물을 선택해 주세요.', 'error');
       return;
     }
     const work = MosaicState.sanitizeImportedWork(rawWork);
     if(!work){
-      status.style.color = '#c0392b';
-      status.textContent = 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.';
+      host.setStatus(status, 'HTML 안의 조각로그 작업 정보가 올바르지 않습니다.', 'error');
       return;
     }
     MosaicUI.cards.snapshot();
     MosaicUI.work.apply(work);
     MosaicUI.feedback.undo('출력 HTML에서 작업 복원.');
-    status.style.color = '';
-    status.textContent = `복원 완료: ${work.cards.length}개 블록`;
-  };
-  reader.onerror = () => {
-    status.style.color = '#c0392b';
-    status.textContent = 'HTML 파일을 읽지 못했습니다.';
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
+    host.setStatus(status, `복원 완료: ${work.cards.length}개 블록`, 'success');
+  } catch(error){
+    if(revision !== restoreFileReadRevision) return;
+    host.setStatus(status, error.message || 'HTML 파일을 읽지 못했습니다.', 'error');
+  }
 
-// ---------- HTML 파일로 저장 ----------
-document.getElementById('downloadBtn').addEventListener('click', () => {
+}
+
+function downloadWorkHTML(){
   const title = (document.getElementById('logTitle').value || '').trim();
   const num = (document.getElementById('logNumber').value || '').trim();
   const rawName = (num || title) ? `${num}${num && title ? ' ' : ''}${title}` : '조각로그';
   const name = rawName.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 120) || '조각로그';
-  const blob = new Blob([host.generateHTML(true)], { type: 'text/html;charset=utf-8' });
+  let html;
+  try { html = host.generateHTML(true); }
+  catch(error){ MosaicUI.feedback.notice(error.message); return; }
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1867,190 +1965,49 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-});
 
-document.getElementById('slotSearch').addEventListener('input', renderSlotList);
+}
 
-document.getElementById('slotSort').addEventListener('change', renderSlotList);
-
-document.getElementById('slotExpandBtn').addEventListener('click', () => {
-  slotListExpanded = !slotListExpanded;
-  renderSlotList();
-});
-
-document.getElementById('saveSlotBtn').addEventListener('click', () => {
-  const nameInput = document.getElementById('slotName');
-  const name = nameInput.value.trim()
-    || document.getElementById('logTitle').value.trim()
-    || '무제 로그';
-  if(name.length > 100){
-    document.getElementById('slotImportStatus').textContent = '보관함 이름은 100자 이하로 입력해 주세요.';
-    return;
-  }
-  const list = MosaicStorage.loadSlots();
-  if(list === null){ showSlotReadError(); return; }
-  const data = collectValidatedSlotWork();
-  if(!data) return;
-  const next = [{ id: MosaicStorage.makeSlotId(), name, savedAt: Date.now(), data }, ...list];
-  if(!MosaicStorage.saveSlots(next)){
-    document.getElementById('slotImportStatus').textContent = MosaicStorage.slotSaveFailure;
-    return;
-  }
-  nameInput.value = '';
-  const status = document.getElementById('slotImportStatus');
-  status.style.color = '';
-  status.textContent = `'${name}'을 보관했습니다.`;
-  renderSlotList();
-});
-
-document.getElementById('slotExportMenuBtn').addEventListener('click', () => {
-  if(document.getElementById('slotExportMenu').hidden) openSlotExportMenu();
-  else closeSlotExportMenu(true);
-});
-
-document.getElementById('slotExportDropdown').addEventListener('keydown', event => {
-  const menu = document.getElementById('slotExportMenu');
-  if(event.key === 'Escape' && !menu.hidden){
-    event.preventDefault();event.stopPropagation();closeSlotExportMenu(true);return;
-  }
-  if(event.key === 'Tab' && !menu.hidden){
-    event.preventDefault();closeSlotExportMenu();
-    document.getElementById(event.shiftKey ? 'slotExportMenuBtn' : 'importSlotsBtn').focus();return;
-  }
-  if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key)) return;
-  if(event.target.id === 'slotExportMenuBtn'){
-    event.preventDefault();openSlotExportMenu(event.key === 'ArrowUp' || event.key === 'End');return;
-  }
-  if(menu.hidden) return;
-  event.preventDefault();
-  const items = Array.from(menu.querySelectorAll('button')).filter(button=>!button.disabled);
-  const current = items.indexOf(document.activeElement);
-  const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length-1
-    : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-  items[index]?.focus();
-});
-
-document.getElementById('slotExportDropdown').addEventListener('focusout', event => {
-  if(!event.currentTarget.contains(event.relatedTarget)) closeSlotExportMenu();
-});
-
-document.addEventListener('click', event => {
-  if(!document.getElementById('slotExportDropdown').contains(event.target)) closeSlotExportMenu(true);
-});
-
-document.getElementById('exportSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSlots(); });
-
-document.getElementById('exportSplitSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSplitSlots(); });
-
-document.getElementById('exportSelectedSlotsBtn').addEventListener('click', () => exportSlots(true));
-
-document.getElementById('slotSelectTenBtn').addEventListener('click', () => selectArchiveSlots(10));
-
-document.getElementById('slotSelectAllBtn').addEventListener('click', () => selectArchiveSlots(Infinity));
-
-document.getElementById('slotClearSelectionBtn').addEventListener('click', () => { selectedSlotIds.clear();renderSlotList(); });
-
-document.getElementById('deleteSelectedSlotsBtn').addEventListener('click', deleteSelectedSlots);
-
-document.getElementById('slotSelectBtn').addEventListener('click', () => {
-  slotSelectionMode = !slotSelectionMode;
-  if(!slotSelectionMode) selectedSlotIds.clear();
-  renderSlotList();
-});
-
-document.getElementById('importSlotsBtn').addEventListener('click', () => {
-  document.getElementById('importSlotsFile').click();
-});
-
-document.getElementById('importSlotsFile').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  const st = document.getElementById('slotImportStatus');
-  if(!file) return;
-  if(file.size > MosaicStorage.MAX_ARCHIVE_BYTES){
-    st.style.color = '#c0392b';
-    st.textContent = '보관함 파일이 너무 큽니다. (최대 4MB)';
-    e.target.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    let imported;
-    try {
-      imported = JSON.parse(reader.result);
-    } catch(err){
-      st.style.color = '#c0392b';
-      st.textContent = '파일 읽기 실패. JSON 형식을 확인.';
+async function saveCurrentSlot(button){
+  if(button.disabled) return;
+  button.disabled = true;
+  host.setStatus('slotImportStatus', '보관 중…', 'pending');
+  try {
+    const nameInput = document.getElementById('slotName');
+    const enteredName = nameInput.value;
+    const name = enteredName.trim()
+      || document.getElementById('logTitle').value.trim()
+      || '무제 로그';
+    if(!MosaicState.validStoredName(name, 100)){
+      host.setStatus('slotImportStatus', '보관함 이름은 제어 문자 없이 1~100자로 입력해 주세요.', 'error');
       return;
     }
-    // 보관함 슬롯 형식과 각 본문·코멘트 블록 및 필드의 자료형을 함께 검증한다.
-    if(!Array.isArray(imported) || imported.length > MosaicStorage.MAX_IMPORTED_SLOTS){
-      st.style.color = '#c0392b';
-      st.textContent = '조각로그 보관함 파일이 아니거나 항목이 너무 많습니다. (최대 200개)';
+    const data = collectValidatedSlotWork();
+    if(!data) return;
+    const read = await MosaicStorage.readSlotIndex();
+    const list = read.slots;
+    if(list === null){ showSlotReadError(read.issue); return; }
+    const next = [{ id: MosaicStorage.makeSlotId(), name, savedAt: Date.now(), data }, ...list];
+    if(!await MosaicStorage.saveSlots(next, list)){
+      host.setStatus('slotImportStatus', MosaicStorage.slotSaveFailure, 'error');
       return;
     }
-    const cleaned = imported.map(sl => {
-      let data;
-      try { data = sl && MosaicState.sanitizeImportedWork(sl.data); }
-      catch(err){ data = null; }
-      if(!data || typeof sl.name !== 'string' || !sl.name.trim() || sl.name.length > 100 || /[\u0000-\u001F\u007F]/.test(sl.name)) return null;
-      if(sl.id !== undefined && sl.id !== '' && !MosaicStorage.validSlotId(sl.id)) return null;
-      const savedAt = Number(sl.savedAt);
-      return { id: sl.id || '', name: sl.name.trim(), savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : Date.now(), data };
-    });
-    if(!cleaned.length || cleaned.some(sl => !sl)){
-      st.style.color = '#c0392b';
-      st.textContent = '보관함 블록이나 필드 형식이 올바르지 않음.';
-      return;
-    }
-    imported = cleaned;
-    const importedIds = imported.map(sl => sl.id).filter(Boolean);
-    if(new Set(importedIds).size !== importedIds.length){
-      st.style.color = '#c0392b';
-      st.textContent = '보관함 파일 안에 중복된 항목 ID가 있습니다.';
-      return;
-    }
-    const idlessNames = imported.filter(sl => !sl.id).map(sl => sl.name);
-    if(new Set(idlessNames).size !== idlessNames.length){
-      st.style.color = '#c0392b';
-      st.textContent = 'ID가 없는 보관함 항목의 이름이 중복되어 가져오지 않았습니다.';
-      return;
-    }
-    const list = MosaicStorage.loadSlots();
-    if(list === null){
-      showSlotReadError();
-      return;
-    }
-    let added = 0, updated = 0;
-    imported.forEach(sl => {
-      const idx = sl.id
-        ? list.findIndex(existing => existing.id === sl.id)
-        : list.findIndex(existing => existing.name === sl.name);
-      const entry = { id: idx >= 0 ? list[idx].id : (sl.id || MosaicStorage.makeSlotId()), name: sl.name, savedAt: sl.savedAt || Date.now(), data: sl.data };
-      if(idx >= 0){ list[idx] = entry; updated++; }
-      else { list.unshift(entry); added++; }
-    });
-    if(!MosaicStorage.saveSlots(list)){
-      st.style.color = '#c0392b';
-      st.textContent = MosaicStorage.slotSaveFailure;
-      return;
-    }
+    if(nameInput.value === enteredName) nameInput.value = '';
+    const status = document.getElementById('slotImportStatus');
+    host.setStatus(status, `'${name}'을 보관했습니다.`, 'success');
     renderSlotList();
-    st.style.color = '';
-    st.textContent = `불러오기 완료 — ${added}개 추가, ${updated}개 덮어씀.`;
-  };
-  reader.onerror = () => {
-    st.style.color = '#c0392b';
-    st.textContent = '파일을 읽지 못했습니다.';
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
+  } catch(error){
+    host.setStatus('slotImportStatus', error.message || '보관하지 못했습니다. 다시 시도해 주세요.', 'error');
+  } finally { button.disabled = false; }
 
-document.getElementById('newLogBtn').addEventListener('click', startNewLog);
+}
 
-document.getElementById('sidebarNewLogBtn').addEventListener('click', startNewLog);
+function handleArchiveExportFocusout(event){
+  if(!event.currentTarget.contains(event.relatedTarget)) closeSlotExportMenu();
 
-document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
+}
+
+function resetCurrentWork(){
   host.cancelStyleHistoryCommit();
   MosaicUI.cards.snapshot();
 
@@ -2088,7 +2045,7 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   ['pvFindInput','pvReplInput','fsFindInput','fsReplInput','nameFrom','nameTo','keywordFrom','keywordTo','slotName','presetName']
     .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   ['nameStatus','keywordStatus','copyStatus','presetStatus','importStatus']
-    .forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ''; });
+    .forEach(id => { const el = document.getElementById(id); if(el) host.setStatus(el, ''); });
 
   // 초안을 먼저 지우면 원본 비교가 충돌하고 다른 탭의 최신 초안도 잃는다.
   // 빈 작업도 아래의 공통 저장 경로를 통과시켜 실패·충돌 시 기존 원본을 보존한다.
@@ -2099,14 +2056,249 @@ document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => {
   MosaicUI.feedback.undo('현재 작업 전체 초기화.');
 
   const status = document.getElementById('slotImportStatus');
-  status.style.color = saved ? '' : '#c0392b';
-  status.textContent = saved ? '현재 작업을 모두 비웠습니다.'
-    : '현재 작업은 비웠지만 초안을 저장하지 못했습니다. 상단 저장 상태를 확인해 주세요.';
-  setTimeout(() => { status.textContent = ''; }, 3000);
+  host.setStatus(status, saved ? '현재 작업을 모두 비웠습니다.'
+    : '현재 작업은 비웠지만 초안을 저장하지 못했습니다. 상단 저장 상태를 확인해 주세요.', saved ? 'success' : 'error', saved ? 3000 : 0);
   const activeTextarea = MosaicUI.cards.activeTextarea();
   if(activeTextarea) activeTextarea.focus();
+
+}
+
+function overwriteCurrentPreset(){
+  if(!currentPresetName) return;
+  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
+  if(list === null){ showPresetReadError(); return; }
+  const target = list.find(p => p.name === currentPresetName);
+  if(!target) return;
+  const overwrittenPresetName = currentPresetName;
+  const previousStoredPresets = localStorage.getItem(MosaicStorage.PRESET_KEY);
+  target.values = currentSavedPresetValues();
+  target._stored = null;
+  if(!MosaicStorage.savePresets(list)){
+    host.setStatus('presetStatus', MosaicStorage.presetSaveFailure, 'error');
+    return;
+  }
+  const writtenStoredPresets = MosaicStorage.lastPresetReadRaw;
+  const st = document.getElementById('presetStatus');
+  host.setStatus(st, `'${overwrittenPresetName}'에 덮어씀.`, 'success');
+  renderPresetList();
+  MosaicUI.feedback.undo(`'${overwrittenPresetName}' 프리셋 덮어씀.`, async () => {
+    const restored = await MosaicStorage.restoreStoredValue(MosaicStorage.PRESET_KEY, previousStoredPresets, writtenStoredPresets);
+    const undoStatus = document.getElementById('presetStatus');
+    if(!restored){
+      host.setStatus(undoStatus, '프리셋이 그사이 변경되었거나 저장소에 오류가 있어 되돌리지 못했습니다. 목록을 다시 확인해 주세요.', 'error');
+      return;
+    }
+    host.setStatus(undoStatus, `'${overwrittenPresetName}' 프리셋 덮어쓰기를 되돌렸습니다.`, 'success');
+    renderPresetList();
+    renderComboList();
+  });
+
+}
+
+function saveCurrentPreset(){
+  const nameInput = document.getElementById('presetName');
+  const name = nameInput.value.trim();
+  if(!name){
+    nameInput.placeholder = '이름을 먼저 입력';
+    return;
+  }
+  if(!MosaicState.validStoredName(name, 80)){
+    host.setStatus('presetStatus', '프리셋 이름은 제어 문자 없이 1~80자로 입력해 주세요.', 'error');
+    return;
+  }
+  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
+  if(list === null){ showPresetReadError(); return; }
+  const values = currentSavedPresetValues();
+  const existingIdx = list.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+  if(existingIdx >= 0){
+    host.setStatus('presetStatus', '같은 이름이 이미 있습니다. 선택 후 변경사항 저장을 사용해 주세요.', 'error');
+    return;
+  }
+  list.push({ name, values });
+  if(!MosaicStorage.savePresets(list)){
+    host.setStatus('presetStatus', MosaicStorage.presetSaveFailure, 'error');
+    return;
+  }
+  currentPresetName = name;
+  currentComboName = null;
+  host.setStatus('presetStatus', `'${name}' 프리셋을 저장했습니다.`, 'success');
+  renderPresetList();
+  renderComboList();
+  nameInput.value = '';
+  updateSavePresetBtn();
+
+}
+
+function resetDesignDefaults(){
+  applyStyleValues(MosaicState.DEFAULT_STYLE);
+  currentPresetName = null;
+  currentComboName = '모노 클래식';
+  currentComboFamily = 'featured';
+  renderPresetList();
+  renderComboList();
+  host.styleChange();
+
+}
+
+function exportPresetFile(){
+  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
+  if(list === null){ showPresetReadError(); return; }
+  const exportList = list.map(preset => {
+    const stored = preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
+    return {
+      ...(stored ? stored : {}),
+      name: preset.name,
+      values: stored ? stored.values : preset.values
+    };
+  });
+  try {
+    const count = downloadJSONParts(exportList,'log_presets.json',MosaicStorage.MAX_PRESET_BYTES,MosaicStorage.MAX_IMPORTED_PRESETS);
+    const status = document.getElementById('importStatus');
+    host.setStatus(status, `프리셋 내보내기 요청.${count > 1 ? ` 가져오기 한도에 맞춰 ${count}개 파일로 나눴습니다.` : ''}`, 'success');
+  } catch(error){
+    const status = document.getElementById('importStatus');
+    host.setStatus(status, error.message, 'error');
+  }
+
+}
+
+async function importArchiveFile(file){
+  const result = await MosaicStorage.readJSONImportFile(file,'archive');
+  if(result.issue){ showJSONImportIssue('archive',result.issue); return; }
+  const read = await MosaicStorage.readSlotIndex();
+  let list = read.slots;
+  if(list === null){
+    if(!read.missing){ showSlotReadError(read.issue); return; }
+    if(!confirm('현재 보관함 자료가 없습니다. 선택한 JSON 파일로 보관함을 복원하시겠습니까?\n이전 저장소 사본은 자동으로 합치지 않습니다.')) return;
+    list = [];
+  }
+  let added = 0, updated = 0;
+  result.items.forEach(slot => {
+    const index = slot.id ? list.findIndex(item=>item.id===slot.id) : list.findIndex(item=>item.name===slot.name);
+    const entry = {...slot,id:index>=0 ? list[index].id : (slot.id || MosaicStorage.makeSlotId())};
+    if(index>=0){ list[index]=entry; updated++; }else{ list.unshift(entry); added++; }
+  });
+  const status = document.getElementById('slotImportStatus');
+  if(!await MosaicStorage.saveSlots(list, read.missing ? read : list)){ host.setStatus(status, MosaicStorage.slotSaveFailure, 'error'); return; }
+  renderSlotList();
+  host.setStatus(status, `불러오기 완료 — ${added}개 추가, ${updated}개 덮어씀.`, 'success');
+}
+
+async function importPresetFile(file){
+  const result = await MosaicStorage.readJSONImportFile(file,'preset');
+  if(result.issue){ showJSONImportIssue('preset',result.issue); return; }
+  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
+  if(list === null){ showPresetReadError(); return; }
+  let addedCount=0, updatedCount=0;
+  result.items.forEach(preset=>{
+    const index=list.findIndex(item=>item.name.toLowerCase()===preset.name.toLowerCase());
+    if(index>=0){ list[index].values=preset.values; list[index]._stored=null; updatedCount++; }
+    else{ list.push({name:preset.name,values:preset.values}); addedCount++; }
+  });
+  const status=document.getElementById('importStatus');
+  if(!MosaicStorage.savePresets(list)){ host.setStatus(status, MosaicStorage.presetSaveFailure, 'error'); return; }
+  const first=result.items[0], applied=list.find(item=>item.name.toLowerCase()===first.name.toLowerCase());
+  currentPresetName=applied ? applied.name : first.name; currentComboName=null;
+  applyThemeColorValues(first.values); renderPresetList(); renderComboList(); host.styleChange();
+  host.setStatus(status, `불러오기 완료: 새로 추가 ${addedCount}개, 덮어쓰기 ${updatedCount}개.`, 'success');
+}
+
+function bindHtmlFileEvents(){
+// 조각로그 v1.9.0 HTML 복원·파일 저장·로그 보관함 모듈.
+
+// ---------- 출력 HTML에서 작업 복원 ----------
+document.getElementById('restoreHtmlBtn').addEventListener('click', () => {
+  document.getElementById('restoreHtmlFile').click();
 });
 
+document.getElementById('restoreHtmlFile').addEventListener('change', event => { const file=event.target.files[0]; event.target.value=''; if(file) restoreHTMLFile(file); });
+
+// ---------- HTML 파일로 저장 ----------
+document.getElementById('downloadBtn').addEventListener('click', () => downloadWorkHTML());
+}
+
+function bindArchiveEvents(){
+document.getElementById('slotSearch').addEventListener('input', renderSlotList);
+
+document.getElementById('slotSort').addEventListener('change', renderSlotList);
+
+document.getElementById('slotExpandBtn').addEventListener('click', () => {
+  slotListExpanded = !slotListExpanded;
+  renderSlotList();
+});
+
+document.getElementById('saveSlotBtn').addEventListener('click', event => saveCurrentSlot(event.currentTarget));
+
+document.getElementById('slotExportMenuBtn').addEventListener('click', () => {
+  if(document.getElementById('slotExportMenu').hidden) openSlotExportMenu();
+  else closeSlotExportMenu(true);
+});
+
+document.getElementById('slotExportDropdown').addEventListener('keydown', event => {
+  const menu = document.getElementById('slotExportMenu');
+  if(event.key === 'Escape' && !menu.hidden){
+    event.preventDefault();event.stopPropagation();closeSlotExportMenu(true);return;
+  }
+  if(event.key === 'Tab' && !menu.hidden){
+    event.preventDefault();closeSlotExportMenu();
+    document.getElementById(event.shiftKey ? 'slotExportMenuBtn' : 'importSlotsBtn').focus();return;
+  }
+  if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key)) return;
+  if(event.target.id === 'slotExportMenuBtn'){
+    event.preventDefault();openSlotExportMenu(event.key === 'ArrowUp' || event.key === 'End');return;
+  }
+  if(menu.hidden) return;
+  event.preventDefault();
+  const items = Array.from(menu.querySelectorAll('button')).filter(button=>!button.disabled);
+  const current = items.indexOf(document.activeElement);
+  const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length-1
+    : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[index]?.focus();
+});
+
+document.getElementById('slotExportDropdown').addEventListener('focusout', handleArchiveExportFocusout);
+
+document.addEventListener('click', event => {
+  if(!document.getElementById('slotExportDropdown').contains(event.target)) closeSlotExportMenu(true);
+});
+
+document.getElementById('exportSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSlots(); });
+
+document.getElementById('exportSplitSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSplitSlots(); });
+
+document.getElementById('exportSelectedSlotsBtn').addEventListener('click', () => exportSlots(true));
+
+document.getElementById('slotSelectTenBtn').addEventListener('click', () => selectArchiveSlots(10));
+
+document.getElementById('slotSelectAllBtn').addEventListener('click', () => selectArchiveSlots(Infinity));
+
+document.getElementById('slotClearSelectionBtn').addEventListener('click', () => { selectedSlotIds.clear();renderSlotList(); });
+
+document.getElementById('deleteSelectedSlotsBtn').addEventListener('click', deleteSelectedSlots);
+
+document.getElementById('slotSelectBtn').addEventListener('click', () => {
+  slotLoadRevision++;
+  slotSelectionMode = !slotSelectionMode;
+  if(!slotSelectionMode) selectedSlotIds.clear();
+  renderSlotList();
+});
+
+document.getElementById('importSlotsBtn').addEventListener('click', () => {
+  document.getElementById('importSlotsFile').click();
+});
+
+document.getElementById('importSlotsFile').addEventListener('change', event => { const file=event.target.files[0]; event.target.value=''; if(file) importArchiveFile(file); });
+}
+
+function bindWorkResetEvents(){
+document.getElementById('newLogBtn').addEventListener('click', startNewLog);
+
+document.getElementById('sidebarNewLogBtn').addEventListener('click', startNewLog);
+
+document.getElementById('resetCurrentWorkBtn').addEventListener('click', () => resetCurrentWork());
+}
+
+function bindStyleChoiceEvents(){
 document.getElementById('dlgStylePrev').addEventListener('click', () => stepDialogueStyle(-1));
 
 document.getElementById('dlgStyleNext').addEventListener('click', () => stepDialogueStyle(1));
@@ -2114,6 +2306,7 @@ document.getElementById('dlgStyleNext').addEventListener('click', () => stepDial
 [
   ['textFont', 'textFontPrev', 'textFontNext'],
   ['parallelTranslationLayout', 'parallelLayoutPrev', 'parallelLayoutNext'],
+  ['parallelRecognitionMode', 'parallelRecognitionPrev', 'parallelRecognitionNext'],
   ['spacingMode', 'spacingModePrev', 'spacingModeNext'],
   ['cardWidth', 'cardWidthPrev', 'cardWidthNext']
 ].forEach(([selectId, prevId, nextId]) => {
@@ -2165,7 +2358,9 @@ SEGMENTED_CHOICE_SELECT_IDS.forEach(id => {
   select.addEventListener('input', () => syncSegmentedChoiceControl(id));
   select.addEventListener('change', () => syncSegmentedChoiceControl(id));
 });
+}
 
+function bindThemeEvents(){
 bindThemeHoverPreviewList('comboList', '.comboCard');
 
 bindThemeHoverPreviewList('presetList', '.presetCard', true);
@@ -2189,7 +2384,9 @@ document.getElementById('currentThemePaletteButton').addEventListener('click', (
 MosaicState.SAVED_PRESET_FIELDS.forEach(id => {
   document.getElementById(id).addEventListener('input', updateOverwriteBtn);
 });
+}
 
+function bindPresetEvents(){
 try {
   const savedView = JSON.parse(localStorage.getItem(PRESET_VIEW_KEY) || '{}');
   if(['manual','recent','name'].includes(savedView.sort)) presetSortMode = savedView.sort;
@@ -2227,80 +2424,13 @@ document.addEventListener('click', (e) => {
   document.querySelectorAll('#presetList .presetMenuBtn').forEach(btn => { btn.setAttribute('aria-expanded', 'false'); });
 });
 
-document.getElementById('overwritePresetBtn').addEventListener('click', () => {
-  if(!currentPresetName) return;
-  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
-  if(list === null){ showPresetReadError(); return; }
-  const target = list.find(p => p.name === currentPresetName);
-  if(!target) return;
-  const overwrittenPresetName = currentPresetName;
-  const previousStoredPresets = localStorage.getItem(MosaicStorage.PRESET_KEY);
-  target.values = currentSavedPresetValues();
-  target._stored = null;
-  if(!MosaicStorage.savePresets(list)){
-    document.getElementById('presetStatus').textContent = MosaicStorage.presetSaveFailure;
-    return;
-  }
-  const writtenStoredPresets = MosaicStorage.lastPresetReadRaw;
-  renderPresetList();
-  const st = document.getElementById('presetStatus');
-  st.textContent = `'${overwrittenPresetName}'에 덮어씀.`;
-  MosaicUI.feedback.undo(`'${overwrittenPresetName}' 프리셋 덮어씀.`, () => {
-    const restored = MosaicStorage.restoreStoredValue(MosaicStorage.PRESET_KEY, previousStoredPresets, writtenStoredPresets);
-    const undoStatus = document.getElementById('presetStatus');
-    if(!restored){
-      undoStatus.textContent = '프리셋이 그사이 변경되었거나 저장소에 오류가 있어 되돌리지 못했습니다. 목록을 다시 확인해 주세요.';
-      return;
-    }
-    undoStatus.textContent = `'${overwrittenPresetName}' 프리셋 덮어쓰기를 되돌렸습니다.`;
-    renderPresetList();
-    renderComboList();
-  });
-});
+document.getElementById('overwritePresetBtn').addEventListener('click', () => overwriteCurrentPreset());
 
 document.getElementById('presetName').addEventListener('input', updateSavePresetBtn);
 
-document.getElementById('savePresetBtn').addEventListener('click', () => {
-  const nameInput = document.getElementById('presetName');
-  const name = nameInput.value.trim();
-  if(!name){
-    nameInput.placeholder = '이름을 먼저 입력';
-    return;
-  }
-  if(name.length > 80){
-    document.getElementById('presetStatus').textContent = '프리셋 이름은 80자 이하로 입력해 주세요.';
-    return;
-  }
-  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
-  if(list === null){ showPresetReadError(); return; }
-  const values = currentSavedPresetValues();
-  const existingIdx = list.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
-  if(existingIdx >= 0){
-    document.getElementById('presetStatus').textContent = '같은 이름이 이미 있습니다. 선택 후 변경사항 저장을 사용해 주세요.';
-    return;
-  }
-  list.push({ name, values });
-  if(!MosaicStorage.savePresets(list)){
-    document.getElementById('presetStatus').textContent = MosaicStorage.presetSaveFailure;
-    return;
-  }
-  currentPresetName = name;
-  currentComboName = null;
-  renderPresetList();
-  renderComboList();
-  nameInput.value = '';
-  updateSavePresetBtn();
-});
+document.getElementById('savePresetBtn').addEventListener('click', () => saveCurrentPreset());
 
-document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
-  applyStyleValues(MosaicState.DEFAULT_STYLE);
-  currentPresetName = null;
-  currentComboName = '모노 클래식';
-  currentComboFamily = 'featured';
-  renderPresetList();
-  renderComboList();
-  host.styleChange();
-});
+document.getElementById('resetDefaultsBtn').addEventListener('click', () => resetDesignDefaults());
 
 document.getElementById('advancedResetBtn').addEventListener('click', () => {
   resetAdvancedControlFields(['unifiedBottomSpace', ...Object.values(ADVANCED_RESET_GROUP_FIELDS).flat()]);
@@ -2314,110 +2444,22 @@ document.querySelectorAll('#advancedDesignGroup .advancedOptionResetBtn').forEac
 });
 
 // ---------- 프리셋 내보내기 / 불러오기 ----------
-document.getElementById('exportPresetBtn').addEventListener('click', () => {
-  const list = MosaicStorage.loadPresets(currentSavedPresetValues());
-  if(list === null){ showPresetReadError(); return; }
-  const exportList = list.map(preset => {
-    const stored = preset._stored && typeof preset._stored === 'object' ? preset._stored : null;
-    return {
-      ...(stored ? stored : {}),
-      name: preset.name,
-      values: stored ? stored.values : preset.values
-    };
-  });
-  const blob = new Blob([JSON.stringify(exportList, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'log_presets.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
+document.getElementById('exportPresetBtn').addEventListener('click', () => exportPresetFile());
 
 document.getElementById('importPresetBtn').addEventListener('click', () => {
   document.getElementById('importPresetFile').click();
 });
 
-document.getElementById('importPresetFile').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  const statusEl = document.getElementById('importStatus');
-  if(!file) return;
-  if(file.size > MosaicStorage.MAX_PRESET_BYTES){
-    statusEl.style.color = '#c0392b';
-    statusEl.textContent = '프리셋 파일이 너무 큽니다. (최대 512KB)';
-    e.target.value = '';
-    return;
-  }
+document.getElementById('importPresetFile').addEventListener('change', event => { const file=event.target.files[0]; event.target.value=''; if(file) importPresetFile(file); });
+}
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    let imported;
-    try {
-      imported = JSON.parse(reader.result);
-    } catch(err){
-      statusEl.style.color = '#c0392b';
-      statusEl.textContent = '파일 읽기 실패. JSON 형식을 확인.';
-      return;
-    }
-    if(!Array.isArray(imported) || imported.length > MosaicStorage.MAX_IMPORTED_PRESETS){
-      statusEl.style.color = '#c0392b';
-      statusEl.textContent = '이 도구의 프리셋 파일이 아니거나 항목이 너무 많습니다. (최대 100개)';
-      return;
-    }
-    const cleaned = imported.map(MosaicState.sanitizeImportedPreset);
-    if(!cleaned.length || cleaned.some(p => !p)){
-      statusEl.style.color = '#c0392b';
-      statusEl.textContent = '프리셋 값이나 색상 형식이 올바르지 않음.';
-      return;
-    }
-    const importedNames = cleaned.map(p => p.name.toLowerCase());
-    if(new Set(importedNames).size !== importedNames.length){
-      statusEl.style.color = '#c0392b';
-      statusEl.textContent = '프리셋 파일 안에 중복된 이름이 있습니다.';
-      return;
-    }
-    imported = cleaned;
-
-    const list = MosaicStorage.loadPresets(currentSavedPresetValues());
-    if(list === null){ showPresetReadError(); return; }
-    let addedCount = 0, updatedCount = 0;
-    imported.forEach(p => {
-      const idx = list.findIndex(existing => existing.name.toLowerCase() === p.name.toLowerCase());
-      if(idx >= 0){
-        list[idx].values = p.values;
-        list[idx]._stored = null;
-        updatedCount++;
-      } else {
-        list.push({ name: p.name, values: p.values });
-        addedCount++;
-      }
-    });
-    if(!MosaicStorage.savePresets(list)){
-      statusEl.style.color = '#c0392b';
-      statusEl.textContent = MosaicStorage.presetSaveFailure;
-      return;
-    }
-    const appliedPreset = list.find(p => p.name.toLowerCase() === imported[0].name.toLowerCase());
-    currentPresetName = appliedPreset ? appliedPreset.name : imported[0].name;
-    currentComboName = null;
-    applyThemeColorValues(imported[0].values);
-    renderPresetList();
-    renderComboList();
-    host.styleChange();
-
-    statusEl.style.color = '#2a7a2a';
-    statusEl.textContent = `불러오기 완료: 새로 추가 ${addedCount}개, 덮어쓰기 ${updatedCount}개.`;
-  };
-  reader.onerror = () => {
-    statusEl.style.color = '#c0392b';
-    statusEl.textContent = '프리셋 파일을 읽지 못했습니다.';
-  };
-  reader.readAsText(file);
-  e.target.value = ''; // 같은 파일 다시 선택해도 change가 발생하도록 초기화
-});
-
+function bindFeatureEvents(){
+  bindHtmlFileEvents();
+  bindArchiveEvents();
+  bindWorkResetEvents();
+  bindStyleChoiceEvents();
+  bindThemeEvents();
+  bindPresetEvents();
 }
 return Object.freeze({
 applyDraftRestorePlan,

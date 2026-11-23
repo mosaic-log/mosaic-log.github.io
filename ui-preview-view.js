@@ -1469,6 +1469,12 @@ const previewSearchState = {
   current:-1,
   // 삭제로 검색 결과가 잠시 없어져도 되돌리기 후 선택 결과를 다시 펼칠 수 있게 기억한다.
   lastActiveIndex:-1,
+  matches:[],
+  sources:[],
+  query:'',
+  scope:'',
+  settingsKey:'',
+  hitMatches:new WeakMap(),
   statusTimer:null,
   bound:false
 };
@@ -1492,13 +1498,6 @@ function pvScopeTextarea(){
 function pvScopeTextareas(){
   const ta = pvScopeTextarea();
   return ta ? [ta] : host.cardEditors.bodyCardTextareas();
-}
-
-function pvScopePreviewRoots(){
-  const ta = pvScopeTextarea();
-  if(!ta) return host.previewCardContexts().map(ctx => ctx.cardEl);
-  const ctx = host.previewCardContexts().find(item => item.ta === ta);
-  return ctx ? [ctx.cardEl] : [];
 }
 
 function pvRefreshScopeOptions(resetToAll){
@@ -1532,12 +1531,15 @@ function pvClearHits(){
   });
   previewSearchState.hits = [];
   previewSearchState.current = -1;
+  previewSearchState.matches = [];
+  previewSearchState.sources = [];
+  previewSearchState.hitMatches = new WeakMap();
 }
 
 // 한 출력 문단의 여러 텍스트 노드를 하나의 문자열처럼 검색한다.
 // 굵게·강조·원문 병행 span 경계를 가로지르는 검색어도 한 항목으로 표시하되,
 // 화자 이름표와 자동 장식은 원문 입력에 없는 글자이므로 검색에서 제외한다.
-function pvHighlightBlock(block, query){
+function pvBlockText(block){
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
   const nodes = [];
   let node;
@@ -1547,18 +1549,18 @@ function pvHighlightBlock(block, query){
     if(!node.data || (parent && parent.closest('[data-mosaic-speaker-label="true"], [data-mosaic-generated="true"], [data-mosaic-footer="true"], [data-mosaic-credit="true"], [data-mosaic-card-title="true"]'))) continue;
     nodes.push(node);
   }
-  if(!nodes.length) return [];
   const text = nodes.map(item => item.data).join('');
-  const matches = host.normalizedLiteralOffsets(text, query)
-    .map(start => ({ start, end:start + query.length }));
-  if(!matches.length) return [];
-
   const boundaries = [];
   let cursor = 0;
   nodes.forEach(textNode => {
     boundaries.push({ node:textNode, start:cursor, end:cursor + textNode.data.length });
     cursor += textNode.data.length;
   });
+  return {block,text,boundaries};
+}
+
+function pvHighlightBlock({boundaries}, matches){
+  if(!boundaries.length || !matches.length) return [];
   const locate = (position, startBoundary) => {
     for(let i = 0; i < boundaries.length; i++){
       const item = boundaries[i];
@@ -1583,6 +1585,7 @@ function pvHighlightBlock(block, query){
     span.className = 'pvHit';
     span.appendChild(range.extractContents());
     range.insertNode(span);
+    previewSearchState.hitMatches.set(span,match);
     hits.unshift(span);
   });
   return hits;
@@ -1608,11 +1611,25 @@ function pvApplySearch(keepPos){
   pvClearHits();
   const q = document.getElementById('pvFindInput').value;
   if(!previewSearchState.open || !q){ pvUpdateCount(); return; }
-  const roots = pvScopePreviewRoots();
-  if(!roots.length){ pvUpdateCount(); return; }
-  roots.forEach(root => {
-    host.previewSourceBlocks(root).forEach(block => {
-      previewSearchState.hits.push(...pvHighlightBlock(block, q));
+  const textareas = pvScopeTextareas();
+  const contexts = host.previewCardContexts();
+  previewSearchState.query = q;
+  previewSearchState.scope = document.getElementById('pvScopeSelect').value;
+  previewSearchState.settingsKey = JSON.stringify(host.getSettings());
+  textareas.forEach(ta => {
+    const context = contexts.find(item=>item.ta===ta);
+    const blocks = context ? host.previewSourceBlocks(context.cardEl).map(pvBlockText) : [];
+    const matches = host.searchSourceMatches(ta,q,blocks.map(item=>item.text),
+      (entry,index,count)=>!context || (blocks.length===count && host.previewSourceMatches(blocks[index].block,entry)));
+    previewSearchState.sources.push({ta,before:ta.value});
+    previewSearchState.matches.push(...matches);
+    const byEntry = new Map();
+    matches.forEach(match=>{
+      if(!byEntry.has(match.entry))byEntry.set(match.entry,[]);
+      byEntry.get(match.entry).push(match);
+    });
+    blocks.forEach((block,index)=>{
+      previewSearchState.hits.push(...pvHighlightBlock(block,byEntry.get(index) || []));
     });
   });
   if(previewSearchState.hits.length){
@@ -1670,34 +1687,34 @@ function closePreviewSearch(){
 }
 
 // ---------- 미리보기 대치 ----------
-// 현재 항목 대치: 강조 span(findBlockSource)으로 원본 카드·줄을 역추적하고,
-// 그 줄 안에서 몇 번째 일치인지(같은 줄에 속한 앞선 강조 수)를 세어 원본의 해당 위치만 바꾼다.
-// 미리보기 텍스트는 마커 제거·따옴표 정규화를 거치므로, 검색어가 그 변형에 걸치면
-// 원본에서 위치를 찾지 못할 수 있음 → 상태 메시지로 알리고 아무것도 바꾸지 않는다.
+// 검색 시 만든 후보를 공유하고, 원문·범위·설정이 바뀌면 먼저 다시 계산한다.
+function pvEnsureSearchCurrent(){
+  const textareas = pvScopeTextareas();
+  if(previewSearchState.query !== document.getElementById('pvFindInput').value
+    || previewSearchState.scope !== document.getElementById('pvScopeSelect').value
+    || previewSearchState.settingsKey !== JSON.stringify(host.getSettings())
+    || textareas.length !== previewSearchState.sources.length
+    || previewSearchState.sources.some((source,index)=>source.ta!==textareas[index] || source.before!==source.ta.value)){
+    const sources = previewSearchState.sources;
+    host.renderPreview();
+    if(previewSearchState.sources === sources) pvApplySearch(true);
+  }
+}
+
 function pvReplaceCurrent(){
   const q = document.getElementById('pvFindInput').value;
-  if(!q || !previewSearchState.hits.length) return;
+  if(!q) return;
+  pvEnsureSearchCurrent();
+  if(!previewSearchState.hits.length) return;
   if(previewSearchState.current < 0){ pvGo(1); return; }
   const r = document.getElementById('pvReplInput').value;
   const hit = previewSearchState.hits[previewSearchState.current];
-  if(!hit) return;
-  const src = host.findBlockSource(hit);
-  if(!src){ pvStatusFlash('본문 밖 — 대치 불가'); return; }
-  let k = 0;
-  for(let i = 0; i < previewSearchState.current; i++){
-    const s = host.findBlockSource(previewSearchState.hits[i]);
-    if(s && s.ta === src.ta && s.raw === src.raw) k++;
-  }
-  const lines = src.ta.value.split('\n');
-  const line = lines[src.raw] || '';
-  const settings = host.sourceMap.outputRuleLineSettings(src.ta,src.raw);
-  const sourceRange = host.sourceMap.findSourceRange(line, q, k, true, settings);
-  if(!sourceRange){ pvStatusFlash('원본 위치 확인 실패'); return; }
-  host.snapshotCards();
-  lines[src.raw] = host.sourceMap.replaceSourceRange(line, sourceRange, r, settings);
-  src.ta.value = lines.join('\n');
-  src.ta.dispatchEvent(new Event('input', { bubbles: true }));  // 리렌더 + 저장 + 강조 재적용
-  host.showUndoToast('1곳 변경.');
+  const match = previewSearchState.hitMatches.get(hit);
+  if(!match?.target){ pvStatusFlash('원본 위치 확인 실패'); return; }
+  const ta = match.ta;
+  const change = host.planSearchChange(ta.value,[match],r,raw=>host.outputRuleLineSettings(ta,raw));
+  if(!change){ pvStatusFlash('원본 위치 확인 실패'); return; }
+  host.applySourceChanges([{ta,...change}],'1곳 변경.',{input:true,activeTextarea:ta});
   if(previewSearchState.hits.length) pvMarkCurrent(true);
 }
 
@@ -1705,37 +1722,26 @@ function pvReplaceCurrent(){
 function pvReplaceAll(){
   const q = document.getElementById('pvFindInput').value;
   if(!q) return;
+  pvEnsureSearchCurrent();
   const r = document.getElementById('pvReplInput').value;
   const perTextarea = new Map();
 
-  // DOM 강조 위치가 아니라 원문의 '화면에 보이는 투영'을 직접 검색한다.
-  // 그래서 접기 내부도 빠지지 않고, 표제·꼬리말·화자 이름표와 문법 기호는 건드리지 않는다.
-  pvScopeTextareas().forEach(ta => {
-    const rows = new Map();
-    ta.value.split('\n').forEach((line, raw) => {
-      const matches = host.sourceMap.findAllSourceRanges(line, q, true, host.sourceMap.outputRuleLineSettings(ta,raw));
-      if(matches.length) rows.set(raw, matches);
-    });
-    if(rows.size) perTextarea.set(ta, rows);
+  // 접기·출력 숨김 카드도 기존 전체 대치 범위에 포함한다. 자동 장식은 후보에 없다.
+  previewSearchState.matches.forEach(match => {
+    if(!match.target) return;
+    if(!perTextarea.has(match.ta)) perTextarea.set(match.ta,[]);
+    perTextarea.get(match.ta).push(match);
   });
-
+  const changes = [];
   let n = 0;
-  perTextarea.forEach(rows => rows.forEach(atList => { n += atList.length; }));
+  for(const [ta,matches] of perTextarea){
+    const change = host.planSearchChange(ta.value,matches,r,raw=>host.outputRuleLineSettings(ta,raw));
+    if(!change){ pvStatusFlash('원본 위치 확인 실패'); return; }
+    changes.push({ta,...change});
+    n += change.count;
+  }
   if(!n){ pvStatusFlash('0 / 0'); return; }
-  host.snapshotCards();
-  perTextarea.forEach((rows, ta) => {
-    const lines = ta.value.split('\n');
-    rows.forEach((rangeList, raw) => {
-      let line = lines[raw] || '';
-      rangeList.sort((a, b) => b.start - a.start).forEach(range => {
-        line = host.sourceMap.replaceSourceRange(line, range, r, host.sourceMap.outputRuleLineSettings(ta,raw));
-      });
-      lines[raw] = line;
-    });
-    ta.value = lines.join('\n');
-  });
-  host.uiUpdateEffects.committedChange();
-  host.showUndoToast(n + '곳 변경.');
+  host.applySourceChanges(changes,n + '곳 변경.');
   if(previewSearchState.hits.length) pvMarkCurrent(true);
 }
 

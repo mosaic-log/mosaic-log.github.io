@@ -91,11 +91,6 @@ function restoreDraft(){
     const raw = MosaicStorage.readDraftRaw();
     if(raw === null){ draftReadRaw = null; return 'empty'; }
     const d = JSON.parse(raw);
-    if(MosaicStorage.isRetiredDefaultDraft(d)){
-      MosaicStorage.removeDraftRaw();
-      draftReadRaw = null;
-      return 'empty';
-    }
     const plan = MosaicStorage.prepareDraftRestore(d);
     if(!plan) throw new Error('invalid draft');
     const before = {...MosaicUI.captureDraftUiState(), updatedAt:draftBaseUpdatedAt, dirty:draftDirty};
@@ -1300,9 +1295,91 @@ updateHistoryButtons
 });
 MosaicUI.configure(commands);
 MosaicUI.init();
-function bindApplicationEvents(){
+let copyOutputRequest = 0;
+function copyOutputHTML(){
+  const request = ++copyOutputRequest;
+  const status = document.getElementById('copyStatus');
+  MosaicUI.feedback.status(status, '복사 중…', 'pending');
+  let html;
+  try {
+    html = MosaicUI.generateHTML();
+    if(document.getElementById('copyWithOuterBreaks').checked){
+      html = '<br>' + html + '<br>';
+    }
+  } catch(e){
+    MosaicUI.feedback.status(status, 'HTML 생성 중 오류: ' + e.message, 'error');
+    return;
+  }
+  const ok = () => {
+    if(request !== copyOutputRequest) return;
+    MosaicUI.feedback.status(status, '복사 완료. 아카라이브 에디터에 붙여넣기.', 'success', 3000);
+  };
 
+  // 임시 입력 요소를 이용해 복사하므로 미리보기·편집 원문·코드 보기는 바뀌지 않음.
+  // 로컬 파일(file://)에서도 동작하는 동기 방식을 먼저 쓰고, 실패하면 클립보드 API를 시도함.
+  try {
+    const temp = document.createElement('textarea');
+    temp.value = html;
+    temp.setAttribute('readonly', '');
+    temp.style.position = 'fixed';
+    temp.style.left = '-9999px';
+    temp.style.opacity = '0';
+    document.body.appendChild(temp);
+    temp.select();
+    temp.setSelectionRange(0, temp.value.length);
+    let done = false;
+    try { done = document.execCommand('copy'); } catch(e){ done = false; }
+    document.body.removeChild(temp);
+    if(done){
+      if(window.getSelection) window.getSelection().removeAllRanges();
+      ok();
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(html).then(() => {
+        ok();
+      }).catch(() => {
+        if(request === copyOutputRequest) MosaicUI.feedback.status(status, '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.', 'error');
+      });
+    } else {
+      if(request === copyOutputRequest) MosaicUI.feedback.status(status, '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.', 'error');
+    }
+  } catch(e){
+    if(request === copyOutputRequest) MosaicUI.feedback.status(status, '복사 중 오류: ' + e.message, 'error');
+  }
 
+}
+
+function bindStoredFoldEvents(selector, prefix){
+  document.querySelectorAll(selector).forEach(el => {
+    const key=prefix+':'+el.id;
+    try {
+      const saved=localStorage.getItem(key);
+      if(saved==='open')el.setAttribute('open','');
+      else if(saved==='closed')el.removeAttribute('open');
+    } catch(error){}
+    el.addEventListener('toggle',()=>{
+      try {localStorage.setItem(key,el.open?'open':'closed');} catch(error){}
+    });
+  });
+}
+
+function setFullscreenPreviewWidth(mobile){
+  const cardWidth=parseInt(document.getElementById('cardWidth').value,10)||750;
+  document.getElementById('previewWrap').style.maxWidth=mobile?'380px':cardWidth+'px';
+  for(const [id,active] of [['widthDesktopBtn',!mobile],['widthMobileBtn',mobile]]){
+    const button=document.getElementById(id);
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+  }
+  MosaicUI.preview.syncToolbarLabel();
+  requestAnimationFrame(()=>{
+    MosaicUI.preview.syncCommentOutset();
+    MosaicUI.preview.layoutFloatingButtons();
+  });
+}
+
+function bindDraftEvents(){
 // 모바일 앱 전환은 beforeunload 없이 종료될 수 있다. 숨겨질 때 먼저 보존한다.
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'hidden') saveDraftBeforeLeaving();
@@ -1333,7 +1410,9 @@ document.getElementById('draftConflictBtn').addEventListener('click', () => {
     saveDraft(true);
   }catch(e){ MosaicUI.setDraftStatus('저장 실패', 'error'); }
 });
+}
 
+function bindActionHistoryEvents(){
 document.getElementById('undoStyleBtn').addEventListener('click', () => goActionHistory(-1));
 
 document.getElementById('redoStyleBtn').addEventListener('click', () => goActionHistory(1));
@@ -1397,7 +1476,9 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   goActionHistory(e.shiftKey ? 1 : -1);
 });
+}
 
+function bindEditorShortcutEvents(){
 document.addEventListener('keydown', (e) => {
   if(e.isComposing || e.keyCode === 229) return;
   if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
@@ -1438,30 +1519,11 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+}
 
-document.querySelectorAll('details.foldGroup').forEach(el => {
-  const key = FOLD_KEY + ':' + el.id;
-  try {
-    const saved = localStorage.getItem(key);
-    if(saved === 'open') el.setAttribute('open', '');
-    else if(saved === 'closed') el.removeAttribute('open');
-  } catch(e){}
-  el.addEventListener('toggle', () => {
-    try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
-  });
-});
-
-document.querySelectorAll('details.typographySubsection').forEach(el => {
-  const key = TYPOGRAPHY_SUBSECTION_KEY + ':' + el.id;
-  try {
-    const saved = localStorage.getItem(key);
-    if(saved === 'open') el.setAttribute('open', '');
-    else if(saved === 'closed') el.removeAttribute('open');
-  } catch(e){}
-  el.addEventListener('toggle', () => {
-    try { localStorage.setItem(key, el.open ? 'open' : 'closed'); } catch(e){}
-  });
-});
+function bindPanelPreferenceEvents(){
+bindStoredFoldEvents('details.foldGroup',FOLD_KEY);
+bindStoredFoldEvents('details.typographySubsection',TYPOGRAPHY_SUBSECTION_KEY);
 
 setUiNightMode(document.documentElement.classList.contains('uiNight'), false);
 
@@ -1498,7 +1560,9 @@ layoutMirrorBtn.addEventListener('click', () => {
   if(!window.matchMedia('(min-width: 621px)').matches) return;
   setLayoutMirrored(!document.body.classList.contains('layoutMirrored'), true);
 });
+}
 
+function bindSidebarResizeEvents(){
 (function initSidebarWidth(){
   let saved = SIDEBAR_DEFAULT;
   try { const v = parseInt(localStorage.getItem(SIDEBAR_KEY), 10); if(v) saved = v; } catch(e){}
@@ -1558,7 +1622,9 @@ window.addEventListener('resize', () => setSidebarWidth(preferredSidebarWidth, f
     setSidebarWidth(current + (isDesktopLayoutMirrored() ? -visualDelta : visualDelta), true);
   });
 })();
+}
 
+function bindArchiveDrawerEvents(){
 document.getElementById('archiveOpenBtn').addEventListener('click', () => {
   setArchiveDrawerOpen(document.getElementById('archiveDrawer').hidden);
 });
@@ -1573,7 +1639,9 @@ document.getElementById('archiveDrawer').addEventListener('keydown', e => {
     setArchiveDrawerOpen(false);
   }
 });
+}
 
+function bindTabNavigationEvents(){
 document.getElementById('sidebar').addEventListener('scroll', rememberTabScroll);
 window.addEventListener('scroll', rememberTabScroll, {passive:true});
 
@@ -1614,7 +1682,9 @@ document.querySelector('.tabBar').addEventListener('keydown', (e) => {
   tabs[next].click();
   tabs[next].focus();
 });
+}
 
+function bindBodyAndPreviewEvents(){
 document.getElementById('clearBodyBtn').addEventListener('click', () => {
   MosaicUI.cards.snapshot();
   MosaicUI.cards.clear();
@@ -1659,88 +1729,17 @@ document.getElementById('previewWidthCycleBtn').addEventListener('click', () => 
   requestAnimationFrame(MosaicUI.layoutPreviewFloatingButtons);
 });
 
-document.getElementById('widthDesktopBtn').addEventListener('click', () => {
-  const cardWidth = parseInt(document.getElementById('cardWidth').value, 10) || 750;
-  document.getElementById('previewWrap').style.maxWidth = `${cardWidth}px`;
-  document.getElementById('widthDesktopBtn').classList.add('active');
-  document.getElementById('widthMobileBtn').classList.remove('active');
-  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'true');
-  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'false');
-  MosaicUI.preview.syncToolbarLabel();
-  requestAnimationFrame(() => {
-    MosaicUI.preview.syncCommentOutset();
-    MosaicUI.preview.layoutFloatingButtons();
-  });
-});
-
-document.getElementById('widthMobileBtn').addEventListener('click', () => {
-  document.getElementById('previewWrap').style.maxWidth = '380px';
-  document.getElementById('widthMobileBtn').classList.add('active');
-  document.getElementById('widthDesktopBtn').classList.remove('active');
-  document.getElementById('widthDesktopBtn').setAttribute('aria-pressed', 'false');
-  document.getElementById('widthMobileBtn').setAttribute('aria-pressed', 'true');
-  MosaicUI.preview.syncToolbarLabel();
-  requestAnimationFrame(() => {
-    MosaicUI.preview.syncCommentOutset();
-    MosaicUI.preview.layoutFloatingButtons();
-  });
-});
+document.getElementById('widthDesktopBtn').addEventListener('click',()=>setFullscreenPreviewWidth(false));
+document.getElementById('widthMobileBtn').addEventListener('click',()=>setFullscreenPreviewWidth(true));
 
 document.getElementById('copyWithOuterBreaks').addEventListener('change', () => {
   MosaicUI.preview.syncOuterBreaks();
   requestAnimationFrame(MosaicUI.layoutPreviewFloatingButtons);
 });
+}
 
-document.getElementById('copyBtn').addEventListener('click', () => {
-  const status = document.getElementById('copyStatus');
-  let html;
-  try {
-    html = MosaicUI.generateHTML();
-    if(document.getElementById('copyWithOuterBreaks').checked){
-      html = '<br>' + html + '<br>';
-    }
-  } catch(e){
-    status.textContent = 'HTML 생성 중 오류: ' + e.message;
-    return;
-  }
-  const ok = () => {
-    status.textContent = '복사 완료. 아카라이브 에디터에 붙여넣기.';
-    setTimeout(() => { status.textContent = ''; }, 3000);
-  };
-
-  // 임시 입력 요소를 이용해 복사하므로 미리보기·편집 원문·코드 보기는 바뀌지 않음.
-  // 로컬 파일(file://)에서도 동작하는 동기 방식을 먼저 쓰고, 실패하면 클립보드 API를 시도함.
-  try {
-    const temp = document.createElement('textarea');
-    temp.value = html;
-    temp.setAttribute('readonly', '');
-    temp.style.position = 'fixed';
-    temp.style.left = '-9999px';
-    temp.style.opacity = '0';
-    document.body.appendChild(temp);
-    temp.select();
-    temp.setSelectionRange(0, temp.value.length);
-    let done = false;
-    try { done = document.execCommand('copy'); } catch(e){ done = false; }
-    document.body.removeChild(temp);
-    if(done){
-      if(window.getSelection) window.getSelection().removeAllRanges();
-      ok();
-      return;
-    }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(html).then(() => {
-        ok();
-      }).catch(() => {
-        status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
-      });
-    } else {
-      status.textContent = '자동 복사가 차단됐습니다. 브라우저의 클립보드 권한을 확인해 주세요.';
-    }
-  } catch(e){
-    status.textContent = '복사 중 오류: ' + e.message;
-  }
-});
+function bindOutputEvents(){
+document.getElementById('copyBtn').addEventListener('click', copyOutputHTML);
 
 document.getElementById('outputAdvanced').addEventListener('toggle', () => {
   if(document.getElementById('outputAdvanced').open){
@@ -1776,10 +1775,11 @@ document.getElementById('codeFsCopyBtn').addEventListener('click', () => {
   let done = false;
   try { done = document.execCommand('copy'); } catch(e){ done = false; }
   const st = document.getElementById('codeFsStatus');
-  st.textContent = done ? '복사 완료.' : 'Ctrl+C(⌘+C)로 복사.';
-  setTimeout(() => { st.textContent = ''; }, 2500);
+  MosaicUI.feedback.status(st, done ? '복사 완료.' : 'Ctrl+C(⌘+C)로 복사.', done ? 'success' : 'info', 2500);
 });
+}
 
+function bindDocumentToolEvents(){
 IMAGE_STATUS_CONFIGS.forEach(config => {
   document.getElementById(config.inputId).addEventListener('input', () => scheduleImageStatusCheck(config));
 });
@@ -1822,6 +1822,19 @@ if(MosaicUI.IS_MAC){
     if(/^Ctrl\+/.test(el.textContent)) el.textContent = el.textContent.replace(/^Ctrl\+/, '⌘+');
   });
 }
+}
+
+function bindApplicationEvents(){
+  bindDraftEvents();
+  bindActionHistoryEvents();
+  bindEditorShortcutEvents();
+  bindPanelPreferenceEvents();
+  bindSidebarResizeEvents();
+  bindArchiveDrawerEvents();
+  bindTabNavigationEvents();
+  bindBodyAndPreviewEvents();
+  bindOutputEvents();
+  bindDocumentToolEvents();
 }
 bindApplicationEvents();
 initializeApplication();

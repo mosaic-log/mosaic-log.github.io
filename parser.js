@@ -106,6 +106,48 @@ function formatMatchContent(format, match){
   return match[1] !== undefined ? match[1] : match[2];
 }
 
+// 출력 분리와 편집 투영이 같은 서식 구분자 범위를 사용한다.
+function inlineFormatRanges(value){
+  const source = String(value), ranges = [];
+  for(const [pattern,width] of [[/\*\*\*([^*\n]+?)\*\*\*/g,3],[/\*\*(.+?)\*\*/g,2],[/__(.+?)__/g,2]]){
+    for(const match of source.matchAll(pattern)){
+      const start=match.index,end=start+match[0].length;
+      if(width===2 && source[start]==='*' && ranges.some(range=>range.width===3 && start>=range.start && end<=range.end)) continue;
+      ranges.push({start,end,width});
+    }
+  }
+  for(const match of MosaicState.emphasisMatches(source)) ranges.push({start:match.index,end:match.index+match[0].length,width:1});
+  return ranges;
+}
+
+// 원문 조각을 독립 출력해도 양쪽 서식이 균형을 이루도록 닫고 다시 연다.
+function sliceInlineSource(value, start, end, all = inlineFormatRanges(value)){
+  const source = String(value);
+  if(!all.length) return source.slice(start,end);
+  const ranges = all.filter(range => range.end>start && range.start<end && !all.some(outer => outer.width === 3 && range !== outer
+    && range.start+range.width === outer.start+outer.width && range.end-range.width === outer.end-outer.width));
+  const hidden = new Set(), opens = new Map(), closes = new Map();
+  for(const range of ranges){
+    for(let i = 0; i < range.width; i++){hidden.add(range.start+i);hidden.add(range.end-1-i);}
+    const from = Math.max(start,range.start+range.width), to = Math.min(end,range.end-range.width);
+    if(from >= to) continue;
+    let marker = source.slice(range.start,range.start+range.width);
+    // 잘린 굵게·기울임이 같은 자리에서 닫혀도 ***로 재해석되지 않게 한다.
+    if(marker==='**' && ranges.some(inner=>inner.width===1 && inner.start>range.start && inner.end<range.end)) marker='__';
+    const item = {...range,marker};
+    if(!opens.has(from)) opens.set(from,[]);
+    if(!closes.has(to)) closes.set(to,[]);
+    opens.get(from).push(item);closes.get(to).push(item);
+  }
+  let result = '';
+  for(let at = start; at <= end; at++){
+    result += (closes.get(at) || []).sort((a,b)=>b.start-a.start || a.end-b.end).map(item=>item.marker).join('');
+    result += (opens.get(at) || []).sort((a,b)=>a.start-b.start || b.end-a.end).map(item=>item.marker).join('');
+    if(at < end && !hidden.has(at)) result += source[at];
+  }
+  return result;
+}
+
 // 따옴표 위치는 정규화 전후에 같다. 단어의 apostrophe와 중첩 인용을 같은
 // 순회로 판정해 병행·문단 분리·메신저·편집 좌표가 서로 다른 쌍을 잡지 않게 한다.
 // 닫히지 않은 바깥 인용은 표시하되 내부의 일부만 새 병행 쌍으로 삼지 않는다.
@@ -125,11 +167,21 @@ function quotedTextRanges(value, includeNested = false){
     if(slashes%2) continue;
     const before=source[i-1] || '',after=source[i+1] || '',top=stack.at(-1);
     if(char==="'"){
-      if(latinWord(before) && latinWord(after)) continue; // can't, we're, l'homme
+      // 치환된 이름·기호·서식 끝에도 접미형 목록 없이 같은 단어 경계를 적용한다.
+      // 짧은 조각만 읽어 원문 좌표와 긴 본문의 순회 비용을 유지한다.
+      const wordBefore=/[\p{L}\p{M}\p{N}\p{S}]$/u.test(source.slice(Math.max(0,i-2),i))
+        || /[\p{L}\p{M}\p{N}\p{S}][*_}\])>]+$/u.test(source.slice(Math.max(0,i-16),i));
+      const wordAfter=/^[\p{Script=Latin}\p{N}]/u.test(source.slice(i+1,i+3));
+      const quotedWordBefore=before==='"' && !(top && top.quote==='"' && top.start===i-1);
+      if((wordBefore || quotedWordBefore) && wordAfter) continue;
+      const following=source.slice(i+1,i+24);
+      const leading=/^(?:em|cause|til|till|tis|twas|twere|twill|twould|bout|round|nuff|cept|scuse|cuz|cos|coz|[0-9]{2}s?)\b(?!'(?![A-Za-z0-9]))/i.test(following);
+      const joinedAnd=/^n'[\t ]+[A-Za-z]/i.test(following)
+        && /[\p{Script=Latin}\p{N}][\t ]+$/u.test(source.slice(Math.max(0,i-8),i));
+      if(!wordBefore && (leading || joinedAnd)) continue;
+      // 열린 속마음이 없을 때 단어 끝의 '는 소유격·생략 표기이며 새 인용을 열지 않는다.
+      if(latinWord(before) && (!top || top.quote!=="'")) continue;
       if(top){
-        const following=source.slice(i+1,i+20);
-        const leading=/^(?:em|cause|til|tis|twas|twere|twill|twould|bout|round|nuff)\b(?!')/i.test(following);
-        if(!latinWord(before) && leading) continue;
         const possessive=/[sS0-9]/.test(before) && /^[\t ]+\p{L}/u.test(following);
         if(possessive && (top.quote!=="'" || /[\t ]/.test(source.slice(Math.max(top.start+1,i-128),i)))) continue;
       }
@@ -183,9 +235,9 @@ function parallelDialogueParts(line){
 // 말풍선의 대사 구분자만 숨긴다. 병행 번역 안의 인용 부호는 실제 문구로 보존한다.
 function dialogueQuoteRanges(value, settings = {}, options = {}){
   const source=normalizeQuotes(String(value)),ranges=[];
-  // 대사 병행 OFF·나레이션 ON에서도 번역 괄호는 독립 문단으로 보존된다.
-  const narrationParallel=parallelKindEnabled('narration',settings);
-  const pairs=settings.parallelTranslationSoft || narrationParallel ? parallelDialogueSegments(source) : [];
+  // 괄호 번역의 대사·서술 구간을 함께 확인해 번역 안의 구분자를 보존한다.
+  const narrationParallel=bracketParallelEnabled(settings);
+  const pairs=narrationParallel ? parallelDialogueSegments(source) : [];
   for(const quote of quotedTextRanges(source)){
     if(!quote.closed || quote.quote!=='"') continue;
     const insideTranslation=pairs.some(pair=>quote.start>=pair.start+(pair.groupOffset ?? pair.original.length+pair.betweenOriginalAndGroup.length) && quote.end<=pair.end);
@@ -199,11 +251,13 @@ function dialogueQuoteRanges(value, settings = {}, options = {}){
   return ranges;
 }
 
-function parallelKindEnabled(kind, settings = {}){
-  if(settings.parallelTranslationLayout === 'off') return false;
-  return kind === 'narration' ? settings.parallelNarrationOn === true
-    : settings.parallelDialogueOn !== false && settings.parallelTranslationSoft !== false;
+function bracketParallelEnabled(settings = {}){
+  if(settings.parallelTranslationLayout === 'off' || MosaicState.parallelRecognitionKind(settings) !== 'bracket') return false;
+  return true;
 }
+
+// 기존 공개 호출은 보존한다. 대상별 적용 스위치는 제공하지 않는다.
+function parallelKindEnabled(_kind, settings = {}){ return bracketParallelEnabled(settings); }
 
 // 문법을 추가하지 않는다. 줄/BR 끝과 다음 대사 앞의 서술 조각 끝을 같은 경계로 본다.
 function parallelSegments(value, settings = {}, options = {}){
@@ -223,7 +277,6 @@ function parallelSegments(value, settings = {}, options = {}){
     line=line.replace(/\[BR\][ \t]*$/i,'');
     const dialogues = parallelDialogueSegments(line).map(segment => ({...segment,kind:'dialogue'}));
     result.push(...dialogues.map(segment => ({...segment,start:base+segment.start,end:base+segment.end})));
-    if(settings.parallelNarrationOn !== true){base+=sourceLength+1;return;}
     const quotes=quotedTextRanges(line);
     const boundaries=quotes.filter(quote=>quote.closed && quote.quote==='"'
       && !dialogues.some(segment=>quote.start>segment.start && quote.end<=segment.end)).map(quote=>{
@@ -273,7 +326,10 @@ function resolveParallelSegment(segment, settings = {}){
   const context = settings.parallelContext;
   if(context){
     const key = parallelSegmentKey(segment);
-    const at = context.items.findIndex((item,index) => index >= context.cursor && parallelSegmentKey(item) === key);
+    let at = -1;
+    for(let index = context.cursor || 0; index < context.items.length; index++){
+      if(parallelSegmentKey(context.items[index]) === key){ at = index; break; }
+    }
     if(at >= 0){ context.cursor=at+1; return {...segment,excluded:context.items[at].excluded}; }
   }
   const match = settings.parallelResolvedCandidates?.find(item => item.start === segment.start && parallelSegmentKey(item) === parallelSegmentKey(segment));
@@ -281,9 +337,10 @@ function resolveParallelSegment(segment, settings = {}){
 }
 
 function parallelOutputCandidates(value, settings = {}, projection){
+  if(!bracketParallelEnabled(settings)) return [];
   const source=String(value), output=projection || outputTextProjection(source,settings);
   const base=settings.outputRuleSourceOffset || 0;
-  return parallelSegments(output.text,outputRuleSettings(settings)).filter(segment=>parallelKindEnabled(segment.kind,settings)).flatMap(segment=>{
+  return parallelSegments(output.text,outputRuleSettings(settings)).flatMap(segment=>{
     const spans=output.spans?.slice(segment.start,segment.end);
     if(!spans?.length)return [];
     const start=spans.reduce((min,span)=>Math.min(min,span.start),Infinity),end=spans.reduce((max,span)=>Math.max(max,span.end),0);
@@ -309,7 +366,7 @@ function parallelTranslationPlacement(settings){
 }
 
 function parallelDisplayParts(segment, settings = {}){
-  const enabled = !segment.excluded && parallelKindEnabled(segment.kind || 'dialogue',settings);
+  const enabled = !segment.excluded && bracketParallelEnabled(settings);
   const reverse = enabled && settings.parallelTranslationOrder === 'translation';
   const hide = enabled && settings.parallelTranslationBrackets === 'hide';
   const quote = segment.kind === 'narration' ? '' : segment.original[0];
@@ -343,7 +400,7 @@ function parallelTextProjection(value, settings = {}){
   };
   const generated = (char,start,end,part) => {text.push(char);spans.push({start,end,part,editable:false});};
   let cursor=0;
-  parallelSegments(source,settings,{softDialogueGroups:true}).filter(segment=>parallelKindEnabled(segment.kind,settings)).map(segment=>resolveParallelSegment(segment,settings)).forEach((segment,index) => {
+  if(bracketParallelEnabled(settings)) parallelSegments(source,settings,{softDialogueGroups:true}).map(segment=>resolveParallelSegment(segment,settings)).forEach((segment,index) => {
     if(segment.excluded) return;
     const parts = parallelDisplayParts(segment,settings), key='pair'+index;
     // 직접 편집에서는 원문 우선 메신저의 숨긴 대사 구분자도 같은 좌표로 보호한다.
@@ -376,7 +433,8 @@ function parallelTextProjection(value, settings = {}){
 
 function parallelSourceBounds(value,bounds,settings = {}){
   const result={...bounds};
-  for(const segment of parallelSegments(value,settings).filter(segment=>parallelKindEnabled(segment.kind,settings))){
+  if(!bracketParallelEnabled(settings)) return result;
+  for(const segment of parallelSegments(value,settings)){
     const parts=parallelDisplayParts(segment,settings);
     if(!segment.innerTranslation && !parts.reverse && !parts.hide && !parts.translationQuoted && parts.between===segment.betweenOriginalAndGroup) continue;
     if(result.start<=segment.start+(parts.quote ? 1 : 0) && result.end>=parts.translationStart+parts.translation.length){
@@ -569,6 +627,10 @@ function applyOutputTextRules(value, settings){
 }
 
 function outputRuleSettings(settings){
+  const parallelTranslationSoft = bracketParallelEnabled(settings);
+  if(settings.parallelTranslationSoft !== parallelTranslationSoft){
+    settings = {...settings,parallelTranslationSoft};
+  }
   if(settings.outputRulesProjected || !(settings.nameRules || []).some(rule => rule.enabled !== false)) return settings;
   const exactName = value => {
     let result = value;
@@ -590,10 +652,12 @@ quotedTextRanges,
 dialogueQuoteRanges,
 parallelSegments,
 parallelKindEnabled,
+bracketParallelEnabled,
 parallelOutputCandidates,
 resolveParallelSegment,
 parallelDisplayParts,
 parallelTranslationPlacement,
+parallelHidesDialogueQuotes,
 parallelTextProjection,
 parallelSourceBounds,
 applyOutputTextRules,
@@ -602,6 +666,8 @@ outputTextProjection,
 SOFT_BREAK_TOKEN,
 formatMatches,
 formatMatchContent,
+inlineFormatRanges,
+sliceInlineSource,
 normalizeBodyHrMarkers,
 normalizeQuotes,
 literalMatchRanges,

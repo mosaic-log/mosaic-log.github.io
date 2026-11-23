@@ -49,6 +49,27 @@ for(const id of ['profileRelationshipHeading','profileSituationHeading']){
 let appCommands = null;
 let initialized = false;
 
+// 작업 안내는 도움말과 분리하고, 같은 위치의 이전 자동 닫힘을 취소한다.
+const feedbackStatusTimers = new WeakMap();
+function setFeedbackStatus(target, message, state = 'info', duration = 0){
+  const element = typeof target === 'string' ? document.getElementById(target) : target;
+  if(!element) return;
+  clearTimeout(feedbackStatusTimers.get(element));
+  feedbackStatusTimers.delete(element);
+  element.style.removeProperty('color');
+  element.textContent = message == null ? '' : String(message);
+  element.dataset.state = element.textContent ? state : 'info';
+  if(duration > 0 && element.textContent){
+    const timer = setTimeout(() => {
+      if(feedbackStatusTimers.get(element) !== timer) return;
+      feedbackStatusTimers.delete(element);
+      element.textContent = '';
+      element.dataset.state = 'info';
+    }, duration);
+    feedbackStatusTimers.set(element, timer);
+  }
+}
+
 // One reader owns control-to-output settings and stored work fields; it never renders or writes controls.
 function createSettingsReader(host){
 function readControlValues(ids, root = host.root){
@@ -66,6 +87,8 @@ function getSettings(){
   const textFont = host.root.getElementById('textFont').value;
   const advancedOn = host.root.getElementById('advancedOn').checked;
   const coverImageStatus = host.root.getElementById('imageLoadStatus');
+  const parallelRecognitionMode = host.root.getElementById('parallelRecognitionMode').value;
+  const parallelTranslationLayout = host.root.getElementById('parallelTranslationLayout').value;
   const currentExtraProfileCount = extraProfileCount();
   return {
     imgOn: host.root.getElementById('imgOn').checked,
@@ -94,10 +117,11 @@ function getSettings(){
     charColor: host.root.getElementById('charColor').value,
     userColor: host.root.getElementById('userColor').value,
     emphasisColor: host.root.getElementById('emphasisColor').value,
-    parallelTranslationSoft: host.root.getElementById('parallelTranslationLayout').value !== 'off' && host.root.getElementById('parallelDialogueOn').checked,
+    parallelTranslationSoft: MosaicParser.bracketParallelEnabled({parallelRecognitionMode,parallelTranslationLayout}),
+    parallelRecognitionMode,
     parallelDialogueOn:host.root.getElementById('parallelDialogueOn').checked,
     parallelNarrationOn:host.root.getElementById('parallelNarrationOn').checked,
-    parallelTranslationLayout: host.root.getElementById('parallelTranslationLayout').value,
+    parallelTranslationLayout,
     parallelTranslationOrder: host.root.getElementById('parallelTranslationOrder').value === 'translation' ? 'translation' : 'original',
     parallelTranslationBrackets: host.root.getElementById('parallelTranslationBrackets').value === 'hide' ? 'hide' : 'show',
     charSpeakerOn: host.root.getElementById('charSpeakerOn').checked,
@@ -665,6 +689,20 @@ function normalizeStandaloneHrInput(ta){
   return true;
 }
 
+function applySourceChanges(changes, message, {input = false, activeTextarea = null} = {}){
+  if(!changes.length) return false;
+  if(changes.some(change=>!change.ta.isConnected || change.ta.value!==change.before)){
+    uiUpdateEffects.renderNow(); return false;
+  }
+  appCommands.snapshotCards();
+  changes.forEach(change=>{ change.ta.value=change.after; });
+  if(activeTextarea)cardEditors.setActiveTextarea(activeTextarea);
+  if(input && changes.length===1) changes[0].ta.dispatchEvent(new Event('input',{bubbles:true}));
+  else uiUpdateEffects.committedChange();
+  showUndoToast(message);
+  return true;
+}
+
 function generateHTML(includeRestoreState = false, prebuiltOutput){
   const rawOutput = prebuiltOutput === undefined
     ? MosaicRenderer.buildCard(settingsReader.getSettings(), MosaicUI.cards.all())
@@ -672,6 +710,7 @@ function generateHTML(includeRestoreState = false, prebuiltOutput){
   const output = MosaicRenderer.stripEditorOutputMetadata(rawOutput);
   if(!includeRestoreState) return output;
   const restoreMeta = MosaicStorage.RESTORE_META_PREFIX + MosaicStorage.encodeRestoreState(MosaicUI.work.collectSlot()) + MosaicStorage.RESTORE_META_SUFFIX + '\n';
+  if(restoreMeta.length > MosaicStorage.MAX_RESTORE_BYTES) throw new Error('복원 정보가 32MB를 넘어 HTML 백업을 저장하지 못했습니다. 보관함 원본 백업을 확인해 주세요.');
   return restoreMeta + output;
 }
 
@@ -1765,13 +1804,18 @@ function syncDesignSummaryText(){
   previewLayout.syncPreviewToolbarLabel();
   document.getElementById('typographyDesignSummary').textContent =
     `${font} · 본문 ${document.getElementById('narrSize').value}px · 제목 ${document.getElementById('titleSize').value}px`;
-  const parallelLayout = selectedControlText('parallelTranslationLayout');
   document.getElementById('dialogueDesignSummary').textContent = dialogue;
-  const parallelOff = !document.getElementById('parallelDialogueOn').checked && !document.getElementById('parallelNarrationOn').checked;
-  document.getElementById('parallelTranslationSummary').textContent = parallelOff ? '미적용'
-    : `${parallelLayout} · ${selectedControlText('parallelTranslationOrder')}`;
-  const parallelOptions = document.getElementById('parallelTranslationOptions');
-  parallelOptions.hidden = parallelOff;
+  const recognition = document.getElementById('parallelRecognitionMode').value;
+  const active = recognition === 'bracket' || recognition === 'paragraph';
+  document.getElementById('parallelTranslationSummary').textContent = active
+    ? `${selectedControlText('parallelRecognitionMode')} · ${selectedControlText('parallelTranslationOrder')}` : '미적용';
+  document.getElementById('parallelTranslationOptions').hidden = !active;
+  document.getElementById('parallelTranslationLayoutRow').hidden = !active || recognition !== 'bracket';
+  document.getElementById('parallelTranslationBracketsRow').hidden = !active || recognition !== 'bracket';
+  document.getElementById('parallelTranslationHelp').hidden = recognition === 'off';
+  document.querySelectorAll('#parallelTranslationHelp [data-parallel-help]').forEach(item=>{
+    item.hidden = item.dataset.parallelHelp !== 'common' && item.dataset.parallelHelp !== recognition;
+  });
   document.getElementById('layoutDesignSummary').textContent = width;
 
   const imageOn = document.getElementById('imgOn').checked;
@@ -3014,8 +3058,7 @@ document.getElementById('tidyBtn').addEventListener('click', () => {
   } else {
     appCommands.discardUndoSnapshot();
     const st = document.getElementById('copyStatus');
-    st.textContent = '바꿀 항목 없음.';
-    setTimeout(() => { st.textContent = ''; }, 2500);
+    setFeedbackStatus(st, '바꿀 항목 없음.', 'info', 2500);
   }
 });
   });
@@ -3104,7 +3147,7 @@ const outputRuleEditing = createOutputRuleEditing({
   snapshot:() => appCommands.snapshotCards(),
   changed:() => uiUpdateEffects.committedChange(),
   feedback:message => showUndoToast(message),
-  setStatus:(kind, message) => { document.getElementById(kind === 'name' ? 'nameStatus' : 'keywordStatus').textContent = message; }
+  setStatus:(kind, message) => setFeedbackStatus(kind === 'name' ? 'nameStatus' : 'keywordStatus', message, message ? 'error' : 'info')
 });
 
 function nameRules(){
@@ -3200,8 +3243,8 @@ function renderNameRuleList(){
   const atLimit = rules.length >= MosaicState.NAME_RULE_LIMIT;
   document.getElementById('nameReplaceBtn').disabled = atLimit;
   const status = document.getElementById('nameStatus');
-  if(atLimit) status.textContent = NAME_RULE_LIMIT_MESSAGE;
-  else if(status.textContent === NAME_RULE_LIMIT_MESSAGE) status.textContent = '';
+  if(atLimit) setFeedbackStatus(status, NAME_RULE_LIMIT_MESSAGE, 'error');
+  else if(status.textContent === NAME_RULE_LIMIT_MESSAGE) setFeedbackStatus(status, '', 'info');
   renderReplacementRuleItems(list, rules, '이름', undoNameRule, 'name');
 }
 
@@ -3211,12 +3254,12 @@ function addNameRule(){
   const from = fromEl.value.trim();
   const to = toEl.value.trim();
   const status = document.getElementById('nameStatus');
-  if(!from || !to){ status.textContent = '현재 이름과 새 이름을 모두 입력해 주세요.'; return; }
-  if(from === to){ status.textContent = '두 이름이 같아 적용하지 않았습니다.'; return; }
+  if(!from || !to){ setFeedbackStatus(status, '현재 이름과 새 이름을 모두 입력해 주세요.', 'error'); return; }
+  if(from === to){ setFeedbackStatus(status, '두 이름이 같아 적용하지 않았습니다.', 'error'); return; }
   const rules = nameRules();
-  if(rules.length >= MosaicState.NAME_RULE_LIMIT){ status.textContent = NAME_RULE_LIMIT_MESSAGE; return; }
+  if(rules.length >= MosaicState.NAME_RULE_LIMIT){ setFeedbackStatus(status, NAME_RULE_LIMIT_MESSAGE, 'error'); return; }
   if(rules.some(rule => rule.from === from)){
-    status.textContent = '같은 현재 이름의 규칙이 있습니다. 기존 규칙을 제거한 뒤 추가해 주세요.';
+    setFeedbackStatus(status, '같은 현재 이름의 규칙이 있습니다. 기존 규칙을 제거한 뒤 추가해 주세요.', 'error');
     return;
   }
   appCommands.snapshotCards();
@@ -3225,7 +3268,7 @@ function addNameRule(){
   fromEl.value = ''; toEl.value = ''; fromEl.focus();
   uiUpdateEffects.committedChange();
   showUndoToast('이름 규칙 추가 · 입력 원문 유지.');
-  status.textContent = '이름 규칙 추가됨';
+  setFeedbackStatus(status, '이름 규칙 추가됨', 'success');
   if(previewSearch.isOpen() && document.getElementById('pvFindInput').value === from){
     document.getElementById('pvFindInput').value = to;
     previewSearch.pvApplySearch(false);
@@ -3241,7 +3284,7 @@ function undoNameRule(id){
   uiUpdateEffects.committedChange();
   appCommands.recordCompletedAction(`'${rule.from} → ${rule.to}' 이름 규칙 제거.`);
   dismissToast();
-  document.getElementById('nameStatus').textContent = '';
+  setFeedbackStatus('nameStatus', '', 'info');
 }
 
 function bindNameRuleEvents(){
@@ -3252,7 +3295,7 @@ function bindNameRuleEvents(){
         input.value = button.dataset.nameFill;
         input.dispatchEvent(new Event('input', { bubbles:true }));
         input.focus();
-        document.getElementById('nameStatus').textContent = '';
+        setFeedbackStatus('nameStatus', '', 'info');
       });
     });
     document.getElementById('nameReplaceBtn').addEventListener('click', addNameRule);
@@ -3284,8 +3327,8 @@ function renderKeywordRuleList(){
   const status = document.getElementById('keywordStatus');
   if(addButton) addButton.disabled = atLimit;
   if(status){
-    if(atLimit) status.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
-    else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) status.textContent = '';
+    if(atLimit) setFeedbackStatus(status, KEYWORD_RULE_LIMIT_MESSAGE, 'error');
+    else if(status.textContent === KEYWORD_RULE_LIMIT_MESSAGE) setFeedbackStatus(status, '', 'info');
   }
   renderReplacementRuleItems(list, rules, '키워드', undoKeywordRule, 'keyword');
 }
@@ -3297,17 +3340,17 @@ function addKeywordRule(){
   const deleting = document.getElementById('keywordAction').value === 'delete';
   const to = deleting ? '' : toEl.value;
   const st = document.getElementById('keywordStatus');
-  if(!from){ st.textContent = '찾을 키워드를 입력해 주세요.'; return; }
-  if(!deleting && !to){ st.textContent = '바꿀 키워드를 입력하거나 동작을 삭제로 선택해 주세요.'; return; }
-  if(from === to){ st.textContent = '두 키워드가 같아 치환하지 않았습니다.'; return; }
+  if(!from){ setFeedbackStatus(st, '찾을 키워드를 입력해 주세요.', 'error'); return; }
+  if(!deleting && !to){ setFeedbackStatus(st, '바꿀 키워드를 입력하거나 동작을 삭제로 선택해 주세요.', 'error'); return; }
+  if(from === to){ setFeedbackStatus(st, '두 키워드가 같아 치환하지 않았습니다.', 'error'); return; }
   const rules = keywordRules();
   if(rules.length >= MosaicState.KEYWORD_RULE_LIMIT){
-    st.textContent = KEYWORD_RULE_LIMIT_MESSAGE;
+    setFeedbackStatus(st, KEYWORD_RULE_LIMIT_MESSAGE, 'error');
     renderKeywordRuleList();
     return;
   }
   if(rules.some(r => r.from === from)){
-    st.textContent = '같은 찾을 키워드의 규칙이 있습니다. 기존 규칙을 제거한 뒤 추가해 주세요.';
+    setFeedbackStatus(st, '같은 찾을 키워드의 규칙이 있습니다. 기존 규칙을 제거한 뒤 추가해 주세요.', 'error');
     return;
   }
   appCommands.snapshotCards();
@@ -3316,7 +3359,7 @@ function addKeywordRule(){
   fromEl.value = ''; toEl.value = ''; fromEl.focus();
   uiUpdateEffects.committedChange();
   showUndoToast(`키워드 ${deleting ? '삭제' : '치환'} 규칙 추가 · 입력 원문 유지.`);
-  st.textContent = `${deleting ? '삭제' : '치환'} 규칙 추가됨`;
+  setFeedbackStatus(st, `${deleting ? '삭제' : '치환'} 규칙 추가됨`, 'success');
 }
 
 function undoKeywordRule(id){
@@ -3328,7 +3371,7 @@ function undoKeywordRule(id){
   uiUpdateEffects.committedChange();
   appCommands.recordCompletedAction(`'${rule.from}' 키워드 규칙 제거.`);
   dismissToast();
-  document.getElementById('keywordStatus').textContent = '';
+  setFeedbackStatus('keywordStatus', '', 'info');
 }
 
 function bindKeywordRuleEvents(){
@@ -3350,7 +3393,7 @@ function bindKeywordRuleEvents(){
       if(action.value === button.dataset.keywordAction) return;
       action.value = button.dataset.keywordAction;
       action.dispatchEvent(new Event('change'));
-      document.getElementById('keywordStatus').textContent = '';
+      setFeedbackStatus('keywordStatus', '', 'info');
     }));
     action.addEventListener('input', syncAction);
     action.addEventListener('change', syncAction);
@@ -3578,25 +3621,31 @@ uiElements
 });
 
 const previewSearch = createPreviewSearch({
-snapshotCards:(...args)=>appCommands.snapshotCards(...args),
+applySourceChanges,
+planSearchChange:(...args)=>previewSourceEdits.planSearchChange(...args),
+getSettings:(...args)=>settingsReader.getSettings(...args),
 cardEditors,
 findBlockSource:(...args)=>previewInteractions.findBlockSource(...args),
-normalizedLiteralOffsets,
 previewCardContexts:(...args)=>previewInteractions.previewCardContexts(...args),
 previewSourceBlocks:(...args)=>previewInteractions.previewSourceBlocks(...args),
+previewSourceMatches:(...args)=>previewInteractions.previewSourceMatches(...args),
 refreshPreviewFloatingButtonLayout:(...args)=>previewLayout.refreshPreviewFloatingButtonLayout(...args),
-showUndoToast,
-sourceMap,
-uiUpdateEffects
+searchSourceMatches:sourceMap.searchSourceMatches,
+outputRuleLineSettings:sourceMap.outputRuleLineSettings,
+renderPreview:(...args)=>uiUpdateEffects.renderNow(...args)
 });
 
 const previewSourceEdits = createPreviewSourceEdits({
 sourceSegmentEditBounds:sourceMap.sourceSegmentEditBounds,
 messengerEditSourceBounds:sourceMap.messengerEditSourceBounds,
-replacePreviewBodyLine:sourceMap.replacePreviewBodyLine
+replacePreviewBodyLine:sourceMap.replacePreviewBodyLine,
+replacePreviewParallelBody:sourceMap.replacePreviewParallelBody,
+replacePreviewFormattedSegment:sourceMap.replacePreviewFormattedSegment,
+replaceSourceRange:sourceMap.replaceSourceRange
 });
 
 const previewInteractions = createPreviewInteractions({
+applySourceChanges,
 isComposing:isWorkInputComposing,
 resumeDeferredRender,
 sourceEdits:previewSourceEdits,
@@ -3719,7 +3768,8 @@ feedback:Object.freeze({
     undo:showUndoToast,
     notice:showNoticeToast,
     open:openToast,
-    dismiss:dismissToast
+    dismiss:dismissToast,
+    status:setFeedbackStatus
   }),
 controls:Object.freeze({
     syncCover:syncCoverControlState,
@@ -3762,6 +3812,7 @@ styleChange:(...args)=>appCommands.changes.styleChange(...args)
 
 // ---------- 보관함·테마·설정 컨트롤 UI ----------
 const library = createLibrary({
+setStatus:setFeedbackStatus,
 setArchiveDrawerOpen:(...args)=>appCommands.setArchiveDrawerOpen(...args),
 committedChange:(...args)=>appCommands.changes.committedChange(...args),
 commitStyleHistory:(...args)=>appCommands.commitStyleHistory(...args),

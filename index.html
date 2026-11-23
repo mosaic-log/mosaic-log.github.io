@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.9.10 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.10.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=efddd4c83a57">
+<link rel="stylesheet" href="./styles.css?v=188b5d58a611">
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.9.10 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.9.10</a></span></h1>
+      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.10.0 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.10.0</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -444,6 +444,7 @@
       <div class="syntaxHelpSection">
         <div class="syntaxHelpSectionTitle">글자와 대사</div>
         <p class="hint"><b>대사:</b> <code>"…"</code> 인식 · 글자 강조·배경 강조 외 방식은 대사를 별도 줄로 출력</p>
+        <p class="hint"><b>병행 번역:</b> 디자인 → 원문 병행</p>
         <p class="hint"><b>강조:</b> <code>*이 부분*</code> → 강조 색상 이탤릭</p>
         <p class="hint"><b>속마음:</b> <code>'이 부분'</code> → 강조 색상 · 기울임 없음</p>
         <p class="hint"><b>굵게:</b> <code>**이 부분**</code> · 굵게 + 강조 <code>***둘 다***</code></p>
@@ -554,7 +555,7 @@
         </div>
       </div>
       <input type="hidden" id="nameRules" value="[]">
-      <div id="nameStatus" class="hint" aria-live="polite"></div>
+      <div id="nameStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
       <div id="nameRuleList" class="keywordRuleList" aria-label="이름 바꾸기 규칙 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
@@ -586,7 +587,7 @@
         </div>
       </div>
       <input type="hidden" id="keywordRules" value="[]">
-      <div id="keywordStatus" class="hint" aria-live="polite"></div>
+      <div id="keywordStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
       <div id="keywordRuleList" class="keywordRuleList" aria-label="키워드 치환 규칙 목록"></div>
       <details class="helpFold">
         <summary>도움말</summary>
@@ -736,6 +737,18 @@
       <span class="foldArrow" aria-hidden="true"></span>
     </summary>
     <div class="foldBody">
+      <div class="row selectCycleRow">
+        <label for="parallelRecognitionMode">방식</label>
+        <select id="parallelRecognitionMode">
+          <option value="off">미적용</option>
+          <option value="bracket">괄호 번역</option>
+          <option value="paragraph">문단 번역</option>
+        </select>
+        <span class="selectCycleStepper" role="group" aria-label="번역 방식 이전·다음">
+          <button class="uiStepperButton" type="button" id="parallelRecognitionPrev" aria-label="이전 번역 방식" title="이전 번역 방식">‹</button>
+          <button class="uiStepperButton" type="button" id="parallelRecognitionNext" aria-label="다음 번역 방식" title="다음 번역 방식">›</button>
+        </span>
+      </div>
       <div class="row selectCycleRow" id="parallelTranslationLayoutRow">
         <label for="parallelTranslationLayout">배치</label>
         <select id="parallelTranslationLayout">
@@ -748,13 +761,9 @@
           <button class="uiStepperButton" type="button" id="parallelLayoutNext" aria-label="다음 원문 병행 설정" title="다음 원문 병행 설정">›</button>
         </span>
       </div>
-      <div class="layoutToggleRow parallelScopeRow">
-        <div class="layoutToggleLabel" id="parallelScopeLabel">적용</div>
-        <div class="layoutToggleChoices parallelScopeChoices" role="group" aria-labelledby="parallelScopeLabel">
-          <label class="layoutToggleChoice parallelScopeChoice" for="parallelDialogueOn" title="대사·속마음 원문 병행"><input type="checkbox" id="parallelDialogueOn" aria-label="대사 원문 병행"><span>대사</span></label>
-          <label class="layoutToggleChoice parallelScopeChoice" for="parallelNarrationOn" title="나레이션 끝 괄호를 원문 병행으로 표시"><input type="checkbox" id="parallelNarrationOn" aria-label="나레이션 원문 병행"><span>나레이션</span></label>
-        </div>
-      </div>
+      <!-- 기존 저장 필드 보존용. 번역 대상은 대사·나레이션에 함께 적용. -->
+      <input type="checkbox" id="parallelDialogueOn" hidden>
+      <input type="checkbox" id="parallelNarrationOn" hidden>
       <div id="parallelTranslationOptions">
         <div class="row segmentedChoiceRow">
           <label id="parallelTranslationOrderLabel">순서</label>
@@ -767,7 +776,7 @@
             <button class="uiButton" type="button" data-value="translation" aria-pressed="false">번역 우선</button>
           </span>
         </div>
-        <div class="row segmentedChoiceRow">
+        <div class="row segmentedChoiceRow" id="parallelTranslationBracketsRow">
           <label id="parallelTranslationBracketsLabel">괄호</label>
           <select id="parallelTranslationBrackets" class="segmentedChoiceSource" tabindex="-1" aria-hidden="true">
             <option value="show">괄호 표시</option>
@@ -779,6 +788,19 @@
           </span>
         </div>
       </div>
+      <details class="helpFold" id="parallelTranslationHelp">
+        <summary>도움말</summary>
+        <p class="hint" data-parallel-help="bracket"><b>입력:</b> 같은 줄에 <code>원문 (번역)</code></p>
+        <p class="hint" data-parallel-help="bracket"><b>입력 예시:</b><br><code>He waited. (그는 기다렸다.)</code><br><code>"Hello." (안녕.)</code><br><code>"Hello. (안녕.)"</code></p>
+        <p class="hint" data-parallel-help="bracket"><b>괄호 위치:</b> 대사 바깥 또는 안쪽 끝 · 나레이션 끝</p>
+        <p class="hint" data-parallel-help="bracket"><b>배치:</b> 자동: 표현 방식 기준 · 이어쓰기: 같은 줄 · 아래쓰기: 다음 줄</p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>입력:</b> 원문 한 문단 → 줄바꿈 → 번역 한 문단</p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>입력 예시:</b><br><code>He waited.</code><br><code>그는 기다렸다.</code><br><code>"Hello."</code><br><code>"안녕."</code></p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>입력 순서:</b> 카드 첫 본문 언어 기준 · 영문→한글 / 한글→영문</p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>짝 제외:</b> 같은 언어끼리 · 반대 순서 · 짝 없는 문단은 일반 출력</p>
+        <p class="hint" data-parallel-help="common"><b>표시 순서:</b> 선택한 쪽 먼저 · 입력 원문 유지 · 보조 문장은 작게·보조색</p>
+        <p class="hint" data-parallel-help="bracket"><b>개별 제외:</b> 미리보기에서 번역 구간 선택 → 병행 제외</p>
+      </details>
     </div>
   </details>
 
@@ -1141,7 +1163,7 @@
       <button type="button" class="secondary btnSecondary uiButton" id="savePresetBtn" disabled>새 프리셋으로 저장</button>
       <button type="button" class="secondary btnSecondary uiButton" id="overwritePresetBtn">변경사항 저장</button>
     </div>
-    <div id="presetStatus" class="hint" aria-live="polite"></div>
+    <div id="presetStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
     </div>
   </details>
 
@@ -1154,7 +1176,7 @@
         <button type="button" class="secondary btnSecondary uiButton" id="importPresetBtn" style="flex:1;">불러오기</button>
         <input type="file" id="importPresetFile" accept="application/json" style="display:none;">
       </div>
-      <div id="importStatus" class="hint" aria-live="polite"></div>
+      <div id="importStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
     </div>
   </details>
 
@@ -1209,7 +1231,7 @@
       <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">파일 가져오기</button>
       <input type="file" id="importSlotsFile" accept=".json,.txt,application/json,text/plain" style="display:none;">
     </div>
-    <div id="slotImportStatus" class="hint" aria-live="polite"></div>
+    <div id="slotImportStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
     <div class="archiveResetRow">
       <button type="button" class="btnDanger uiButton" id="resetCurrentWorkBtn" title="본문·표지·이미지·이름은 비우고 디자인·테마는 기본값으로 되돌림 (보관함·내 프리셋 유지)">현재 작업 전체 초기화</button>
     </div>
@@ -1244,13 +1266,13 @@
       <div id="preflightList" class="preflightList"></div>
     </div>
     <button type="button" class="btnPrimary uiCopyButton" id="copyBtn">HTML 복사하기</button>
-    <div id="copyStatus" aria-live="polite"></div>
+    <div id="copyStatus" aria-live="polite" class="uiStatus" role="status" data-state="info"></div>
     <div class="presetRow htmlFileRow">
       <button type="button" class="secondary btnSecondary uiButton" id="downloadBtn" style="flex:1;">HTML 저장하기</button>
       <button type="button" class="secondary btnSecondary uiButton" id="restoreHtmlBtn" style="flex:1;">HTML 불러오기</button>
       <input type="file" id="restoreHtmlFile" accept="text/html,.html,.htm" style="display:none;">
     </div>
-    <div id="restoreHtmlStatus" class="hint" aria-live="polite"></div>
+    <div id="restoreHtmlStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
     <details class="helpFold outputAdvanced" id="outputAdvanced">
       <summary>코드 직접 보기</summary>
       <div id="codeWrap" class="open">
@@ -1377,7 +1399,7 @@
     <div id="codeHead">
       <span class="cTitle" id="codeDialogTitle">HTML 코드</span>
       <div class="cActions">
-        <span id="codeFsStatus" class="hint" style="margin:0 6px 0 0; align-self:center;"></span>
+        <span id="codeFsStatus" class="uiStatus" style="margin:0 6px 0 0; align-self:center;" role="status" data-state="info" aria-live="polite"></span>
         <button type="button" id="codeFsCopyBtn">복사</button>
         <button type="button" id="codeFsCloseBtn" aria-label="닫기" title="닫기">✕</button>
       </div>
@@ -1492,17 +1514,17 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=c77a05d2c87f" defer></script>
-<script src="./parser.js?v=2607577d33c7" defer></script>
-<script src="./renderer.js?v=06742f6239ba" defer></script>
-<script src="./ui-source.js?v=271a30d6fb38" defer></script>
+<script src="./state.js?v=90c3bc778832" defer></script>
+<script src="./parser.js?v=af191873e9fd" defer></script>
+<script src="./renderer.js?v=4eb23ef6be9a" defer></script>
+<script src="./ui-source.js?v=e6f6e1f4bae8" defer></script>
 <script src="./ui-editor.js?v=afa6c062c09f" defer></script>
-<script src="./ui-preview-edit.js?v=872cbe8c4d56" defer></script>
-<script src="./ui-preview-view.js?v=b0a72c42d4fc" defer></script>
-<script src="./ui-library.js?v=6a69c9a8b3fb" defer></script>
-<script src="./ui.js?v=daf69ec87ef4" defer></script>
-<script src="./storage.js?v=94d5f67a8dcf" defer></script>
-<script src="./app.js?v=188308e2ad29" defer></script>
+<script src="./ui-preview-edit.js?v=7a4a4fa4103d" defer></script>
+<script src="./ui-preview-view.js?v=8ee4eae855e4" defer></script>
+<script src="./ui-library.js?v=4db339a89a3a" defer></script>
+<script src="./ui.js?v=0e598d1631e3" defer></script>
+<script src="./storage.js?v=989db9fcce72" defer></script>
+<script src="./app.js?v=36558f74e033" defer></script>
 
 </body>
 </html>

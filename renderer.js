@@ -18,6 +18,10 @@ const ARCA_DECLARED_TYPOGRAPHY_LOCKS = Object.freeze([
 
 const ARCA_SELECTOR_TYPOGRAPHY_LOCKS = Object.freeze([
   Object.freeze({
+    selector:'[data-mosaic-dialogue-secondary="true"]',
+    properties:Object.freeze(['font-weight'])
+  }),
+  Object.freeze({
     selector:'[data-mosaic-quote-heading]',
     properties:Object.freeze(['font-weight', 'line-height', 'color', '-webkit-text-fill-color'])
   }),
@@ -211,10 +215,10 @@ function parallelTranslationPlacement(settings){
 }
 
 function resolvedParallelTranslationMode(settings){
-  return settings.parallelTranslationSoft ? parallelTranslationPlacement(settings) : 'plain';
+  return MosaicParser.bracketParallelEnabled(settings) ? parallelTranslationPlacement(settings) : 'plain';
 }
 
-// 카드·대사 표현 방식·문단 종류와 무관하게 번역 크기를 같은 기준으로 계산한다.
+// 괄호 번역과 문단 대사의 보조 크기를 같은 기준으로 계산한다.
 // 큰따옴표 대사는 대사 크기, 작은따옴표 속마음은 본문 크기의 90%를 사용한다.
 function parallelTranslationSize(settings, thoughtParallel){
   const fallback = thoughtParallel ? 13.5 : 14;
@@ -225,7 +229,7 @@ function parallelTranslationSize(settings, thoughtParallel){
 // 병행 번역 HTML은 순수 대사와 서술 혼합 문단이 모두 이 함수만 사용한다.
 // 속마음은 자동 배치의 기존 이어쓰기를 유지하되, 명시적 아래쓰기는 함께 따른다.
 function parallelTranslationHTML(segment, settings, color, requestedMode, inset = 0){
-  if(segment.excluded) return segment.betweenOriginalAndGroup+MosaicParser.processInline(segment.translationGroup,settings.emphasisColor,{literalSingleQuotes:true});
+  if(segment.excluded) return segment.betweenOriginalAndGroup+MosaicParser.processBodyInline(segment.translationGroup,settings.emphasisColor,{literalSingleQuotes:true,softBreakSpacing:settings.softBreakSpacing});
   const narrationParallel = segment.kind === 'narration';
   const thoughtParallel = !narrationParallel && segment.original.startsWith("'");
   // 속마음 자동 배치는 유지하고, 나레이션은 적용 스위치와 무관하게 대사 배치를 따른다.
@@ -237,7 +241,7 @@ function parallelTranslationHTML(segment, settings, color, requestedMode, inset 
   // 글자로 보존해야 바깥 병행 번역의 보조색·축소 크기를 그대로 유지한다.
   const display = MosaicParser.parallelDisplayParts(segment,settings);
   const group = display.hide ? display.secondary.slice(1,-1).trim() : display.secondary;
-  const content = MosaicParser.processInline(group, settings.emphasisColor, { literalSingleQuotes:true });
+  const content = MosaicParser.processBodyInline(group, settings.emphasisColor, { literalSingleQuotes:true,softBreakSpacing:settings.softBreakSpacing });
   const thoughtColor = /^#[0-9A-Fa-f]{6}$/.test(settings.emphasisColor || '') ? settings.emphasisColor : '#747474';
   const textColor = parallelTranslationTextColor(settings, narrationParallel ? settings.narrColor : thoughtParallel ? thoughtColor : color);
   const thoughtAttribute = thoughtParallel ? ' data-mosaic-thought="true"' : '';
@@ -274,11 +278,11 @@ function inlineDialogueHTML(content, settings, color){
 // 서술 혼합 문단에서는 번역 부분을 임시 토큰으로 보호한 뒤 원문의 서식을 적용한다.
 // 완성된 강조 HTML에 나중에 번역 span을 복원해 속성 따옴표가 대사로 오인되는 것을 방지한다.
 function prepareMixedParallelTranslations(line, settings, color, options = {}){
-  if(!settings.parallelTranslationSoft && !(options.narration && MosaicParser.parallelKindEnabled('narration',settings))) return { line:String(line), tokens:[] };
+  if(!MosaicParser.bracketParallelEnabled(settings)) return { line:String(line), tokens:[] };
   const mode = resolvedParallelTranslationMode(settings);
   const source = String(line);
   const segments = MosaicParser.parallelSegments(source,settings).filter(segment =>
-    MosaicParser.parallelKindEnabled(segment.kind,settings) && (segment.kind !== 'narration' || options.narration)
+    MosaicParser.bracketParallelEnabled(settings) && (segment.kind !== 'narration' || options.narration)
     && (!options.thoughtsOnly || segment.original.startsWith("'"))
   ).map(segment=>options.narration ? MosaicParser.resolveParallelSegment(segment,settings) : segment)
     .filter(segment=>!segment.innerTranslation || !segment.excluded);
@@ -986,7 +990,7 @@ function buildParagraph(rawLine, settings, opts){
   }
 
   const sp = stripSpeaker(line, settings);
-  const speaker = sp.speaker;
+  const speaker = sp.speaker || opts.paragraphDialogue?.speaker || null;
   line = sp.line;
 
   // 줄 전체가 정확히 "..." 로 감싸져 있으면 대사.
@@ -994,7 +998,7 @@ function buildParagraph(rawLine, settings, opts){
   // 큰따옴표 대사는 원문 병행의 자동 배치·이어쓰기·아래쓰기 설정을 따른다.
   // *...* 강조는 문장 안과 독립 문장 모두 같은 기울임·강조색으로 처리됨.
   const parallelTranslationMode = resolvedParallelTranslationMode(settings);
-  const detectedParallel = settings.parallelTranslationSoft ? MosaicParser.parallelDialogueParts(line) : null;
+  const detectedParallel = MosaicParser.bracketParallelEnabled(settings) ? MosaicParser.parallelDialogueParts(line) : null;
   // 속마음은 아래 혼합 문단 경로에서 한 번만 예외를 소비한다. 여기서 먼저
   // 소비하면 뒤의 실제 렌더가 해당 쌍의 병행 제외 상태를 찾지 못한다.
   const resolvedParallel = detectedParallel?.original.startsWith('"')
@@ -1009,6 +1013,18 @@ function buildParagraph(rawLine, settings, opts){
   const HR_GAP = Math.round(36 * sm);
   const mt = opts.extraTop ? HR_GAP : 0;
   const narrationAlign = settings.narrCenter ? 'text-align:center; ' : '';
+
+  if(settings.paragraphMixedSecondary && opts.paragraphDialogueSecondary){
+    const source = line.replace(/(?:>>|<<|\[([^\[\]\n]{1,24})\])\s*(?=["'])/g,
+      (mark,name)=>!name || findChar(settings,name) ? '' : mark);
+    const color = overrideColor || (speaker && typeof speaker === 'object'
+      ? safeHexColor(speaker.color,settings.charColor) : speaker === 'user' ? settings.userColor : settings.charColor);
+    const bottom = paragraphPairBottomGap(opts.extraBottom ? HR_GAP
+      : opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap,opts);
+    return paragraphDialogueSecondaryHTML(source,settings,{
+      color:settings.narrColor,dialogueColor:color,speaker,centered:opts.paragraphDialogue.centered,top:mt,bottom
+    });
+  }
 
   if(isDialogue){
     let color;
@@ -1046,6 +1062,13 @@ function buildParagraph(rawLine, settings, opts){
     }
     // 같은 화자의 연속 간격은 유지하고 char↔user로 넘어가는 자리만 조금 넓힌다.
     if(opts.charUserBoundary) mb += Math.round(8 * sm);
+    mb = paragraphPairBottomGap(mb,opts);
+
+    if(opts.paragraphDialogueSecondary){
+      return paragraphDialogueSecondaryHTML(dialogueSource,settings,{
+        color,speaker,centered:opts.paragraphDialogue.centered,top:mt,bottom:mb
+      });
+    }
 
     // 화자 이름표: 마커가 없는 대사는 {{char}}가 기본 화자이므로 이름표도 char로 표시.
     // 등록된 인물은 그 인물의 이름이 그대로 이름표에 나옴.
@@ -1124,7 +1147,7 @@ function buildParagraph(rawLine, settings, opts){
     const quotePadding = settings.dlgStyle === 'quote-bg' ? '13px 18px' : '0 18px 0 10px';
     return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-side="${speaker === 'user' ? 'right' : 'left'}" style="margin:${mt}px 0 ${mb}px 0; ${dialogueAlign}padding:${quotePadding}; border-left:2px solid ${color}; background-color:${quoteBackground}; color:${color}; -webkit-text-fill-color:${color}; font-size:${settings.dlgSize}px; font-weight:600; line-height:${settings.dlgLine}; letter-spacing:-0.2px; font-family:${fontStack(settings.dlgFont)};">${embeddedLabel}${dialogueBodyHtml}</p>\n`;
   } else {
-    const mb = opts.extraBottom ? HR_GAP : (opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap);
+    const mb = paragraphPairBottomGap(opts.extraBottom ? HR_GAP : (opts.narrDialogueBoundary ? narrationDialogueGap : baseParagraphGap),opts);
     const baseColor = overrideColor
       || (speaker && typeof speaker === 'object' ? safeHexColor(speaker.color, settings.charColor)
           : (speaker === 'user' ? settings.userColor : settings.charColor));
@@ -1281,7 +1304,7 @@ function isPureDialogueLine(line, settings){
     const pm = l.match(/^\[([^\[\]\n]{1,24})\]\s*/);
     if(pm && settings && findChar(settings, pm[1])) l = l.slice(pm[0].length).trim();
   }
-  const parallel = settings && settings.parallelTranslationSoft ? MosaicParser.parallelDialogueParts(l) : null;
+  const parallel = settings && MosaicParser.bracketParallelEnabled(settings) ? MosaicParser.parallelDialogueParts(l) : null;
   return (l.startsWith('"') && MosaicParser.quotedTextRanges(l).some(quote=>quote.closed && quote.quote==='"' && quote.start===0 && quote.end===l.length))
     || Boolean(parallel && parallel.original.startsWith('"'));
 }
@@ -1289,8 +1312,152 @@ function isPureDialogueLine(line, settings){
 // 분리형 대사 표현은 입력값을 바꾸지 않고 출력용 줄 배열에서만
 // 문장 속 대사를 독립 문단으로 분리한다.
 function usesSeparatedDialogueOutput(settings){
+  if(settings.paragraphMixedSecondary) return false;
   return ['badge', 'gradient', 'quote-bg', 'box'].includes(settings.dlgStyle)
     || MosaicState.isMessengerDialogueStyle(settings.dlgStyle);
+}
+
+function paragraphPairKind(line, settings){
+  const text = MosaicParser.normalizeQuotes(String(line).trim()).replace(/^\[C\]\s*/i,'');
+  if(paragraphDialogueInfo(text,settings)) return 'dialogue';
+  const thought = MosaicParser.quotedTextRanges(text).some(quote => quote.closed && quote.quote === "'" && quote.start === 0 && quote.end === text.length);
+  return thought ? 'dialogue' : 'narration';
+}
+
+// Classify visible scripts, excluding output syntax, speaker names and URLs.
+function paragraphPairLanguage(line, settings){
+  let text = MosaicParser.normalizeQuotes(String(line).trim()).replace(/^\[C\]\s*/i,'')
+    .replace(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/,'');
+  text = stripSpeaker(text,settings).line
+    .replace(/\[([^\[\]\n]{1,24})\]\s*(?=["'])/g,(mark,name)=>findChar(settings,name) ? '' : mark)
+    .replace(/(?:https?:\/\/|www\.)[^\s\uE200]+/gi,'');
+
+  // A localized character name must not change the surrounding sentence's language.
+  const names = [settings.charName,settings.userName,
+    ...(settings.extraChars || []).flatMap(char=>[char.sourceName,char.name]),
+    ...(settings.nameRules || []).filter(rule=>rule.enabled !== false).flatMap(rule=>[rule.from,rule.to])]
+    .filter(name=>typeof name === 'string' && name.trim()).map(name=>MosaicParser.normalizeQuotes(name));
+  const withoutNames = [...new Set(names)].sort((a,b)=>b.length-a.length)
+    .reduce((value,name)=>value.split(name).join(' '),text);
+  if(/\p{L}/u.test(withoutNames)) text = withoutNames;
+
+  // Use the sentence around an embedded quotation, rather than the quoted language.
+  const wholeQuote = MosaicParser.quotedTextRanges(text).find(quote=>quote.closed && quote.start===0 && quote.end===text.length);
+  if(wholeQuote) text = text.slice(1,-1);
+  let outsideQuotes = '', cursor = 0;
+  for(const quote of MosaicParser.quotedTextRanges(text)){
+    if(!quote.closed) continue;
+    outsideQuotes += text.slice(cursor,quote.start)+' ';
+    cursor = quote.end;
+  }
+  outsideQuotes += text.slice(cursor);
+  if(/\p{L}/u.test(outsideQuotes)) text = outsideQuotes;
+
+  // Korean prose commonly contains Latin names or terms; Hangul takes precedence.
+  if(/\p{Script=Hangul}/u.test(text)) return 'ko';
+  if(/\p{Script=Latin}/u.test(text) && !/\p{L}/u.test(text.replace(/\p{Script=Latin}/gu,''))) return 'en';
+  return null;
+}
+
+function paragraphPairBottomGap(value, opts){
+  const inner = opts.paragraphPairInnerGap ? Math.round(value*0.8*10)/10 : value;
+  if(!opts.paragraphPairGapAfter) return inner;
+  return Math.round((inner+16)*(opts.paragraphPairGapScale || 1)*10)/10;
+}
+
+function paragraphParallelEnabled(settings){
+  return MosaicState.parallelRecognitionKind(settings) === 'paragraph';
+}
+
+// Two independent source paragraphs share speaker context, never editable text.
+function paragraphDialogueInfo(line, settings){
+  let text = MosaicParser.normalizeQuotes(String(line).trim());
+  const centered = /^\[C\]\s*/i.test(text);
+  text = text.replace(/^\[C\]\s*/i,'');
+  const mixed = !isPureDialogueLine(text,settings);
+  text = text.replace(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/,'');
+  const leading = stripSpeaker(text,settings);
+  text = leading.line;
+  const quotes = MosaicParser.quotedTextRanges(text).filter(quote=>quote.closed && quote.quote==='"');
+  if(!quotes.length) return null;
+  let speaker = leading.speaker;
+  let conflict = false;
+  quotes.forEach(quote=>{
+    const mark = /(?:>>|<<|\[[^\[\]\n]{1,24}\])\s*$/.exec(text.slice(0,quote.start));
+    const explicit = mark ? stripSpeaker(mark[0],settings).speaker : null;
+    if(!explicit) return;
+    if(speaker && speaker !== explicit) conflict = true;
+    else speaker = explicit;
+  });
+  return {speaker,centered,mixed,conflict};
+}
+
+// Color only visible quoted text after inline formatting, keeping every tag balanced.
+function paragraphMixedSecondaryContent(source, settings, dialogueColor){
+  const html = MosaicParser.processBodyInline(source,settings.emphasisColor,{softBreakSpacing:settings.softBreakSpacing});
+  const colorStack = [];
+  let visible = '';
+  const chunks = html.split(/(<[^>]+>)/g).filter(Boolean).map(part=>{
+    if(part[0]==='<'){
+      if(/^<br\b/i.test(part)) visible += MosaicParser.SOFT_BREAK_TOKEN;
+      else if(/^<\//.test(part)) colorStack.pop();
+      else colorStack.push(colorStack.at(-1) || /(?:^|[;\s'"])color:\s*#/i.test(part));
+      return {html:part,tag:true};
+    }
+    const start = visible.length;
+    visible += part.replace(/&(amp|lt|gt);/g,(_,entity)=>({amp:'&',lt:'<',gt:'>'})[entity]);
+    return {html:part,start,units:part.match(/&(?:amp|lt|gt);|[\s\S]/g) || [],keepColor:colorStack.at(-1)};
+  });
+  const quotes = MosaicParser.quotedTextRanges(visible).filter(quote=>quote.closed && quote.quote==='"');
+  return chunks.map(chunk=>{
+    if(chunk.tag || chunk.keepColor) return chunk.html;
+    let content = '', cursor = 0;
+    for(const quote of quotes){
+      const start = Math.max(0,quote.start-chunk.start), end = Math.min(chunk.units.length,quote.end-chunk.start);
+      if(end<=start) continue;
+      content += chunk.units.slice(cursor,start).join('')
+        + `<span style="color:${dialogueColor}; -webkit-text-fill-color:${dialogueColor};">${chunk.units.slice(start,end).join('')}</span>`;
+      cursor = end;
+    }
+    return content + chunk.units.slice(cursor).join('');
+  }).join('');
+}
+
+function paragraphDialogueSecondaryHTML(source, settings, context){
+  const messenger = MosaicState.isMessengerDialogueStyle(settings.dlgStyle);
+  const userSide = context.speaker === 'user';
+  const centered = messenger ? settings.cardBodyCenter === true : context.centered;
+  const insets = {softlight:[8,8],highlight:[8,8],badge:[0,0],gradient:[14,14],
+    'quote-bg':[20,18],box:[12,18]};
+  const [left,right] = messenger ? [16,16] : (insets[settings.dlgStyle] || insets.box);
+  const marginRight = messenger && (centered || !userSide) ? 'auto' : '0';
+  const marginLeft = messenger && (centered || userSide) ? 'auto' : '0';
+  const align = centered ? 'center' : messenger && userSide ? 'right' : 'left';
+  const width = messenger ? 'width:fit-content; max-width:88%; ' : '';
+  const padding = centered ? `0 ${Math.max(left,right)}px` : `0 ${right}px 0 ${left}px`;
+  const content = context.dialogueColor ? paragraphMixedSecondaryContent(source,settings,context.dialogueColor)
+    : MosaicParser.processBodyInline(source,settings.emphasisColor,{softBreakSpacing:settings.softBreakSpacing});
+  return `    <p data-mosaic-dialogue="true" data-mosaic-dialogue-secondary="true" data-mosaic-dialogue-side="${userSide ? 'right' : 'left'}" style="box-sizing:border-box; ${width}margin:${context.top}px ${marginRight} ${context.bottom}px ${marginLeft}; padding:${padding}; text-align:${align}; color:${context.color}; -webkit-text-fill-color:${context.color}; font-size:${settings.dlgSize}px; font-weight:400; line-height:${settings.dlgLine}; letter-spacing:-0.2px; overflow-wrap:anywhere; font-family:${fontStack(settings.dlgFont)};">${content}</p>\n`;
+}
+
+// Group ownership is shared by output and source mapping. No input text is rewritten.
+function paragraphPairSettings(settings, group){
+  if(!group?.paragraphPairRole) return settings;
+  const secondary = group.paragraphPairRole !== (settings.parallelTranslationOrder || 'original');
+  const reduceSize = value => String(Math.max(9, Math.round((Number(value)-0.5)*10)/10));
+  return {...settings,parallelTranslationSoft:false,parallelTranslationOrder:'original',parallelTranslationBrackets:'show',
+    ...(secondary ? {narrSize:reduceSize(settings.narrSize),
+      dlgSize:group.paragraphDialogue ? String(parallelTranslationSize(settings,false)) : reduceSize(settings.dlgSize),
+      ...(group.paragraphDialogueMixed ? {paragraphMixedSecondary:true,hideDialogueQuotes:false} : {})} : {})};
+}
+
+// Change declared text colors only; preserve backgrounds, borders and typography.
+function paragraphPairColors(html, settings, role){
+  if(!role || role === (settings.parallelTranslationOrder || 'original')) return html;
+  return html.replace(/style="([^"]*)"/g, (attribute, style) => 'style="'+style.replace(
+    /(^|;)(\s*(?:color|-webkit-text-fill-color)\s*:\s*)(#[0-9a-f]{6}|#[0-9a-f]{3})(?=\s*(?:!important\s*)?(?:;|$))/gi,
+    (declaration, boundary, property, color) => boundary+property+parallelTranslationTextColor(settings,color)
+  )+'"');
 }
 
 function isStructuralBodyLine(line){
@@ -1375,8 +1542,10 @@ function splitDialogueLineForOutput(rawLine, settings){
   }
 
   const parts = [];
+  const formats = MosaicParser.inlineFormatRanges(line);
+  const slice = (start,end) => MosaicParser.sliceInlineSource(line,start,end,formats);
   let cursor = 0;
-  const pairs = settings.parallelTranslationSoft || MosaicParser.parallelKindEnabled('narration',settings)
+  const pairs = MosaicParser.bracketParallelEnabled(settings)
     ? MosaicParser.parallelSegments(line,settings).filter(segment=>segment.kind==='dialogue') : [];
   for(const quote of MosaicParser.quotedTextRanges(line)){
     if(!quote.closed || quote.quote!=='"' || quote.start<cursor) continue;
@@ -1384,24 +1553,30 @@ function splitDialogueLineForOutput(rawLine, settings){
     const inlinePerson = mark[2] ? findChar(settings, mark[2]) : null;
     const recognizedInlineSpeaker = Boolean(mark[1] || inlinePerson);
     const segmentStart = recognizedInlineSpeaker ? quote.start-mark[0].length : quote.start;
-    const narration = line.slice(cursor, segmentStart).trim();
+    const narration = slice(cursor,segmentStart).trim();
     if(narration) parts.push(centerPrefix + narration);
 
     const inlineSpeakerPrefix = mark[1]
       ? mark[1] + ' '
       : (inlinePerson ? `[${mark[2]}] ` : '');
     const pair=pairs.find(pair=>pair.start===quote.start);
-    const translation = pair ? line.slice(quote.end,pair.end) : '';
-    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}${line.slice(quote.start,quote.end)}${settings.parallelTranslationSoft ? translation : ''}`.trim());
-    // 대사 병행을 꺼도 기존 괄호 번역의 경계는 보존한다. 이를 다음 서술에
-    // 붙이면 나레이션 병행이 그 괄호까지 소비해 표시·편집 좌표가 어긋난다.
-    if(translation && !settings.parallelTranslationSoft) parts.push(centerPrefix+translation.trim());
+    const originalEnd = pair?.innerTranslation ? pair.start+pair.originalContentEnd : quote.end-1;
+    let dialogue = slice(quote.start+1,originalEnd);
+    let translation = '';
+    if(pair?.innerTranslation){
+      const open = pair.start+pair.groupOffset;
+      dialogue += line.slice(originalEnd,open+1)+slice(open+1,pair.end-2)+line[pair.end-2];
+    }else if(pair){
+      const open = pair.end-pair.translationGroup.length;
+      translation = line.slice(quote.end,open+1)+slice(open+1,pair.end-1)+line[pair.end-1];
+    }
+    parts.push(`${colorPrefix}${inlineSpeakerPrefix || defaultSpeakerPrefix}"${dialogue}"${translation}`.trim());
     cursor = pair?.end ?? quote.end;
   }
 
-  const tail = line.slice(cursor).trim();
+  const tail = slice(cursor,line.length).trim();
   if(tail) parts.push(centerPrefix + tail);
-  return parts.length > 1 ? parts : [original];
+  return parts.length ? parts : [original];
 }
 
 function expandDialogueLinesForOutput(lines, settings){
@@ -1419,9 +1594,13 @@ function expandDialogueLinesForOutput(lines, settings){
 // 출력과 미리보기 편집·이동은 같은 문단 목록을 사용한다. 빈 출력 줄을 먼저
 // 제외하되, [BR]로 실제 합쳐진 원문 줄 번호는 남겨 숨긴 원문을 덮어쓰지 않는다.
 function bodyRenderGroups(lines, settings){
+  settings = MosaicParser.outputRuleSettings(settings);
   const visible = lines.map((line, raw) => ({raw, text:String(line).trim(), memo:MosaicParser.parseBodyCommentLine(line)}))
     .filter(entry => entry.text && entry.memo?.content.trim() !== '');
   const groups = [];
+  const paragraphOn = paragraphParallelEnabled(settings);
+  let originalLanguage = null;
+  let pendingParagraph = null;
   for(let i = 0; i < visible.length; i++){
     let line = visible[i].text;
     const rawLines = [visible[i].raw];
@@ -1434,16 +1613,61 @@ function bodyRenderGroups(lines, settings){
       i++;
       rawLines.push(visible[i].raw);
     }
-    groups.push({raw:rawLines[0], rawEnd:rawLines[rawLines.length - 1], rawLines,
-      renderLines:expandDialogueLinesForOutput([line], settings)});
+    const group = {raw:rawLines[0], rawEnd:rawLines[rawLines.length - 1], rawLines, line};
+    groups.push(group);
+    const kind = paragraphPairKind(line,settings);
+    const bodyParagraph = paragraphOn && !isStructuralBodyLine(line);
+    if(pendingParagraph && paragraphPairKind(pendingParagraph.line,settings) !== kind) pendingParagraph = null;
+    const language = bodyParagraph ? paragraphPairLanguage(line,settings) : null;
+    if(language && !originalLanguage) originalLanguage = language;
+    if(!bodyParagraph || !language){ pendingParagraph = null; continue; }
+    if(language === originalLanguage){ pendingParagraph = group; continue; }
+    if(pendingParagraph){
+      const firstDialogue = kind === 'dialogue' ? paragraphDialogueInfo(pendingParagraph.line,settings) : null;
+      const secondDialogue = kind === 'dialogue' ? paragraphDialogueInfo(group.line,settings) : null;
+      // A quotation and a thought, or two explicitly different speakers, start new pairs.
+      if(firstDialogue?.conflict || secondDialogue?.conflict || Boolean(firstDialogue) !== Boolean(secondDialogue)
+        || (firstDialogue?.speaker && secondDialogue?.speaker && firstDialogue.speaker !== secondDialogue.speaker)){
+        pendingParagraph = null;
+        continue;
+      }
+      pendingParagraph.paragraphPairId = group.paragraphPairId = pendingParagraph.raw;
+      // Roles follow input order; detected language only determines eligibility.
+      pendingParagraph.paragraphPairRole = 'original';
+      group.paragraphPairRole = 'translation';
+      if(firstDialogue && secondDialogue){
+        const primary = settings.parallelTranslationOrder === 'translation' ? secondDialogue : firstDialogue;
+        const context = {speaker:firstDialogue.speaker || secondDialogue.speaker,
+          centered:settings.cardBodyCenter === true || settings.dialogueCenter === true || primary.centered};
+        pendingParagraph.paragraphDialogue = group.paragraphDialogue = context;
+        if(firstDialogue.mixed) pendingParagraph.paragraphDialogueMixed = true;
+        if(secondDialogue.mixed) group.paragraphDialogueMixed = true;
+      }
+      pendingParagraph = null;
+    }
   }
+  for(let index = 0; index+1 < groups.length; index++){
+    const first = groups[index], second = groups[index+1];
+    if(first.paragraphPairId === undefined || first.paragraphPairId !== second.paragraphPairId) continue;
+    if(first.paragraphPairRole !== (settings.parallelTranslationOrder || 'original')){
+      groups[index] = second; groups[index+1] = first;
+    }
+    index++;
+  }
+  groups.forEach(group => {
+    group.renderLines = expandDialogueLinesForOutput([group.line], paragraphPairSettings(settings,group));
+    delete group.line;
+  });
   return groups;
 }
 
 // 한 카드 분량의 줄들을 문단 HTML로 조립 (일부 접기 포함)
 function assembleBody(lines, settings, trimEdges = false){
+  settings = MosaicParser.outputRuleSettings(settings);
+  const groups = bodyRenderGroups(lines, settings);
   const paragraphCache = paragraphCacheFor(settings);
-  const renderLines = bodyRenderGroups(lines, settings).flatMap(group => group.renderLines);
+  const renderEntries = groups.flatMap(group => group.renderLines.map(line => ({line,group})));
+  const renderLines = renderEntries.map(entry => entry.line);
   const quoteOrMemoLines = renderLines.map(raw => {
     const text = String(raw).trim().replace(/^\[C\]\s*/i, '');
     return (text[0] === ':' && !!MosaicParser.parseBodyCommentLine(raw))
@@ -1478,11 +1702,11 @@ function assembleBody(lines, settings, trimEdges = false){
   };
   const isDialogueLine = raw => raw !== undefined
     && isPureDialogueLine(String(raw).trim().replace(/^\[C\]\s*/i, ''), settings);
-  const dialogueRole = raw => {
+  const dialogueRole = (raw,group) => {
     if(!isDialogueLine(raw)) return null;
     const text = MosaicParser.normalizeQuotes(String(raw).trim()).replace(/^\[C\]\s*/i, '')
       .replace(/^\{(#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\}\s*/, '');
-    const speaker = stripSpeaker(text, settings).speaker;
+    const speaker = stripSpeaker(text, settings).speaker || group?.paragraphDialogue?.speaker || null;
     // 표시 이름·색상이 같아도 원래 역할을 사용한다. 추가 인물은 char로 묶지 않는다.
     return speaker === null ? 'char' : typeof speaker === 'string' ? speaker : null;
   };
@@ -1514,7 +1738,7 @@ function assembleBody(lines, settings, trimEdges = false){
     const tightBottom = !isHR && !nextIsHR && isPureDialogueLine(line, settings)
       && renderLines[i + 1] !== undefined && isPureDialogueLine(renderLines[i + 1], settings);
     const nextLine = renderLines[i + 1];
-    const currentRole = dialogueRole(line), nextRole = dialogueRole(nextLine);
+    const currentRole = dialogueRole(line,renderEntries[i].group), nextRole = dialogueRole(nextLine,renderEntries[i + 1]?.group);
     const charUserBoundary = (currentRole === 'char' && nextRole === 'user')
       || (currentRole === 'user' && nextRole === 'char');
     const narrDialogueBoundary = (isNarrationLine(line) && isDialogueLine(nextLine))
@@ -1524,12 +1748,31 @@ function assembleBody(lines, settings, trimEdges = false){
     // 접기 블록 안은 자체 패딩을 가지므로 첫 요소 보정을 적용하지 않는다.
     const isFirst = bodyChunks.length === 0 && manualBuf === null;
     const isLast = i === renderLines.length - 1;
-    push(cachedParagraph(paragraphCache, line, settings, { extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, charUserBoundary, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
+    const group = renderEntries[i].group;
+    const paragraphSettings = paragraphPairSettings(settings,group);
+    const firstPairRole = settings.parallelTranslationOrder || 'original';
+    const nextGroup = renderEntries[i + 1]?.group;
+    const paragraphPairInnerGap = group.paragraphPairId !== undefined && nextGroup !== group
+      && nextGroup?.paragraphPairId === group.paragraphPairId;
+    const paragraphPairGapAfter = !!group.paragraphPairRole && group.paragraphPairRole !== firstPairRole
+      && nextGroup !== group && !!nextGroup && !isStructuralBodyLine(renderLines[i + 1]);
+    let paragraphPairGapScale=1;
+    if(paragraphPairGapAfter){
+      // 보조문장의 축소 크기 대신 쌍의 대사·나레이션 설정 크기를 기준으로 한다.
+      const dialogue=!!group.paragraphDialogue || paragraphPairKind(line,settings)==='dialogue';
+      const size=Number(settings[dialogue ? 'dlgSize' : 'narrSize']);
+      if(Number.isFinite(size) && size>0) paragraphPairGapScale=size/13.5;
+    }
+    const html = cachedParagraph(paragraphCache, line, paragraphSettings, { paragraphPairRole:group.paragraphPairRole || '', paragraphPairGapAfter, paragraphPairInnerGap, paragraphPairGapScale,
+      paragraphDialogue:group.paragraphDialogue || null,
+      paragraphDialogueSecondary:!!group.paragraphDialogue && group.paragraphPairRole !== firstPairRole,
+      extraBottom: nextIsHR, extraTop: prevIsHR, tightBottom, charUserBoundary, narrDialogueBoundary, isFirst, isLast, prevIsStatus, nextIsStatus,
       prevIsHeading:isHeadingLine(renderLines[i - 1]), nextIsHeading:isHeadingLine(renderLines[i + 1]),
       prevIsNarration:isNarrationLine(renderLines[i - 1]),
       prevIsQuoteOrMemo:quoteOrMemoLines[i] && !!quoteOrMemoLines[i - 1],
       nextIsQuoteOrMemo:quoteOrMemoLines[i] && !!quoteOrMemoLines[i + 1],
-      }));
+      });
+    push(paragraphPairColors(html,settings,group.paragraphPairRole));
   });
 
   // 닫는 마커 없이 끝났으면 카드 끝에서 닫는다.
@@ -2291,7 +2534,7 @@ function buildProfileBlock(settings, connectedAbove, removeTopDivider, connected
     ? 'width:100%; margin-left:0; margin-bottom:0;'
     : `width:calc(100% + ${outerHalfGap} + ${outerHalfGap}); margin-left:calc(0px - ${outerHalfGap}); margin-bottom:-${profileGap}px;`;
   const profileGrid = profileItems.length
-    ? `<div data-mosaic-profile-grid="true" style="box-sizing:border-box; ${profileGridSpacing} display:block; text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`
+    ? `<div data-mosaic-profile-grid="true" style="box-sizing:border-box; ${profileGridSpacing} max-width:none !important; display:block; text-align:center; font-size:0; white-space:normal;">${profileItems.join('')}</div>`
     : '';
   const profileItemsRow = profileGrid
     // 행의 잘림은 보조 안전망이다. 실제 윗·아랫모서리는 사진/배경 면에 직접 둔다.
@@ -3105,7 +3348,7 @@ function transparentOutput(html, settings){
   });
   // 투명 테마에서도 옵션 6의 말풍선 형태는 약한 무채색 면으로 구분한다.
   template.content.querySelectorAll('p[data-mosaic-dialogue-side]').forEach(dialogue => {
-    if(dialogue.style.width === 'fit-content'){
+    if(dialogue.style.width === 'fit-content' && !dialogue.hasAttribute('data-mosaic-dialogue-secondary')){
       dialogue.style.setProperty('background-color', 'rgba(128,128,128,.10)', 'important');
     }
   });
@@ -3130,7 +3373,7 @@ function specialThemeOutput(html, mode, settings){
     style.setProperty('box-shadow', 'none', 'important');
     style.setProperty('text-shadow', 'none', 'important');
     // 메신저 말풍선은 카드 외곽 모양과 별개로 양쪽 화자의 둥근 모서리를 유지한다.
-    const messengerBubble = el.matches('p[data-mosaic-dialogue-side]') && style.width === 'fit-content';
+    const messengerBubble = el.matches('p[data-mosaic-dialogue-side]:not([data-mosaic-dialogue-secondary])') && style.width === 'fit-content';
     if(!messengerBubble) style.setProperty('border-radius', '0', 'important');
 
   });
@@ -3619,6 +3862,7 @@ function cachedParagraph(cache, line, settings, options){
 return Object.freeze({
 assembleBody,
 bodyRenderGroups,
+paragraphPairSettings,
 buildCard,
 buildParagraph,
 combineSoftBreakPair,

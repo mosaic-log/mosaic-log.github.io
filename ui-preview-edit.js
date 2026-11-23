@@ -1111,14 +1111,9 @@ function commitPreviewCreditEdit(el, descriptor, next){
 // One commit path applies a planned source change and records its before/after state.
 function applyPreviewSourceChange(ta, change){
   if(!change) return;
-  if(ta.value !== change.before){ host.uiUpdateEffects.renderNow(); return; }
   previewEditState.committing = true;
   try {
-    host.snapshotCards();
-    ta.value = change.after;
-    host.cardEditors.setActiveTextarea(ta);
-    ta.dispatchEvent(new Event('input', { bubbles:true }));
-    host.showUndoToast(change.message);
+    return host.applySourceChanges([{ta,...change}],change.message,{input:true,activeTextarea:ta});
   } finally { previewEditState.committing = false; }
 }
 
@@ -1510,7 +1505,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   let focusValue = '';
   let parallelSnapshot = null;
   let parallelPastePending = false;
-  let commentEnter = null;
+  let directEnter = null;
   const syncChangedHighlight = () => {
     if(previewEditableText(el, preservesLineBreaks) !== focusValue){
       el.dataset.previewEditChanged = 'true';
@@ -1520,7 +1515,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   };
   const onFocus = () => {
     cancelled = false;
-    commentEnter = null;
+    directEnter = null;
     focusValue = previewEditableText(el, preservesLineBreaks);
     parallelSnapshot = descriptor.type==='body' ? previewParallelEditSnapshot(el) : null;
     parallelPastePending = false;
@@ -1530,7 +1525,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
   el.addEventListener('focus', onFocus);
   const cancelEdit = () => {
     cancelled = true;
-    commentEnter = null;
+    directEnter = null;
     clearTimeout(compositionCommitTimer);
     compositionCommitTimer = null;
     if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;
@@ -1538,11 +1533,11 @@ function enablePreviewDirectEditor(el, descriptor, label){
   descriptor.cancelEdit = cancelEdit;
   // 한글 조합이 끝나도 누른 키의 의도를 유지한다. 후속 beforeinput으로
   // 같은 Enter를 다시 실행하거나 insertLineBreak를 Shift+Enter로 추측하지 않는다.
-  const applyCommentEnter = () => {
-    if(!commentEnter || commentEnter.handled || composing || host.isComposing()) return;
+  const applyDirectEnter = () => {
+    if(!directEnter || directEnter.handled || composing || host.isComposing()) return;
     if(!el.isConnected || document.activeElement !== el) return;
-    commentEnter.handled = true;
-    if(commentEnter.softBreak){
+    directEnter.handled = true;
+    if(directEnter.softBreak && preservesLineBreaks){
       if(insertPreviewSoftBreak(el)) syncChangedHighlight();
     }else{
       el.blur();
@@ -1553,20 +1548,20 @@ function enablePreviewDirectEditor(el, descriptor, label){
     compositionCommitTimer = setTimeout(() => {
       compositionCommitTimer = null;
       if(pendingCompositionEdit?.element === el) finishEdit();
-      else applyCommentEnter();
+      else applyDirectEnter();
     }, 0);
   };
   el.addEventListener('compositionstart', () => { composing = true; });
   el.addEventListener('compositionend', () => {
     composing = false;
-    if(pendingCompositionEdit?.element === el || (commentEnter && !commentEnter.handled)) scheduleCompositionFinish();
+    if(pendingCompositionEdit?.element === el || (directEnter && !directEnter.handled)) scheduleCompositionFinish();
   });
   el.addEventListener('beforeinput', e => {
-    if(descriptor.type === 'comment' && (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak')){
+    if(e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak'){
       e.preventDefault();
       // 키다운이 없는 가상 키보드의 Enter도 저장으로 처리한다.
-      if(!commentEnter) commentEnter = {softBreak:false, handled:false};
-      if(!commentEnter.handled) scheduleCompositionFinish();
+      if(!directEnter) directEnter = {softBreak:false, handled:false};
+      if(!directEnter.handled) scheduleCompositionFinish();
       return;
     }
     if(composing || e.isComposing || host.isComposing()) return;
@@ -1584,13 +1579,6 @@ function enablePreviewDirectEditor(el, descriptor, label){
       e.preventDefault();
       applyPreviewFormatToSource(el, descriptor, fmt, previewSelectionDetails(el));
       return;
-    }
-    if(e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak'){
-      if(e.isComposing) return;
-      e.preventDefault();
-      if(e.inputType === 'insertLineBreak' && preservesLineBreaks && insertPreviewSoftBreak(el)){
-        syncChangedHighlight();
-      }
     }
   });
   el.addEventListener('paste', e => {
@@ -1635,20 +1623,18 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   });
   el.addEventListener('keydown', e => {
-    if(descriptor.type === 'comment'){
-      // 일부 한글 IME는 key=Process·keyCode=229로 보내므로 실제 Enter 코드도 확인한다.
-      if(e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter'){
-        commentEnter = {softBreak:!!e.shiftKey, handled:false};
-        if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()){
-          scheduleCompositionFinish();
-          return;
-        }
-        e.preventDefault();
-        applyCommentEnter();
+    // 일부 한글 IME는 key=Process·keyCode=229로 보내므로 실제 Enter 코드도 확인한다.
+    if(e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter'){
+      directEnter = {softBreak:!!e.shiftKey, handled:false};
+      if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()){
+        scheduleCompositionFinish();
         return;
       }
-      if(commentEnter?.handled) commentEnter = null;
+      e.preventDefault();
+      applyDirectEnter();
+      return;
     }
+    if(directEnter?.handled) directEnter = null;
     if(composing || e.isComposing || e.keyCode === 229 || host.isComposing()) return;
     if(e.key === 'Backspace' || e.key === 'Delete'){
       const inputType = e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward';
@@ -1667,14 +1653,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
       }
       return;
     }
-    if(e.key === 'Enter'){
-      e.preventDefault();
-      if(e.shiftKey && preservesLineBreaks){
-        if(insertPreviewSoftBreak(el)) syncChangedHighlight();
-        return;
-      }
-      el.blur();
-    } else if(e.key === 'Escape'){
+    if(e.key === 'Escape'){
       e.preventDefault();
       cancelled = true;
       if(descriptor.type === 'credit' && el.dataset.previewCreditStaged === 'true'){
@@ -1691,7 +1670,7 @@ function enablePreviewDirectEditor(el, descriptor, label){
     }
   });
   function finishEdit(){
-    commentEnter = null;
+    directEnter = null;
     clearTimeout(compositionCommitTimer);
     compositionCommitTimer = null;
     if(pendingCompositionEdit?.element === el) pendingCompositionEdit = null;

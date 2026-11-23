@@ -18,23 +18,9 @@ function parallelCardCandidates(ta,settings=host.getSettings()){
 }
 
 function maskInlineFormatMarkers(value, mask, onPair = null){
-  const normalized = String(value);
-  [
-    { re:/\*\*\*([^*\n]+?)\*\*\*/g, width:3 },
-    { re:/\*\*([^*\n]+?)\*\*/g, width:2 },
-    { re:/__(.+?)__/g, width:2 }
-  ].forEach(({ re, width }) => {
-    let match;
-    while((match = re.exec(normalized)) !== null){
-      mask(match.index, match.index + width);
-      mask(match.index + match[0].length - width, match.index + match[0].length);
-      if(onPair) onPair(match.index, match.index + match[0].length, width);
-    }
-  });
-  for(const match of MosaicState.emphasisMatches(normalized)){
-    mask(match.index, match.index + 1);
-    mask(match.index + match[0].length - 1, match.index + match[0].length);
-    if(onPair) onPair(match.index, match.index + match[0].length, 1);
+  for(const {start,end,width} of MosaicParser.inlineFormatRanges(value)){
+    mask(start,start+width);mask(end-width,end);
+    if(onPair) onPair(start,end,width);
   }
 }
 
@@ -145,7 +131,7 @@ function sourceProjectionMeta(line, currentSettings = host.getSettings()){
   }
 
   // 일반 문단/대사에서만 색상·화자 접두어를 소비한다.
-  const color = rest.match(/^\{#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\}\s*/);
+  const color = rest.match(/^\{#?(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})\}\s*/);
   if(color){
     hide(offset, offset + color[0].length);
     offset += color[0].length;
@@ -178,7 +164,6 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
     for(let i = Math.max(0, start); i < Math.min(chars.length, end); i++) chars[i] = '\u0000';
   };
   meta.hidden.forEach(range => mask(range[0], range[1]));
-  (currentSettings.parallelTranslationQuoteRanges || []).forEach(([start,end])=>mask(start,end));
 
   let m;
   // 일반 문단 중간의 화자 마커만 화면에서 사라진다. 제목·인용문에서는 글자 그대로다.
@@ -189,7 +174,7 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
       const known = m[1] === '>>' || m[1] === '<<' || !!MosaicRenderer.findChar(settings, m[2]);
       if(known) mask(m.index, m.index + m[0].length);
     }
-    if(MosaicState.isMessengerDialogueStyle(settings.dlgStyle))(settings.messengerQuoteRanges || MosaicParser.dialogueQuoteRanges(normalized,settings)).forEach(([start,end])=>mask(start,end));
+    if(MosaicParser.parallelHidesDialogueQuotes(settings))(settings.messengerQuoteRanges || MosaicParser.dialogueQuoteRanges(normalized,settings)).forEach(([start,end])=>mask(start,end));
   }
 
   // 인라인 서식 기호는 보이지 않지만 내용의 원문 인덱스는 그대로 유지한다.
@@ -203,10 +188,10 @@ function lineSearchProjection(line, currentSettings = host.getSettings()){
 function sourceDisplayProjectionMap(line, settings = host.getSettings()){
   const projection = lineSearchProjection(line, settings);
   const extended = settings.parallelTranslationOrder === 'translation' || settings.parallelTranslationBrackets === 'hide'
-    || MosaicState.isMessengerDialogueStyle(settings.dlgStyle) || MosaicParser.parallelKindEnabled('dialogue',settings) || MosaicParser.parallelKindEnabled('narration',settings);
+    || MosaicParser.parallelHidesDialogueQuotes(settings) || MosaicParser.bracketParallelEnabled(settings);
   if(extended && (sourceProjectionMeta(line,settings).maskInlineSpeakers || /^\s*(?:\[C\]\s*)?>(?!>)/.test(line))){
     const parallel = MosaicParser.parallelTextProjection(line,{...settings,
-      hideDialogueQuotes:MosaicState.isMessengerDialogueStyle(settings.dlgStyle) && sourceProjectionMeta(line,settings).maskInlineSpeakers});
+      hideDialogueQuotes:MosaicParser.parallelHidesDialogueQuotes(settings) && sourceProjectionMeta(line,settings).maskInlineSpeakers});
     if(parallel.changed){
       // 마커는 표시 순서가 아니라 원래 위치에서 가린다. 번역 안의 인물명·따옴표가
       // 앞으로 나왔다는 이유로 새 화자 문법으로 소비되지 않게 한다.
@@ -277,7 +262,32 @@ function editorOutputRuleExclusions(ta){
   return state.items;
 }
 
+const paragraphGroupSnapshots = new WeakMap();
+function editorRenderGroups(ta, settings){
+  const snapshot = editorTextSnapshot(ta);
+  const exclusions = editorOutputRuleExclusions(ta), parallelExclusions = editorParallelExclusions(ta);
+  const key = JSON.stringify([settings,exclusions,parallelExclusions]);
+  const cached = paragraphGroupSnapshots.get(ta);
+  if(cached?.body === snapshot.body && cached.key === key) return cached;
+  const contexts = editorBodyCommentContexts(ta);
+  const lines = snapshot.lines.map((line,raw) => MosaicParser.applyOutputTextRules(line,{
+    ...settings,outputRuleExclusions:exclusions,parallelExclusions,
+    outputRuleSourceOffset:snapshot.offsets[raw],bodyCommentLiteral:!!contexts[raw]
+  }));
+  const groups = MosaicRenderer.bodyRenderGroups(lines,MosaicParser.outputRuleSettings(settings));
+  const byRaw = new Map();
+  groups.forEach(group => group.rawLines.forEach(raw => byRaw.set(raw,group)));
+  const result = {body:snapshot.body,key,groups,byRaw};
+  // Large results remain ephemeral rather than retaining another long-body copy.
+  if(snapshot.body.length+key.length < 6000000) paragraphGroupSnapshots.set(ta,result);
+  else paragraphGroupSnapshots.delete(ta);
+  return result;
+}
+
 function outputRuleLineSettings(ta, raw = 0, segmentOffset = 0, settings = host.getSettings()){
+  if(MosaicState.parallelRecognitionKind(settings) === 'paragraph'){
+    settings = MosaicRenderer.paragraphPairSettings(settings,editorRenderGroups(ta,settings).byRaw.get(raw));
+  }
   const exclusions = editorOutputRuleExclusions(ta);
   const parallelExclusions=editorParallelExclusions(ta);
   const bodyCommentLiteral = !!(ta && editorBodyCommentContexts(ta)[raw]);
@@ -289,6 +299,10 @@ function outputRuleLineSettings(ta, raw = 0, segmentOffset = 0, settings = host.
 
 function outputSourceDisplayProjectionMap(line, settings = host.getSettings()){
   const output = MosaicParser.outputTextProjection(line, settings);
+  return displayProjectionFromOutput(line,settings,output);
+}
+
+function displayProjectionFromOutput(line, settings, output){
   const display = sourceDisplayProjectionMap(output.text, {...MosaicParser.outputRuleSettings(settings),
     parallelResolvedCandidates:MosaicParser.parallelOutputCandidates(line,settings,output)});
   const spans = display.map.map((index,at) => {
@@ -301,18 +315,25 @@ function outputSourceDisplayProjectionMap(line, settings = host.getSettings()){
     ...(display.parallel ? {parallel:true,parts:display.parts,protected:display.protected} : {})};
 }
 
-function findSourceRange(line, text, occurrence, caseInsensitive, settings){
-  const ranges = findAllSourceRanges(line, text, caseInsensitive, settings);
+function findSourceRange(line, text, occurrence, caseInsensitive, settings, options = {}){
+  const ranges = findAllSourceRanges(line, text, caseInsensitive, settings,
+    options?.exactText ? {...options,keepUneditable:true} : options);
   return ranges[Math.max(0, occurrence || 0)] || null;
 }
 
-function findAllSourceRanges(line, text, caseInsensitive, settings){
+function findAllSourceRanges(line, text, caseInsensitive, settings, options = {}){
   if(!text) return [];
   const display = outputSourceDisplayProjectionMap(line, settings);
-  const normalizedText = MosaicParser.normalizeQuotes(String(text)).replace(/\u00a0/g, ' ').trim();
+  const normalized = MosaicParser.normalizeQuotes(String(text));
+  const normalizedText = options.exactText ? normalized : normalized.replace(/\u00a0/g, ' ').trim();
   if(!normalizedText) return [];
   const ranges = [];
   MosaicParser.literalMatchRanges(display.text, normalizedText, !!caseInsensitive).forEach(({start:at,end}) => {
+    if(options.exactText && display.parallel && (display.protected?.slice(at,end).some(Boolean)
+      || new Set(display.parts?.slice(at,end)).size>1)){
+      if(options.keepUneditable) ranges.push(null);
+      return;
+    }
     const last = end - 1;
     if(display.map[at] !== undefined && display.map[last] !== undefined){
       let range = display.parallel
@@ -320,7 +341,7 @@ function findAllSourceRanges(line, text, caseInsensitive, settings){
           end:display.ends.slice(at,last+1).reduce((max,value)=>Math.max(max,value),0)}
         : {start:display.map[at],end:display.ends[last]};
       if(display.parallel)range=MosaicParser.parallelSourceBounds(line,range,settings);
-      if(range.end>range.start && !ranges.some(item => item.start === range.start && item.end === range.end)) ranges.push(range);
+      if(range.end>range.start && !ranges.some(item => item && item.start === range.start && item.end === range.end)) ranges.push(range);
     }
   });
   return ranges;
@@ -409,11 +430,11 @@ function sourceDisplayEntries(ta, rawSettings = host.getSettings()){
   const sourceLines = editorTextSnapshot(ta).lines;
   const parallelCandidates=editorParallelExclusions(ta).length ? parallelCardCandidates(ta,rawSettings) : null;
   const sourceOffsets=[];let sourceOffset=0;sourceLines.forEach(line=>{sourceOffsets.push(sourceOffset);sourceOffset+=line.length+1;});
-  const outputLines = sourceLines.map((line,raw) => MosaicParser.applyOutputTextRules(line, outputRuleLineSettings(ta,raw,0,rawSettings)));
-  MosaicRenderer.bodyRenderGroups(outputLines, settings).forEach(group => {
+  editorRenderGroups(ta,rawSettings).groups.forEach(group => {
     const {raw, rawEnd, rawLines, renderLines} = group;
     const start=sourceOffsets[raw],end=sourceOffsets[rawEnd+1] ?? ta.value.length+1;
-    const displaySettings=parallelCandidates ? {...settings,parallelContext:{items:parallelCandidates.filter(item=>item.sourceStart>=start && item.sourceEnd<end),cursor:0}} : settings;
+    const groupSettings = MosaicRenderer.paragraphPairSettings(settings,group);
+    const displaySettings=parallelCandidates ? {...groupSettings,parallelContext:{items:parallelCandidates.filter(item=>item.sourceStart>=start && item.sourceEnd<end),cursor:0}} : groupSettings;
     const originalLine = sourceLines[raw];
     const trimmed = renderLines[0].trim();
     if(/^(?:\[C\]\s*)?\[접기\]\s*$/i.test(trimmed)){
@@ -541,6 +562,23 @@ function replaceInlineSourceRange(raw, start, end, text){
 
 // 보이는 글자만 비교해 바뀐 구간을 원문에 되돌린다.
 // [C], >, #, 화자, 색상, 굵게·강조 마커처럼 화면에 안 보이는 문법은 그대로 둔다.
+function sourceInsertionPoint(raw, map, ends, at, protectedChars = []){
+  const right = !protectedChars[at] && map[at] !== undefined ? map[at] : null;
+  const left = at>0 && !protectedChars[at-1] ? ends[at-1] : null;
+  if(left!==null && right!==null && left<right){
+    const markers = MosaicParser.inlineFormatRanges(raw).flatMap(range=>[
+      {start:range.start,end:range.start+range.width},
+      {start:range.end-range.width,end:range.end}
+    ]).filter(range=>range.start>=left && range.end<=right);
+    let covered = left;
+    markers.sort((a,b)=>a.start-b.start).forEach(range=>{
+      if(range.start<=covered) covered=Math.max(covered,range.end);
+    });
+    if(covered>=right) return left;
+  }
+  return right ?? left;
+}
+
 function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preserveLineBreaks = false, editHint = null){
   const raw = String(rawValue);
   const projected = projection === undefined ? lineSearchProjection(raw) : projection;
@@ -586,9 +624,9 @@ function replaceVisibleUsingProjection(rawValue, nextVisible, projection, preser
     while(oldEnd > 0 && oldEnd < visibleIndexes.length && visibleIndexes[oldEnd] < visibleEnds[oldEnd - 1]) oldEnd++;
     inserted = old.slice(prefix, previousPrefix) + inserted + old.slice(previousEnd, oldEnd);
   }
-  const replaceStart = prefix < visibleIndexes.length
-    ? visibleIndexes[prefix]
-    : (visibleIndexes.length ? visibleEnds[visibleEnds.length - 1] : sourceContentStart(raw));
+  const replaceStart = oldEnd===prefix
+    ? sourceInsertionPoint(raw,visibleIndexes,visibleEnds,prefix) ?? sourceContentStart(raw)
+    : visibleIndexes[prefix];
   const replaceEnd = oldEnd > prefix && visibleIndexes[oldEnd - 1] !== undefined
     ? visibleEnds[oldEnd - 1]
     : replaceStart;
@@ -624,8 +662,7 @@ function replaceParallelVisibleSource(raw,next,projection,editHint = null){
     while(to>0 && to<map.length && parts[to]===parts[to-1] && map[to]<ends[to-1])to++;
     const inserted=old.slice(from,hunk.start)+hunk.text+old.slice(hunk.end,to);
     if(from===to){
-      const at=!protectedChars[from] && map[from]!==undefined ? map[from]
-        : from>0 && !protectedChars[from-1] ? ends[from-1] : null;
+      const at=sourceInsertionPoint(raw,map,ends,from,protectedChars);
       if(at===null)return raw;
       replacements.push({from:at,to:at,text:inserted});continue;
     }
@@ -664,14 +701,14 @@ function parallelEditHunks(old,next,offset){
 
 function replacePreviewBodyLine(rawLine, nextVisible, settings = host.getSettings(), editHint = null){
   const raw = String(rawLine);
-  if(editHint && MosaicState.isMessengerDialogueStyle(settings.dlgStyle))settings={...settings,parallelEditProjection:true};
+  if(editHint && MosaicParser.parallelHidesDialogueQuotes(settings))settings={...settings,parallelEditProjection:true};
   const comment = MosaicParser.parseBodyCommentLine(raw);
   if(comment || settings.bodyCommentLiteral){
     const next = String(nextVisible).replace(/\u00a0/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
     if(MosaicParser.normalizeQuotes(next) === MosaicParser.normalizeQuotes((comment?.content ?? raw).trim())) return raw;
     return (comment?.prefix ?? raw.match(/^[\t ]*/)[0]) + next;
   }
-  if(MosaicState.isMessengerDialogueStyle(settings.dlgStyle)){
+  if(MosaicParser.parallelHidesDialogueQuotes(settings)){
     const meta=sourceProjectionMeta(raw,settings),projection=outputSourceDisplayProjectionMap(raw,settings);
     const speaker=String(nextVisible).match(/^(?:>>|<<|\[(?!C\])[^\[\]\n]{1,24}\])\s*/i);
     if(meta.maskInlineSpeakers && meta.normalized[meta.start]==='"' && speaker
@@ -697,78 +734,169 @@ function replacePreviewBodyLine(rawLine, nextVisible, settings = host.getSetting
   return replaceVisibleUsingProjection(raw, nextVisible, outputSourceDisplayProjectionMap(raw,settings),false,editHint);
 }
 
+// 여러 줄 병행의 직접 편집과 검색이 같은 표시 순서·원문 좌표를 사용한다.
+function parallelBodyProjection(rawParts, lineSettings){
+  const token = MosaicParser.SOFT_BREAK_TOKEN, raw = rawParts.join(token);
+  if(!MosaicParser.bracketParallelEnabled(lineSettings[0]) || !MosaicParser.parallelSegments(raw,lineSettings[0],{softDialogueGroups:true})
+    .some(segment=>segment.original.includes(token) || segment.translationGroup.includes(token))) return undefined;
+  const output = {text:'',spans:[]}, offsets = [];let offset = 0;
+  rawParts.forEach((part,index)=>{
+    offsets.push(offset);
+    if(index){output.text += token;output.spans.push({start:offset-1,end:offset});}
+    const projected = MosaicParser.outputTextProjection(part,lineSettings[index]);
+    output.text += projected.text;
+    projected.spans.forEach(span=>output.spans.push({...span,start:span.start+offset,end:span.end+offset,
+      ...(span.editStart === undefined ? {} : {editStart:span.editStart+offset}),
+      ...(span.editEnd === undefined ? {} : {editEnd:span.editEnd+offset})}));
+    offset += part.length+1;
+  });
+  const localPoint = point => {
+    const index = lineSettings.findIndex((settings,index)=>Number.isInteger(settings.outputRuleSourceOffset)
+      && point>=settings.outputRuleSourceOffset && point<=settings.outputRuleSourceOffset+rawParts[index].length);
+    return index<0 ? null : offsets[index]+point-lineSettings[index].outputRuleSourceOffset;
+  };
+  const parallelExclusions = (lineSettings[0].parallelExclusions || []).flatMap(item=>{
+    const start=localPoint(item.start),end=localPoint(item.end);
+    return start===null || end===null ? [] : [{...item,start,end,text:raw.slice(start,end)}];
+  });
+  const settings = {...lineSettings[0],parallelEditProjection:true,outputRuleSourceOffset:0,parallelExclusions};
+  const projection = displayProjectionFromOutput(raw,settings,output), keep = [];
+  const hidden = new Set();
+  for(const match of projection.text.matchAll(/[\t ]*\uE200[\t ]*/g)){
+    for(let i=match.index;i<match.index+match[0].length;i++)if(projection.text[i]!==token)hidden.add(i);
+  }
+  for(let i=0;i<projection.text.length;i++)if(!hidden.has(i))keep.push(i);
+  projection.text = keep.map(index=>projection.text[index]===token ? '\n' : projection.text[index]).join('');
+  for(const field of ['map','ends','editMap','editEnds','parts','protected']){
+    if(projection[field]) projection[field] = keep.map(index=>projection[field][index]);
+  }
+  return {raw,projection,offsets};
+}
+
+function replacePreviewParallelBody(rawParts, next, lineSettings, editHints){
+  const group = parallelBodyProjection(rawParts,lineSettings);
+  if(!group) return undefined;
+  const {raw,projection} = group;
+  let hint = null;
+  if(editHints?.length){
+    let at=0;const hunks=[];
+    editHints.forEach(item=>{hunks.push(...item.hunks.map(hunk=>({...hunk,start:hunk.start+at,end:hunk.end+at})));at+=item.before.length+1;});
+    hint={before:editHints.map(item=>item.before).join('\n'),after:editHints.map(item=>item.after).join('\n'),hunks};
+  }
+  return replaceVisibleUsingProjection(raw,next,projection,true,hint).split(/\uE200|\n/);
+}
+
+// 조각 밖에서 열린 서식을 포함한 원문 전체에 적용해 반쪽 구분자가 사라지지 않게 한다.
+function replacePreviewFormattedSegment(raw, next, settings, bounds, previous, editHint){
+  const crosses = MosaicParser.inlineFormatRanges(raw).some(range=>
+    (range.start<bounds.start && range.end>bounds.start && range.end<bounds.end)
+    || (range.start>bounds.start && range.start<bounds.end && range.end>bounds.end));
+  if(!crosses) return undefined;
+  const projection = outputSourceDisplayProjectionMap(raw,settings);
+  projection.parallel = true;
+  let at = -1;
+  for(let start=projection.text.indexOf(previous);start>=0;start=projection.text.indexOf(previous,start+1)){
+    const end=start+previous.length;
+    if(projection.map.slice(start,end).some((point,index)=>point<bounds.start || (projection.ends?.[start+index] ?? point+1)>bounds.end)) continue;
+    if(at>=0) return raw;
+    at=start;
+  }
+  if(at<0) return raw;
+  projection.text = projection.text.slice(at,at+previous.length);
+  for(const field of ['map','ends','editMap','editEnds','parts','protected']){
+    if(projection[field]) projection[field]=projection[field].slice(at,at+previous.length);
+  }
+  return replaceVisibleUsingProjection(raw,next,projection,false,editHint);
+}
+
 // 한 원문 줄이 여러 미리보기 문단으로 분리된 경우에는 검색 범위를 해당 조각으로
 // 제한한다. 같은 문장이 앞뒤에 반복돼도 다른 조각을 수정하지 않게 한다.
-function descriptorSourceRange(descriptor, line, text, occurrence){
+function descriptorSourceRange(descriptor, line, text, occurrence, options = {}){
   // 코멘트 접두어를 잘라내면 메모가 일반 본문으로 재해석돼 이름 치환이 다시 걸린다.
   if(MosaicParser.parseBodyCommentLine(line)){
-    return findSourceRange(line, text, occurrence, false, outputRuleLineSettings(descriptor.ta,descriptor.raw));
+    return findSourceRange(line, text, occurrence, !!options.caseInsensitive, outputRuleLineSettings(descriptor.ta,descriptor.raw), options);
   }
   const bounds = descriptor && descriptor.sourceBounds;
   if(bounds && Number.isInteger(bounds.start) && Number.isInteger(bounds.end)){
     const segment = line.slice(bounds.start, bounds.end);
-    const local = findSourceRange(segment, text, occurrence, false, outputRuleLineSettings(descriptor.ta,descriptor.raw,bounds.start));
+    const local = findSourceRange(segment, text, occurrence, !!options.caseInsensitive, outputRuleLineSettings(descriptor.ta,descriptor.raw,bounds.start), options);
     if(local) return { start:bounds.start + local.start, end:bounds.start + local.end };
     // 자동 분리된 대사는 반드시 자기 원문 조각 안에서만 수정한다.
     // 조각 검색에 실패했을 때 줄 전체로 되돌아가면 같은 문장이 인접 조각에서
     // 발견되어 엉뚱한 대사에 서식이나 편집 내용이 적용될 수 있다.
     if(descriptor && descriptor.segmented) return null;
   }
-  return findSourceRange(line, text, occurrence, false, outputRuleLineSettings(descriptor.ta,descriptor.raw));
+  return findSourceRange(line, text, occurrence, !!options.caseInsensitive, outputRuleLineSettings(descriptor.ta,descriptor.raw), options);
 }
 
 // [BR] 문단은 여러 원문 줄이 미리보기의 한 블록으로 합쳐진다. 선택한 글자가
 // 첫 줄이 아닌 경우에도 결합 순서대로 각 원문 줄의 후보를 세어 실제 줄과 범위를 찾는다.
-function descriptorSelectionSource(descriptor, text, occurrence){
-  if(!descriptor || !descriptor.ta) return null;
-  const lines = descriptor.ta.value.split('\n');
+function descriptorSelectionSource(descriptor, text, occurrence, options = {}){
+  return descriptorMatchSources(descriptor,text,options)[Math.max(0,occurrence || 0)] || null;
+}
+
+function descriptorMatchSources(descriptor, text, options = {}){
+  if(!descriptor || !descriptor.ta) return [];
+  const lines = editorTextSnapshot(descriptor.ta).lines;
   const rawStart = descriptor.raw;
   const rawEnd = Math.max(rawStart, Number.isInteger(descriptor.rawEnd) ? descriptor.rawEnd : rawStart);
+  const collect = (raw,start=0,end=lines[raw]?.length,bounds=null,segmented=false) => {
+    if(lines[raw] === undefined) return [];
+    return findAllSourceRanges(lines[raw].slice(start,end),text,!!options.caseInsensitive,
+      outputRuleLineSettings(descriptor.ta,raw,start), {...options,keepUneditable:!!options.exactText})
+      .map((range,occurrence)=>range ? {raw,range:{start:start+range.start,end:start+range.end},occurrence,sourceBounds:bounds,segmented} : null);
+  };
   if(descriptor.sourceSegments){
-    let remaining = Math.max(0,occurrence || 0);
-    for(const segment of descriptor.sourceSegments){
-      const line = lines[segment.raw];
-      if(line === undefined) return null;
-      const ranges = findAllSourceRanges(line.slice(segment.start,segment.end),text,false,
-        outputRuleLineSettings(descriptor.ta,segment.raw,segment.start));
-      if(remaining < ranges.length){
-        const range = ranges[remaining];
-        return {raw:segment.raw,range:{start:segment.start+range.start,end:segment.start+range.end},
-          occurrence:remaining,sourceBounds:{start:segment.start,end:segment.end},segmented:true};
-      }
-      remaining -= ranges.length;
-    }
-    return null;
+    return descriptor.sourceSegments.flatMap(segment=>collect(segment.raw,segment.start,segment.end,{start:segment.start,end:segment.end},true));
   }
   if(descriptor.softBreak && rawEnd > rawStart){
-    let remaining = Math.max(0, occurrence || 0);
     const rawLines = descriptor.rawLines || Array.from({length:rawEnd - rawStart + 1}, (_,i) => rawStart + i);
-    for(const raw of rawLines){
-      const line = lines[raw];
-      if(line === undefined) continue;
-      const ranges = findAllSourceRanges(line, text, false, outputRuleLineSettings(descriptor.ta,raw));
-      if(remaining < ranges.length){
-        return { raw, range:ranges[remaining], occurrence:remaining, sourceBounds:null, segmented:false };
+    if(options.exactText){
+      const parts = rawLines.map(raw=>lines[raw].replace(/\[BR\]\s*$/i,''));
+      const group = parallelBodyProjection(parts,rawLines.map(raw=>outputRuleLineSettings(descriptor.ta,raw)));
+      if(group){
+        const {projection,offsets} = group;
+        return MosaicParser.literalMatchRanges(projection.text,text,!!options.caseInsensitive).map((match,occurrence)=>{
+          if(projection.protected?.slice(match.start,match.end).some(Boolean)
+            || new Set(projection.parts?.slice(match.start,match.end)).size>1) return null;
+          const start=projection.map.slice(match.start,match.end).reduce((min,point)=>Math.min(min,point),Infinity);
+          const end=projection.ends.slice(match.start,match.end).reduce((max,point)=>Math.max(max,point),0);
+          const index=offsets.findIndex((offset,index)=>start>=offset && end<=offset+parts[index].length);
+          return index<0 ? null : {raw:rawLines[index],range:{start:start-offsets[index],end:end-offsets[index]},occurrence,sourceBounds:null,segmented:false};
+        });
       }
-      remaining -= ranges.length;
     }
-    return null;
+    return rawLines.flatMap(raw=>collect(raw));
   }
   const line = lines[rawStart];
-  if(line === undefined) return null;
-  const range = descriptorSourceRange(descriptor, line, text, occurrence);
-  return range ? {
-    raw:rawStart,
-    range,
-    occurrence,
-    sourceBounds:descriptor.sourceBounds || null,
-    segmented:!!descriptor.segmented
-  } : null;
+  if(line === undefined) return [];
+  const bounds=descriptor.sourceBounds;
+  if(bounds && Number.isInteger(bounds.start) && Number.isInteger(bounds.end) && !MosaicParser.parseBodyCommentLine(line)){
+    const found=collect(rawStart,bounds.start,bounds.end,bounds,!!descriptor.segmented);
+    if(found.length || descriptor.segmented) return found;
+  }
+  return collect(rawStart,0,line.length,bounds || null,!!descriptor.segmented);
+}
+
+// 검색 후보와 원문 범위를 한 번 계산해 강조·개별 대치·전체 대치가 공유한다.
+function searchSourceMatches(ta, query, observed = [], acceptEntry = () => true){
+  const before=ta.value;
+  const entries=sourceDisplayEntries(ta);
+  return Array.from({length:Math.max(entries.length,observed.length)},(_,index)=>index).flatMap(index=>{
+    const entry=entries[index];
+    const text=observed[index] ?? (entry?.projection || '').replace(/\n/g,'');
+    if(!text || !query) return [];
+    const targets=entry?.editable && acceptEntry(entry,index,entries.length)
+      ? descriptorMatchSources(bodyEditDescriptor(ta,entry),query,{caseInsensitive:true,exactText:true}) : [];
+    return MosaicParser.literalMatchRanges(text,query).map((match,occurrence)=>({
+      ...match,entry:index,ta,before,target:targets[occurrence] || null
+    }));
+  });
 }
 
 function messengerEditSourceBounds(line, segment, settings){
   const bounds={...segment};
-  if(!MosaicState.isMessengerDialogueStyle(settings.dlgStyle) || !sourceProjectionMeta(line,settings).maskInlineSpeakers)return bounds;
+  if(!MosaicParser.parallelHidesDialogueQuotes(settings) || !sourceProjectionMeta(line,settings).maskInlineSpeakers)return bounds;
   const quotes=MosaicParser.dialogueQuoteRanges(line,settings,{rawSource:true});
   for(let i=0;i+1<quotes.length;i+=2){
     const open=quotes[i],close=quotes[i+1];
@@ -779,7 +907,7 @@ function messengerEditSourceBounds(line, segment, settings){
   return bounds;
 }
 
-function sourceSegmentEditBounds(line, segment){
+function sourceSegmentEditBounds(line, segment, settings = host.getSettings()){
   const markers = [], bounds = {...segment};
   maskInlineFormatMarkers(line,(start,end) => markers.push({start,end}));
   // 조각에 온전히 속하는 서식쌍은 함께 편집한다. 줄 수를 줄이거나 삭제해도
@@ -791,7 +919,7 @@ function sourceSegmentEditBounds(line, segment){
       bounds.end = Math.max(bounds.end,close.end);
     }
   }
-  return messengerEditSourceBounds(line,bounds,host.getSettings());
+  return messengerEditSourceBounds(line,bounds,settings);
 }
 
 // ---------- 미리보기 블록 드래그 이동 (이미지·문단 구분 요소) ----------
@@ -895,7 +1023,8 @@ function planCardSplit(source,offset){
 
 // Shared eligibility and source spans for ordinary paragraphs, in both render paths.
 function isPlainSource(body,settings){
-  return !settings.parallelNarrationOn
+  return MosaicState.parallelRecognitionKind(settings) !== 'paragraph'
+    && !MosaicParser.bracketParallelEnabled(settings)
     && ![...(settings.nameRules || []),...(settings.keywordRules || [])].some(rule=>rule.enabled !== false)
     && !/[<>{}\[\]*_'"#|]/.test(body) && MosaicParser.normalizeQuotes(body)===body
     // DOM parsing drops NUL, so its source projection must use the full mapping path.
@@ -950,12 +1079,15 @@ planCardSplit,
 parallelCardCandidates,
 parallelEditHunks,
 replacePreviewBodyLine,
+replacePreviewParallelBody,
+replacePreviewFormattedSegment,
 replaceSourceRange,
 replaceVisibleUsingProjection,
 setOutputRuleExclusions,
 setParallelExclusions,
 sourceDisplayEntries,
 sourceSegmentEditBounds,
+searchSourceMatches,
 topLevelMap,
 topLevelSourceEntries
 });
@@ -1004,7 +1136,7 @@ function planMemoChange(body, descriptor, next){
 function planSegmentChange(body, descriptor, next, context, lines){
   if(!descriptor.sourceSegments.length || descriptor.sourceSegments.some(segment =>
     !lines[segment.raw] || segment.start < 0 || segment.end > lines[segment.raw].length)) return null;
-  const segments = descriptor.sourceSegments.map(segment => host.sourceSegmentEditBounds(lines[segment.raw],segment));
+  const segments = descriptor.sourceSegments.map(segment => host.sourceSegmentEditBounds(lines[segment.raw],segment,context.lineSettings(segment.raw,segment.start)));
   const first = segments[0], last = segments.at(-1), parts = next.split('\n');
   const updated = parts.map((part,index) => {
     const segment = segments[index];
@@ -1027,41 +1159,37 @@ function planSegmentChange(body, descriptor, next, context, lines){
   return replaceLines(body,lines,first.raw,last.raw,replacement,'미리보기에서 연결된 문단 조각 수정.');
 }
 
+function replaceLinkedLines(body, lines, rawLines, first, last, updated, message){
+  const replacement=[];let index=0;
+  for(let raw=first;raw<=last;raw++){
+    if(raw===rawLines[index]){if(index<updated.length)replacement.push(updated[index]);index++;}
+    else replacement.push(lines[raw]);
+  }
+  replacement.push(...updated.slice(rawLines.length));
+  return replaceLines(body,lines,first,last,replacement,message);
+}
+
 function planMultilineChange(body, descriptor, next, context, lines, end){
   const parts = next ? next.split('\n') : [];
   const rawLines = descriptor.rawLines || Array.from({length:end - descriptor.raw + 1}, (_,i) => descriptor.raw + i);
   const oldParts = rawLines.map(raw => lines[raw].replace(/\[BR\]\s*$/i, ''));
-  const outputParts = oldParts.map((part,index)=>MosaicParser.applyOutputTextRules(part,context.lineSettings(rawLines[index])));
-  const translationQuotes = MosaicParser.parallelSegments(outputParts.join(MosaicParser.SOFT_BREAK_TOKEN),context.settings,{softDialogueGroups:true})
-    .filter(segment=>segment.original.includes(MosaicParser.SOFT_BREAK_TOKEN))
-    .flatMap(segment=>{
-      const display=MosaicParser.parallelDisplayParts(segment,context.settings);
-      return display.translationQuoted && !display.reverse
-        ? [[display.translationStart-1,display.translationStart],[display.translationStart+display.translation.length,display.translationStart+display.translation.length+1]] : [];
-    });
-  const quotes = MosaicState.isMessengerDialogueStyle(context.settings.dlgStyle) && context.dialogue
+  const parallelParts = host.replacePreviewParallelBody(oldParts,next,rawLines.map(raw=>context.lineSettings(raw)),descriptor.parallelEditHints);
+  if(parallelParts !== undefined){
+    const updated = parallelParts.map((part,index)=>part===oldParts[index] && (index<parallelParts.length-1)===(index<oldParts.length-1)
+      ? lines[rawLines[index]] : part+(index<parallelParts.length-1 ? '[BR]' : ''));
+    return replaceLinkedLines(body,lines,rawLines,descriptor.raw,end,updated,'미리보기에서 병행 문단 수정.');
+  }
+  const quotes = MosaicParser.parallelHidesDialogueQuotes(context.lineSettings(descriptor.raw)) && context.dialogue
     ? MosaicParser.dialogueQuoteRanges(oldParts.join(MosaicParser.SOFT_BREAK_TOKEN),context.settings,{rawSource:true}) : null;
-  let partOffset=0,outputOffset=0;
+  let partOffset=0;
   const updated = parts.map((part,index) => {
     if(oldParts[index] === undefined) return part;
     const settings=context.lineSettings(rawLines[index]),start=partOffset,partEnd=start+oldParts[index].length;
     partOffset=partEnd+1;
-    const quoteStart=outputOffset,quoteEnd=quoteStart+outputParts[index].length;
-    outputOffset=quoteEnd+1;
-    const lineSettings=translationQuotes.length ? {...settings,parallelTranslationQuoteRanges:translationQuotes
-      .filter(range=>range[0]>=quoteStart && range[1]<=quoteEnd).map(range=>range.map(at=>at-quoteStart))} : settings;
     return host.replacePreviewBodyLine(oldParts[index],part,quotes
-      ? {...lineSettings,messengerQuoteRanges:quotes.filter(range=>range[0]>=start && range[1]<=partEnd).map(range=>range.map(at=>at-start))} : lineSettings,descriptor.parallelEditHints?.[index]);
+      ? {...settings,messengerQuoteRanges:quotes.filter(range=>range[0]>=start && range[1]<=partEnd).map(range=>range.map(at=>at-start))} : settings,descriptor.parallelEditHints?.[index]);
   }).map((part,index) => part + (index < parts.length - 1 ? '[BR]' : ''));
-  const replacement = []; let index = 0;
-  for(let raw=descriptor.raw;raw<=end;raw++){
-    if(raw === rawLines[index]){
-      if(index < updated.length) replacement.push(updated[index]);
-      index++;
-    }else replacement.push(lines[raw]);
-  }
-  replacement.push(...updated.slice(rawLines.length));
-  return replaceLines(body,lines,descriptor.raw,end,replacement,'미리보기에서 같은 문단 줄바꿈 수정.');
+  return replaceLinkedLines(body,lines,rawLines,descriptor.raw,end,updated,'미리보기에서 같은 문단 줄바꿈 수정.');
 }
 
 function planBodyChange(body, descriptor, next, context){
@@ -1076,13 +1204,36 @@ function planBodyChange(body, descriptor, next, context){
   if(descriptor.segmented && descriptor.sourceBounds){
     const settings=context.lineSettings(descriptor.raw);
     const bounds=host.messengerEditSourceBounds(rawLine,descriptor.sourceBounds,settings);
-    const segment=rawLine.slice(bounds.start,bounds.end);
-    const nextSegment=host.replacePreviewBodyLine(segment,next,context.lineSettings(descriptor.raw,bounds.start),descriptor.parallelEditHints?.[0]);
-    updated=rawLine.slice(0,bounds.start)+nextSegment+rawLine.slice(bounds.end);
+    updated=host.replacePreviewFormattedSegment(rawLine,next,settings,bounds,descriptor.projection,descriptor.parallelEditHints?.[0]);
+    if(updated===undefined){
+      const segment=rawLine.slice(bounds.start,bounds.end);
+      const nextSegment=host.replacePreviewBodyLine(segment,next,context.lineSettings(descriptor.raw,bounds.start),descriptor.parallelEditHints?.[0]);
+      updated=rawLine.slice(0,bounds.start)+nextSegment+rawLine.slice(bounds.end);
+    }
   }else updated=host.replacePreviewBodyLine(rawLine,next,context.lineSettings(descriptor.raw),descriptor.parallelEditHints?.[0]);
   return replaceLines(body,lines,descriptor.raw,descriptor.raw,!descriptor.segmented && updated === '' ? [] : [updated],'미리보기에서 본문 수정.');
 }
-return Object.freeze({planBodyChange,planCommentChange});
+function planSearchChange(body, matches, replacement, lineSettings){
+  if(matches.some(match=>match.before!==body)) return null;
+  const lines=body.split('\n'), rows=new Map();let count=0;
+  for(const match of matches){
+    if(!match.target) continue;
+    const {raw,range}=match.target;
+    if(!Number.isInteger(raw) || lines[raw]===undefined || range.start<0 || range.end>lines[raw].length || range.end<=range.start) return null;
+    if(!rows.has(raw))rows.set(raw,new Map());
+    const ranges=rows.get(raw);
+    ranges.set(range.start+':'+range.end,range);
+  }
+  for(const [raw,unique] of rows){
+    const ranges=[...unique.values()].sort((a,b)=>b.start-a.start);
+    if(ranges.some((range,index)=>index && range.end>ranges[index-1].start)) return null;
+    let line=lines[raw];
+    for(const range of ranges)line=host.replaceSourceRange(line,range,replacement,lineSettings(raw));
+    lines[raw]=line;count+=ranges.length;
+  }
+  return count ? {before:body,after:lines.join('\n'),count} : null;
+}
+return Object.freeze({planBodyChange,planCommentChange,planSearchChange});
 }
 
 return Object.freeze({createSourceMapping,createPreviewSourceEdits});
