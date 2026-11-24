@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 조각로그 v1.10.0 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
+<!-- 조각로그 v1.10.1 · 배포본 index(v1.4.2.1) 기반 기능 통합·정리본 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -19,7 +19,7 @@
 <div id="sidebar">
   <div id="sidebarTop">
     <div id="brandRow">
-      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.10.0 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.10.0</a></span></h1>
+      <h1><span class="brandName"><span class="brandInitial">조</span>각<span class="brandLogInitial">로</span>그</span><span class="brandMeta"><span class="enName">M<span class="enTighterSpacing">os</span>a<span class="enTightSpacing">i</span>c <span class="enTighterSpacing">Lo</span>g</span><a class="appVersion" href="https://github.com/mosaic-log/mosaic-log.github.io" target="_blank" rel="noopener noreferrer" title="GitHub에서 현재 버전 보기" aria-label="조각로그 v1.10.1 GitHub 저장소 열기"><span class="versionPrefix">v</span>1.10.1</a></span></h1>
       <span class="brandActions">
         <span id="draftStatus" class="draftStatus" data-state="saved" aria-live="polite">저장됨</span>
         <button class="uiButton" type="button" id="archiveOpenBtn" aria-expanded="false" aria-controls="archiveDrawer">보관함</button>
@@ -796,7 +796,8 @@
         <p class="hint" data-parallel-help="bracket"><b>배치:</b> 자동: 표현 방식 기준 · 이어쓰기: 같은 줄 · 아래쓰기: 다음 줄</p>
         <p class="hint" data-parallel-help="paragraph" hidden><b>입력:</b> 원문 한 문단 → 줄바꿈 → 번역 한 문단</p>
         <p class="hint" data-parallel-help="paragraph" hidden><b>입력 예시:</b><br><code>He waited.</code><br><code>그는 기다렸다.</code><br><code>"Hello."</code><br><code>"안녕."</code></p>
-        <p class="hint" data-parallel-help="paragraph" hidden><b>입력 순서:</b> 카드 첫 본문 언어 기준 · 영문→한글 / 한글→영문</p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>입력 순서:</b> 한글·영문·일문 지원 · 카드 첫 본문 언어 → 다른 언어</p>
+        <p class="hint" data-parallel-help="paragraph" hidden><b>일문 판정:</b> 히라가나·가타카나 기준 · 한자만 있는 문단은 제외</p>
         <p class="hint" data-parallel-help="paragraph" hidden><b>짝 제외:</b> 같은 언어끼리 · 반대 순서 · 짝 없는 문단은 일반 출력</p>
         <p class="hint" data-parallel-help="common"><b>표시 순서:</b> 선택한 쪽 먼저 · 입력 원문 유지 · 보조 문장은 작게·보조색</p>
         <p class="hint" data-parallel-help="bracket"><b>개별 제외:</b> 미리보기에서 번역 구간 선택 → 병행 제외</p>
@@ -1514,9 +1515,9 @@
   <button type="button" id="undoBtn">되돌리기</button>
 </div>
 
-<script src="./state.js?v=90c3bc778832" defer></script>
+<script src="./state.js?v=386cdf3d2b47" defer></script>
 <script src="./parser.js?v=af191873e9fd" defer></script>
-<script src="./renderer.js?v=4eb23ef6be9a" defer></script>
+<script src="./renderer.js?v=7914d35d073e" defer></script>
 <script src="./ui-source.js?v=e6f6e1f4bae8" defer></script>
 <script src="./ui-editor.js?v=afa6c062c09f" defer></script>
 <script src="./ui-preview-edit.js?v=7a4a4fa4103d" defer></script>

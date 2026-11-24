@@ -1355,6 +1355,9 @@ function paragraphPairLanguage(line, settings){
 
   // Korean prose commonly contains Latin names or terms; Hangul takes precedence.
   if(/\p{Script=Hangul}/u.test(text)) return 'ko';
+  // Kana identifies Japanese prose, including Han characters and Latin names.
+  // Han-only text remains unknown because the script does not identify a language.
+  if(/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)) return 'ja';
   if(/\p{Script=Latin}/u.test(text) && !/\p{L}/u.test(text.replace(/\p{Script=Latin}/gu,''))) return 'en';
   return null;
 }
