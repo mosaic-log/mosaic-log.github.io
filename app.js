@@ -496,9 +496,25 @@ function syncArchiveScrollLock(){
   }
 }
 
-function setArchiveDrawerOpen(open){
+let archiveHoverCleanup = null;
+
+function suppressArchiveCloseHover(button){
+  const events=['pointermove','pointerdown','keydown'];
+  const release=()=>{
+    button.classList.remove('archivePointerClosed');
+    events.forEach(type=>document.removeEventListener(type,release,true));
+    if(archiveHoverCleanup===release) archiveHoverCleanup=null;
+  };
+  archiveHoverCleanup=release;
+  button.classList.add('archivePointerClosed');
+  events.forEach(type=>document.addEventListener(type,release,true));
+}
+
+function setArchiveDrawerOpen(open, {pointerClose=false} = {}){
   const drawer = document.getElementById('archiveDrawer');
   const button = document.getElementById('archiveOpenBtn');
+  archiveHoverCleanup?.();
+  if(!open && pointerClose) suppressArchiveCloseHover(button);
   drawer.hidden = !open;
   drawer.setAttribute('aria-hidden', String(!open));
   button.setAttribute('aria-expanded', String(open));
@@ -510,7 +526,9 @@ function setArchiveDrawerOpen(open){
     });
   }else{
     MosaicUI.closeSlotExportMenu();
-    button.focus({preventScroll:true});
+    if(pointerClose){
+      if(drawer.contains(document.activeElement)) document.activeElement.blur();
+    } else button.focus({preventScroll:true});
   }
 }
 
@@ -1629,7 +1647,7 @@ document.getElementById('archiveOpenBtn').addEventListener('click', () => {
   setArchiveDrawerOpen(document.getElementById('archiveDrawer').hidden);
 });
 
-document.getElementById('archiveCloseBtn').addEventListener('click', () => setArchiveDrawerOpen(false));
+document.getElementById('archiveCloseBtn').addEventListener('click', event => setArchiveDrawerOpen(false, {pointerClose:event.detail>0}));
 window.addEventListener('resize', syncArchiveScrollLock);
 
 document.getElementById('archiveDrawer').addEventListener('keydown', e => {

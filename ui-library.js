@@ -468,8 +468,8 @@ function showJSONImportIssue(kind, issue){
 
 function showSlotReadError(issue){
   const status = document.getElementById('slotImportStatus');
-  host.setStatus(status, `${issue || '기존 보관함을 읽지 못했습니다.'} 저장 데이터는 변경하지 않았습니다. 내보내기로 원본 백업을 시도할 수 있습니다.`, 'error');
-  slotReadStatusText = status.textContent;
+  host.setStatus(status, `${issue || '기존 보관함을 읽지 못했습니다.'} 저장 데이터는 변경하지 않았습니다. 이전 보관함 → 분석용 TXT 내보내기에서 원본을 보관해 주세요.`, 'error');
+  slotReadStatusText=status.textContent;
 }
 
 function collectValidatedSlotWork(){
@@ -504,9 +504,9 @@ let slotRenderRevision = 0;
 
 let displayedSlotRead = {raw:undefined,issue:''};
 
-let slotReadStatusText = '';
-
 let slotLoadRevision = 0;
+let slotSourceRevision = 0;
+let slotReadStatusText = '';
 
 async function loadCurrentSlot(id){
   const revision=++slotLoadRevision;
@@ -602,6 +602,9 @@ async function renderSlotList(){
   const slots = read.slots;
   if(revision !== slotRenderRevision) return;
   displayedSlotRead = {raw:read.raw,bytes:read.bytes,issue:read.issue};
+  const notice=document.getElementById('slotStorageNotice');
+  notice.textContent=read.notice || '';
+  notice.hidden=!read.notice;
   container.setAttribute('aria-busy', 'false');
   container.innerHTML = '';
   document.getElementById('exportSlotsBtn').textContent = displayedSlotRead.issue ? '원본 백업' : '전체 내보내기';
@@ -617,11 +620,9 @@ async function renderSlotList(){
   }
   if(read.issue) showSlotReadError(read.issue);
   else {
-    const status = document.getElementById('slotImportStatus');
-    if((read.notice && read.notice !== slotReadStatusText) || status.textContent === slotReadStatusText){
-      host.setStatus(status, read.notice, 'info');
-    }
-    slotReadStatusText = read.notice;
+    const status=document.getElementById('slotImportStatus');
+    if(slotReadStatusText && status.textContent===slotReadStatusText) host.setStatus(status,'','info');
+    slotReadStatusText='';
   }
   const existingIds = new Set(slots.map(slot => slot.id));
   for(const id of selectedSlotIds) if(!existingIds.has(id)) selectedSlotIds.delete(id);
@@ -783,6 +784,150 @@ function downloadSlotJSON(list, filename){
     URL.revokeObjectURL(url);
   }
   return blob.size;
+}
+
+function downloadArchiveText(raw,filename){
+  const url=URL.createObjectURL(new Blob([raw],{type:'text/plain;charset=utf-8'}));
+  const link=document.createElement('a');
+  try {
+    link.href=url; link.download=filename;
+    document.body.appendChild(link); link.click();
+  } finally { link.remove(); URL.revokeObjectURL(url); }
+}
+
+async function exportArchiveRecovery(){
+  const status=document.getElementById('slotImportStatus');
+  try {
+    const raw=await MosaicStorage.readArchiveRecoveryBackup();
+    downloadArchiveText(raw,'조각로그_보관함_분석용백업.txt');
+    const backup=JSON.parse(raw),limited=backup.issue || backup.enumerationUnavailable || backup.sources.some(source=>source.issue);
+    host.setStatus(status,limited
+      ? '분석용 TXT 내보내기 요청 · 일부 저장소를 확인하지 못해 완전한 백업이 아닐 수 있습니다.'
+      : '분석용 TXT 내보내기 요청','info',limited ? 0 : 3000);
+  } catch(error){ host.setStatus(status,'원본 자료를 읽지 못했습니다. 저장소 접근 설정을 확인한 뒤 다시 시도해 주세요.','error'); }
+}
+
+function archiveSourceLabel(source){
+  if(source.kind==='legacy') return '이전 저장소';
+  try { return decodeURIComponent(source.name.split('/').at(-2) || '로컬 보관함'); }
+  catch(error){ return '로컬 보관함'; }
+}
+
+async function addMissingArchiveSource(name){
+  const status=document.getElementById('slotImportStatus');
+  const source=await MosaicStorage.readArchiveRecoverySource(name);
+  if(source.issue){ showSlotReadError(source.issue); return; }
+  const read=await MosaicStorage.readSlotIndex();
+  if(read.slots===null || read.issue){ showSlotReadError(read.issue); return; }
+  const existing=new Set(read.slots.map(slot=>slot.id)),missing=source.slots.filter(slot=>!existing.has(slot.id));
+  if(!missing.length){ host.setStatus(status,'현재 보관함에 없는 항목이 없습니다. 같은 ID의 자료는 현재 내용을 유지합니다.','info'); return; }
+  if(!confirm(`현재 보관함에 없는 ${missing.length}개를 추가하시겠습니까?\n현재 항목과 이전 원본은 유지합니다. 삭제했던 항목이 포함될 수 있습니다.`)) return;
+  if(!await MosaicStorage.saveSlots([...missing,...read.slots],read.slots)){
+    host.setStatus(status,MosaicStorage.slotSaveFailure,'error'); return;
+  }
+  await renderSlotList();
+  host.setStatus(status,`${missing.length}개 추가 · 기존 항목 유지`,'success');
+  await renderArchiveSources();
+}
+
+function closeArchiveSources(restoreFocus=false){
+  const container=document.getElementById('slotSourceList');
+  const inside=container.contains(document.activeElement);
+  slotSourceRevision++;
+  container.hidden=true;
+  container.setAttribute('aria-busy','false');
+  document.getElementById('archiveSourcesBtn').setAttribute('aria-expanded','false');
+  if(restoreFocus && inside) document.getElementById('slotExportMenuBtn').focus({preventScroll:true});
+}
+
+function archiveSourceSummary(result,ids){
+  if(!ids) return result.sources.some(source=>source.canActivate) ? '사용할 보관함 선택' : '누락 항목 확인 불가';
+  const missing=new Set();
+  result.sources.forEach(source=>{
+    if(!source.issue) source.slots.forEach(slot=>{ if(!ids.has(slot.id)) missing.add(slot.id); });
+  });
+  const incomplete=result.enumerationUnavailable || result.issue || result.sources.some(source=>source.issue);
+  if(incomplete) return missing.size ? `누락 항목 ${missing.size}개 · 일부 확인 불가` : '누락 항목 확인 불가';
+  return missing.size ? `누락 항목 ${missing.size}개` : '누락된 항목 없음';
+}
+
+async function renderArchiveSources(){
+  const revision=++slotSourceRevision,container=document.getElementById('slotSourceList');
+  const summary=document.getElementById('slotSourceSummary'),items=document.getElementById('slotSourceItems');
+  container.hidden=false;
+  container.setAttribute('aria-busy','true');
+  document.getElementById('archiveSourcesBtn').setAttribute('aria-expanded','true');
+  summary.textContent='누락 항목 확인 중…';
+  try {
+    const result=await MosaicStorage.readArchiveRecoverySources();
+    const current=await MosaicStorage.readSlotIndex();
+    if(revision!==slotSourceRevision) return;
+    const backupControls=document.getElementById('archiveSourceBackup');
+    items.replaceChildren(backupControls);
+    const ids=current.slots && !current.issue ? new Set(current.slots.map(slot=>slot.id)) : null;
+    summary.textContent=archiveSourceSummary(result,ids);
+    if(!result.sources.length){
+      const empty=document.createElement('p'); empty.className='hint';
+      empty.textContent='확인할 이전 보관함 없음'; items.insertBefore(empty,backupControls);
+    }
+    if(result.enumerationUnavailable){
+      const hint=document.createElement('p'); hint.className='uiStatus';
+      hint.textContent='이 브라우저에서 확인 가능한 저장소만 표시'; items.insertBefore(hint,backupControls);
+    }
+    if(result.issue){
+      const hint=document.createElement('p'); hint.className='uiStatus'; hint.dataset.state='error';
+      hint.textContent=result.issue; items.insertBefore(hint,backupControls);
+    }
+    for(const source of result.sources){
+      const row=document.createElement('div'); row.className='slotRow archiveSourceRow';
+      const identity=document.createElement('span'); identity.className='slotIdentity';
+      const title=document.createElement('span'); title.className='slotName'; title.textContent=archiveSourceLabel(source);
+      if(source.kind==='database'){
+        try { title.title=decodeURIComponent(source.name.slice(source.name.indexOf(':')+1)); }
+        catch(error){ title.title=archiveSourceLabel(source); }
+      }
+      const meta=document.createElement('span'); meta.className='slotDate';
+      const missing=ids ? source.slots.filter(slot=>!ids.has(slot.id)).length : null;
+      meta.textContent=source.issue ? '원본 확인 필요' : `${source.slots.length}개${source.active?' · 사용 중':missing===null?'':` · 현재에 없음 ${missing}개`}`;
+      identity.append(title,meta);
+      const actions=document.createElement('div'); actions.className='slotActions';
+      const action=(label,run)=>{
+        const button=document.createElement('button'); button.type='button'; button.className='btnQuiet uiButton'; button.textContent=label;
+        button.addEventListener('click',async()=>{
+          if(button.disabled) return;
+          button.disabled=true;
+          try { await run(); }
+          catch(error){ host.setStatus('slotImportStatus',error.name==='StorageConflictError'
+            ? '다른 작업에서 사용할 보관함을 선택했습니다. 목록을 다시 확인해 주세요.'
+            : '이전 보관함 작업을 완료하지 못했습니다. 다시 확인해 주세요.','error'); }
+          finally { button.disabled=false; }
+        });
+        actions.appendChild(button); return button;
+      };
+      if(source.canActivate) action('사용',async()=>{
+        if(!confirm(`'${archiveSourceLabel(source)}' 보관함 ${source.slots.length}개를 사용하시겠습니까?\n앞으로 로컬 작업본에서 이 보관함을 함께 사용합니다. 다른 원본은 유지합니다.`)) return;
+        const selectionRevision=slotSourceRevision;
+        await MosaicStorage.activateArchiveSource(source.name);
+        await renderSlotList();
+        if(selectionRevision===slotSourceRevision && !displayedSlotRead.issue) closeArchiveSources(true);
+      });
+      else if(ids && !source.active && !source.issue){
+        action('누락 추가',()=>addMissingArchiveSource(source.name)).disabled=!missing;
+      }
+      action('내보내기',async()=>{
+        const latest=await MosaicStorage.readArchiveRecoverySource(source.name);
+        if(latest.issue) downloadArchiveText(JSON.stringify({name:latest.name,records:latest.records,raw:latest.raw,issue:latest.issue}),'조각로그_이전보관함_복구자료.txt');
+        else downloadJSONParts(MosaicStorage.slotExportPayload(latest.slots),'조각로그_이전보관함.json',MosaicStorage.MAX_ARCHIVE_BYTES,MosaicStorage.MAX_IMPORTED_SLOTS);
+        host.setStatus('slotImportStatus','이전 보관함 내보내기를 요청했습니다.','info');
+      });
+      row.append(identity,actions); items.insertBefore(row,backupControls);
+    }
+  } catch(error){
+    if(revision===slotSourceRevision){
+      summary.textContent='누락 항목 확인 불가';
+      host.setStatus('slotImportStatus','이전 보관함을 읽지 못했습니다. 저장소 접근 설정을 확인해 주세요.','error');
+    }
+  } finally { if(revision===slotSourceRevision) container.setAttribute('aria-busy','false'); }
 }
 
 function downloadJSONParts(list, filename, maxBytes, maxItems, numbered = false){
@@ -2170,6 +2315,13 @@ async function importArchiveFile(file){
   if(list === null){
     if(!read.missing){ showSlotReadError(read.issue); return; }
     if(!confirm('현재 보관함 자료가 없습니다. 선택한 JSON 파일로 보관함을 복원하시겠습니까?\n이전 저장소 사본은 자동으로 합치지 않습니다.')) return;
+    if(read.missingDatabase){
+      const status=document.getElementById('slotImportStatus');
+      if(!await MosaicStorage.restoreMissingArchive(result.items,read)){ host.setStatus(status,MosaicStorage.slotSaveFailure,'error'); return; }
+      await renderSlotList();
+      host.setStatus(status,`불러오기 완료 — ${result.items.length}개 추가, 0개 덮어씀.`,'success');
+      return;
+    }
     list = [];
   }
   let added = 0, updated = 0;
@@ -2265,6 +2417,15 @@ document.addEventListener('click', event => {
 document.getElementById('exportSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSlots(); });
 
 document.getElementById('exportSplitSlotsBtn').addEventListener('click', () => { closeSlotExportMenu(true);exportSplitSlots(); });
+
+document.getElementById('archiveSourcesBtn').addEventListener('click', () => {
+  closeSlotExportMenu(true);
+  const sources=document.getElementById('slotSourceList');
+  if(!sources.hidden) closeArchiveSources();
+  else renderArchiveSources();
+});
+document.getElementById('archiveSourcesCloseBtn').addEventListener('click', () => closeArchiveSources(true));
+document.getElementById('exportRecoverySlotsBtn').addEventListener('click', () => exportArchiveRecovery());
 
 document.getElementById('exportSelectedSlotsBtn').addEventListener('click', () => exportSlots(true));
 

@@ -352,7 +352,8 @@
     font-weight:650;
     white-space:nowrap;
   }
-  #archiveOpenBtn:hover, #archiveOpenBtn[aria-expanded="true"] { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
+  #archiveOpenBtn:not(.archivePointerClosed):hover, #archiveOpenBtn[aria-expanded="true"] { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
+  #archiveOpenBtn.archivePointerClosed { transition:none; }
   #archiveDrawer {
     position:fixed;
     inset:0 auto 0 0;
@@ -383,10 +384,12 @@
   }
   .archiveDrawerHead { display:flex; align-items:center; justify-content:space-between; min-height:38px; margin-bottom:10px; }
   .archiveDrawerTitle { font-size:18px; font-weight:800; }
-  #archiveCloseBtn { position:relative; flex:none; width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); font-size:0; }
+  #archiveCloseBtn, #archiveSourcesCloseBtn { position:relative; flex:none; width:32px; height:32px; padding:0; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--ink-faint); }
+  #archiveCloseBtn { font-size:0; }
+  #archiveSourcesCloseBtn { font-size:14px; line-height:1; }
   #archiveCloseBtn::before, #archiveCloseBtn::after { content:''; position:absolute; top:50%; left:50%; width:14px; height:1.6px; background:currentColor; transform:translate(-50%, -50%) rotate(45deg); }
   #archiveCloseBtn::after { transform:translate(-50%, -50%) rotate(-45deg); }
-  #archiveCloseBtn:hover { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
+  #archiveCloseBtn:hover, #archiveSourcesCloseBtn:hover { border-color:transparent; background:var(--bg-muted); color:var(--ink); }
   #draftConflictBtn {
     flex: none;
     min-height: 24px;
@@ -1611,7 +1614,7 @@
   }
   #archiveDrawer .archiveHelpList li { display:grid; gap:2px; }
   #archiveDrawer .archiveHelpList strong { color:var(--help-ink-strong); font-weight:650; }
-  #slotList {
+  #slotList, #slotSourceItems {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -1621,6 +1624,10 @@
     overflow-y: auto;
     scrollbar-gutter: stable;
   }
+  #slotSourceList[hidden] { display:none; }
+  .archiveSourceHead { gap:8px; margin:8px 6px 2px; }
+  #slotSourceSummary { min-width:0; overflow-wrap:anywhere; }
+  .archiveSourceBackup { display:flex; align-items:center; margin:8px 6px 0; }
   .slotEmpty {
     padding: 18px 8px;
     text-align: center;
@@ -1641,6 +1648,9 @@
   }
   .slotRow:hover { border-color: var(--line-strong); background: var(--bg-field); }
   .slotRow .slotIdentity, .slotRow .slotActions { display:contents; }
+  #archiveDrawer .archiveSourceRow .slotIdentity { display:flex; flex-direction:column; min-width:0; grid-column:1; }
+  #archiveDrawer .archiveSourceRow .slotName { white-space:normal; overflow-wrap:anywhere; }
+  #archiveDrawer .archiveSourceRow .slotActions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; max-width:150px; grid-column:2; grid-row:1 / 3; }
   .slotRow .slotName { grid-column:1; grid-row:1; }
   .slotRow .slotMeta { grid-column:1; grid-row:2; display:flex; align-items:center; gap:6px; min-width:0; color:var(--ink-faint); }
   .slotRow .slotMeta .slotDate { min-width:0; }
@@ -1671,7 +1681,9 @@
     flex-shrink: 0;
   }
   .slotRow button:hover { color: var(--ink-soft); border-color: var(--line-strong); }
-  #archiveDrawer .slotRow .slotOverwrite {
+  #archiveDrawer .slotRow .slotOverwrite,
+  #archiveDrawer .archiveSourceRow .slotActions button,
+  #archiveDrawer #exportRecoverySlotsBtn {
     background:transparent;
     min-height:24px;
     padding:2px 5px;
@@ -1681,10 +1693,22 @@
     font-size:10px !important;
     line-height:1.4;
   }
+  #archiveDrawer .archiveSourceRow .slotActions button { color:var(--ink-faint); font-weight:400; }
+  #archiveDrawer #exportRecoverySlotsBtn { color:var(--help-ink); font-weight:400; }
   #archiveDrawer .slotRow .slotOverwrite:hover,
-  #archiveDrawer .slotRow .slotOverwrite:focus-visible {
-    background:color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+  #archiveDrawer .slotRow .slotOverwrite:focus-visible,
+  #archiveDrawer .archiveSourceRow .slotActions button:is(:hover, :focus-visible):not(:disabled),
+  #archiveDrawer #exportRecoverySlotsBtn:is(:hover, :focus-visible):not(:disabled) {
+    background:var(--bg-muted);
     color:var(--accent);
+  }
+  @supports (color: color-mix(in srgb, black, white)) {
+    #archiveDrawer .slotRow .slotOverwrite:hover,
+    #archiveDrawer .slotRow .slotOverwrite:focus-visible,
+    #archiveDrawer .archiveSourceRow .slotActions button:is(:hover, :focus-visible):not(:disabled),
+    #archiveDrawer #exportRecoverySlotsBtn:is(:hover, :focus-visible):not(:disabled) {
+      background:color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    }
   }
   .slotRow .slotDel { border:0; background:transparent; min-width:24px; min-height:24px; padding:2px; }
   .slotRow .slotDel:hover { color:#b23b3b; background:transparent; }

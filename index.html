@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&amp;family=Noto+Serif+KR:wght@400;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="./styles.css?v=188b5d58a611">
+<link rel="stylesheet" href="./styles.css?v=fdcd191e98b6">
 </head>
 <body>
 
@@ -1227,10 +1227,23 @@
         <div class="archiveExportMenu" id="slotExportMenu" role="menu" aria-labelledby="slotExportMenuBtn" hidden>
           <button type="button" class="secondary btnSecondary uiButton" id="exportSlotsBtn" role="menuitem" style="flex:1;">전체 내보내기</button>
           <button type="button" class="secondary btnSecondary uiButton" id="exportSplitSlotsBtn" role="menuitem" title="보관함 전체를 10개씩 JSON 파일로 나누어 내보내기">분할 내보내기</button>
+          <button type="button" class="secondary btnSecondary uiButton" id="archiveSourcesBtn" role="menuitem" aria-controls="slotSourceList" aria-expanded="false">이전 보관함</button>
         </div>
       </div>
       <button type="button" class="secondary btnSecondary uiButton" id="importSlotsBtn" style="flex:1;">파일 가져오기</button>
       <input type="file" id="importSlotsFile" accept=".json,.txt,application/json,text/plain" style="display:none;">
+    </div>
+    <div id="slotStorageNotice" class="uiStatus" aria-live="polite" role="status" data-state="info" hidden></div>
+    <div id="slotSourceList" role="region" aria-label="이전 보관함" hidden>
+      <div class="archiveListMeta archiveSourceHead">
+        <span id="slotSourceSummary" aria-live="polite" role="status">누락 항목 확인 중…</span>
+        <button type="button" id="archiveSourcesCloseBtn" class="uiButton" aria-label="이전 보관함 닫기" title="이전 보관함 닫기">×</button>
+      </div>
+      <div id="slotSourceItems">
+        <div id="archiveSourceBackup" class="archiveSourceBackup">
+          <button type="button" class="btnQuiet uiButton" id="exportRecoverySlotsBtn" title="저장소 원본 자료 · 직접 복원 불가">분석용 TXT 내보내기</button>
+        </div>
+      </div>
     </div>
     <div id="slotImportStatus" class="uiStatus" aria-live="polite" role="status" data-state="info"></div>
     <div class="archiveResetRow">
@@ -1248,6 +1261,7 @@
         <li><strong>보관함 용량</strong><span>저장 문자열 크기로 계산한 대략적인 사용량 · 초안·프리셋 제외</span></li>
         <li><strong>전체 내보내기</strong><span>보관함 전체 백업</span></li>
         <li><strong>분할 내보내기</strong><span>보관함 전체를 10개씩 JSON 파일로 나누어 백업</span></li>
+        <li><strong>이전 보관함</strong><span>이전 로컬 경로·저장소 확인 · 현재에 없는 항목만 추가</span></li>
       </ul>
     </details>
   </div>
@@ -1522,10 +1536,10 @@
 <script src="./ui-editor.js?v=afa6c062c09f" defer></script>
 <script src="./ui-preview-edit.js?v=7a4a4fa4103d" defer></script>
 <script src="./ui-preview-view.js?v=8ee4eae855e4" defer></script>
-<script src="./ui-library.js?v=4db339a89a3a" defer></script>
+<script src="./ui-library.js?v=a416d1c5060f" defer></script>
 <script src="./ui.js?v=0e598d1631e3" defer></script>
-<script src="./storage.js?v=abc75cc81b39" defer></script>
-<script src="./app.js?v=36558f74e033" defer></script>
+<script src="./storage.js?v=de9fde137505" defer></script>
+<script src="./app.js?v=afdc58afb61b" defer></script>
 
 </body>
 </html>

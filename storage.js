@@ -116,7 +116,11 @@ function partitionJSONBackup(list, maxBytes, maxItems){
 }
 
 // 데이터베이스 이름과 이전 원본은 유지하고 로그별 목록·내용 저장소를 추가한다.
-const ARCHIVE_DB_NAME = 'mosaic-log-archive-v1' + (globalThis.location?.protocol === 'file:' ? ':' + globalThis.location.pathname : '');
+const ARCHIVE_DB_PREFIX = 'mosaic-log-archive-v1';
+const LOCAL_ARCHIVE = globalThis.location?.protocol === 'file:';
+const ARCHIVE_DB_NAME = ARCHIVE_DB_PREFIX + (LOCAL_ARCHIVE ? ':' + globalThis.location.pathname : '');
+const ARCHIVE_LOCATION_DB = 'mosaic-log-archive-locations-v1';
+let archiveName, archiveLocationPromise, localArchiveEnumerationIncomplete = false, archiveMayCreate = !LOCAL_ARCHIVE;
 const ARCHIVE_STORE = 'archives';
 const ARCHIVE_INDEX = 'archiveIndex';
 const ARCHIVE_ENTRIES = 'archiveEntries';
@@ -130,28 +134,115 @@ let slotReadIssue = '', lastSlotReadRaw, slotSaveFailure = '', slotReadRevision 
 
 function archiveError(name){ const error = new Error(name); error.name = name; return error; }
 
+// 기존 로컬 DB는 그대로 두고 폴더 이동 후에도 같은 참조를 사용한다.
+function validArchiveLocation(name){
+  return typeof name === 'string' && name.startsWith(ARCHIVE_DB_PREFIX+':/');
+}
+
+async function localArchiveNames(){
+  if(typeof globalThis.indexedDB?.databases !== 'function') return null;
+  try { return (await indexedDB.databases()).map(item=>item.name).filter(validArchiveLocation); }
+  catch(error){ return null; }
+}
+
+function archiveLocationRecord(choose){
+  return new Promise((resolve,reject)=>{
+    if(!globalThis.indexedDB){ reject(archiveError('StorageUnavailableError')); return; }
+    const request=indexedDB.open(ARCHIVE_LOCATION_DB,1);
+    let rejected=false;
+    request.onupgradeneeded=()=>request.result.createObjectStore('locations');
+    request.onblocked=()=>{ rejected=true; reject(archiveError('StorageBlockedError')); };
+    request.onerror=()=>reject(request.error || archiveError('UnknownError'));
+    request.onsuccess=()=>{
+      const db=request.result;
+      if(rejected){ db.close(); return; }
+      try {
+        let result,failure;
+        const tx=db.transaction('locations',choose?'readwrite':'readonly'),store=tx.objectStore('locations'),read=store.get(SLOT_KEY);
+        tx.oncomplete=()=>{ db.close(); resolve(result); };
+        tx.onabort=()=>{ db.close(); reject(failure || tx.error || archiveError('AbortError')); };
+        read.onsuccess=()=>{
+          try {
+            const old=read.result;
+            if(old!==undefined && (!old || old.version!==1 || !validArchiveLocation(old.name))) throw archiveError('StorageDataError');
+            result=old;
+            if(choose){
+              if(old && old.name!==choose) throw archiveError('StorageConflictError');
+              if(!old){ result={version:1,name:choose}; store.put(result,SLOT_KEY); }
+            }
+          } catch(error){ failure=error; tx.abort(); }
+        };
+      } catch(error){ db.close(); reject(error); }
+    };
+  });
+}
+
+async function resolveArchiveName(){
+  if(!LOCAL_ARCHIVE) return ARCHIVE_DB_NAME;
+  if(archiveLocationPromise) return archiveLocationPromise;
+  const pending=(async()=>{
+    const route=await archiveLocationRecord();
+    const names=await localArchiveNames();
+    localArchiveEnumerationIncomplete=names===null;
+    if(route){
+      if(names && !names.includes(route.name)) throw archiveError('StorageMissingError');
+      return route.name;
+    }
+    if(names===null){
+      // 목록 API가 없을 때도 같은 경로의 기존 DB는 읽는다. 새 DB는 만들지 않는다.
+      let db;
+      try { db=await openExistingArchiveDatabase(ARCHIVE_DB_NAME); }
+      catch(error){ throw archiveError('StorageDiscoveryError'); }
+      db.close();
+      return (await archiveLocationRecord(ARCHIVE_DB_NAME)).name;
+    }
+    if(names.length>1) throw archiveError('StorageSourceChoiceError');
+    const chosen=names[0] || ARCHIVE_DB_NAME;
+    const selected=await archiveLocationRecord(chosen);
+    archiveMayCreate=!names.length;
+    return selected.name;
+  })();
+  archiveLocationPromise=pending;
+  pending.catch(()=>{ if(archiveLocationPromise===pending) archiveLocationPromise=undefined; });
+  return pending;
+}
+
+async function activateArchiveSource(name){
+  if(!LOCAL_ARCHIVE || !validArchiveLocation(name)) throw archiveError('StorageDataError');
+  const names=await localArchiveNames();
+  if(!names || !names.includes(name)) throw archiveError('StorageMissingError');
+  await archiveLocationRecord(name);
+  archiveLocationPromise=undefined;
+  archiveReady=undefined;
+  return true;
+}
+
 function openArchiveDatabase(){
   if(archiveDatabase) return archiveDatabase;
-  archiveDatabase = new Promise((resolve,reject) => {
+  archiveDatabase = resolveArchiveName().then(name=>new Promise((resolve,reject) => {
     if(!globalThis.indexedDB){ reject(archiveError('StorageUnavailableError')); return; }
-    const request = globalThis.indexedDB.open(ARCHIVE_DB_NAME,2);
-    let blocked = false;
-    request.onupgradeneeded = () => {
+    archiveName=name;
+    const request = globalThis.indexedDB.open(name,2);
+    let blocked = false, missing = false;
+    request.onupgradeneeded = event => {
+      if(blocked){ request.transaction.abort(); return; }
+      if(LOCAL_ARCHIVE && event.oldVersion===0 && !archiveMayCreate){ missing=true; request.transaction.abort(); return; }
       for(const name of ARCHIVE_STORES){
         if(!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
       }
     };
     request.onblocked = () => { blocked = true; reject(archiveError('StorageBlockedError')); };
-    request.onerror = () => reject(request.error || archiveError('UnknownError'));
+    request.onerror = () => reject(missing ? archiveError('StorageMissingError') : request.error || archiveError('UnknownError'));
     request.onsuccess = () => {
       const db = request.result;
       if(blocked){ db.close(); return; }
-      const forget = () => { archiveDatabase = undefined; archiveReady = undefined; };
+      archiveMayCreate=!LOCAL_ARCHIVE;
+      const forget = () => { archiveDatabase = undefined; archiveReady = undefined; archiveLocationPromise=undefined; };
       db.onversionchange = () => { db.close(); forget(); };
       db.onclose = forget;
       resolve(db);
     };
-  });
+  }));
   archiveDatabase.catch(() => { archiveDatabase = undefined; archiveReady = undefined; });
   return archiveDatabase;
 }
@@ -196,9 +287,17 @@ function currentLegacyStamp(){
 
 function archiveNotice(state){
   const stamp = currentLegacyStamp();
-  return state.legacyStamp !== undefined && stamp !== undefined && state.legacyStamp !== stamp
-    ? '이전 저장소의 자료가 변경되었습니다. 자동으로 합치지 않았습니다. 구버전에서 JSON으로 내보낸 뒤 가져오세요.'
+  const changed=state.legacyStamp !== undefined && stamp !== undefined && state.legacyStamp !== stamp;
+  return changed ? '이전 저장소의 자료가 변경되었습니다. 내보내기 → 이전 보관함에서 확인해 주세요.'
+    : state.legacyUnverified ? '이전 저장소 확인 필요 · 내보내기 → 이전 보관함'
+    : localArchiveEnumerationIncomplete ? '이전 로컬 경로 확인 제한 · 내보내기 → 이전 보관함'
     : state.legacyImported ? '기존 보관함을 새 저장소로 옮겼습니다.' : '';
+}
+
+function unverifiedLegacyArchive(raw,prior){
+  if(raw===undefined || (prior && prior.legacyStamp!==undefined)) return false;
+  try { const legacy=localStorage.getItem(SLOT_KEY); return legacy!==null && legacy!==raw; }
+  catch(error){ return true; }
 }
 
 function legacyArchiveSnapshot(stored,state){
@@ -304,6 +403,7 @@ async function ensureArchiveSplit(){
         old.put({...prior,version:1,legacyStamp,split:true},ARCHIVE_STATE_KEY);
         old.put({schema:2,revision:makeSlotId(),order:prepared.map(item=>item.index.id),
           bytes:prepared.reduce((sum,item)=>sum+item.index.bytes,archiveOverhead(prepared.length)),legacyStamp,
+          legacyUnverified:unverifiedLegacyArchive(raw,prior),
           legacyImported:snapshot.source === 'legacy'},ARCHIVE_SPLIT_KEY);
         // 이전 본문 JSON과 localStorage 원본은 수정하거나 삭제하지 않는다.
         done();
@@ -378,15 +478,26 @@ async function readArchiveView({indexOnly=false,ids=null,allowPartial=false} = {
     } else {
       result.issue = archiveFailureMessage(error);
       if(error.name === 'StorageMissingError'){
-        const empty = await archiveTransaction('readonly',ARCHIVE_STORES,(tx,done,fail) => {
+        const missingLocation=LOCAL_ARCHIVE && await (async()=>{
+          try {
+            const route=await archiveLocationRecord(),names=await localArchiveNames();
+            return route && names && !names.includes(route.name) ? route : null;
+          } catch(error){ return false; }
+        })();
+        if(missingLocation){
+          result.missing=true; result.missingDatabase=true;
+          attachArchiveSnapshot(result,{kind:'missing-database',name:missingLocation.name});
+        } else {
+          const empty = await archiveTransaction('readonly',ARCHIVE_STORES,(tx,done,fail) => {
           archiveRequests([tx.objectStore(ARCHIVE_STORE).get(ARCHIVE_SPLIT_KEY),
             tx.objectStore(ARCHIVE_INDEX).count(),tx.objectStore(ARCHIVE_ENTRIES).count()],
           ([state,indexCount,entryCount]) => done(state === undefined && !indexCount && !entryCount),fail);
         }).catch(() => false);
-        if(empty){
-          result.missing = true;
-          attachArchiveSnapshot(result,{kind:'missing'});
-        } else result.issue = archiveFailureMessage(archiveError('StorageDataError'));
+          if(empty){
+            result.missing = true;
+            attachArchiveSnapshot(result,{kind:'missing'});
+          } else result.issue = archiveFailureMessage(archiveError('StorageDataError'));
+        }
       }
     }
   }
@@ -426,14 +537,133 @@ async function readSlotsBackup(){
   return {raw,source:'legacy'};
 }
 
+// 복구 조회는 이관·버전 업그레이드·빈 DB 생성을 실행하지 않는다.
+function openExistingArchiveDatabase(name){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open(name);
+    let absent=false,blocked=false;
+    request.onupgradeneeded=()=>{ absent=true; request.transaction.abort(); };
+    request.onblocked=()=>{ blocked=true; reject(archiveError('StorageBlockedError')); };
+    request.onerror=()=>reject(absent ? archiveError('StorageMissingError') : request.error);
+    request.onsuccess=()=>{
+      if(blocked){ request.result.close(); return; }
+      resolve(request.result);
+    };
+  });
+}
+
+async function readArchiveRecoverySource(name){
+  const source={name,kind:name==='localStorage'?'legacy':'database',records:{},raw:null,slots:[],issue:''};
+  try {
+    if(name==='localStorage') source.raw=localStorage.getItem(SLOT_KEY);
+    else {
+      if(name!==ARCHIVE_DB_NAME && name!==archiveName && !validArchiveLocation(name)) throw archiveError('StorageDataError');
+      const db=await openExistingArchiveDatabase(name);
+      try {
+        const names=ARCHIVE_STORES.filter(store=>db.objectStoreNames.contains(store));
+        if(!names.includes(ARCHIVE_STORE)) throw archiveError('StorageDataError');
+        source.records=await new Promise((resolve,reject)=>{
+          const tx=db.transaction(names,'readonly'),values={};
+          tx.oncomplete=()=>resolve(values);
+          tx.onabort=()=>reject(tx.error || archiveError('AbortError'));
+          names.forEach(store=>{
+            const object=tx.objectStore(store),keys=object.getAllKeys(),records=object.getAll();
+            records.onsuccess=()=>{ values[store]=records.result.map((value,i)=>({key:keys.result[i],value})); };
+          });
+        });
+      } finally { db.close(); }
+      const old=new Map((source.records[ARCHIVE_STORE] || []).map(item=>[item.key,item.value]));
+      const state=old.get(ARCHIVE_SPLIT_KEY);
+      if(state!==undefined){
+        const indexes=inspectArchiveIndex(state,(source.records[ARCHIVE_INDEX] || []).map(item=>item.value));
+        const records=new Map((source.records[ARCHIVE_ENTRIES] || []).map(item=>[item.key,item.value]));
+        if(records.size!==indexes.length) throw archiveError('StorageDataError');
+        source.slots=indexes.map(index=>inspectArchiveRecord(records.get(index.id),index));
+        source.raw='['+indexes.map(index=>records.get(index.id).raw).join(',')+']';
+        return source;
+      }
+      if((source.records[ARCHIVE_INDEX] || []).length || (source.records[ARCHIVE_ENTRIES] || []).length) throw archiveError('StorageDataError');
+      if(!old.has(SLOT_KEY) && old.has(ARCHIVE_STATE_KEY)) throw archiveError('StorageMissingError');
+      source.raw=old.get(SLOT_KEY) ?? null;
+    }
+    const checked=inspectArchive(source.raw);
+    source.slots=checked.slots; source.issue=checked.issue;
+  } catch(error){ source.issue=archiveFailureMessage(error); }
+  return source;
+}
+
+async function readArchiveRecoverySources(){
+  let names=LOCAL_ARCHIVE ? await localArchiveNames() : [ARCHIVE_DB_NAME];
+  const enumerationUnavailable=names===null;
+  if(names===null) names=[archiveName || ARCHIVE_DB_NAME];
+  let route=null,issue='';
+  if(LOCAL_ARCHIVE){
+    try { route=await archiveLocationRecord(); }
+    catch(error){ issue=archiveFailureMessage(error); }
+  }
+  const sources=[];
+  for(const name of names) sources.push(await readArchiveRecoverySource(name));
+  const legacy=await readArchiveRecoverySource('localStorage');
+  if(legacy.raw!==null || legacy.issue) sources.push(legacy);
+  sources.forEach(source=>{
+    source.active=source.kind==='database' && source.name===(route?.name || (!LOCAL_ARCHIVE ? ARCHIVE_DB_NAME : undefined));
+    source.canActivate=LOCAL_ARCHIVE && !route && !issue && source.kind==='database' && !source.issue;
+  });
+  return {sources,enumerationUnavailable,issue};
+}
+
+async function readArchiveRecoveryBackup(){
+  const result=await readArchiveRecoverySources();
+  return JSON.stringify({app:'mosaic-log-archive-recovery',version:1,enumerationUnavailable:result.enumerationUnavailable,issue:result.issue,
+    sources:result.sources.map(({name,kind,records,raw,issue,active})=>({name,kind,records,raw,issue,active}))});
+}
+
+// DB 자체가 없을 때의 명시적 JSON 복원. 생성·본문·완료 표식을 같은 upgrade에 넣는다.
+async function restoreMissingArchive(items,read){
+  slotSaveFailure='';
+  try {
+    const snapshot=slotReadSnapshots.get(read),route=await archiveLocationRecord(),names=await localArchiveNames();
+    if(!LOCAL_ARCHIVE || !snapshot || snapshot.kind!=='missing-database' || route?.name!==snapshot.name
+      || !names || names.includes(snapshot.name) || !Array.isArray(items) || !items.length) throw archiveError('StorageConflictError');
+    const prepared=items.map(slot=>prepareArchiveEntry({...slot,id:slot.id || makeSlotId()}));
+    if(new Set(prepared.map(item=>item.index.id)).size!==prepared.length) throw archiveError('StorageDataError');
+    await new Promise((resolve,reject)=>{
+      const request=indexedDB.open(snapshot.name,2);
+      let created=false,failure,blocked=false;
+      request.onblocked=()=>{ blocked=true; reject(archiveError('StorageBlockedError')); };
+      request.onupgradeneeded=event=>{
+        if(blocked){ request.transaction.abort(); return; }
+        if(event.oldVersion!==0){ failure=archiveError('StorageConflictError'); request.transaction.abort(); return; }
+        try {
+          created=true;
+          ARCHIVE_STORES.forEach(name=>request.result.createObjectStore(name));
+          const tx=request.transaction,old=tx.objectStore(ARCHIVE_STORE),stamp=currentLegacyStamp();
+          prepared.forEach(item=>{ tx.objectStore(ARCHIVE_INDEX).put(item.index,item.index.id); tx.objectStore(ARCHIVE_ENTRIES).put(item.record,item.record.id); });
+          old.put({version:1,legacyStamp:stamp,split:true},ARCHIVE_STATE_KEY);
+          old.put({schema:2,revision:makeSlotId(),order:prepared.map(item=>item.index.id),
+            bytes:prepared.reduce((sum,item)=>sum+item.index.bytes,archiveOverhead(prepared.length)),
+            legacyStamp:stamp,legacyImported:false,legacyUnverified:true},ARCHIVE_SPLIT_KEY);
+        } catch(error){ failure=error; request.transaction.abort(); }
+      };
+      request.onerror=()=>reject(failure || request.error || archiveError('AbortError'));
+      request.onsuccess=()=>{ request.result.close(); if(blocked) return; created ? resolve() : reject(archiveError('StorageConflictError')); };
+    });
+    archiveDatabase=undefined; archiveReady=undefined; archiveLocationPromise=undefined;
+    return true;
+  } catch(error){ slotSaveFailure=archiveFailureMessage(error); return false; }
+}
+
 function archiveFailureMessage(error){
   const name = error && error.name;
   if(name === 'QuotaExceededError') return '브라우저 보관함 저장 공간이 부족합니다. JSON으로 백업한 뒤 불필요한 항목을 정리해 주세요.';
   if(name === 'SecurityError' || name === 'NotAllowedError') return '브라우저에서 보관함 저장소 접근을 차단했습니다. 사이트 데이터 저장 허용 설정을 확인해 주세요.';
   if(name === 'StorageUnavailableError') return '이 브라우저에서는 보관함 저장소를 사용할 수 없습니다. 저장을 지원하는 브라우저에서 열어 주세요.';
   if(name === 'StorageBlockedError' || name === 'VersionError') return '다른 조각로그 탭을 닫은 뒤 다시 시도해 주세요. 보관함 저장소를 열지 못했습니다.';
+  if(name === 'StorageSourceChoiceError') return '이전 로컬 보관함이 여러 개입니다. 내보내기 → 이전 보관함에서 사용할 보관함을 선택해 주세요.';
+  if(name === 'StorageDiscoveryError') return '이 브라우저에서는 이전 로컬 보관함을 찾을 수 없습니다. 이전 파일에서 JSON으로 내보내거나 지원 브라우저에서 확인해 주세요.';
   if(name === 'StorageMissingError') return '현재 보관함 자료가 없어 이전 사본을 자동으로 불러오지 않았습니다. JSON 백업을 확인해 주세요.';
   if(name === 'StorageDataError') return '보관함 목록과 내용의 저장 상태를 확인하지 못했습니다. 원본 백업을 먼저 보관해 주세요.';
+  if(name === 'StorageConflictError') return '다른 작업에서 보관함이 변경되었습니다. 목록을 다시 확인해 주세요.';
   return '브라우저 보관함 저장소에 오류가 발생했습니다. 다시 시도하거나 JSON 백업을 확인해 주세요.';
 }
 
@@ -915,6 +1145,11 @@ writeDraftRaw,
 inspectJSONImport,
 readJSONImportFile,
 readSlotsBackup,
+activateArchiveSource,
+readArchiveRecoverySources,
+readArchiveRecoverySource,
+readArchiveRecoveryBackup,
+restoreMissingArchive,
 get lastPresetReadRaw(){ return lastPresetReadRaw; },
 get lastSlotReadRaw(){ return lastSlotReadRaw; },
 get presetSaveFailure(){ return presetSaveFailure; },
