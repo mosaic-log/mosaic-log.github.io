@@ -198,7 +198,7 @@ function archiveNotice(state){
   const stamp = currentLegacyStamp();
   return state.legacyStamp !== undefined && stamp !== undefined && state.legacyStamp !== stamp
     ? '이전 저장소의 자료가 변경되었습니다. 자동으로 합치지 않았습니다. 구버전에서 JSON으로 내보낸 뒤 가져오세요.'
-    : state.legacyImported ? '이전 저장소에서 이관한 보관함입니다. 최신 자료인지 확인해 주세요.' : '';
+    : state.legacyImported ? '기존 보관함을 새 저장소로 옮겼습니다.' : '';
 }
 
 function legacyArchiveSnapshot(stored,state){
