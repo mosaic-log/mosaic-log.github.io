@@ -888,7 +888,7 @@ async function renderArchiveSources(){
       }
       const meta=document.createElement('span'); meta.className='slotDate';
       const missing=ids ? source.slots.filter(slot=>!ids.has(slot.id)).length : null;
-      meta.textContent=source.issue ? '원본 확인 필요' : `${source.slots.length}개${source.active?' · 사용 중':missing===null?'':` · 현재에 없음 ${missing}개`}`;
+      meta.textContent=source.issue ? '원본 확인 필요' : `${source.slots.length}개${source.active?' · 사용 중':missing===null?'':` · 누락 ${missing}개`}`;
       identity.append(title,meta);
       const actions=document.createElement('div'); actions.className='slotActions';
       const action=(label,run)=>{
